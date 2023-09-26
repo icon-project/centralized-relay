@@ -3,6 +3,7 @@ module github.com/icon-project/centralized-relay
 go 1.20
 
 require (
+	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0
 	go.uber.org/zap v1.26.0
