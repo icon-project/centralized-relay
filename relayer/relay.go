@@ -25,5 +25,25 @@ func Start(
 
 	fmt.Println("started main loop")
 
+	go Relay(
+		ctx,
+		log,
+		chains,
+		flushInterval,
+		fresh,
+		errorChan,
+	)
+
 	return errorChan
+}
+
+func Relay(
+	ctx context.Context,
+	log *zap.Logger,
+	chains map[string]*Chain,
+	flushInterval time.Duration,
+	fresh bool,
+	errCh chan error,
+) {
+
 }

@@ -9,13 +9,9 @@ import (
 )
 
 type Chain struct {
-	log *zap.Logger
-
+	log           *zap.Logger
 	ChainProvider provider.ChainProvider
-	Chainid       string `yaml:"chain-id" json:"chain-id"`
-	RPCAddr       string `yaml:"rpc-addr" json:"rpc-addr"`
-
-	debug bool
+	debug         bool
 }
 
 // Chains is a collection of Chain (mapped by chain_name)
