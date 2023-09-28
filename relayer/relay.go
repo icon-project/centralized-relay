@@ -27,8 +27,28 @@ func Start(
 	errorChan := make(chan error, 1)
 	relayer := NewRelayer(chains, log)
 	go relayer.StartListeners(ctx, flushInterval, fresh, errorChan)
-	go relayer.StartBlockProcessor(ctx, errorChan)
+	go relayer.StartBlockProcessors(ctx, errorChan)
 	return errorChan
+}
+
+type Relayer struct {
+	chains          map[string]*Chain
+	log             *zap.Logger
+	listenerChans   map[string]chan provider.BlockInfo
+	lastsavedBlocks map[string]uint64
+}
+
+func NewRelayer(chains map[string]*Chain, log *zap.Logger) *Relayer {
+	listenerChans := make(map[string]chan provider.BlockInfo, len(chains))
+	for chainID := range chains {
+		listenerChans[chainID] = make(chan provider.BlockInfo, listenerChannelBufferSize)
+	}
+
+	return &Relayer{
+		chains:        chains,
+		log:           log,
+		listenerChans: listenerChans,
+	}
 }
 
 // processBlockInfo performs these operations
@@ -37,16 +57,19 @@ func Start(
 func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockInfo provider.BlockInfo) {
 
 	// saving should not the thread dependent
-	err := r.SaveBlockHeight(ctx, srcChain, blockInfo.Height)
-	if err != nil {
-		fmt.Println("unable to save height ", err)
+	// if message > 0 or after certain block
+
+	if len(blockInfo.Messages) > 0 {
+		err := r.SaveBlockHeight(ctx, srcChain, blockInfo.Height)
+		if err != nil {
+			r.log.Error("unable to save height", zap.Error(err))
+		}
 	}
 	go r.RouteMessages(ctx, blockInfo)
 
 }
 
 func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
-
 	callback := func(response provider.ExecuteMessageResponse) {
 		if response.Code == provider.Success {
 			if response.GetRetry() > 0 {
@@ -90,28 +113,11 @@ func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, srcChain string, height uint64) error {
 	r.log.Debug("saving height:", zap.String("srcChain", srcChain), zap.Uint64("height", height))
+
 	return nil
 }
 
-type Relayer struct {
-	chains        map[string]*Chain
-	log           *zap.Logger
-	listenerChans map[string]chan provider.BlockInfo
-}
-
-func NewRelayer(chains map[string]*Chain, log *zap.Logger) *Relayer {
-	listenerChans := make(map[string]chan provider.BlockInfo, len(chains))
-	for chainID := range chains {
-		listenerChans[chainID] = make(chan provider.BlockInfo, listenerChannelBufferSize)
-	}
-	return &Relayer{
-		chains:        chains,
-		log:           log,
-		listenerChans: listenerChans,
-	}
-}
-
-func (r *Relayer) StartBlockProcessor(ctx context.Context, errorChan chan error) {
+func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error) {
 	var eg errgroup.Group
 
 	for chainID, chainChan := range r.listenerChans {
