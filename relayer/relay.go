@@ -2,7 +2,7 @@ package relayer
 
 import (
 	"context"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -13,6 +13,7 @@ import (
 var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
+	DefaultTxRetry            = 5
 )
 
 // main start loop
@@ -23,19 +24,73 @@ func Start(
 	flushInterval time.Duration,
 	fresh bool,
 ) chan error {
-
 	errorChan := make(chan error, 1)
-
 	relayer := NewRelayer(chains, log)
-
-	go relayer.StartListeners(
-		ctx,
-		flushInterval,
-		fresh,
-		errorChan,
-	)
+	go relayer.StartListeners(ctx, flushInterval, fresh, errorChan)
 	go relayer.StartBlockProcessor(ctx, errorChan)
 	return errorChan
+}
+
+// processBlockInfo performs these operations
+// save block height to database
+// send messages to destionation chain
+func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockInfo provider.BlockInfo) {
+
+	// saving should not the thread dependent
+	err := r.SaveBlockHeight(ctx, srcChain, blockInfo.Height)
+	if err != nil {
+		fmt.Println("unable to save height ", err)
+	}
+	go r.RouteMessages(ctx, blockInfo)
+
+}
+
+func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
+
+	callback := func(response provider.ExecuteMessageResponse) {
+		if response.Code == provider.Success {
+			if response.GetRetry() > 0 {
+				//TODO: remove from DB too
+			}
+			r.log.Info("Successfully relayed message:",
+				zap.String("src chain", response.Src),
+				zap.String("dst chain", response.Target),
+				zap.Uint64("Sn number", response.Sn),
+				zap.Any("Tx hash", response.TxHash),
+			)
+			return
+		}
+
+		if response.GetRetry() >= uint64(DefaultTxRetry) {
+			//TODO remove message from db
+			r.log.Error("failed to send message",
+				zap.String("src chain", response.Src),
+				zap.String("dst chain", response.Target),
+				zap.Uint64("Sn number", response.Sn),
+			)
+		}
+		//TODO: save message to db
+		return
+	}
+
+	for _, m := range info.Messages {
+		targerchain, ok := r.chains[m.Target]
+		if !ok {
+			r.log.Error("target chain not present: ", zap.Any("message", m))
+			continue
+		}
+
+		// should relayMessage
+		err := targerchain.ChainProvider.Route(ctx, provider.NewRouteMessage(m), callback)
+		if err != nil {
+			continue
+		}
+	}
+}
+
+func (r *Relayer) SaveBlockHeight(ctx context.Context, srcChain string, height uint64) error {
+	r.log.Debug("saving height:", zap.String("srcChain", srcChain), zap.Uint64("height", height))
+	return nil
 }
 
 type Relayer struct {
@@ -57,30 +112,29 @@ func NewRelayer(chains map[string]*Chain, log *zap.Logger) *Relayer {
 }
 
 func (r *Relayer) StartBlockProcessor(ctx context.Context, errorChan chan error) {
-	var wg sync.WaitGroup
+	var eg errgroup.Group
 
 	for chainID, chainChan := range r.listenerChans {
-		wg.Add(1)
-		go func(id string, ch <-chan provider.BlockInfo) {
-			defer wg.Done() // Ensure WaitGroup is decremented when goroutine exits.
+		srcChain, chainChan := chainID, chainChan // Avoid closure variable capture issue
+		eg.Go(func() error {
 			for {
-				// Continuously listen to the channel
 				select {
-				case blockInfo, ok := <-ch:
+				case blockInfo, ok := <-chainChan:
+					fmt.Println("block info received", blockInfo)
 					if !ok {
-						// The channel has been closed, break the loop
-						return
+						return nil
 					}
-					r.processBlockInfo(blockInfo)
+					r.processBlockInfo(ctx, srcChain, blockInfo)
+				case <-ctx.Done():
+					return ctx.Err()
 				}
 			}
-		}(chainID, chainChan)
+		})
 	}
 
-	// Wait for all processing goroutines to finish.
-	wg.Wait()
-
-	close(errorChan)
+	if err := eg.Wait(); err != nil {
+		errorChan <- err // Report the error to the error channel.
+	}
 }
 
 func (r *Relayer) StartListeners(
@@ -91,23 +145,16 @@ func (r *Relayer) StartListeners(
 ) {
 	var eg errgroup.Group
 
-	runCtx, runCtxCancel := context.WithCancel(ctx)
-
 	for chainId, chain := range r.chains {
 		chain := chain
 		listnerChan := r.listenerChans[chainId]
 		eg.Go(func() error {
-			err := chain.ChainProvider.Listener(runCtx, listnerChan)
-			runCtxCancel()
+			err := chain.ChainProvider.Listener(ctx, listnerChan)
 			return err
 		})
 	}
 
-	err := eg.Wait()
-	runCtxCancel()
-	errCh <- err
-}
-
-func (r *Relayer) processBlockInfo(blockInfo provider.BlockInfo) {
-
+	if err := eg.Wait(); err != nil {
+		errCh <- err
+	}
 }

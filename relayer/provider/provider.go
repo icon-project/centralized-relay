@@ -15,11 +15,16 @@ type ProviderConfig interface {
 	Validate() error
 }
 
+type ChainQuery interface {
+	QueryLatestHeight(ctx context.Context) (uint64, error)
+}
+
 type ChainProvider interface {
+	ChainQuery
 	ChainId() string
 	Init(ctx context.Context) error
-	Listener(ctx context.Context, blockInfo <-chan BlockInfo) error
-	Route(ctx context.Context, message RouteMessage, callback func(response ExecuteMessageResponse)) error
+	Listener(ctx context.Context, blockInfo chan BlockInfo) error
+	Route(ctx context.Context, message *RouteMessage, callback func(response ExecuteMessageResponse)) error
 }
 
 type BlockInfo struct {
@@ -36,7 +41,21 @@ type RelayMessage struct {
 
 type RouteMessage struct {
 	RelayMessage
-	retry uint64
+	Retry uint64
+}
+
+func NewRouteMessage(m RelayMessage) *RouteMessage {
+	return &RouteMessage{
+		RelayMessage: m,
+		Retry:        0,
+	}
+}
+
+func (r *RouteMessage) IncrementRetry() {
+	r.Retry += 1
+}
+func (r *RouteMessage) GetRetry() uint64 {
+	return r.Retry
 }
 
 type ExecuteMessageResponse struct {
@@ -48,6 +67,13 @@ type TxResponse struct {
 	Height    int64
 	TxHash    string
 	Codespace string
-	Code      uint32
+	Code      ResponseCode
 	Data      string
 }
+
+type ResponseCode uint8
+
+const (
+	Success ResponseCode = 0
+	Failed  ResponseCode = 1
+)
