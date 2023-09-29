@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
@@ -51,7 +52,7 @@ func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) 
 	return icp.Height, nil
 }
 
-func (icp *MockProvider) Listener(ctx context.Context, incoming chan provider.BlockInfo) error {
+func (icp *MockProvider) Listener(ctx context.Context, incoming chan types.BlockInfo) error {
 
 	ticker := time.NewTicker(3 * time.Second)
 	sn := 1
@@ -69,7 +70,7 @@ func (icp *MockProvider) Listener(ctx context.Context, incoming chan provider.Bl
 				target = icp.PCfg.TargetChains[randomIndex]
 			}
 
-			message := provider.RelayMessage{
+			message := types.RelayMessage{
 				Target: target,
 				Src:    src,
 				Sn:     uint64(sn),
@@ -78,9 +79,9 @@ func (icp *MockProvider) Listener(ctx context.Context, incoming chan provider.Bl
 			height, _ := icp.QueryLatestHeight(ctx)
 			fmt.Printf("found block %d of chain %s  \n", height, icp.ChainId())
 
-			d := provider.BlockInfo{
+			d := types.BlockInfo{
 				Height:   uint64(height),
-				Messages: []provider.RelayMessage{message},
+				Messages: []types.RelayMessage{message},
 			}
 
 			incoming <- d
@@ -91,13 +92,13 @@ func (icp *MockProvider) Listener(ctx context.Context, incoming chan provider.Bl
 	}
 }
 
-func (icp *MockProvider) Route(ctx context.Context, message *provider.RouteMessage, callback func(response provider.ExecuteMessageResponse)) error {
+func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage, callback func(response types.ExecuteMessageResponse)) error {
 
 	icp.log.Info("message received", zap.Any("message", message))
 
-	callback(provider.ExecuteMessageResponse{
+	callback(types.ExecuteMessageResponse{
 		RouteMessage: *message,
-		TxResponse: provider.TxResponse{
+		TxResponse: types.TxResponse{
 			Code: 0,
 		},
 	})

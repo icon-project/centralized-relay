@@ -8,11 +8,11 @@ import (
 )
 
 type BlockStore struct {
-	db     KeyValueReaderWriter
+	db     Store
 	prefix string
 }
 
-func NewBlockStore(db KeyValueReaderWriter, prefix string) *BlockStore {
+func NewBlockStore(db Store, prefix string) *BlockStore {
 	return &BlockStore{
 		db:     db,
 		prefix: prefix,

@@ -21,6 +21,7 @@ import (
 const appName = "centralized-relay"
 
 var defaultHome = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
+var defaultDBName = "datadb"
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.

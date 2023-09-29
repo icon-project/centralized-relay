@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/store"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -14,6 +15,10 @@ var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
 	DefaultTxRetry            = 5
+	SaveHeightMaxAfter        = 1000
+
+	prefixMessageStore = "message"
+	prefixBlockStore   = "block"
 )
 
 // main start loop
@@ -23,41 +28,107 @@ func Start(
 	chains map[string]*Chain,
 	flushInterval time.Duration,
 	fresh bool,
-) chan error {
+	db store.Store,
+) (chan error, error) {
 	errorChan := make(chan error, 1)
-	relayer := NewRelayer(chains, log)
+	relayer, err := NewRelayer(log, db, chains)
+	if err != nil {
+		return nil, fmt.Errorf("error creating new relayer %v", err)
+	}
 	go relayer.StartListeners(ctx, flushInterval, fresh, errorChan)
 	go relayer.StartBlockProcessors(ctx, errorChan)
-	return errorChan
+	return errorChan, nil
 }
 
 type Relayer struct {
-	chains          map[string]*Chain
-	log             *zap.Logger
-	listenerChans   map[string]chan provider.BlockInfo
-	lastsavedBlocks map[string]uint64
+	log          *zap.Logger
+	chains       map[string]*ChainRuntime
+	messageStore *store.MessageStore
+	blockStore   *store.BlockStore
 }
 
-func NewRelayer(chains map[string]*Chain, log *zap.Logger) *Relayer {
-	listenerChans := make(map[string]chan provider.BlockInfo, len(chains))
-	for chainID := range chains {
-		listenerChans[chainID] = make(chan provider.BlockInfo, listenerChannelBufferSize)
+func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain) (*Relayer, error) {
+
+	// initializing message store
+	messageStore := store.NewMessageStore(db, prefixMessageStore)
+
+	// blockStore store
+	blockStore := store.NewBlockStore(db, prefixBlockStore)
+
+	chainRuntimes := make(map[string]*ChainRuntime, len(chains))
+	for _, chain := range chains {
+		chainRuntime, err := NewChainRuntime(log, chain)
+		if err != nil {
+			return nil, err
+		}
+
+		lastSavedHeight, err := blockStore.GetLastStoredBlock(chain.ChainID())
+		if err == nil {
+			// successfully fetched last savedBlock
+			chainRuntime.LastSavedHeight = lastSavedHeight
+		}
+		chainRuntimes[chain.ChainID()] = chainRuntime
+
 	}
 
 	return &Relayer{
-		chains:        chains,
-		log:           log,
-		listenerChans: listenerChans,
+		log:          log,
+		chains:       chainRuntimes,
+		messageStore: messageStore,
+		blockStore:   blockStore,
+	}, nil
+}
+
+func (r *Relayer) StartListeners(
+	ctx context.Context,
+	flushInterval time.Duration,
+	fresh bool,
+	errCh chan error,
+) {
+	var eg errgroup.Group
+
+	for _, chainRuntime := range r.chains {
+		chainRuntime := chainRuntime
+		eg.Go(func() error {
+			err := chainRuntime.Provider.Listener(ctx, chainRuntime.listenerChan)
+			return err
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		errCh <- err
+	}
+}
+
+func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error) {
+	var eg errgroup.Group
+
+	for srcChain, chainRuntime := range r.chains {
+		listener := chainRuntime.listenerChan
+		srcChain := srcChain
+		eg.Go(func() error {
+			for {
+				select {
+				case blockInfo, ok := <-listener:
+					if !ok {
+						return nil
+					}
+					r.processBlockInfo(ctx, srcChain, blockInfo)
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		errorChan <- err // Report the error to the error channel.
 	}
 }
 
 // processBlockInfo performs these operations
 // save block height to database
 // send messages to destionation chain
-func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockInfo provider.BlockInfo) {
-
-	// saving should not the thread dependent
-	// if message > 0 or after certain block
+func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockInfo types.BlockInfo) {
 
 	if len(blockInfo.Messages) > 0 {
 		err := r.SaveBlockHeight(ctx, srcChain, blockInfo.Height)
@@ -69,9 +140,9 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockIn
 
 }
 
-func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
-	callback := func(response provider.ExecuteMessageResponse) {
-		if response.Code == provider.Success {
+func (r *Relayer) RouteMessages(ctx context.Context, info types.BlockInfo) {
+	callback := func(response types.ExecuteMessageResponse) {
+		if response.Code == types.Success {
 			if response.GetRetry() > 0 {
 				//TODO: remove from DB too
 			}
@@ -104,7 +175,7 @@ func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
 		}
 
 		// should relayMessage
-		err := targerchain.ChainProvider.Route(ctx, provider.NewRouteMessage(m), callback)
+		err := targerchain.Provider.Route(ctx, types.NewRouteMessage(m), callback)
 		if err != nil {
 			continue
 		}
@@ -113,54 +184,5 @@ func (r *Relayer) RouteMessages(ctx context.Context, info provider.BlockInfo) {
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, srcChain string, height uint64) error {
 	r.log.Debug("saving height:", zap.String("srcChain", srcChain), zap.Uint64("height", height))
-
 	return nil
-}
-
-func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error) {
-	var eg errgroup.Group
-
-	for chainID, chainChan := range r.listenerChans {
-		srcChain, chainChan := chainID, chainChan // Avoid closure variable capture issue
-		eg.Go(func() error {
-			for {
-				select {
-				case blockInfo, ok := <-chainChan:
-					fmt.Println("block info received", blockInfo)
-					if !ok {
-						return nil
-					}
-					r.processBlockInfo(ctx, srcChain, blockInfo)
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-		})
-	}
-
-	if err := eg.Wait(); err != nil {
-		errorChan <- err // Report the error to the error channel.
-	}
-}
-
-func (r *Relayer) StartListeners(
-	ctx context.Context,
-	flushInterval time.Duration,
-	fresh bool,
-	errCh chan error,
-) {
-	var eg errgroup.Group
-
-	for chainId, chain := range r.chains {
-		chain := chain
-		listnerChan := r.listenerChans[chainId]
-		eg.Go(func() error {
-			err := chain.ChainProvider.Listener(ctx, listnerChan)
-			return err
-		})
-	}
-
-	if err := eg.Wait(); err != nil {
-		errCh <- err
-	}
 }

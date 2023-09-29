@@ -1,7 +1,9 @@
 package common
 
+type ModuleType string
+
 const (
-	iconModule = "icon"
-	evmModule  = "evm"
-	wasmModule = "wasm"
+	IconModule ModuleType = "icon"
+	EvmModule  ModuleType = "evm"
+	WasmModule ModuleType = "wasm"
 )

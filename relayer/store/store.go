@@ -10,7 +10,7 @@ var (
 	ErrNotFound = errors.New("key not found")
 )
 
-type KeyValueReaderWriter interface {
+type Store interface {
 	KeyValueReader
 	KeyValueWriter
 	NewIterator(prefix []byte) iterator.Iterator

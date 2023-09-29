@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
-	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,8 +24,8 @@ func TestMessageStoreSet(t *testing.T) {
 	Sn := uint64(1)
 	messageStore := NewMessageStore(testdb, prefix)
 
-	storeMessage := provider.RouteMessage{
-		RelayMessage: provider.RelayMessage{
+	storeMessage := types.RouteMessage{
+		RelayMessage: types.RelayMessage{
 			Src:    chainId,
 			Target: "archway",
 			Sn:     Sn,
@@ -96,8 +96,8 @@ func TestMessageStoreSet(t *testing.T) {
 
 		})
 
-		storeMessage1 := provider.RouteMessage{
-			RelayMessage: provider.RelayMessage{
+		storeMessage1 := types.RouteMessage{
+			RelayMessage: types.RelayMessage{
 				Src:    chainId,
 				Target: "archway",
 				Sn:     uint64(1),
@@ -105,8 +105,8 @@ func TestMessageStoreSet(t *testing.T) {
 			},
 			Retry: 2,
 		}
-		storeMessage2 := provider.RouteMessage{
-			RelayMessage: provider.RelayMessage{
+		storeMessage2 := types.RouteMessage{
+			RelayMessage: types.RelayMessage{
 				Src:    chainId,
 				Target: "archway",
 				Sn:     uint64(2),
@@ -114,8 +114,8 @@ func TestMessageStoreSet(t *testing.T) {
 			},
 			Retry: 2,
 		}
-		storeMessage3 := provider.RouteMessage{
-			RelayMessage: provider.RelayMessage{
+		storeMessage3 := types.RouteMessage{
+			RelayMessage: types.RelayMessage{
 				Src:    chainId,
 				Target: "archway",
 				Sn:     uint64(3),
@@ -137,7 +137,7 @@ func TestMessageStoreSet(t *testing.T) {
 			msgs, err := messageStore.GetMessages(chainId, false, 1, 2)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 2, len(msgs))
-			assert.Equal(t, []*provider.RouteMessage{&storeMessage2, &storeMessage3}, msgs)
+			assert.Equal(t, []*types.RouteMessage{&storeMessage2, &storeMessage3}, msgs)
 		})
 
 		t.Run("GetMessages when offset is greater than total element", func(t *testing.T) {

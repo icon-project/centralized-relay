@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
 type MessageStore struct {
-	db     KeyValueReaderWriter
+	db     Store
 	prefix string
 }
 
-func NewMessageStore(db KeyValueReaderWriter, prefix string) *MessageStore {
+func NewMessageStore(db Store, prefix string) *MessageStore {
 	return &MessageStore{
 		db:     db,
 		prefix: prefix,
@@ -41,7 +41,7 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 	return uint64(count), nil
 }
 
-func (ms *MessageStore) StoreMessage(message *provider.RouteMessage) error {
+func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 	if message == nil {
 		return fmt.Errorf("message not found")
 	}
@@ -58,7 +58,7 @@ func (ms *MessageStore) StoreMessage(message *provider.RouteMessage) error {
 
 }
 
-func (ms *MessageStore) GetMessage(srcChain string, sn uint64) (*provider.RouteMessage, error) {
+func (ms *MessageStore) GetMessage(srcChain string, sn uint64) (*types.RouteMessage, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix,
 		srcChain,
 		fmt.Sprintf("%d", sn),
@@ -67,15 +67,15 @@ func (ms *MessageStore) GetMessage(srcChain string, sn uint64) (*provider.RouteM
 		return nil, err
 	}
 
-	var msg provider.RouteMessage
+	var msg types.RouteMessage
 	if err := ms.Decode(v, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit int) ([]*provider.RouteMessage, error) {
-	var messages []*provider.RouteMessage
+func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit int) ([]*types.RouteMessage, error) {
+	var messages []*types.RouteMessage
 
 	keyPrefixList := []string{ms.prefix}
 	if chainId != "" {
@@ -86,7 +86,7 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 	// return all the messages
 	if all {
 		for iter.Next() {
-			var msg provider.RouteMessage
+			var msg types.RouteMessage
 			if err := ms.Decode(iter.Value(), &msg); err != nil {
 				return nil, err
 			}
@@ -113,7 +113,7 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 			break
 		}
 
-		var msg provider.RouteMessage
+		var msg types.RouteMessage
 		if err := ms.Decode(iter.Value(), &msg); err != nil {
 			return nil, err
 		}

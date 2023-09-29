@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -45,13 +47,22 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
-			rlyErrCh := relayer.Start(
+			db, err := lvldb.NewLvlDB(filepath.Join(defaultHome, defaultDBName))
+			if err != nil {
+				return err
+			}
+
+			rlyErrCh, err := relayer.Start(
 				cmd.Context(),
 				a.log,
 				chains,
 				flushInterval,
 				fresh,
+				db,
 			)
+			if err != nil {
+				return err
+			}
 
 			// Block until the error channel sends a message.
 			// The context being canceled will cause the relayer to stop,
