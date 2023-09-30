@@ -1,6 +1,8 @@
 package lvldb
 
 import (
+	"sync"
+
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -9,6 +11,8 @@ import (
 
 type LVLDB struct {
 	db *leveldb.DB
+
+	dbMu sync.Mutex
 }
 
 func NewLvlDB(path string) (*LVLDB, error) {

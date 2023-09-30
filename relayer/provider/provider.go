@@ -24,6 +24,6 @@ type ChainProvider interface {
 	ChainQuery
 	ChainId() string
 	Init(ctx context.Context) error
-	Listener(ctx context.Context, blockInfo chan types.BlockInfo) error
+	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
 	Route(ctx context.Context, message *types.RouteMessage, callback func(response types.ExecuteMessageResponse)) error
 }

@@ -52,7 +52,7 @@ func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) 
 	return icp.Height, nil
 }
 
-func (icp *MockProvider) Listener(ctx context.Context, incoming chan types.BlockInfo) error {
+func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
 
 	ticker := time.NewTicker(3 * time.Second)
 	sn := 1

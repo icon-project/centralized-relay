@@ -25,6 +25,7 @@ func (bs *BlockStore) GetKey(chainId string) []byte {
 
 // StoreBlock stores block number per domainID into blockstore
 func (bs *BlockStore) StoreBlock(height uint64, chainId string) error {
+
 	heightByte, err := bs.Encode(height)
 	if err != nil {
 		return err
