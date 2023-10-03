@@ -3,7 +3,7 @@ package mockchain
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"reflect"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -12,9 +12,11 @@ import (
 )
 
 type MockProviderConfig struct {
-	ChainId       string
-	BlockDuration time.Duration
-	TargetChains  []string
+	ChainId         string
+	BlockDuration   time.Duration
+	SendMessages    map[types.MessageKey]types.Message
+	ReceiveMessages map[types.MessageKey]types.Message
+	StartHeight     uint64
 }
 
 // NewProvider should provide a new Mock provider
@@ -24,9 +26,8 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 		return nil, err
 	}
 	return &MockProvider{
-		log:    log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
-		PCfg:   pp,
-		Height: 10,
+		log:  log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
+		PCfg: pp,
 	}, nil
 
 }
@@ -55,37 +56,31 @@ func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) 
 func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
 
 	ticker := time.NewTicker(3 * time.Second)
-	sn := 1
-	src := icp.ChainId()
 
-	icp.log.Info("listening to mock provider")
+	icp.Height = 0
+	if lastSavedHeight != 0 {
+		icp.Height = lastSavedHeight
+	}
+	if icp.PCfg.StartHeight != 0 {
+		icp.Height = icp.PCfg.StartHeight
+
+	}
+
+	icp.log.Info("listening to mock provider from height", zap.Uint64("Height", icp.Height))
 
 	for {
 		select {
 		case <-ticker.C:
-			// getting target random
-			target := ""
-			if len(icp.PCfg.TargetChains) > 0 {
-				randomIndex := rand.Intn(len(icp.PCfg.TargetChains))
-				target = icp.PCfg.TargetChains[randomIndex]
-			}
 
-			message := types.RelayMessage{
-				Target: target,
-				Src:    src,
-				Sn:     uint64(sn),
-				Data:   []byte(fmt.Sprintf("message from %s", src)),
-			}
 			height, _ := icp.QueryLatestHeight(ctx)
 			fmt.Printf("found block %d of chain %s  \n", height, icp.ChainId())
-
+			msgs := icp.FindMessages()
 			d := types.BlockInfo{
 				Height:   uint64(height),
-				Messages: []types.RelayMessage{message},
+				Messages: msgs,
 			}
 
 			incoming <- d
-			sn += 1
 			icp.Height += 1
 		}
 
@@ -96,11 +91,41 @@ func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage,
 
 	icp.log.Info("message received", zap.Any("message", message))
 
+	icp.DeleteMessage(message)
 	callback(types.ExecuteMessageResponse{
-		RouteMessage: *message,
+		// RouteMessage: *message,
 		TxResponse: types.TxResponse{
 			Code: 0,
 		},
 	})
 	return nil
+}
+
+func (icp *MockProvider) FindMessages() []types.Message {
+	messages := make([]types.Message, 0)
+	for _, m := range icp.PCfg.SendMessages {
+		if m.MessageHeight == icp.Height {
+			messages = append(messages, m)
+		}
+
+	}
+	return messages
+}
+
+func (icp *MockProvider) DeleteMessage(routeMsg *types.RouteMessage) {
+	if routeMsg == nil {
+		return
+	}
+	var deleteKey *types.MessageKey
+	for key, m := range icp.PCfg.SendMessages {
+		fromRouteMessage := routeMsg.GetMessage()
+
+		if reflect.DeepEqual(fromRouteMessage, m) {
+			deleteKey = &key
+		}
+	}
+	if deleteKey != nil {
+		delete(icp.PCfg.ReceiveMessages, *deleteKey)
+	}
+
 }

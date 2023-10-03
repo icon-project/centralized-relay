@@ -2,27 +2,33 @@ package types
 
 type BlockInfo struct {
 	Height   uint64
-	Messages []RelayMessage
+	Messages []Message
 }
 
-type RelayMessage struct {
-	Target        string
-	Src           string
-	Sn            uint64
-	Data          []byte
-	MessageHeight uint64
+type Message struct {
+	Dst           string `json:"dst"`
+	Src           string `json:"src"`
+	Sn            uint64 `json:"sn"`
+	Data          []byte `json:"data"`
+	MessageHeight uint64 `json:"messageHeight"`
+	EventType     string `json:"eventType"`
 }
-
 type RouteMessage struct {
-	RelayMessage
-	Retry uint64
+	Message
+	Retry        uint64
+	IsProcessing bool
 }
 
-func NewRouteMessage(m RelayMessage) *RouteMessage {
+func NewRouteMessage(m Message) *RouteMessage {
 	return &RouteMessage{
-		RelayMessage: m,
+		Message:      m,
 		Retry:        0,
+		IsProcessing: false,
 	}
+}
+
+func (r *RouteMessage) GetMessage() Message {
+	return r.Message
 }
 
 func (r *RouteMessage) IncrementRetry() {
@@ -32,8 +38,16 @@ func (r *RouteMessage) GetRetry() uint64 {
 	return r.Retry
 }
 
+func (r *RouteMessage) SetIsProcessing(isProcessing bool) {
+	r.IsProcessing = isProcessing
+}
+
+func (r *RouteMessage) GetIsProcessing() bool {
+	return r.IsProcessing
+}
+
 type ExecuteMessageResponse struct {
-	RouteMessage
+	// *RouteMessage
 	TxResponse
 }
 
@@ -51,3 +65,29 @@ const (
 	Success ResponseCode = 0
 	Failed  ResponseCode = 1
 )
+
+type MessageKey struct {
+	Sn        uint64
+	SrcChain  string
+	dstChain  string
+	EventType string
+}
+
+func NewMessageKey(Sn uint64, SrcChain string, DstChain string, EventType string) MessageKey {
+	return MessageKey{Sn, SrcChain, DstChain, EventType}
+}
+
+type MessageCache map[MessageKey]*RouteMessage
+
+func (m MessageCache) Add(r *RouteMessage) {
+	key := NewMessageKey(r.Sn, r.Src, r.Dst, r.EventType)
+	m[key] = r
+}
+
+func (m MessageCache) Len() uint64 {
+	return uint64(len(m))
+}
+
+func (m MessageCache) Remove(key MessageKey) {
+	delete(m, key)
+}

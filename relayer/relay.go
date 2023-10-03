@@ -14,8 +14,9 @@ import (
 var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
-	DefaultTxRetry            = 5
+	DefaultTxRetry            = 2
 	SaveHeightMaxAfter        = 1000
+	RouteDuration             = 1 * time.Second
 
 	prefixMessageStore = "message"
 	prefixBlockStore   = "block"
@@ -36,8 +37,14 @@ func Start(
 		return nil, fmt.Errorf("error creating new relayer %v", err)
 	}
 
-	go relayer.StartChainListeners(ctx, flushInterval, fresh, errorChan)
+	// start all the chain listeners
+	go relayer.StartChainListeners(ctx, errorChan)
+
+	// start all the block processor
 	go relayer.StartBlockProcessors(ctx, errorChan)
+
+	// responsible to relaying  messages
+	go relayer.StartRouter(ctx, flushInterval, fresh)
 
 	return errorChan, nil
 }
@@ -91,8 +98,6 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 
 func (r *Relayer) StartChainListeners(
 	ctx context.Context,
-	flushInterval time.Duration,
-	fresh bool,
 	errCh chan error,
 ) {
 
@@ -115,19 +120,19 @@ func (r *Relayer) StartChainListeners(
 func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error) {
 	var eg errgroup.Group
 
-	for srcChain, chainRuntime := range r.chains {
+	for _, chainRuntime := range r.chains {
+		chainRuntime := chainRuntime
 		listener := chainRuntime.listenerChan
-		srcChain := srcChain
 		eg.Go(func() error {
 			for {
 				select {
+				case <-ctx.Done():
+					return ctx.Err()
 				case blockInfo, ok := <-listener:
 					if !ok {
 						return nil
 					}
-					r.processBlockInfo(ctx, srcChain, blockInfo)
-				case <-ctx.Done():
-					return ctx.Err()
+					r.processBlockInfo(ctx, chainRuntime, blockInfo)
 				}
 			}
 		})
@@ -138,83 +143,112 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 	}
 }
 
+func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, fresh bool) {
+
+	routeTimer := time.NewTicker(RouteDuration)
+	for {
+		select {
+		case <-routeTimer.C:
+			r.processMessages(ctx)
+		}
+	}
+}
+
+func (r *Relayer) processMessages(ctx context.Context) {
+	fmt.Println("inside process messages")
+	for _, srcChainRuntime := range r.chains {
+		for _, routeMessage := range srcChainRuntime.MessageCache {
+			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
+			if err != nil {
+
+				fmt.Println("error occured during finding the chain runtime ")
+				// TODO: remove current message as dst chain not found
+				continue
+			}
+			if dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime) {
+				fmt.Println("before sending route message ")
+				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
+			}
+
+		}
+	}
+}
+
 // processBlockInfo performs these operations
 // save block height to database
 // send messages to destionation chain
-func (r *Relayer) processBlockInfo(ctx context.Context, srcChain string, blockInfo types.BlockInfo) {
-	err := r.SaveBlockHeight(ctx, srcChain, blockInfo.Height, len(blockInfo.Messages))
+func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
+	err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages))
 	if err != nil {
 		r.log.Error("unable to save height", zap.Error(err))
 	}
 
-	go r.RouteMessages(ctx, blockInfo)
+	go srcChainRuntime.mergeMessages(ctx, blockInfo)
 }
 
-func (r *Relayer) RouteMessages(ctx context.Context, info types.BlockInfo) {
+func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
+	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.ChainId()), zap.Uint64("height", height))
 
-	if len(info.Messages) == 0 {
-		return
+	if messageCount > 0 || (height-chainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
+		chainRuntime.LastSavedHeight = height
+		// save height to db
+		err := r.blockStore.StoreBlock(height, chainRuntime.Provider.ChainId())
+		if err != nil {
+			return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.ChainId(), err)
+		}
+	}
+	return nil
+}
+
+func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
+	var chainRuntime *ChainRuntime
+	var ok bool
+
+	if chainRuntime, ok = r.chains[chainId]; !ok {
+		return nil, fmt.Errorf("chain runtime not found, chainId:%s ", chainId)
 	}
 
-	// TODO: check if the message is already processed then discard it
-	// add messages to cache
+	return chainRuntime, nil
+}
+
+func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
+
 	callback := func(response types.ExecuteMessageResponse) {
+
+		// localization of the variables
+		// src := src
+		dst := dst
+		routeMessage := m
+
 		if response.Code == types.Success {
-			if response.GetRetry() > 0 {
-				//TODO: remove from DB too
-			}
-			r.log.Info("Successfully relayed message:",
-				zap.String("src chain", response.Src),
-				zap.String("dst chain", response.Target),
-				zap.Uint64("Sn number", response.Sn),
+
+			// TODO: clearMessage
+
+			dst.log.Info("Successfully relayed message:",
+				zap.String("src chain", routeMessage.Src),
+				zap.String("dst chain", routeMessage.Dst),
+				zap.Uint64("Sn number", routeMessage.Sn),
 				zap.Any("Tx hash", response.TxHash),
 			)
 			return
 		}
 
-		if response.GetRetry() >= uint64(DefaultTxRetry) {
-			//TODO remove message from db
-			r.log.Error("failed to send message",
-				zap.String("src chain", response.Src),
-				zap.String("dst chain", response.Target),
-				zap.Uint64("Sn number", response.Sn),
+		if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
+			//TODO: saveMessagetoDB
+
+			dst.log.Error("failed to send message",
+				zap.String("src chain", routeMessage.Src),
+				zap.String("dst chain", routeMessage.Dst),
+				zap.Uint64("Sn number", routeMessage.Sn),
 			)
 		}
-		//TODO: save message to db
+
 		return
 	}
 
-	for _, m := range info.Messages {
-		targerchain, ok := r.chains[m.Target]
-		if !ok {
-			r.log.Error("target chain not present: ", zap.Any("message", m))
-			continue
-		}
-
-		// should relayMessage
-		err := targerchain.Provider.Route(ctx, types.NewRouteMessage(m), callback)
-		if err != nil {
-			continue
-		}
-	}
-}
-
-func (r *Relayer) SaveBlockHeight(ctx context.Context, srcChain string, height uint64, messageCount int) error {
-	r.log.Debug("saving height:", zap.String("srcChain", srcChain), zap.Uint64("height", height))
-
-	srcChainRuntime, ok := r.chains[srcChain]
-	if !ok {
-		return fmt.Errorf("unable to find source chain")
+	err := dst.Provider.Route(ctx, m, callback)
+	if err != nil {
+		dst.log.Error("error occured during message route", zap.Error(err))
 	}
 
-	if messageCount > 0 || (height-srcChainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
-		srcChainRuntime.LastSavedHeight = height
-		// save height to db
-		err := r.blockStore.StoreBlock(height, srcChainRuntime.Provider.ChainId())
-		if err != nil {
-			return fmt.Errorf("error while saving height of chain:%s %v", srcChainRuntime.Provider.ChainId(), err)
-		}
-
-	}
-	return nil
 }

@@ -25,11 +25,11 @@ func TestMessageStoreSet(t *testing.T) {
 	messageStore := NewMessageStore(testdb, prefix)
 
 	storeMessage := types.RouteMessage{
-		RelayMessage: types.RelayMessage{
-			Src:    chainId,
-			Target: "archway",
-			Sn:     Sn,
-			Data:   []byte("test message"),
+		Message: types.Message{
+			Src:  chainId,
+			Dst:  "archway",
+			Sn:   Sn,
+			Data: []byte("test message"),
 		},
 		Retry: 2,
 	}
@@ -97,29 +97,29 @@ func TestMessageStoreSet(t *testing.T) {
 		})
 
 		storeMessage1 := types.RouteMessage{
-			RelayMessage: types.RelayMessage{
-				Src:    chainId,
-				Target: "archway",
-				Sn:     uint64(1),
-				Data:   []byte("test message"),
+			Message: types.Message{
+				Src:  chainId,
+				Dst:  "archway",
+				Sn:   uint64(1),
+				Data: []byte("test message"),
 			},
 			Retry: 2,
 		}
 		storeMessage2 := types.RouteMessage{
-			RelayMessage: types.RelayMessage{
-				Src:    chainId,
-				Target: "archway",
-				Sn:     uint64(2),
-				Data:   []byte("test message"),
+			Message: types.Message{
+				Src:  chainId,
+				Dst:  "archway",
+				Sn:   uint64(2),
+				Data: []byte("test message"),
 			},
 			Retry: 2,
 		}
 		storeMessage3 := types.RouteMessage{
-			RelayMessage: types.RelayMessage{
-				Src:    chainId,
-				Target: "archway",
-				Sn:     uint64(3),
-				Data:   []byte("test message"),
+			Message: types.Message{
+				Src:  chainId,
+				Dst:  "archway",
+				Sn:   uint64(3),
+				Data: []byte("test message"),
 			},
 			Retry: 2,
 		}
