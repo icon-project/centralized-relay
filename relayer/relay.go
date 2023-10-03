@@ -155,18 +155,15 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, 
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
-	fmt.Println("inside process messages")
 	for _, srcChainRuntime := range r.chains {
 		for _, routeMessage := range srcChainRuntime.MessageCache {
 			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
 			if err != nil {
 
-				fmt.Println("error occured during finding the chain runtime ")
 				// TODO: remove current message as dst chain not found
 				continue
 			}
 			if dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime) {
-				fmt.Println("before sending route message ")
 				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
 			}
 
@@ -221,9 +218,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		routeMessage := m
 
 		if response.Code == types.Success {
-
 			// TODO: clearMessage
-
 			dst.log.Info("Successfully relayed message:",
 				zap.String("src chain", routeMessage.Src),
 				zap.String("dst chain", routeMessage.Dst),

@@ -33,7 +33,6 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 }
 
 func (r *ChainRuntime) mergeMessages(ctx context.Context, info types.BlockInfo) {
-	fmt.Println("merge messages of chain ", r.Provider.ChainId())
 	if len(info.Messages) == 0 {
 		return
 	}

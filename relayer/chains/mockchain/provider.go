@@ -2,7 +2,6 @@ package mockchain
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -70,7 +69,6 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 		case <-ticker.C:
 
 			height, _ := icp.QueryLatestHeight(ctx)
-			fmt.Printf("found block %d of chain %s  \n", height, icp.ChainId())
 			msgs := icp.FindMessages()
 			d := types.BlockInfo{
 				Height:   uint64(height),
