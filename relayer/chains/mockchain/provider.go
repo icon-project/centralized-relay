@@ -26,8 +26,9 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 		return nil, err
 	}
 	return &MockProvider{
-		log:  log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
-		PCfg: pp,
+		log:    log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
+		PCfg:   pp,
+		Height: pp.StartHeight,
 	}, nil
 
 }
@@ -57,15 +58,11 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	ticker := time.NewTicker(3 * time.Second)
 
-	icp.Height = 0
-	if lastSavedHeight != 0 {
-		icp.Height = lastSavedHeight
+	if icp.Height == 0 {
+		if lastSavedHeight != 0 {
+			icp.Height = lastSavedHeight
+		}
 	}
-	if icp.PCfg.StartHeight != 0 {
-		icp.Height = icp.PCfg.StartHeight
-
-	}
-
 	icp.log.Info("listening to mock provider from height", zap.Uint64("Height", icp.Height))
 
 	for {
