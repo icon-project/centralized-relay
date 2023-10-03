@@ -124,3 +124,12 @@ func (icp *MockProvider) DeleteMessage(routeMsg *types.RouteMessage) {
 	}
 
 }
+
+func (icp *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
+	return true, nil
+
+}
+func (icp *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
+	return true, nil
+
+}

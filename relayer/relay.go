@@ -106,8 +106,7 @@ func (r *Relayer) StartChainListeners(
 		chainRuntime := chainRuntime
 
 		eg.Go(func() error {
-
-			//
+			// listening to the block
 			err := chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
 			return err
 		})
@@ -146,6 +145,8 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, fresh bool) {
 
 	routeTimer := time.NewTicker(RouteDuration)
+
+	// TODO: implement flush logic
 	for {
 		select {
 		case <-routeTimer.C:
@@ -160,13 +161,14 @@ func (r *Relayer) processMessages(ctx context.Context) {
 		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
 			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
 			if err != nil {
-				routeMessage.Message.MessageKey()
+				r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
 				continue
 			}
-			if dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime) {
-				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
+			ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime)
+			if !ok {
+				continue
 			}
-
+			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
 		}
 	}
 
@@ -189,7 +191,6 @@ func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntim
 
 	if messageCount > 0 || (height-chainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
 		chainRuntime.LastSavedHeight = height
-		// save height to db
 		err := r.blockStore.StoreBlock(height, chainRuntime.Provider.ChainId())
 		if err != nil {
 			return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.ChainId(), err)
@@ -210,10 +211,7 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-
 	callback := func(response types.ExecuteMessageResponse) {
-
-		// localization of the variable
 		src := src
 		dst := dst
 
@@ -233,21 +231,28 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		routeMessage, ok := src.MessageCache.Messages[response.MessageKey]
 		if !ok {
 			r.log.Error("message not found for key", zap.Any("message key", response.MessageKey))
+			return
 		}
 
+		// open to resend the message
 		if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
-			//TODO: saveMessagetoDB
 
-			dst.log.Error("failed to send message",
+			// save to db
+			if err := r.messageStore.StoreMessage(routeMessage.Message); err != nil {
+				r.log.Error("error occured when storing the message after max retry", zap.Error(err))
+				return
+			}
+			// removed message from messageCache
+			src.MessageCache.Remove(routeMessage.MessageKey())
+
+			dst.log.Error("failed to send message saving to database",
 				zap.String("src chain", routeMessage.Src),
 				zap.String("dst chain", routeMessage.Dst),
 				zap.Uint64("Sn number", routeMessage.Sn),
 			)
+			return
 		}
-
-		// reset the message
-
-		return
+		routeMessage.SetIsProcessing(false)
 	}
 
 	// setting before message is processed

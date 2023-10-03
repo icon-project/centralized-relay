@@ -49,12 +49,14 @@ func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
 	}
 }
 
-func (r *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *types.RouteMessage, src *ChainRuntime) bool {
+func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *types.RouteMessage, src *ChainRuntime) bool {
 	if routeMessage == nil {
 		return false
 	}
 
 	if routeMessage.GetIsProcessing() {
+		dst.log.Debug("Waiting to relay message until message is processing",
+			zap.Any("messageKey", routeMessage.MessageKey()))
 		return false
 	}
 
