@@ -16,7 +16,7 @@ type ChainRuntime struct {
 	log             *zap.Logger
 	LastBlockHeight uint64
 	LastSavedHeight uint64
-	MessageCache    types.MessageCache
+	MessageCache    *types.MessageCache
 }
 
 func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
@@ -27,7 +27,7 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 		log:          log.With(zap.String("chain_id", chain.ChainID())),
 		Provider:     chain.ChainProvider,
 		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
-		MessageCache: make(types.MessageCache),
+		MessageCache: types.NewMessageCache(),
 	}, nil
 
 }
@@ -40,6 +40,12 @@ func (r *ChainRuntime) mergeMessages(ctx context.Context, info types.BlockInfo) 
 	for _, m := range info.Messages {
 		routeMessage := types.NewRouteMessage(m)
 		r.MessageCache.Add(routeMessage)
+	}
+}
+
+func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
+	for _, m := range msgs {
+		r.MessageCache.Remove(m)
 	}
 }
 

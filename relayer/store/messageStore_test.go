@@ -24,19 +24,16 @@ func TestMessageStoreSet(t *testing.T) {
 	Sn := uint64(1)
 	messageStore := NewMessageStore(testdb, prefix)
 
-	storeMessage := types.RouteMessage{
-		Message: types.Message{
-			Src:  chainId,
-			Dst:  "archway",
-			Sn:   Sn,
-			Data: []byte("test message"),
-		},
-		Retry: 2,
+	storeMessage := types.Message{
+		Src:  chainId,
+		Dst:  "archway",
+		Sn:   Sn,
+		Data: []byte("test message"),
 	}
 
 	t.Run("store message", func(t *testing.T) {
 		// storing the message
-		if err := messageStore.StoreMessage(&storeMessage); err != nil {
+		if err := messageStore.StoreMessage(storeMessage); err != nil {
 			assert.Fail(t, "Failed to store message ", err)
 		}
 
@@ -60,30 +57,30 @@ func TestMessageStoreSet(t *testing.T) {
 	})
 
 	t.Run("getMessage", func(t *testing.T) {
-		getMessage, err := messageStore.GetMessage(chainId, Sn)
+		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
 		assert.NoError(t, err, " error occured while getting message")
-		assert.Equal(t, getMessage, &storeMessage)
+		assert.Equal(t, getMessage, storeMessage)
 
 		if err := testdb.ClearStore(); err != nil {
 			assert.Fail(t, "failed to clear db ", err)
 		}
 
 		// getMessageFail case
-		getMessage, err = messageStore.GetMessage("archway", Sn)
+		getMessage, err = messageStore.GetMessage(types.NewMessageKey(Sn, "archway", "", "emitMessage"))
 		assert.Error(t, err)
 
 		// getMessageFail case
-		getMessage, err = messageStore.GetMessage(chainId, Sn+1)
+		getMessage, err = messageStore.GetMessage(types.NewMessageKey(Sn+1, "archway", "", "emitMessage"))
 		assert.Error(t, err)
 
 	})
 
 	t.Run("deleteMessage", func(t *testing.T) {
 
-		err := messageStore.DeleteMessage(chainId, Sn)
+		err := messageStore.DeleteMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
 		assert.NoError(t, err)
 
-		_, err = messageStore.GetMessage(chainId, Sn)
+		_, err = messageStore.GetMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
 		assert.Error(t, err)
 	})
 
@@ -96,36 +93,30 @@ func TestMessageStoreSet(t *testing.T) {
 
 		})
 
-		storeMessage1 := types.RouteMessage{
-			Message: types.Message{
+		storeMessage1 :=
+			types.Message{
 				Src:  chainId,
 				Dst:  "archway",
 				Sn:   uint64(1),
 				Data: []byte("test message"),
-			},
-			Retry: 2,
-		}
-		storeMessage2 := types.RouteMessage{
-			Message: types.Message{
+			}
+		storeMessage2 :=
+			types.Message{
 				Src:  chainId,
 				Dst:  "archway",
 				Sn:   uint64(2),
 				Data: []byte("test message"),
-			},
-			Retry: 2,
-		}
-		storeMessage3 := types.RouteMessage{
-			Message: types.Message{
+			}
+		storeMessage3 :=
+			types.Message{
 				Src:  chainId,
 				Dst:  "archway",
 				Sn:   uint64(3),
 				Data: []byte("test message"),
-			},
-			Retry: 2,
-		}
-		messageStore.StoreMessage(&storeMessage1)
-		messageStore.StoreMessage(&storeMessage2)
-		messageStore.StoreMessage(&storeMessage3)
+			}
+		messageStore.StoreMessage(storeMessage1)
+		messageStore.StoreMessage(storeMessage2)
+		messageStore.StoreMessage(storeMessage3)
 
 		t.Run("GetMessages all", func(t *testing.T) {
 			msgs, err := messageStore.GetMessages(chainId, true, 0, 0)
@@ -137,7 +128,7 @@ func TestMessageStoreSet(t *testing.T) {
 			msgs, err := messageStore.GetMessages(chainId, false, 1, 2)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 2, len(msgs))
-			assert.Equal(t, []*types.RouteMessage{&storeMessage2, &storeMessage3}, msgs)
+			assert.Equal(t, []types.Message{storeMessage2, storeMessage3}, msgs)
 		})
 
 		t.Run("GetMessages when offset is greater than total element", func(t *testing.T) {

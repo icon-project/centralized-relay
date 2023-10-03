@@ -41,10 +41,7 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 	return uint64(count), nil
 }
 
-func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
-	if message == nil {
-		return fmt.Errorf("message not found")
-	}
+func (ms *MessageStore) StoreMessage(message types.Message) error {
 	key := GetKey([]string{ms.prefix,
 		message.Src,
 		fmt.Sprintf("%d", message.Sn),
@@ -58,24 +55,24 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 
 }
 
-func (ms *MessageStore) GetMessage(srcChain string, sn uint64) (*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (types.Message, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix,
-		srcChain,
-		fmt.Sprintf("%d", sn),
+		messageKey.Src,
+		fmt.Sprintf("%d", messageKey.Sn),
 	}))
 	if err != nil {
-		return nil, err
+		return types.Message{}, err
 	}
 
-	var msg types.RouteMessage
+	var msg types.Message
 	if err := ms.Decode(v, &msg); err != nil {
-		return nil, err
+		return types.Message{}, err
 	}
-	return &msg, nil
+	return msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit int) ([]*types.RouteMessage, error) {
-	var messages []*types.RouteMessage
+func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit int) ([]types.Message, error) {
+	var messages []types.Message
 
 	keyPrefixList := []string{ms.prefix}
 	if chainId != "" {
@@ -86,11 +83,11 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 	// return all the messages
 	if all {
 		for iter.Next() {
-			var msg types.RouteMessage
+			var msg types.Message
 			if err := ms.Decode(iter.Value(), &msg); err != nil {
 				return nil, err
 			}
-			messages = append(messages, &msg)
+			messages = append(messages, msg)
 		}
 		iter.Release()
 		err := iter.Error()
@@ -113,11 +110,11 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 			break
 		}
 
-		var msg types.RouteMessage
+		var msg types.Message
 		if err := ms.Decode(iter.Value(), &msg); err != nil {
 			return nil, err
 		}
-		messages = append(messages, &msg)
+		messages = append(messages, msg)
 	}
 	iter.Release()
 	err := iter.Error()
@@ -128,9 +125,9 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 	return messages, nil
 }
 
-func (ms *MessageStore) DeleteMessage(srcChain string, Sn uint64) error {
+func (ms *MessageStore) DeleteMessage(messageKey types.MessageKey) error {
 	return ms.db.DeleteByKey(
-		GetKey([]string{ms.prefix, srcChain, fmt.Sprintf("%d", Sn)}))
+		GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }
 
 func (ms *MessageStore) Encode(d interface{}) ([]byte, error) {

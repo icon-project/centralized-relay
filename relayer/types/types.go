@@ -1,5 +1,7 @@
 package types
 
+import "sync"
+
 type BlockInfo struct {
 	Height   uint64
 	Messages []Message
@@ -52,7 +54,7 @@ func (r *RouteMessage) GetIsProcessing() bool {
 }
 
 type ExecuteMessageResponse struct {
-	// *RouteMessage
+	MessageKey
 	TxResponse
 }
 
@@ -73,26 +75,40 @@ const (
 
 type MessageKey struct {
 	Sn        uint64
-	SrcChain  string
-	dstChain  string
+	Src       string
+	Dst       string
 	EventType string
 }
 
-func NewMessageKey(Sn uint64, SrcChain string, DstChain string, EventType string) MessageKey {
-	return MessageKey{Sn, SrcChain, DstChain, EventType}
+func NewMessageKey(sn uint64, src string, dst string, eventType string) MessageKey {
+	return MessageKey{sn, src, dst, eventType}
 }
 
-type MessageCache map[MessageKey]*RouteMessage
+type MessageCache struct {
+	Messages     map[MessageKey]*RouteMessage
+	MessageMapMu sync.Mutex
+}
 
-func (m MessageCache) Add(r *RouteMessage) {
+func NewMessageCache() *MessageCache {
+	return &MessageCache{
+		Messages: make(map[MessageKey]*RouteMessage, 0),
+	}
+}
+
+func (m *MessageCache) Add(r *RouteMessage) {
 	key := NewMessageKey(r.Sn, r.Src, r.Dst, r.EventType)
-	m[key] = r
+
+	m.MessageMapMu.Lock()
+	defer m.MessageMapMu.Unlock()
+	m.Messages[key] = r
 }
 
-func (m MessageCache) Len() uint64 {
-	return uint64(len(m))
+func (m *MessageCache) Len() uint64 {
+	return uint64(len(m.Messages))
 }
 
-func (m MessageCache) Remove(key MessageKey) {
-	delete(m, key)
+func (m *MessageCache) Remove(key MessageKey) {
+	m.MessageMapMu.Lock()
+	defer m.MessageMapMu.Unlock()
+	delete(m.Messages, key)
 }

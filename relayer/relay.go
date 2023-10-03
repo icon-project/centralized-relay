@@ -155,12 +155,12 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, 
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
+
 	for _, srcChainRuntime := range r.chains {
-		for _, routeMessage := range srcChainRuntime.MessageCache {
+		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
 			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
 			if err != nil {
-
-				// TODO: remove current message as dst chain not found
+				routeMessage.Message.MessageKey()
 				continue
 			}
 			if dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime) {
@@ -169,11 +169,12 @@ func (r *Relayer) processMessages(ctx context.Context) {
 
 		}
 	}
+
 }
 
-// processBlockInfo performs these operations
+// processBlockInfo->
 // save block height to database
-// send messages to destionation chain
+// & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
 	err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages))
 	if err != nil {
@@ -212,20 +213,26 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 	callback := func(response types.ExecuteMessageResponse) {
 
-		// localization of the variables
-		// src := src
+		// localization of the variable
+		src := src
 		dst := dst
-		routeMessage := m
 
 		if response.Code == types.Success {
-			// TODO: clearMessage
 			dst.log.Info("Successfully relayed message:",
-				zap.String("src chain", routeMessage.Src),
-				zap.String("dst chain", routeMessage.Dst),
-				zap.Uint64("Sn number", routeMessage.Sn),
+				zap.String("src chain", src.Provider.ChainId()),
+				zap.String("dst chain", dst.Provider.ChainId()),
+				zap.Uint64("Sn number", response.Sn),
 				zap.Any("Tx hash", response.TxHash),
 			)
+			if err := r.ClearMessages(ctx, []types.MessageKey{response.MessageKey}, src); err != nil {
+				r.log.Error("error occured when clearing successful message", zap.Error(err))
+			}
 			return
+		}
+
+		routeMessage, ok := src.MessageCache.Messages[response.MessageKey]
+		if !ok {
+			r.log.Error("message not found for key", zap.Any("message key", response.MessageKey))
 		}
 
 		if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
@@ -238,12 +245,32 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 			)
 		}
 
+		// reset the message
+
 		return
 	}
+
+	// setting before message is processed
+	m.SetIsProcessing(true)
+	m.IncrementRetry()
 
 	err := dst.Provider.Route(ctx, m, callback)
 	if err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
 	}
 
+}
+
+func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
+
+	// clear from cache
+	srcChain.clearMessageFromCache(msgs)
+
+	for _, m := range msgs {
+		err := r.messageStore.DeleteMessage(m)
+		if err != nil {
+			r.log.Error("error occured when deleting message from db ", zap.Error(err))
+		}
+	}
+	return nil
 }
