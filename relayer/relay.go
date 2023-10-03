@@ -216,7 +216,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		dst := dst
 
 		if response.Code == types.Success {
-			dst.log.Info("Successfully relayed message:",
+			dst.log.Info("successfully relayed message:",
 				zap.String("src chain", src.Provider.ChainId()),
 				zap.String("dst chain", dst.Provider.ChainId()),
 				zap.Uint64("Sn number", response.Sn),

@@ -85,10 +85,11 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage, callback func(response types.ExecuteMessageResponse)) error {
 
 	icp.log.Info("message received", zap.Any("message", message))
+	messageKey := message.MessageKey()
 
 	icp.DeleteMessage(message)
 	callback(types.ExecuteMessageResponse{
-		// RouteMessage: *message,
+		MessageKey: messageKey,
 		TxResponse: types.TxResponse{
 			Code: 0,
 		},
@@ -108,17 +109,21 @@ func (icp *MockProvider) FindMessages() []types.Message {
 }
 
 func (icp *MockProvider) DeleteMessage(routeMsg *types.RouteMessage) {
+
 	if routeMsg == nil {
 		return
 	}
 	var deleteKey *types.MessageKey
-	for key, m := range icp.PCfg.SendMessages {
+
+	for key, m := range icp.PCfg.ReceiveMessages {
 		fromRouteMessage := routeMsg.GetMessage()
 
 		if reflect.DeepEqual(fromRouteMessage, m) {
 			deleteKey = &key
+			break
 		}
 	}
+
 	if deleteKey != nil {
 		delete(icp.PCfg.ReceiveMessages, *deleteKey)
 	}

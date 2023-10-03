@@ -14,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	levelDbName = "./testdb"
+)
+
 type RelayTestSuite struct {
 	suite.Suite
 
@@ -78,7 +82,7 @@ func (s *RelayTestSuite) SetupTest() {
 
 	logger, _ := zap.NewProduction()
 
-	db, err := lvldb.NewLvlDB("./testdb")
+	db, err := lvldb.NewLvlDB(levelDbName)
 	if err != nil {
 		s.Fail("fail to create leveldb", err)
 	}
@@ -145,7 +149,6 @@ loop:
 		}
 	}
 	defer close(listenerchan)
-
 }
 
 func (s *RelayTestSuite) TestRelay() {
@@ -178,12 +181,28 @@ func (s *RelayTestSuite) TestRelay() {
 		s.Fail("unable to start the relayer ", err)
 	}
 
+	provider1 := mock1Provider.(*mockchain.MockProvider)
+	provider2 := mock2Provider.(*mockchain.MockProvider)
+
+	receivedTimer := time.NewTicker(5 * time.Second)
+	failedReceived := time.NewTicker(1 * time.Minute)
+loop:
 	for {
 		select {
 		case err := <-errorchan:
-			fmt.Println("error occured: ", err)
+			s.Fail("error occured when starting the relay", err)
 			break
+
+		case <-receivedTimer.C:
+
+			if len(provider1.PCfg.ReceiveMessages) == 0 && len(provider2.PCfg.ReceiveMessages) == 0 {
+				break loop
+			}
+		case <-failedReceived.C:
+			s.Fail(" failed to receive all the messeages")
+			return
 		}
+
 	}
 
 }
