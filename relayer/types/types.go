@@ -13,6 +13,11 @@ type Message struct {
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
 }
+
+func (m Message) MessageKey() MessageKey {
+	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
+}
+
 type RouteMessage struct {
 	Message
 	Retry        uint64
