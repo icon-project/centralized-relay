@@ -60,7 +60,7 @@ func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[t
 	return sendMockMessageMap
 }
 
-func GetMockChain(log *zap.Logger, blockDuration time.Duration, srcChainId string, dstchainId string, srcStartHeight uint64, dstStartHeight uint64) (provider.ChainProvider, error) {
+func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, srcChainId string, dstchainId string, srcStartHeight uint64, dstStartHeight uint64) (provider.ChainProvider, error) {
 	sendMessages := GetMockMessages(srcChainId, dstchainId, srcStartHeight)
 	receiveMessage := GetMockMessages(dstchainId, srcChainId, dstStartHeight)
 	mock1ProviderConfig := mockchain.MockProviderConfig{
@@ -100,7 +100,7 @@ func (s *RelayTestSuite) TestListener() {
 	mock1 := "mock-1"
 	dstMock2 := "mock-2"
 	srcStartHeight := uint64(10)
-	mockProvider, err := GetMockChain(s.logger, 500*time.Millisecond, mock1, dstMock2, srcStartHeight, 10)
+	mockProvider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock1, dstMock2, srcStartHeight, 10)
 	if err != nil {
 		s.Fail("fail to create mockProvider", err)
 	}
@@ -159,13 +159,13 @@ func (s *RelayTestSuite) TestRelay() {
 	mock1StartHeight := 10
 	mock2StartHeight := 20
 
-	mock1Provider, err := GetMockChain(s.logger, 500*time.Millisecond, mock1ChainId, mock2ChainId, uint64(mock1StartHeight), uint64(mock2StartHeight))
+	mock1Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock1ChainId, mock2ChainId, uint64(mock1StartHeight), uint64(mock2StartHeight))
 	if err != nil {
 		s.Fail("fail to create mockProvider", err)
 	}
 	chains[mock1ChainId] = NewChain(logger, mock1Provider, true)
 
-	mock2Provider, err := GetMockChain(s.logger, 500*time.Millisecond, mock2ChainId, mock1ChainId, uint64(mock2StartHeight), uint64(mock1StartHeight))
+	mock2Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock2ChainId, mock1ChainId, uint64(mock2StartHeight), uint64(mock1StartHeight))
 	if err != nil {
 		s.Fail("fail to create mockProvider", err)
 	}

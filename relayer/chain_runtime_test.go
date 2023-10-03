@@ -16,7 +16,7 @@ func TestChainRuntime(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	mockProvider, err := GetMockChain(logger, 1*time.Second, "mock", "mock-2", 10, 20)
+	mockProvider, err := GetMockChainProvider(logger, 1*time.Second, "mock", "mock-2", 10, 20)
 	assert.NoError(t, err)
 
 	runtime, err := NewChainRuntime(logger, NewChain(&zap.Logger{}, mockProvider, true))
