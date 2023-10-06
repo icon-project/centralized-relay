@@ -8,5 +8,4 @@ import (
 
 // starting listener
 func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
-	return nil
 }
