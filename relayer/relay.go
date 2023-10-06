@@ -57,7 +57,6 @@ type Relayer struct {
 }
 
 func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
-
 	// if fresh clearing db
 	if fresh {
 		err := db.ClearStore()
@@ -100,7 +99,6 @@ func (r *Relayer) StartChainListeners(
 	ctx context.Context,
 	errCh chan error,
 ) {
-
 	var eg errgroup.Group
 	for _, chainRuntime := range r.chains {
 		chainRuntime := chainRuntime
@@ -143,7 +141,6 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 }
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, fresh bool) {
-
 	routeTimer := time.NewTicker(RouteDuration)
 
 	// TODO: implement flush logic
@@ -156,7 +153,6 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, 
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
-
 	for _, srcChainRuntime := range r.chains {
 		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
 			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
@@ -171,7 +167,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
 		}
 	}
-
 }
 
 // processBlockInfo->
@@ -263,11 +258,9 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	if err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
 	}
-
 }
 
 func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
-
 	// clear from cache
 	srcChain.clearMessageFromCache(msgs)
 
