@@ -37,6 +37,7 @@ func Start(
 		return nil, fmt.Errorf("error creating new relayer %v", err)
 	}
 
+	// create ctx -> with cancel function and senc cancel function to all -> ctx.done():
 	// start all the chain listeners
 	go relayer.StartChainListeners(ctx, errorChan)
 

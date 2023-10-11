@@ -1,6 +1,7 @@
 package lvldb
 
 import (
+	"os"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -28,15 +29,26 @@ func (db *LVLDB) GetByKey(key []byte) ([]byte, error) {
 }
 
 func (db *LVLDB) SetByKey(key []byte, value []byte) error {
+	db.dbMu.Lock()
+	defer db.dbMu.Unlock()
 	return db.db.Put(key, value, nil)
 }
 
 func (db *LVLDB) DeleteByKey(key []byte) error {
+	db.dbMu.Lock()
+	defer db.dbMu.Unlock()
 	return db.db.Delete(key, nil)
 }
 
 func (db *LVLDB) NewIterator(prefix []byte) iterator.Iterator {
 	return db.db.NewIterator(util.BytesPrefix(prefix), nil)
+}
+
+func (db *LVLDB) RemoveDbFile(filepath string) error {
+	if err := os.Remove(filepath); err != nil {
+		return errors.Wrapf(err, "unable to remove db file")
+	}
+	return nil
 }
 
 func (db *LVLDB) ClearStore() error {
@@ -52,6 +64,7 @@ func (db *LVLDB) ClearStore() error {
 	if err != nil {
 		return nil
 	}
+
 	return db.db.Write(batch, nil)
 }
 

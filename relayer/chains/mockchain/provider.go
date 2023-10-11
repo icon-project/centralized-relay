@@ -66,6 +66,8 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil
 		case <-ticker.C:
 
 			height, _ := icp.QueryLatestHeight(ctx)
@@ -74,7 +76,6 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 				Height:   uint64(height),
 				Messages: msgs,
 			}
-
 			incoming <- d
 			icp.Height += 1
 		}

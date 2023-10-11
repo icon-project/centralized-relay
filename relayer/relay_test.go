@@ -81,7 +81,6 @@ func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, srcChain
 func (s *RelayTestSuite) SetupTest() {
 
 	logger, _ := zap.NewProduction()
-
 	db, err := lvldb.NewLvlDB(levelDbName)
 	if err != nil {
 		s.Fail("fail to create leveldb", err)
@@ -89,13 +88,6 @@ func (s *RelayTestSuite) SetupTest() {
 
 	s.db = db
 	s.logger = logger
-
-}
-
-func (s *RelayTestSuite) TearDownSuite() {
-	// clearing all the db
-	s.db.ClearStore()
-	defer s.db.Close()
 
 }
 
@@ -121,7 +113,7 @@ func (s *RelayTestSuite) TestListener() {
 	}
 
 	errorchan := make(chan error, 1)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go relayer.StartChainListeners(ctx, errorchan)
 
@@ -143,12 +135,19 @@ loop:
 			}
 			fmt.Println("mockmessage length ", len(mockMessages))
 			if len(mockMessages) == 0 {
+				cancel()
+				close(listenerchan)
 				break loop
 			}
 
 		}
 	}
-	defer close(listenerchan)
+
+	s.T().Cleanup(func() {
+		fmt.Println("trying to cleanup testlistener")
+		s.db.Close()
+		s.db.RemoveDbFile(levelDbName)
+	})
 }
 
 func (s *RelayTestSuite) TestRelay() {
@@ -204,5 +203,8 @@ loop:
 		}
 
 	}
-
+	s.T().Cleanup(func() {
+		s.db.Close()
+		s.db.RemoveDbFile(levelDbName)
+	})
 }
