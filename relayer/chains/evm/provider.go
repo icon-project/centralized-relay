@@ -7,7 +7,6 @@ import (
 
 	"github.com/icon-project/centralized-relay/relayer/common"
 	"github.com/icon-project/centralized-relay/relayer/store"
-	"github.com/icon-project/goloop/icon/blockv1"
 
 	"go.uber.org/zap"
 )

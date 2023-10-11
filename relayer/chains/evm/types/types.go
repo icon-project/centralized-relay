@@ -11,3 +11,8 @@ type Message struct {
 	Payload     []interface{}
 	Metadata    Metadata
 }
+
+type Block struct {
+	Transactions []string `json:"transactions"`
+	GasUsed      string   `json:"gasUsed"`
+}

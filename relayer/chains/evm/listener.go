@@ -50,12 +50,7 @@ func (l *EVMProvider) Listener(ctx context.Context, startHeight uint64, blockInf
 				}
 
 				// Execute the event handlers for the block
-				if err := l.ExecuteEventHandlers(ctx, blockInfo, block); err != nil {
-					return err
-				}
-
-				// store block
-				if err := l.StoreBlock(block, l.cfg.ChainID); err != nil {
+				if err := l.ExecuteEventHandlers(ctx, block); err != nil {
 					return err
 				}
 			}
