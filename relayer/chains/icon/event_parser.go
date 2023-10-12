@@ -23,7 +23,7 @@ func parseMessageFromEvent(
 	height uint64,
 ) (providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
-	eventType := EventTypesToName[eventName]
+	eventType := EventNameToType[eventName]
 
 	switch eventName {
 	case EmitMessage:

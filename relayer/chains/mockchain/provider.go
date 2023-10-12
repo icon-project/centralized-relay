@@ -83,18 +83,15 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 	}
 }
 
-func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage, callback func(response types.ExecuteMessageResponse)) error {
+func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage, callback types.TxResponseFunc) error {
 
 	icp.log.Info("message received", zap.Any("message", message))
 	messageKey := message.MessageKey()
 
 	icp.DeleteMessage(message)
-	callback(types.ExecuteMessageResponse{
-		MessageKey: messageKey,
-		TxResponse: types.TxResponse{
-			Code: 0,
-		},
-	})
+	callback(messageKey, types.TxResponse{
+		Code: types.Success,
+	}, nil)
 	return nil
 }
 

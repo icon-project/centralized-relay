@@ -39,7 +39,7 @@ func ToEventLogBytes(evt types.EventLogStr) types.EventLog {
 
 }
 
-var EventTypesToName = map[string]string{
+var EventNameToType = map[string]string{
 	EmitMessage: events.EmitMessage,
 }
 

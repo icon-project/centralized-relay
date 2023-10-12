@@ -56,10 +56,7 @@ func (r *RouteMessage) GetIsProcessing() bool {
 	return r.IsProcessing
 }
 
-type ExecuteMessageResponse struct {
-	MessageKey
-	TxResponse
-}
+type TxResponseFunc func(key MessageKey, response TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
@@ -72,8 +69,8 @@ type TxResponse struct {
 type ResponseCode uint8
 
 const (
-	Success ResponseCode = 0
-	Failed  ResponseCode = 1
+	Failed  ResponseCode = 0
+	Success ResponseCode = 1
 )
 
 type MessageKey struct {

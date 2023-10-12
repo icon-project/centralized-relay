@@ -16,6 +16,7 @@ type IconProviderConfig struct {
 	Password        string `json:"password" yaml:"password"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"` //would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
+	ICONNetworkID   int64  `json:"icon-network-id" yaml:"icon-network-id"`
 }
 
 // NewProvider returns new Icon provider

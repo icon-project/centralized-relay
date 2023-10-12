@@ -289,7 +289,7 @@ func (icp *IconProvider) handleBTPBlockRequest(
 						return
 					}
 					icp.log.Info("Detected eventlog ", zap.Int64("height", request.height),
-						zap.String("eventlog", EventTypesToName[string(el.Indexed[0])]))
+						zap.String("eventlog", EventNameToType[string(el.Indexed[0])]))
 					eventlogs = append(eventlogs, el)
 				}
 

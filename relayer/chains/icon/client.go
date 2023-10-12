@@ -34,6 +34,7 @@ import (
 const (
 	DefaultSendTransactionRetryInterval        = 3 * time.Second        //3sec
 	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond //1.5sec
+	JsonrpcApiVersion                          = 3
 )
 
 type Wallet interface {
