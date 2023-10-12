@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	testkeyAddr  = "../../../example/icon/keystore.json"
-	expectedAddr = "hxf36d99db01ef599d8117cbdd4036c4a598fdb2f9"
+	testKeyAddr     = "../../../example/icon/keystore.json"
+	testKeyPassword = "x"
+	expectedAddr    = "hxf36d99db01ef599d8117cbdd4036c4a598fdb2f9"
 )
 
 func TestRestoreIconKey(t *testing.T) {
@@ -23,7 +24,7 @@ func TestRestoreIconKey(t *testing.T) {
 
 func TestGetAddrFromKeystore(t *testing.T) {
 
-	addr, err := getAddrFromKeystore(testkeyAddr)
+	addr, err := getAddrFromKeystore(testKeyAddr)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAddr, addr)
 }
