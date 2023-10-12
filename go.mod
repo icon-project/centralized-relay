@@ -3,6 +3,10 @@ module github.com/icon-project/centralized-relay
 go 1.21
 
 require (
+	github.com/avast/retry-go/v4 v4.5.0
+	github.com/ethereum/go-ethereum v1.10.16
+	github.com/gorilla/websocket v1.5.0
+	github.com/icon-project/goloop v1.3.11
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.7.0
@@ -12,6 +16,7 @@ require (
 	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.4.0
 	gopkg.in/yaml.v3 v3.0.1
+
 )
 
 require (
@@ -63,20 +68,16 @@ require (
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
-	github.com/avast/retry-go/v4 v4.5.0
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
-	github.com/ethereum/go-ethereum v1.10.16
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/icon-project/goloop v1.3.11
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
