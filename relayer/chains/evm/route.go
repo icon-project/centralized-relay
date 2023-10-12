@@ -6,6 +6,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *EVMProvider) Route(ctx context.Context, message *types.RouteMessage, callback func(res types.ExecuteMessageResponse)) error {
+func (p *EVMProvider) Route(ctx context.Context, message *types.RouteMessage, callback types.TxResponseFunc) error {
 	return nil
 }
