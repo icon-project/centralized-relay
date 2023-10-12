@@ -242,7 +242,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	m.SetIsProcessing(true)
 	m.IncrementRetry()
 
-	err := dst.Provider.Route(ctx, m, callback)
+	err := dst.Provider.Route(ctx, m.Message, callback)
 	if err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)

@@ -16,14 +16,14 @@ const (
 	defaultBroadcastWaitTimeout = 10 * time.Minute
 )
 
-func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.RouteMessage, callback providerTypes.TxResponseFunc) error {
+func (icp *IconProvider) Route(ctx context.Context, message providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 
-	iconMessage, err := icp.GenerateIconMessage(message)
+	iconMessage, err := icp.MakeIconMessage(message)
 	if err != nil {
 		return err
 	}
 
-	messageKey := message.GetMessage().MessageKey()
+	messageKey := message.MessageKey()
 	txhash, err := icp.SendTransaction(ctx, iconMessage)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
@@ -34,15 +34,11 @@ func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.Route
 	return nil
 }
 
-func (icp *IconProvider) GenerateIconMessage(message *providerTypes.RouteMessage) (IconMessage, error) {
-
-	if message == nil {
-		return IconMessage{}, fmt.Errorf("cannot generate from empty message")
-	}
+func (icp *IconProvider) MakeIconMessage(message providerTypes.Message) (IconMessage, error) {
 
 	switch message.EventType {
+	// TODO: generateMessage based on eventtype
 	case events.EmitMessage:
-		// TODO: generate appropriate message using route message
 		return IconMessage{}, nil
 
 	}

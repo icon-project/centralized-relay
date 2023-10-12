@@ -2,7 +2,6 @@ package mockchain
 
 import (
 	"context"
-	"reflect"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -83,7 +82,7 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 	}
 }
 
-func (icp *MockProvider) Route(ctx context.Context, message *types.RouteMessage, callback types.TxResponseFunc) error {
+func (icp *MockProvider) Route(ctx context.Context, message types.Message, callback types.TxResponseFunc) error {
 
 	icp.log.Info("message received", zap.Any("message", message))
 	messageKey := message.MessageKey()
@@ -106,17 +105,12 @@ func (icp *MockProvider) FindMessages() []types.Message {
 	return messages
 }
 
-func (icp *MockProvider) DeleteMessage(routeMsg *types.RouteMessage) {
+func (icp *MockProvider) DeleteMessage(msg types.Message) {
 
-	if routeMsg == nil {
-		return
-	}
 	var deleteKey *types.MessageKey
 
-	for key, m := range icp.PCfg.ReceiveMessages {
-		fromRouteMessage := routeMsg.GetMessage()
-
-		if reflect.DeepEqual(fromRouteMessage, m) {
+	for key := range icp.PCfg.ReceiveMessages {
+		if msg.MessageKey() == key {
 			deleteKey = &key
 			break
 		}
