@@ -56,6 +56,14 @@ func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey provid
 
 }
 
-func (ip *IconProvider) QueryBalance(ctx context.Context, Address string) (uint64, error) {
-	return 0, nil
+func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
+	param := types.AddressParam{
+		Address: types.Address(addr),
+	}
+	balance, err := ip.client.GetBalance(&param)
+	if err != nil {
+		return nil, err
+	}
+	coin := providerTypes.NewCoin("ICX", balance.Uint64())
+	return &coin, nil
 }

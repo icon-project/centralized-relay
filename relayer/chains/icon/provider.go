@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +28,7 @@ func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 	return &IconProvider{
 		log:    log.With(zap.String("chain_id", pp.ChainID)),
 		client: NewClient(pp.RPCAddr, log),
+		PCfg:   pp,
 	}, nil
 
 }
@@ -49,9 +51,17 @@ type IconProvider struct {
 	client *Client
 }
 
-func (icp *IconProvider) ChainId() string {
-	return icp.PCfg.ChainID
+func (ip *IconProvider) ChainId() string {
+	return ip.PCfg.ChainID
 }
-func (icp *IconProvider) Init(ctx context.Context) error {
+func (ip *IconProvider) Init(ctx context.Context) error {
 	return nil
+}
+
+func (cp *IconProvider) Wallet() (module.Wallet, error) {
+	return cp.RestoreIconKeyStore()
+}
+
+func (cp *IconProvider) GetWalletAddress() (address string, err error) {
+	return getAddrFromKeystore(cp.PCfg.KeyStore)
 }

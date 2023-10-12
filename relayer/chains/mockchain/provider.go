@@ -137,5 +137,8 @@ func (icp *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey ty
 }
 func (icp *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
 	return true, nil
+}
 
+func (icp *MockProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+	return nil, nil
 }

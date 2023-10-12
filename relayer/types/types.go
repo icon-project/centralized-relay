@@ -1,6 +1,9 @@
 package types
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type BlockInfo struct {
 	Height   uint64
@@ -111,4 +114,17 @@ func (m *MessageCache) Remove(key MessageKey) {
 	m.MessageMapMu.Lock()
 	defer m.MessageMapMu.Unlock()
 	delete(m.Messages, key)
+}
+
+type Coin struct {
+	Denom  string
+	Amount uint64
+}
+
+func NewCoin(denom string, amount uint64) Coin {
+	return Coin{denom, amount}
+}
+
+func (c *Coin) String() string {
+	return fmt.Sprintf("%d%s", c.Amount, c.Denom)
 }

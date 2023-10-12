@@ -27,6 +27,7 @@ func parseMessageFromEvent(
 
 	switch eventName {
 	case EmitMessage:
+		// TODO: fetch message from eventlog
 		return providerTypes.Message{
 			MessageHeight: height,
 			EventType:     eventType,

@@ -8,15 +8,10 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/events"
 )
 
-// Events
 var (
 	// All the events
 	EmitMessage = "EmitMessage(str,bytes)"
 )
-
-func MustConvertEventNameToBytes(eventName string) []byte {
-	return []byte(eventName)
-}
 
 func ToEventLogBytes(evt types.EventLogStr) types.EventLog {
 	indexed := make([][]byte, 0)
@@ -49,7 +44,6 @@ var EventTypesToName = map[string]string{
 }
 
 var MonitorEvents []string = []string{
-
 	//TODO: list all the events to monitor
 	EmitMessage,
 }

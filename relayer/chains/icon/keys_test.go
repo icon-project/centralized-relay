@@ -1,0 +1,29 @@
+package icon
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+var (
+	testkeyAddr  = "../../../example/icon/keystore.json"
+	expectedAddr = "hxf36d99db01ef599d8117cbdd4036c4a598fdb2f9"
+)
+
+func TestRestoreIconKey(t *testing.T) {
+
+	iconProvider, err := GetMockIconProvider()
+	assert.NoError(t, err)
+
+	addr, err := iconProvider.GetWalletAddress()
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAddr, addr)
+}
+
+func TestGetAddrFromKeystore(t *testing.T) {
+
+	addr, err := getAddrFromKeystore(testkeyAddr)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAddr, addr)
+}
