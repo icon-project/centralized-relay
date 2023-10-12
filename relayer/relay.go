@@ -273,3 +273,5 @@ func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, sr
 	}
 	return nil
 }
+
+//TODO: auto connect property from last saved height if down

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	"github.com/icon-project/centralized-relay/relayer/events"
 )
 
 // Events
@@ -43,7 +44,12 @@ func ToEventLogBytes(evt types.EventLogStr) types.EventLog {
 
 }
 
+var EventTypesToName = map[string]string{
+	events.EmitMessage: EmitMessage,
+}
+
 var MonitorEvents []string = []string{
+
 	//TODO: list all the events to monitor
 	EmitMessage,
 }
