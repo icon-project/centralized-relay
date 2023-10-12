@@ -45,7 +45,7 @@ func ToEventLogBytes(evt types.EventLogStr) types.EventLog {
 }
 
 var EventTypesToName = map[string]string{
-	events.EmitMessage: EmitMessage,
+	EmitMessage: events.EmitMessage,
 }
 
 var MonitorEvents []string = []string{

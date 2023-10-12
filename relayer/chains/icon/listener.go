@@ -57,9 +57,12 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 		}
 	}
 
-	processedheight := icp.StartFromHeight(ctx, lastSavedHeight)
+	processedheight, err := icp.StartFromHeight(ctx, lastSavedHeight)
+	if err != nil {
+		return errors.Wrapf(err, "failed to calculate start height")
+	}
 
-	icp.log.Info("Start to query from height", zap.Int64("height", processedheight))
+	icp.log.Info("Start querying from height", zap.Int64("height", processedheight))
 	// subscribe to monitor block
 	ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 	reconnect()
@@ -106,7 +109,7 @@ loop:
 				icp.log.Debug("Verified block ",
 					zap.Int64("height", int64(processedheight)))
 
-				message := parseMessageFromEventlog(icp.log, br.EventLogs, uint64(br.Height))
+				message := parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
 
 				// TODO: check for the concurrency
 				incoming <- providerTypes.BlockInfo{
@@ -296,7 +299,31 @@ func (icp *IconProvider) handleBTPBlockRequest(
 	}
 }
 
-func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) int64 {
-	// TODO:
-	return 0
+func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
+
+	latestHeight, err := icp.QueryLatestHeight(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if icp.PCfg.StartHeight > latestHeight {
+		icp.log.Error("start height provided on config cannot be greater than latest height",
+			zap.Uint64("start-height", icp.PCfg.StartHeight),
+			zap.Int64("latest-height", int64(latestHeight)),
+		)
+	}
+
+	// priority1: startHeight from config
+	if icp.PCfg.StartHeight != 0 && icp.PCfg.StartHeight < latestHeight {
+		return int64(icp.PCfg.StartHeight), nil
+	}
+
+	// priority2: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
+		return int64(lastSavedHeight), nil
+	}
+
+	// priority3: latest height
+	return int64(latestHeight), nil
+
 }
