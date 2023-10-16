@@ -27,7 +27,7 @@ type EVMProviderConfig struct {
 
 type EVMProvider struct {
 	sync.Mutex
-	Client
+	client IClient
 	store.BlockStore
 	log *zap.Logger
 	cfg *EVMProviderConfig
@@ -37,9 +37,15 @@ func (p *EVMProvider) NewProvider() (*EVMProvider, error) {
 	if err := p.cfg.Validate(); err != nil {
 		return nil, err
 	}
+	log := zap.NewNop()
+	client, err := newClient(p.cfg.RPCURL, log)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EVMProvider{
-		log:    zap.NewNop(),
-		Client: Client{},
+		log:    log,
+		client: client,
 	}, nil
 }
 
