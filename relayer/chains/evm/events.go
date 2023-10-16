@@ -38,16 +38,13 @@ var MonitorEvents []string = []string{
 }
 
 func GetMonitorEventFilters(address string) []*types.EventFilter {
-	filters := []*types.EventFilter{}
+	var filters []*types.EventFilter
 	if address == "" {
 		return filters
 	}
 
 	for _, event := range MonitorEvents {
-		filters = append(filters, &types.EventFilter{
-			Addr:      types.Address(address),
-			Signature: event,
-		})
+		filters = append(filters, &types.EventFilter{Addr: types.Address(address), Signature: event})
 	}
 	return filters
 }

@@ -20,8 +20,7 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
-	types "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
-	"github.com/icon-project/goloop/client"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/crypto"
 	"github.com/icon-project/goloop/module"
@@ -250,14 +249,6 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 			return
 		}
 	}
-}
-
-func (c *Client) GetLastBlock() (*types.Block, error) {
-	result := &types.Block{}
-	if _, err := c.Do("icx_getLastBlock", struct{}{}, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 func (c *Client) GetBlockByHeight(p *types.BlockHeightParam) (*types.Block, error) {
