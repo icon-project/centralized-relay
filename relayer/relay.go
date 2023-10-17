@@ -207,58 +207,71 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(response types.ExecuteMessageResponse) {
+
+	var callback types.TxResponseFunc
+	callback = func(key types.MessageKey, response types.TxResponse, err error) {
 		src := src
 		dst := dst
 
+		// note: it is ok if err is not checked
 		if response.Code == types.Success {
 			dst.log.Info("successfully relayed message:",
 				zap.String("src chain", src.Provider.ChainId()),
 				zap.String("dst chain", dst.Provider.ChainId()),
-				zap.Uint64("Sn number", response.Sn),
+				zap.Uint64("Sn number", key.Sn),
 				zap.Any("Tx hash", response.TxHash),
 			)
-			if err := r.ClearMessages(ctx, []types.MessageKey{response.MessageKey}, src); err != nil {
+
+			// if success remove message from everywhere
+			if err := r.ClearMessages(ctx, []types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 			return
 		}
 
-		routeMessage, ok := src.MessageCache.Messages[response.MessageKey]
+		routeMessage, ok := src.MessageCache.Messages[key]
 		if !ok {
-			r.log.Error("message not found for key", zap.Any("message key", response.MessageKey))
+			r.log.Error("message not found for key", zap.Any("message key", key))
 			return
 		}
 
-		// open to resend the message
-		if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
-
-			// save to db
-			if err := r.messageStore.StoreMessage(routeMessage.Message); err != nil {
-				r.log.Error("error occured when storing the message after max retry", zap.Error(err))
-				return
-			}
-			// removed message from messageCache
-			src.MessageCache.Remove(routeMessage.MessageKey())
-
-			dst.log.Error("failed to send message saving to database",
-				zap.String("src chain", routeMessage.Src),
-				zap.String("dst chain", routeMessage.Dst),
-				zap.Uint64("Sn number", routeMessage.Sn),
-			)
-			return
-		}
-		routeMessage.SetIsProcessing(false)
+		r.HandleMessageFailed(routeMessage, dst, src)
 	}
 
 	// setting before message is processed
 	m.SetIsProcessing(true)
 	m.IncrementRetry()
 
-	err := dst.Provider.Route(ctx, m, callback)
+	err := dst.Provider.Route(ctx, m.Message, callback)
 	if err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
+		r.HandleMessageFailed(m, dst, src)
+
 	}
+}
+
+func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
+
+	// open to resend the message
+	if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
+
+		// save to db
+		if err := r.messageStore.StoreMessage(routeMessage.Message); err != nil {
+			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
+			return
+		}
+
+		// removed message from messageCache
+		src.MessageCache.Remove(routeMessage.MessageKey())
+
+		dst.log.Error("failed to send message saving to database",
+			zap.String("src chain", routeMessage.Src),
+			zap.String("dst chain", routeMessage.Dst),
+			zap.Uint64("Sn number", routeMessage.Sn),
+		)
+		return
+	}
+	routeMessage.SetIsProcessing(false)
 }
 
 func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
@@ -273,3 +286,5 @@ func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, sr
 	}
 	return nil
 }
+
+//TODO: auto connect property from last saved height if down
