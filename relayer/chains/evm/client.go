@@ -10,21 +10,21 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"net/rpc"
 	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum"
+	eth "github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/crypto"
 	"github.com/icon-project/goloop/module"
-	"github.com/icon-project/goloop/server/jsonrpc"
 	"github.com/icon-project/goloop/service/transaction"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -62,15 +62,7 @@ func newClient(url string, l *zap.Logger) (IClient, error) {
 		return nil, err
 	}
 	eth := ethclient.NewClient(rpcClient)
-	if err != nil {
-		return nil, err
-	}
-	cl := &Client{
-		log: l,
-		rpc: rpcClient,
-		eth: eth,
-	}
-	return cl, nil
+	return &Client{log: l, rpc: rpcClient, eth: eth}, nil
 }
 
 // grouped rpc api clients
@@ -91,10 +83,10 @@ type IClient interface {
 	GetChainID() string
 
 	// ethClient
-	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
+	FilterLogs(ctx context.Context, q eth.FilterQuery) ([]ethTypes.Log, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
-	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+	Call(ctx context.Context, msg eth.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
@@ -155,7 +147,6 @@ func (c *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
 	return &types.Block{
 		Height:    block.Number().Uint64(),
 		Timestamp: block.Time(),
-		Header:    block.Header,
 	}, nil
 }
 
@@ -165,7 +156,7 @@ func (c *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTy
 	return c.eth.HeaderByNumber(ctx, height)
 }
 
-func (c *Client) SignTransaction(w module.Wallet, p *types.TransactionParam) error {
+func (c *Client) SignTransaction(w module.Wallet, p ethereum.CallMsg) error {
 	p.Timestamp = types.NewHexInt(time.Now().UnixNano() / int64(time.Microsecond))
 	js, err := json.Marshal(p)
 	if err != nil {
@@ -176,7 +167,7 @@ func (c *Client) SignTransaction(w module.Wallet, p *types.TransactionParam) err
 	if err != nil {
 		return err
 	}
-	bs = append([]byte("icx_sendTransaction."), bs...)
+	bs = append([]byte("eth_sendTransaction."), bs...)
 	txHash := crypto.SHA3Sum256(bs)
 	p.TxHash = types.NewHexBytes(txHash)
 	sig, err := w.Sign(txHash)
@@ -188,42 +179,49 @@ func (c *Client) SignTransaction(w module.Wallet, p *types.TransactionParam) err
 }
 
 func (c *Client) SendTransaction(p *types.TransactionParam) (*types.HexBytes, error) {
-	var result types.HexBytes
-	if _, err := c.Do("icx_sendTransaction", p, &result); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	res := new(types.HexBytes)
+	if err := c.rpc.CallContext(ctx, res, "eth_sendTransaction", p); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return res, nil
 }
 
 func (c *Client) SendTransactionAndWait(p *types.TransactionParam) (*types.HexBytes, error) {
-	var result types.HexBytes
-	if _, err := c.Do("icx_sendTransactionAndWait", p, &result); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	res := new(types.HexBytes)
+	if err := c.rpc.CallContext(ctx, res, "eth_sendTransaction", p); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return res, nil
 }
 
-func (c *Client) GetTransactionResult(p *types.TransactionHashParam) (*types.TransactionResult, error) {
-	tr := &types.TransactionResult{}
-	if _, err := c.Do("icx_getTransactionResult", p, tr); err != nil {
+func (c *Client) GetTransactionResult(tx common.Hash) (*ethTypes.Receipt, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	receipt, err := c.eth.TransactionReceipt(ctx, tx)
+	if err != nil {
 		return nil, err
 	}
-	return tr, nil
+	return receipt, nil
 }
 
 func (c *Client) WaitTransactionResult(p *types.TransactionHashParam) (*types.TransactionResult, error) {
-	tr := &types.TransactionResult{}
-	if _, err := c.Do("icx_waitTransactionResult", p, tr); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	tr := new(types.TransactionResult)
+	if err := c.rpc.CallContext(ctx, tr, "eth_waitTransactionResult", p); err != nil {
 		return nil, err
 	}
 	return tr, nil
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (txh *types.HexBytes, txr *types.TransactionResult, err error) {
+func (c *Client) WaitForResults(ctx context.Context, thp common.Hash) (txh *types.HexBytes, txr *ethTypes.Receipt, err error) {
 	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
 	retryLimit := 20
 	retryCounter := 0
-	txh = &thp.Hash
 	for {
 		defer ticker.Stop()
 		select {
@@ -238,13 +236,7 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 			retryCounter++
 			txr, err = c.GetTransactionResult(thp)
 			if err != nil {
-				switch re := err.(type) {
-				case *jsonrpc.Error:
-					switch re.Code {
-					case jsonrpc.ErrorCodePending, jsonrpc.ErrorCodeNotFound, jsonrpc.ErrorCodeExecuting:
-						continue
-					}
-				}
+				return
 			}
 			return
 		}
@@ -273,24 +265,23 @@ func (c *Client) GetBlockHeaderBytesByHeight(p *types.BlockHeightParam) (*ethTyp
 
 func (c *Client) GetVotesByHeight(p *types.BlockHeightParam) ([]byte, error) {
 	var result []byte
-	if _, err := c.Do("icx_getVotesByHeight", p, &result); err != nil {
+	if _, err := c.Do("eth_getVotesByHeight", p, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
 func (c *Client) GetDataByHash(p *types.DataHashParam) ([]byte, error) {
-	var result []byte
-	_, err := c.Do("icx_getDataByHash", p, &result)
-	if err != nil {
+	var res []byte
+	if err := c.rpc.CallContext(&res, "eth_getBlockByHash", p); err != nil {
 		return nil, err
 	}
-	return result, nil
+	return res, nil
 }
 
 func (c *Client) GetProofForResult(p *types.ProofResultParam) ([][]byte, error) {
 	var result [][]byte
-	if _, err := c.Do("icx_getProofForResult", p, &result); err != nil {
+	if _, err := c.Do("eth_getProofForResult", p, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -298,7 +289,7 @@ func (c *Client) GetProofForResult(p *types.ProofResultParam) ([][]byte, error) 
 
 func (c *Client) GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error) {
 	var result [][][]byte
-	if _, err := c.Do("icx_getProofForEvents", p, &result); err != nil {
+	if _, err := c.Do("eth_getProofForEvents", p, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -310,7 +301,7 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 		switch t := v.(type) {
 		case *types.BlockNotification:
 			if err := cb(conn, t); err != nil {
-				// c.log.Debugf("MonitorBlock callback return err:%+v", err)
+				c.log.Debugf("MonitorBlock callback return err:%+v", err)
 				return err
 			}
 		case types.WSEvent:
@@ -334,8 +325,8 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 }
 
 func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
-	resp := &types.EventNotification{}
-	return c.Monitor(ctx, "/event", p, resp, func(conn *websocket.Conn, v interface{}) error {
+	res := new(types.EventNotification)
+	return c.Monitor(ctx, "/event", p, res, func(conn *websocket.Conn, v interface{}) error {
 		switch t := v.(type) {
 		case *types.EventNotification:
 			if err := cb(conn, t); err != nil {
@@ -346,8 +337,8 @@ func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb fun
 		default:
 			errCb(conn, fmt.Errorf("not supported type %T", t))
 		}
-		return nil
 	})
+	return nil
 }
 
 func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr interface{}, cb types.WsReadCallback) error {
@@ -528,7 +519,7 @@ func (c *Client) GetValidatorsByHash(hash common.HexHash) ([]common.Address, err
 
 func (c *Client) GetBalance(param *types.AddressParam) (*big.Int, error) {
 	var result types.HexInt
-	_, err := c.Do("icx_getBalance", param, &result)
+	_, err := c.Do("eth_getBalance", param, &result)
 	if err != nil {
 		return nil, err
 	}

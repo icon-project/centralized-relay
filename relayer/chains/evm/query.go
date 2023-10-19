@@ -12,7 +12,7 @@ import (
 
 func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
 	err = retry.Do(func() error {
-		height, err = p.Client.GetBlockNumber()
+		height, err = p.client.GetBlockNumber()
 		return err
 	}, retry.Context(ctx),
 		retry.Attempts(RPCCallRetry), // TODO: set max retry count
@@ -24,7 +24,7 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 
 func (p *EVMProvider) QueryBlockByHeight(ctx context.Context, height uint64) (*ethTypes.Header, error) {
 	p.log.Info("QueryBlockByHeight", zap.Uint64("height", height))
-	return p.Client.GetHeaderByHeight(ctx, new(big.Int).SetUint64(height))
+	return p.client.GetHeaderByHeight(ctx, new(big.Int).SetUint64(height))
 }
 
 func (p *EVMProvider) ExecuteEventHandlers(ctx context.Context, block *ethTypes.Header) error {
@@ -40,13 +40,9 @@ func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Me
 }
 
 func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-	param := types.AddressParam{
-		Address: types.Address(addr),
-	}
-	balance, err := p.client.GetBalance(&param)
+	balance, err := p.client.GetBalance(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	coin := types.NewCoin("ICX", balance.Uint64())
-	return &coin, nil
+	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
 }

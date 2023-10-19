@@ -22,8 +22,8 @@ type GlobalConfig struct {
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
-func newDefaultGlobalConfig(memo string) GlobalConfig {
-	return GlobalConfig{
+func newDefaultGlobalConfig(memo string) *GlobalConfig {
+	return &GlobalConfig{
 		APIListenPort:  ":5183",
 		Timeout:        "10s",
 		LightCacheSize: 20,

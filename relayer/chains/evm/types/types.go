@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/icon-project/goloop/common"
+	"github.com/ethereum/go-ethereum/common"
 	"nhooyr.io/websocket"
 )
 
@@ -72,7 +72,7 @@ type TransactionParam struct {
 type BlockHeaderResult struct {
 	StateHash        []byte
 	PatchReceiptHash []byte
-	ReceiptHash      common.HexBytes
+	ReceiptHash      common.Hash
 	ExtensionData    []byte
 }
 
@@ -85,7 +85,7 @@ type TxResult struct {
 	LogsBloom          []byte
 	EventLogs          []EventLog
 	ScoreAddress       []byte
-	EventLogsHash      common.HexBytes
+	EventLogsHash      common.Hash
 	TxIndex            HexInt
 	BlockHeight        HexInt
 }
@@ -291,29 +291,18 @@ func NewAddress(b []byte) Address {
 	}
 }
 
+type NormalTransactions struct {
+	TxHash   HexBytes        `json:"txHash"`
+	From     Address         `json:"from"`
+	To       Address         `json:"to"`
+	DataType string          `json:"dataType,omitempty"`
+	Data     json.RawMessage `json:"data,omitempty"`
+}
+
 type Block struct {
-	// BlockHash              HexBytes  `json:"block_hash" validate:"required,t_hash"`
-	// Version                HexInt    `json:"version" validate:"required,t_int"`
-	Height    uint64 `json:"height" validate:"required,t_int"`
-	Timestamp uint64 `json:"time_stamp" validate:"required,t_int"`
-	// Proposer               HexBytes  `json:"peer_id" validate:"optional,t_addr_eoa"`
-	// PrevID                 HexBytes  `json:"prev_block_hash" validate:"required,t_hash"`
-	// NormalTransactionsHash HexBytes  `json:"merkle_tree_root_hash" validate:"required,t_hash"`
-	NormalTransactions []struct {
-		TxHash HexBytes `json:"txHash"`
-		// Version   HexInt   `json:"version"`
-		From Address `json:"from"`
-		To   Address `json:"to"`
-		// Value     HexInt   `json:"value,omitempty" `
-		// StepLimit HexInt   `json:"stepLimit"`
-		// TimeStamp HexInt   `json:"timestamp"`
-		// NID       HexInt   `json:"nid,omitempty"`
-		// Nonce     HexInt   `json:"nonce,omitempty"`
-		// Signature HexBytes `json:"signature"`
-		DataType string          `json:"dataType,omitempty"`
-		Data     json.RawMessage `json:"data,omitempty"`
-	} `json:"confirmed_transaction_list"`
-	// Signature              HexBytes  `json:"signature" validate:"optional,t_hash"`
+	Height             uint64 `json:"height" validate:"required,t_int"`
+	Timestamp          uint64 `json:"time_stamp" validate:"required,t_int"`
+	NormalTransactions []NormalTransactions
 }
 
 type WsReadCallback func(*websocket.Conn, interface{}) error
