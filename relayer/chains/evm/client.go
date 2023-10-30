@@ -10,7 +10,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"net/rpc"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	eth "github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/goloop/common/codec"
@@ -157,7 +157,6 @@ func (c *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTy
 }
 
 func (c *Client) SignTransaction(w module.Wallet, p ethereum.CallMsg) error {
-	p.Timestamp = types.NewHexInt(time.Now().UnixNano() / int64(time.Microsecond))
 	js, err := json.Marshal(p)
 	if err != nil {
 		return err
@@ -263,14 +262,6 @@ func (c *Client) GetBlockHeaderBytesByHeight(p *types.BlockHeightParam) (*ethTyp
 	return header, nil
 }
 
-func (c *Client) GetVotesByHeight(p *types.BlockHeightParam) ([]byte, error) {
-	var result []byte
-	if _, err := c.Do("eth_getVotesByHeight", p, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 func (c *Client) GetDataByHash(p *types.DataHashParam) ([]byte, error) {
 	var res []byte
 	if err := c.rpc.CallContext(&res, "eth_getBlockByHash", p); err != nil {
@@ -280,19 +271,23 @@ func (c *Client) GetDataByHash(p *types.DataHashParam) ([]byte, error) {
 }
 
 func (c *Client) GetProofForResult(p *types.ProofResultParam) ([][]byte, error) {
-	var result [][]byte
-	if _, err := c.Do("eth_getProofForResult", p, &result); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	var res [][]byte
+	if err := c.rpc.CallContext(ctx, &res, "eth_getProofForResult", p); err != nil {
 		return nil, err
 	}
-	return result, nil
+	return res, nil
 }
 
 func (c *Client) GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error) {
-	var result [][][]byte
-	if _, err := c.Do("eth_getProofForEvents", p, &result); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
+	var res [][][]byte
+	if err := c.rpc.CallContext(ctx, &res, "eth_getProofForEvents", p); err != nil {
 		return nil, err
 	}
-	return result, nil
+	return res, nil
 }
 
 func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error {
@@ -351,7 +346,7 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 	}
 	defer func() {
 		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.LocalAddr().String()))
-		c.wsClose(conn)
+		c.CloseMonitor(conn)
 	}()
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
@@ -374,7 +369,7 @@ func (c *Client) CloseAllMonitor() {
 	}
 }
 
-func (c *Client) _addWsConn(conn *websocket.Conn) {
+func (c *Client) _addConn(conn *websocket.Conn) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -398,13 +393,11 @@ type wsConnectError struct {
 	httpResp *http.Response
 }
 
-func (c *Client) wsConnect(reqUrl string, reqHeader http.Header) (*websocket.Conn, error) {
-	wsEndpoint := strings.Replace(c.Endpoint, "http", "ws", 1)
-	conn, httpResp, err := websocket.DefaultDialer.Dial(wsEndpoint+reqUrl, reqHeader)
+func (c *Client) connect(reqUrl string, reqHeader http.Header) (*websocket.Conn, error) {
+	ctx := context.Background()
+	client, err := ethclient.DialContext(ctx, reqUrl)
 	if err != nil {
-		wsErr := wsConnectError{error: err}
-		wsErr.httpResp = httpResp
-		return nil, wsErr
+		return nil, err
 	}
 	c._addWsConn(conn)
 	return conn, nil
