@@ -163,7 +163,7 @@ type EventRequest struct {
 
 type EventNotification struct {
 	Hash   HexBytes `json:"hash"`
-	Height HexInt   `json:"height"`
+	Height uint64   `json:"height"`
 	Index  HexInt   `json:"index"`
 	Events []HexInt `json:"events,omitempty"`
 }
@@ -305,4 +305,4 @@ type Block struct {
 	NormalTransactions []NormalTransactions
 }
 
-type WsReadCallback func(*websocket.Conn, interface{}) error
+type RpcReadCallback func(interface{}) error

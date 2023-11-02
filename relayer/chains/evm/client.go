@@ -3,29 +3,25 @@ package evm
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
-	"io"
-	"log"
 	"math/big"
 	"net/http"
 	"net/url"
-	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
 	eth "github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/crypto"
+	"github.com/icon-project/goloop/common/log"
 	"github.com/icon-project/goloop/module"
-	"github.com/icon-project/goloop/service/transaction"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -47,6 +43,8 @@ const (
 	DefaultSendTransactionRetryInterval        = 3 * time.Second        // 3sec
 	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond // 1.5sec
 	JsonrpcApiVersion                          = 3
+	BlockInterval                              = 3 * time.Second
+	BlockHeightPollInterval                    = BlockInterval * 5
 )
 
 var txSerializeExcludes = map[string]bool{"signature": true}
@@ -56,7 +54,7 @@ type Wallet interface {
 	Address() string
 }
 
-func newClient(url string, l *zap.Logger) (IClient, error) {
+func NewClient(url string, l *zap.Logger) (IClient, error) {
 	rpcClient, err := rpc.Dial(url)
 	if err != nil {
 		return nil, err
@@ -67,10 +65,11 @@ func newClient(url string, l *zap.Logger) (IClient, error) {
 
 // grouped rpc api clients
 type Client struct {
-	log     *zap.Logger
-	rpc     *rpc.Client
-	eth     *ethclient.Client
-	chainID string
+	Endpoint string
+	rpc      *rpc.Client
+	eth      *ethclient.Client
+	log      *zap.Logger
+	chainID  string
 }
 
 type IClient interface {
@@ -112,7 +111,7 @@ func (c *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*e
 	return c.eth.TransactionReceipt(ctx, txHash)
 }
 
-func (c *Client) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+func (c *Client) Call(ctx context.Context, msg eth.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	return c.eth.CallContract(ctx, msg, blockNumber)
 }
 
@@ -123,7 +122,7 @@ func (c *Client) GetBalance(ctx context.Context, hexAddr string) (*big.Int, erro
 	return c.eth.BalanceAt(ctx, common.HexToAddress(hexAddr), nil)
 }
 
-func (c *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
+func (c *Client) FilterLogs(ctx context.Context, q eth.FilterQuery) ([]ethTypes.Log, error) {
 	return c.eth.FilterLogs(ctx, q)
 }
 
@@ -156,24 +155,7 @@ func (c *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTy
 	return c.eth.HeaderByNumber(ctx, height)
 }
 
-func (c *Client) SignTransaction(w module.Wallet, p ethereum.CallMsg) error {
-	js, err := json.Marshal(p)
-	if err != nil {
-		return err
-	}
-
-	bs, err := transaction.SerializeJSON(js, nil, txSerializeExcludes)
-	if err != nil {
-		return err
-	}
-	bs = append([]byte("eth_sendTransaction."), bs...)
-	txHash := crypto.SHA3Sum256(bs)
-	p.TxHash = types.NewHexBytes(txHash)
-	sig, err := w.Sign(txHash)
-	if err != nil {
-		return err
-	}
-	p.Signature = base64.StdEncoding.EncodeToString(sig)
+func (c *Client) SignTransaction(w module.Wallet, p *ethTypes.Transaction) error {
 	return nil
 }
 
@@ -217,7 +199,7 @@ func (c *Client) WaitTransactionResult(p *types.TransactionHashParam) (*types.Tr
 	return tr, nil
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp common.Hash) (txh *types.HexBytes, txr *ethTypes.Receipt, err error) {
+func (c *Client) WaitForResults(ctx context.Context, hash common.Hash) (*ethTypes.Receipt, error) {
 	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
 	retryLimit := 20
 	retryCounter := 0
@@ -225,19 +207,26 @@ func (c *Client) WaitForResults(ctx context.Context, thp common.Hash) (txh *type
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = errors.New("Context Cancelled ReceiptWait Exiting ")
-			return
+			err := errors.New("Context Cancelled ReceiptWait Exiting ")
+			return nil, err
 		case <-ticker.C:
 			if retryCounter >= retryLimit {
-				err = errors.New("Retry Limit Exceeded while waiting for results of transaction")
-				return
+				err := errors.New("Retry Limit Exceeded while waiting for results of transaction")
+				return nil, err
 			}
 			retryCounter++
-			txr, err = c.GetTransactionResult(thp)
+			tx, isPendng, err := c.eth.TransactionByHash(ctx, hash)
 			if err != nil {
-				return
+				return nil, err
 			}
-			return
+			if isPendng {
+				continue
+			}
+			receipt, err := c.TransactionReceipt(ctx, tx.Hash())
+			if err != nil {
+				return nil, err
+			}
+			return receipt, nil
 		}
 	}
 }
@@ -263,8 +252,10 @@ func (c *Client) GetBlockHeaderBytesByHeight(p *types.BlockHeightParam) (*ethTyp
 }
 
 func (c *Client) GetDataByHash(p *types.DataHashParam) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+	defer cancel()
 	var res []byte
-	if err := c.rpc.CallContext(&res, "eth_getBlockByHash", p); err != nil {
+	if err := c.rpc.CallContext(ctx, &res, "eth_getBlockByHash", p); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -290,210 +281,395 @@ func (c *Client) GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error
 	return res, nil
 }
 
-func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error {
-	resp := &types.BlockNotification{}
-	return c.Monitor(ctx, "/block", p, resp, func(conn *websocket.Conn, v interface{}) error {
-		switch t := v.(type) {
-		case *types.BlockNotification:
-			if err := cb(conn, t); err != nil {
-				c.log.Debugf("MonitorBlock callback return err:%+v", err)
-				return err
-			}
-		case types.WSEvent:
-			switch t {
-			case types.WSEventInit:
-				if scb != nil {
-					scb(conn)
-				} else {
-					return errors.New("Second Callback function (scb) is nil ")
-				}
-			}
-		case error:
-			errCb(conn, t)
-			return t
-		default:
-			errCb(conn, fmt.Errorf("not supported type %T", t))
-			return errors.New("Not supported type")
-		}
-		return nil
-	})
-}
-
-func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
-	res := new(types.EventNotification)
-	return c.Monitor(ctx, "/event", p, res, func(conn *websocket.Conn, v interface{}) error {
-		switch t := v.(type) {
-		case *types.EventNotification:
-			if err := cb(conn, t); err != nil {
-				c.log.Debug(fmt.Sprintf("MonitorEvent callback return err:%+v", err))
-			}
-		case error:
-			errCb(conn, t)
-		default:
-			errCb(conn, fmt.Errorf("not supported type %T", t))
-		}
-	})
-	return nil
-}
-
-func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr interface{}, cb types.WsReadCallback) error {
-	if cb == nil {
-		return fmt.Errorf("callback function cannot be nil")
+func (c *Client) newVerifier(ctx context.Context, opts *VerifierOptions) (vri IVerifier, err error) {
+	vr := &Verifier{
+		mu:                         sync.RWMutex{},
+		next:                       big.NewInt(int64(opts.BlockHeight)),
+		parentHash:                 common.HexToHash(opts.BlockHash.String()),
+		validators:                 map[ethCommon.Address]bool{},
+		prevValidators:             map[ethCommon.Address]bool{},
+		useNewValidatorsFromHeight: big.NewInt(int64(opts.BlockHeight)),
+		chainID:                    c.client().GetChainID(),
 	}
-	conn, err := c.wsConnect(reqUrl, nil)
+
+	// cross check input parent hash
+	header, err := c.client().GetHeaderByHeight(ctx, big.NewInt(int64(opts.BlockHeight)))
 	if err != nil {
-		return err
-	}
-	defer func() {
-		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.LocalAddr().String()))
-		c.CloseMonitor(conn)
-	}()
-	if err = c.wsRequest(conn, reqPtr); err != nil {
-		return err
-	}
-	if err := cb(conn, types.WSEventInit); err != nil {
-		return err
-	}
-	return c.wsReadJSONLoop(ctx, conn, respPtr, cb)
-}
-
-func (c *Client) CloseMonitor(conn *websocket.Conn) {
-	c.log.Debug(fmt.Sprintf("CloseMonitor %s", conn.LocalAddr().String()))
-	c.wsClose(conn)
-}
-
-func (c *Client) CloseAllMonitor() {
-	for _, conn := range c.conns {
-		c.log.Debug(fmt.Sprintf("CloseAllMonitor %s", conn.LocalAddr().String()))
-		c.wsClose(conn)
-	}
-}
-
-func (c *Client) _addConn(conn *websocket.Conn) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	la := conn.LocalAddr().String()
-	c.conns[la] = conn
-}
-
-func (c *Client) _removeWsConn(conn *websocket.Conn) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	la := conn.LocalAddr().String()
-	_, ok := c.conns[la]
-	if ok {
-		delete(c.conns, la)
-	}
-}
-
-type wsConnectError struct {
-	error
-	httpResp *http.Response
-}
-
-func (c *Client) connect(reqUrl string, reqHeader http.Header) (*websocket.Conn, error) {
-	ctx := context.Background()
-	client, err := ethclient.DialContext(ctx, reqUrl)
-	if err != nil {
+		err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
 		return nil, err
 	}
-	c._addWsConn(conn)
-	return conn, nil
+	if header.ParentHash != vr.parentHash {
+		return nil, fmt.Errorf("Unexpected Hash(%v): Got %v Expected %v", opts.BlockHeight, header.ParentHash.Hex(), vr.parentHash.Hex())
+	}
+
+	// cross check input validator data
+	roundedHeight := big.NewInt(int64(opts.BlockHeight - opts.BlockHeight%defaultEpochLength))
+	header, err = r.client().GetHeaderByHeight(ctx, roundedHeight)
+	if err != nil {
+		err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
+		return nil, err
+	}
+
+	if !bytes.Equal(header.Extra, opts.ValidatorData) {
+		return nil, fmt.Errorf("Unexpected ValidatorData(%v): Got %v Expected %v", roundedHeight, hex.EncodeToString(header.Extra), opts.ValidatorData)
+	}
+	vr.validators, err = getValidatorMapFromHex(opts.ValidatorData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getValidatorMapFromHex %v", err)
+	}
+	return vr, nil
 }
 
-type wsRequestError struct {
-	error
-	wsResp *types.WSResponse
-}
-
-func (c *Client) wsRequest(conn *websocket.Conn, reqPtr interface{}) error {
-	if reqPtr == nil {
-		log.Panicf("reqPtr cannot be nil")
+func (c *Client) syncVerifier(ctx context.Context, vr IVerifier, height int64) error {
+	if height == vr.Next().Int64() {
+		return nil
 	}
-	var err error
-	wsResp := &types.WSResponse{}
-	if err = conn.WriteJSON(reqPtr); err != nil {
-		return wsRequestError{fmt.Errorf("fail to WriteJSON err:%+v", err), nil}
+	if vr.Next().Int64() > height {
+		return fmt.Errorf(
+			"invalid target height: verifier height (%s) > target height (%d)",
+			vr.Next().String(), height)
 	}
 
-	if err = conn.ReadJSON(wsResp); err != nil {
-		return wsRequestError{fmt.Errorf("fail to ReadJSON err:%+v", err), nil}
+	type res struct {
+		Height int64
+		Header *ethTypes.Header
 	}
 
-	if wsResp.Code != 0 {
-		return wsRequestError{
-			fmt.Errorf("invalid WSResponse code:%d, message:%s", wsResp.Code, wsResp.Message),
-			wsResp,
+	type req struct {
+		height int64
+		err    error
+		res    *res
+		retry  int64
+	}
+
+	c.log.WithFields(log.Fields{"height": vr.Next().String(), "target": height}).Info("syncVerifier: start")
+
+	var prevHeader *ethTypes.Header
+	cursor := vr.Next().Int64()
+	for cursor <= height {
+		rqch := make(chan *req, r.opts.SyncConcurrency)
+		for i := cursor; len(rqch) < cap(rqch); i++ {
+			rqch <- &req{height: i, retry: 5}
+		}
+		sres := make([]*res, 0, len(rqch))
+		for q := range rqch {
+			switch {
+			case q.err != nil:
+				if q.retry > 0 {
+					q.retry--
+					q.res, q.err = nil, nil
+					rqch <- q
+					continue
+				}
+				c.log.WithFields(log.Fields{"height": q.height, "error": q.err.Error()}).Debug("syncVerifier: req error")
+				sres = append(sres, nil)
+				if len(sres) == cap(sres) {
+					close(rqch)
+				}
+			case q.res != nil:
+				sres = append(sres, q.res)
+				if len(sres) == cap(sres) {
+					close(rqch)
+				}
+			default:
+				go func(q *req) {
+					defer func() {
+						time.Sleep(500 * time.Millisecond)
+						rqch <- q
+					}()
+					if q.res == nil {
+						q.res = &res{}
+					}
+					q.res.Height = q.height
+					q.res.Header, q.err = r.client().GetHeaderByHeight(ctx, big.NewInt(q.height))
+					if q.err != nil {
+						q.err = errors.Wrapf(q.err, "syncVerifier: getBlockHeader: %v", q.err)
+						return
+					}
+				}(q)
+			}
+		}
+		// filter nil
+		_sres, sres := sres, sres[:0]
+		for _, v := range _sres {
+			if v != nil {
+				sres = append(sres, v)
+			}
+		}
+		// sort and forward notifications
+		if len(sres) > 0 {
+			sort.SliceStable(sres, func(i, j int) bool {
+				return sres[i].Height < sres[j].Height
+			})
+			for i := range sres {
+				cursor++
+				next := sres[i]
+				if prevHeader == nil {
+					prevHeader = next.Header
+					continue
+				}
+				if vr.Next().Int64() >= height { // if height is greater than targetHeight, break loop
+					break
+				}
+				err := vr.Verify(prevHeader, next.Header, nil)
+				if err != nil {
+					return errors.Wrapf(err, "syncVerifier: Verify: %v", err)
+				}
+				err = vr.Update(prevHeader)
+				if err != nil {
+					return errors.Wrapf(err, "syncVerifier: Update: %v", err)
+				}
+				prevHeader = next.Header
+			}
+			c.log.WithFields(log.Fields{"height": vr.Next().String(), "target": height}).Debug("syncVerifier: syncing")
 		}
 	}
+
+	c.log.WithFields(log.Fields{"height": vr.Next().String()}).Info("syncVerifier: complete")
 	return nil
 }
 
-func (c *Client) wsClose(conn *websocket.Conn) {
-	c._removeWsConn(conn)
-	if err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
-		c.log.Debug(fmt.Sprintf("fail to WriteMessage CloseNormalClosure err:%+v", err))
+func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback func(v *types.BlockNotification) error) error {
+	if opts == nil {
+		return errors.New("receiveLoop: invalid options: <nil>")
 	}
-	if err := conn.Close(); err != nil {
-		c.log.Debug(fmt.Sprintf("fail to Close err:%+v", err))
+
+	var vr IVerifier
+	if c.opts.Verifier != nil {
+		vr, err = r.newVerifier(ctx, c.opts.Verifier)
+		if err != nil {
+			return err
+		}
+		err = c.syncVerifier(ctx, vr, int64(opts.StartHeight))
+		if err != nil {
+			return errors.Wrapf(err, "receiveLoop: syncVerifier: %v", err)
+		}
+	}
+
+	// block notification channel
+	// (buffered: to avoid deadlock)
+	// increase concurrency parameter for faster sync
+	bnch := make(chan *types.BlockNotification, c.opts.SyncConcurrency)
+
+	heightTicker := time.NewTicker(BlockInterval)
+	defer heightTicker.Stop()
+
+	heightPoller := time.NewTicker(BlockHeightPollInterval)
+	defer heightPoller.Stop()
+
+	latestHeight := func() uint64 {
+		height, err := r.client().GetBlockNumber()
+		if err != nil {
+			r.log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
+			return 0
+		}
+		return height - BlockFinalityConfirmations
+	}
+	next, latest := opts.StartHeight, latestHeight()
+
+	// last unverified block notification
+	var lbn *types.BlockNotification
+	// start monitor loop
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+
+		case <-heightTicker.C:
+			latest++
+
+		case <-heightPoller.C:
+			if height := latestHeight(); height > 0 {
+				latest = height
+				r.log.WithFields(log.Fields{"latest": latest, "next": next}).Debug("poll height")
+			}
+
+		case bn := <-bnch:
+			// process all notifications
+			for ; bn != nil; next++ {
+				if lbn != nil {
+					if bn.Height.Cmp(lbn.Height) == 0 {
+						if bn.Header.ParentHash != lbn.Header.ParentHash {
+							r.log.WithFields(log.Fields{"lbnParentHash": lbn.Header.ParentHash, "bnParentHash": bn.Header.ParentHash}).Error("verification failed on retry ")
+							break
+						}
+					} else {
+						if vr != nil {
+							if err := vr.Verify(lbn.Header, bn.Header, bn.Receipts); err != nil {
+								r.log.WithFields(log.Fields{
+									"height":     lbn.Height,
+									"lbnHash":    lbn.Hash,
+									"nextHeight": next,
+									"bnHash":     bn.Hash,
+								}).Error("verification failed. refetching block ", err)
+								next--
+								break
+							}
+							if err := vr.Update(lbn.Header); err != nil {
+								return errors.Wrapf(err, "receiveLoop: vr.Update: %v", err)
+							}
+						}
+						if err := callback(lbn); err != nil {
+							return errors.Wrapf(err, "receiveLoop: callback: %v", err)
+						}
+					}
+				}
+				if lbn, bn = bn, nil; len(bnch) > 0 {
+					bn = <-bnch
+				}
+			}
+			// remove unprocessed notifications
+			for len(bnch) > 0 {
+				<-bnch
+				// r.log.WithFields(log.Fields{"lenBnch": len(bnch), "height": t.Height}).Info("remove unprocessed block noitification")
+			}
+
+		default:
+			if next >= latest {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+
+			type bnq struct {
+				h     uint64
+				v     *types.BlockNotification
+				err   error
+				retry int
+			}
+			qch := make(chan *bnq, cap(bnch))
+			for i := next; i < latest &&
+				len(qch) < cap(qch); i++ {
+				qch <- &bnq{i, nil, nil, RPCCallRetry} // fill bch with requests
+			}
+			if len(qch) == 0 {
+				r.log.Error("Fatal: Zero length of query channel. Avoiding deadlock")
+				continue
+			}
+			bns := make([]*types.BlockNotification, 0, len(qch))
+			for q := range qch {
+				switch {
+				case q.err != nil:
+					if q.retry > 0 {
+						q.retry--
+						q.v, q.err = nil, nil
+						qch <- q
+						continue
+					}
+					r.log.Debugf("receiveLoop: bnq: h=%d:%v, %v", q.h, q.v.Header.Hash(), q.err)
+					bns = append(bns, nil)
+					if len(bns) == cap(bns) {
+						close(qch)
+					}
+
+				case q.v != nil:
+					bns = append(bns, q.v)
+					if len(bns) == cap(bns) {
+						close(qch)
+					}
+				default:
+					go func(q *bnq) {
+						defer func() {
+							time.Sleep(500 * time.Millisecond)
+							qch <- q
+						}()
+
+						if q.v == nil {
+							q.v = &types.BlockNotification{}
+						}
+
+						q.v.Height = (&big.Int{}).SetUint64(q.h)
+
+						if q.v.Header == nil {
+							header, err := r.client().GetHeaderByHeight(ctx, q.v.Height)
+							if err != nil {
+								q.err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
+								return
+							}
+							q.v.Header = header
+							q.v.Hash = q.v.Header.Hash()
+						}
+						if q.v.Header.GasUsed > 0 {
+							if q.v.HasBTPMessage == nil {
+								hasBTPMessage, err := r.hasBTPMessage(ctx, q.v.Height)
+								if err != nil {
+									q.err = errors.Wrapf(err, "hasBTPMessage: %v", err)
+									return
+								}
+								q.v.HasBTPMessage = &hasBTPMessage
+							}
+							if !*q.v.HasBTPMessage {
+								return
+							}
+							// TODO optimize retry of GetBlockReceipts()
+							q.v.Receipts, q.err = r.client().GetBlockReceipts(q.v.Hash)
+							if q.err != nil {
+								q.err = errors.Wrapf(q.err, "GetBlockReceipts: %v", q.err)
+								return
+							}
+						}
+					}(q)
+				}
+			}
+			// filter nil
+			_bns_, bns := bns, bns[:0]
+			for _, v := range _bns_ {
+				if v != nil {
+					bns = append(bns, v)
+				}
+			}
+			// sort and forward notifications
+			if len(bns) > 0 {
+				sort.SliceStable(bns, func(i, j int) bool {
+					return bns[i].Height.Uint64() < bns[j].Height.Uint64()
+				})
+				for i, v := range bns {
+					if v.Height.Uint64() == next+uint64(i) {
+						bnch <- v
+					}
+				}
+			}
+		}
 	}
 }
 
-func (c *Client) wsRead(conn *websocket.Conn, respPtr interface{}) error {
-	mt, r, err := conn.NextReader()
+func (c *Client) MonitorEvent(ctx context.Context, q eth.FilterQuery, cb func(*ethclient.Client, *types.EventNotification) error, errCb func(*ethclient.Client, error)) error {
+	ch := make(chan ethTypes.Log)
+	sub, err := c.eth.SubscribeFilterLogs(ctx, q, ch)
 	if err != nil {
 		return err
 	}
-	if mt == websocket.CloseMessage {
-		return io.EOF
-	}
-	return json.NewDecoder(r).Decode(respPtr)
-}
-
-func (c *Client) wsReadJSONLoop(ctx context.Context, conn *websocket.Conn, respPtr interface{}, cb types.WsReadCallback) error {
-	elem := reflect.ValueOf(respPtr).Elem()
+	defer sub.Unsubscribe()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
-			v := reflect.New(elem.Type())
-			ptr := v.Interface()
-			if _, ok := c.conns[conn.LocalAddr().String()]; !ok {
-				c.log.Debug(fmt.Sprintf("wsReadJSONLoop c.conns[%s] is nil", conn.LocalAddr().String()))
-				return errors.New("wsReadJSONLoop c.conns is nil")
+		case err := <-sub.Err():
+			errCb(c.eth, err)
+			return err
+		case v := <-ch:
+			data := &types.EventNotification{
+				Hash:   types.HexBytes(v.BlockHash.Bytes()),
+				Height: v.BlockNumber,
+				Index:  types.HexInt(v.Index),
 			}
-			if err := c.wsRead(conn, ptr); err != nil {
-				c.log.Debug(fmt.Sprintf("wsReadJSONLoop c.conns[%s] ReadJSON err:%+v", conn.LocalAddr().String(), err))
-				if cErr, ok := err.(*websocket.CloseError); !ok || cErr.Code != websocket.CloseNormalClosure {
-					cb(conn, err)
-				}
-				return err
-			}
-			if err := cb(conn, ptr); err != nil {
+			if err := cb(c.eth, data); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (c *Client) GetBlockHeaderByHeight(height int64) (*types.BlockHeader, error) {
-	p := &types.BlockHeightParam{Height: eth}
-	b, err := c.GetBlockHeaderBytesByHeight(p)
+func (c *Client) GetBlockHeaderByHeight(height int64) (*ethTypes.Header, error) {
+	p := &types.BlockHeightParam{Height: big.NewInt(height)}
+	header, err := c.GetBlockHeaderBytesByHeight(p)
 	if err != nil {
 		return nil, err
 	}
-	var blockHeader types.BlockHeader
-	_, err = codec.RLP.UnmarshalFromBytes(b, &blockHeader)
-	if err != nil {
-		return nil, err
-	}
-	return &blockHeader, nil
+	return header, nil
 }
 
-func (c *Client) GetValidatorsByHash(hash common.HexHash) ([]common.Address, error) {
+func (c *Client) GetValidatorsByHash(hash common.Hash) ([]common.Address, error) {
 	data, err := c.GetDataByHash(&types.DataHashParam{Hash: types.NewHexBytes(hash.Bytes())})
 	if err != nil {
 		return nil, errors.Wrapf(err, "GetDataByHash; %v", err)
@@ -508,19 +684,6 @@ func (c *Client) GetValidatorsByHash(hash common.HexHash) ([]common.Address, err
 		return nil, errors.Wrapf(err, "Unmarshal Validators: %v", err)
 	}
 	return validators, nil
-}
-
-func (c *Client) GetBalance(param *types.AddressParam) (*big.Int, error) {
-	var result types.HexInt
-	_, err := c.Do("eth_getBalance", param, &result)
-	if err != nil {
-		return nil, err
-	}
-	bInt, err := result.BigInt()
-	if err != nil {
-		return nil, err
-	}
-	return bInt, nil
 }
 
 const (
@@ -611,23 +774,6 @@ func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.
 		return nil, err
 	}
 	return &result, nil
-}
-
-func NewClient(uri string, l *zap.Logger) (*Client, error) {
-	rpcClient, err := rpc.Dial(uri)
-	if err != nil {
-		return nil, err
-	}
-	eth := ethclient.NewClient(rpcClient)
-	if err != nil {
-		return nil, err
-	}
-	cl := &Client{
-		log: l,
-		rpc: rpcClient,
-		eth: eth,
-	}
-	return cl, nil
 }
 
 func guessDebugEndpoint(endpoint string) string {
