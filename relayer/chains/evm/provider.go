@@ -38,7 +38,7 @@ func (p *EVMProvider) NewProvider() (*EVMProvider, error) {
 		return nil, err
 	}
 	log := zap.NewNop()
-	client, err := newClient(p.cfg.RPCURL, log)
+	client, err := NewClient(p.cfg.RPCURL, log)
 	if err != nil {
 		return nil, err
 	}

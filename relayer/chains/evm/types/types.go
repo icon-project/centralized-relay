@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
-	"nhooyr.io/websocket"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type EventLog struct {
@@ -150,10 +150,11 @@ type EventFilter struct {
 }
 
 type BlockNotification struct {
-	Hash    HexBytes     `json:"hash"`
-	Height  HexInt       `json:"height"`
-	Indexes [][]HexInt   `json:"indexes,omitempty"`
-	Events  [][][]HexInt `json:"events,omitempty"`
+	Hash          common.Hash
+	Height        *big.Int
+	Header        *types.Header
+	Receipts      types.Receipts
+	HasBTPMessage *bool
 }
 
 type EventRequest struct {

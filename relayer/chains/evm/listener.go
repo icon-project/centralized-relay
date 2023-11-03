@@ -2,179 +2,192 @@ package evm
 
 import (
 	"context"
+	"math/big"
 	"sort"
 	"time"
 
-	"github.com/gorilla/websocket"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 )
 
-// ListenToEvents goes block by block of a network and executes event handlers that are
+// Listener goes block by block of a network and executes event handlers that are
 // configured for the listener.
-func (p *EVMProvider) Listener(ctx context.Context, startHeight uint64, blockInfo chan types.BlockInfo) error {
-	errCh := make(chan error)                                            // error channel
-	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
-	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
-	btpBlockRespCh := make(chan *btpBlockResponse, cap(btpBlockNotifCh)) // block result channel
+func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback func(v *types.BlockNotification) error) error {
+	if opts == nil {
+		return errors.New("receiveLoop: invalid options: <nil>")
+	}
 
-	reconnect := func() {
-		select {
-		case reconnectCh <- struct{}{}:
-		default:
+	// block a notification channel
+	// (buffered: to avoid deadlock)
+	// increase concurrency parameter for faster sync
+	bnch := make(chan *types.BlockNotification, SyncConcurrency)
+
+	heightTicker := time.NewTicker(BlockInterval)
+	defer heightTicker.Stop()
+
+	heightPoller := time.NewTicker(BlockHeightPollInterval)
+	defer heightPoller.Stop()
+
+	latestHeight := func() uint64 {
+		height, err := c.GetBlockNumber()
+		if err != nil {
+			return 0
 		}
-		for len(btpBlockRespCh) > 0 || len(btpBlockNotifCh) > 0 {
-			select {
-			case <-btpBlockRespCh: // clear block result channel
-			case <-btpBlockNotifCh: // clear block notification channel
-			}
-		}
+		return height - BlockFinalityConfirmations
 	}
+	next, latest := opts.StartHeight, latestHeight()
 
-	processedheight, err := p.startFromHeight(ctx, startHeight)
-	if err != nil {
-		return errors.Wrapf(err, "failed to calculate start height")
-	}
+	// last unverified block notification
+	var lbn *types.BlockNotification
+	// start monitor loop
 
-	p.log.Info("Start querying from height", zap.Int64("height", processedheight))
-	// subscribe to monitor block
-	ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
-	reconnect()
-
-	blockReq := &types.BlockRequest{
-		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: GetMonitorEventFilters(p.cfg.ContractAddress),
-	}
-
-loop:
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case err := <-errCh:
-			return err
 
-		case <-reconnectCh:
-			cancelMonitorBlock()
-			ctxMonitorBlock, cancelMonitorBlock = context.WithCancel(ctx)
+		case <-heightTicker.C:
+			latest++
 
-			go func(ctx context.Context, cancel context.CancelFunc) {
-				blockReq.Height = types.NewHexInt(int64(processedheight))
-				p.log.Debug("Try to reconnect from", zap.Int64("height", processedheight))
-				err := p.client.eth(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
-					if !errors.Is(ctx.Err(), context.Canceled) {
-						btpBlockNotifCh <- v
+		case <-heightPoller.C:
+			if height := latestHeight(); height > 0 {
+				latest = height
+			}
+
+		case bn := <-bnch:
+			// process all notifications
+			for ; bn != nil; next++ {
+				if lbn != nil {
+					if bn.Height.Cmp(lbn.Height) == 0 {
+						if bn.Header.ParentHash != lbn.Header.ParentHash {
+							break
+						}
+					} else {
+						if vr != nil {
+							if err := vr.Verify(lbn.Header, bn.Header, bn.Receipts); err != nil {
+								next--
+								break
+							}
+							if err := vr.Update(lbn.Header); err != nil {
+								return errors.Wrapf(err, "receiveLoop: vr.Update: %v", err)
+							}
+						}
+						if err := callback(lbn); err != nil {
+							return errors.Wrapf(err, "receiveLoop: callback: %v", err)
+						}
 					}
-					return nil
-				}, func(conn *websocket.Conn) {
-				}, func(conn *websocket.Conn, err error) {})
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					time.Sleep(time.Second * 5)
-					reconnect()
-					p.log.Warn("Error occured during monitor block", zap.Error(err))
 				}
-			}(ctxMonitorBlock, cancelMonitorBlock)
-		case br := <-btpBlockRespCh:
-			for ; br != nil; processedheight++ {
-				p.log.Debug("Verified block ",
-					zap.Int64("height", int64(processedheight)))
-
-				message := parseMessagesFromEventlogs(p.log, br.EventLogs, uint64(br.Height))
-
-				// TODO: check for the concurrency
-				incoming <- providerTypes.BlockInfo{
-					Messages: message,
-					Height:   uint64(br.Height),
-				}
-
-				if br = nil; len(btpBlockRespCh) > 0 {
-					br = <-btpBlockRespCh
+				if lbn, bn = bn, nil; len(bnch) > 0 {
+					bn = <-bnch
 				}
 			}
-			// remove unprocessed blockResponses
-			for len(btpBlockRespCh) > 0 {
-				<-btpBlockRespCh
+			// remove unprocessed notifications
+			for len(bnch) > 0 {
+				<-bnch
 			}
 
 		default:
-			select {
-			default:
-			case bn := <-btpBlockNotifCh:
-				requestCh := make(chan *btpBlockRequest, cap(btpBlockNotifCh))
-				for i := int64(0); bn != nil; i++ {
-					height, err := bn.Height.Value()
+			if next >= latest {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
 
-					if err != nil {
-						return err
-					} else if height != processedheight+i {
-						p.log.Warn("Reconnect: missing block notification",
-							zap.Int64("got", height),
-							zap.Int64("expected", processedheight+i),
-						)
-						reconnect()
-						continue loop
+			type bnq struct {
+				h     uint64
+				v     *types.BlockNotification
+				err   error
+				retry int
+			}
+			qch := make(chan *bnq, cap(bnch))
+			for i := next; i < latest &&
+				len(qch) < cap(qch); i++ {
+				qch <- &bnq{i, nil, nil, RPCCallRetry} // fill bch with requests
+			}
+			if len(qch) == 0 {
+				c.log.Error("Fatal: Zero length of query channel. Avoiding deadlock")
+				continue
+			}
+			bns := make([]*types.BlockNotification, 0, len(qch))
+			for q := range qch {
+				switch {
+				case q.err != nil:
+					if q.retry > 0 {
+						q.retry--
+						q.v, q.err = nil, nil
+						qch <- q
+						continue
+					}
+					bns = append(bns, nil)
+					if len(bns) == cap(bns) {
+						close(qch)
 					}
 
-					requestCh <- &btpBlockRequest{
-						height:  height,
-						hash:    bn.Hash,
-						indexes: bn.Indexes,
-						events:  bn.Events,
-						retry:   maxRetires,
+				case q.v != nil:
+					bns = append(bns, q.v)
+					if len(bns) == cap(bns) {
+						close(qch)
 					}
-					if bn = nil; len(btpBlockNotifCh) > 0 && len(requestCh) < cap(requestCh) {
-						bn = <-btpBlockNotifCh
-					}
+				default:
+					go func(q *bnq) {
+						defer func() {
+							time.Sleep(500 * time.Millisecond)
+							qch <- q
+						}()
+
+						if q.v == nil {
+							q.v = &types.BlockNotification{}
+						}
+
+						q.v.Height = (&big.Int{}).SetUint64(q.h)
+
+						if q.v.Header == nil {
+							header, err := c.GetHeaderByHeight(ctx, q.v.Height)
+							if err != nil {
+								q.err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
+								return
+							}
+							q.v.Header = header
+							q.v.Hash = q.v.Header.Hash()
+						}
+						if q.v.Header.GasUsed > 0 {
+							if q.v.HasBTPMessage == nil {
+								hasBTPMessage, err := r.hasBTPMessage(ctx, q.v.Height)
+								if err != nil {
+									q.err = errors.Wrapf(err, "hasBTPMessage: %v", err)
+									return
+								}
+								q.v.HasBTPMessage = &hasBTPMessage
+							}
+							if !*q.v.HasBTPMessage {
+								return
+							}
+							// TODO optimize retry of GetBlockReceipts()
+							q.v.Receipts, q.err = c.GetBlockReceipts(q.v.Hash)
+							if q.err != nil {
+								q.err = errors.Wrapf(q.err, "GetBlockReceipts: %v", q.err)
+								return
+							}
+						}
+					}(q)
 				}
-
-				brs := make([]*btpBlockResponse, 0, len(requestCh))
-				for request := range requestCh {
-					switch {
-					case request.err != nil:
-						if request.retry > 0 {
-							request.retry--
-							request.response, request.err = nil, nil
-							requestCh <- request
-							continue
-						}
-						p.log.Info("Request error ",
-							zap.Any("height", request.height),
-							zap.Error(request.err))
-						brs = append(brs, nil)
-						if len(brs) == cap(brs) {
-							close(requestCh)
-						}
-					case request.response != nil:
-						brs = append(brs, request.response)
-						if len(brs) == cap(brs) {
-							close(requestCh)
-						}
-					default:
-						go p.handleBTPBlockRequest(request, requestCh)
-					}
+			}
+			// filter nil
+			_bns_, bns := bns, bns[:0]
+			for _, v := range _bns_ {
+				if v != nil {
+					bns = append(bns, v)
 				}
-				// filter nil
-				_brs, brs := brs, brs[:0]
-				for _, v := range _brs {
-					if v != nil {
-						brs = append(brs, v)
-					}
-				}
-
-				// sort and forward notifications
-				if len(brs) > 0 {
-					sort.SliceStable(brs, func(i, j int) bool {
-						return brs[i].Height < brs[j].Height
-					})
-					for i, d := range brs {
-						if d.Height == processedheight+int64(i) {
-							btpBlockRespCh <- d
-						}
+			}
+			// sort and forward notifications
+			if len(bns) > 0 {
+				sort.SliceStable(bns, func(i, j int) bool {
+					return bns[i].Height.Uint64() < bns[j].Height.Uint64()
+				})
+				for i, v := range bns {
+					if v.Height.Uint64() == next+uint64(i) {
+						bnch <- v
 					}
 				}
 			}

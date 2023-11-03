@@ -1,50 +1,35 @@
 package evm
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math/big"
-	"net/http"
-	"net/url"
 	"sort"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	eth "github.com/ethereum/go-ethereum"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
-	"github.com/icon-project/goloop/common/codec"
-	"github.com/icon-project/goloop/common/crypto"
-	"github.com/icon-project/goloop/common/log"
 	"github.com/icon-project/goloop/module"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 const (
-	txMaxDataSize        = 8 * 1024 // 8 KB
-	txOverheadScale      = 0.01     // base64 encoding overhead 0.36, rlp and other fields 0.01
-	defaultTxSizeLimit   = txMaxDataSize / (1 + txOverheadScale)
-	defaultSendTxTimeout = 15 * time.Second
-	defaultGasPrice      = 18000000000
-	maxGasPriceBoost     = 10.0
-	defaultReadTimeout   = 50 * time.Second //
-	DefaultGasLimit      = 25000000
-	RPCCallRetry         = 5
+	defaultReadTimeout = 50 * time.Second //
+	RPCCallRetry       = 5
 
-	DefaultSendTransactionRetryInterval        = 3 * time.Second        // 3sec
 	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond // 1.5sec
-	JsonrpcApiVersion                          = 3
+	BlockFinalityConfirmations                 = 10
 	BlockInterval                              = 3 * time.Second
 	BlockHeightPollInterval                    = BlockInterval * 5
+	SyncConcurrency                            = 10
 )
 
 var txSerializeExcludes = map[string]bool{"signature": true}
@@ -63,9 +48,9 @@ func NewClient(url string, l *zap.Logger) (IClient, error) {
 	return &Client{log: l, rpc: rpcClient, eth: eth}, nil
 }
 
-// grouped rpc api clients
+// Client grouped rpc api clients
 type Client struct {
-	Endpoint string
+	endpoint string
 	rpc      *rpc.Client
 	eth      *ethclient.Client
 	log      *zap.Logger
@@ -76,12 +61,12 @@ type IClient interface {
 	Log() *zap.Logger
 	GetBalance(ctx context.Context, hexAddr string) (*big.Int, error)
 	GetBlockNumber() (uint64, error)
-	GetBlockByHash(hash common.Hash) (*types.Block, error)
+	GetBlockByHash(hash common.Hash) (*ethTypes.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error)
 	GetChainID() string
+	GetClient() *ethclient.Client
 
-	// ethClient
 	FilterLogs(ctx context.Context, q eth.FilterQuery) ([]ethTypes.Log, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
@@ -93,6 +78,10 @@ type IClient interface {
 
 func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
 	return c.eth.NonceAt(ctx, account, blockNumber)
+}
+
+func (c *Client) GetClient() *ethclient.Client {
+	return c.eth
 }
 
 func (c *Client) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
@@ -136,17 +125,24 @@ func (c *Client) GetBlockNumber() (uint64, error) {
 	return bn, nil
 }
 
-func (c *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
+type ReceiverOptions struct {
+	SyncConcurrency uint64           `json:"syncConcurrency"`
+	Verifier        *VerifierOptions `json:"verifier"`
+}
+
+type BnOptions struct {
+	StartHeight uint64
+	Concurrency uint64
+}
+
+func (c *Client) GetBlockByHash(hash common.Hash) (*ethTypes.Block, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 	defer cancel()
 	block, err := c.eth.BlockByHash(ctx, hash)
 	if err != nil {
 		return nil, err
 	}
-	return &types.Block{
-		Height:    block.Number().Uint64(),
-		Timestamp: block.Time(),
-	}, nil
+	return block, nil
 }
 
 func (c *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {
@@ -192,11 +188,11 @@ func (c *Client) GetTransactionResult(tx common.Hash) (*ethTypes.Receipt, error)
 func (c *Client) WaitTransactionResult(p *types.TransactionHashParam) (*types.TransactionResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 	defer cancel()
-	tr := new(types.TransactionResult)
-	if err := c.rpc.CallContext(ctx, tr, "eth_waitTransactionResult", p); err != nil {
+	res := new(types.TransactionResult)
+	if err := c.rpc.CallContext(ctx, res, "eth_waitTransactionResult", p); err != nil {
 		return nil, err
 	}
-	return tr, nil
+	return res, nil
 }
 
 func (c *Client) WaitForResults(ctx context.Context, hash common.Hash) (*ethTypes.Receipt, error) {
@@ -281,175 +277,15 @@ func (c *Client) GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error
 	return res, nil
 }
 
-func (c *Client) newVerifier(ctx context.Context, opts *VerifierOptions) (vri IVerifier, err error) {
-	vr := &Verifier{
-		mu:                         sync.RWMutex{},
-		next:                       big.NewInt(int64(opts.BlockHeight)),
-		parentHash:                 common.HexToHash(opts.BlockHash.String()),
-		validators:                 map[ethCommon.Address]bool{},
-		prevValidators:             map[ethCommon.Address]bool{},
-		useNewValidatorsFromHeight: big.NewInt(int64(opts.BlockHeight)),
-		chainID:                    c.client().GetChainID(),
-	}
-
-	// cross check input parent hash
-	header, err := c.client().GetHeaderByHeight(ctx, big.NewInt(int64(opts.BlockHeight)))
-	if err != nil {
-		err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
-		return nil, err
-	}
-	if header.ParentHash != vr.parentHash {
-		return nil, fmt.Errorf("Unexpected Hash(%v): Got %v Expected %v", opts.BlockHeight, header.ParentHash.Hex(), vr.parentHash.Hex())
-	}
-
-	// cross check input validator data
-	roundedHeight := big.NewInt(int64(opts.BlockHeight - opts.BlockHeight%defaultEpochLength))
-	header, err = r.client().GetHeaderByHeight(ctx, roundedHeight)
-	if err != nil {
-		err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
-		return nil, err
-	}
-
-	if !bytes.Equal(header.Extra, opts.ValidatorData) {
-		return nil, fmt.Errorf("Unexpected ValidatorData(%v): Got %v Expected %v", roundedHeight, hex.EncodeToString(header.Extra), opts.ValidatorData)
-	}
-	vr.validators, err = getValidatorMapFromHex(opts.ValidatorData)
-	if err != nil {
-		return nil, errors.Wrapf(err, "getValidatorMapFromHex %v", err)
-	}
-	return vr, nil
-}
-
-func (c *Client) syncVerifier(ctx context.Context, vr IVerifier, height int64) error {
-	if height == vr.Next().Int64() {
-		return nil
-	}
-	if vr.Next().Int64() > height {
-		return fmt.Errorf(
-			"invalid target height: verifier height (%s) > target height (%d)",
-			vr.Next().String(), height)
-	}
-
-	type res struct {
-		Height int64
-		Header *ethTypes.Header
-	}
-
-	type req struct {
-		height int64
-		err    error
-		res    *res
-		retry  int64
-	}
-
-	c.log.WithFields(log.Fields{"height": vr.Next().String(), "target": height}).Info("syncVerifier: start")
-
-	var prevHeader *ethTypes.Header
-	cursor := vr.Next().Int64()
-	for cursor <= height {
-		rqch := make(chan *req, r.opts.SyncConcurrency)
-		for i := cursor; len(rqch) < cap(rqch); i++ {
-			rqch <- &req{height: i, retry: 5}
-		}
-		sres := make([]*res, 0, len(rqch))
-		for q := range rqch {
-			switch {
-			case q.err != nil:
-				if q.retry > 0 {
-					q.retry--
-					q.res, q.err = nil, nil
-					rqch <- q
-					continue
-				}
-				c.log.WithFields(log.Fields{"height": q.height, "error": q.err.Error()}).Debug("syncVerifier: req error")
-				sres = append(sres, nil)
-				if len(sres) == cap(sres) {
-					close(rqch)
-				}
-			case q.res != nil:
-				sres = append(sres, q.res)
-				if len(sres) == cap(sres) {
-					close(rqch)
-				}
-			default:
-				go func(q *req) {
-					defer func() {
-						time.Sleep(500 * time.Millisecond)
-						rqch <- q
-					}()
-					if q.res == nil {
-						q.res = &res{}
-					}
-					q.res.Height = q.height
-					q.res.Header, q.err = r.client().GetHeaderByHeight(ctx, big.NewInt(q.height))
-					if q.err != nil {
-						q.err = errors.Wrapf(q.err, "syncVerifier: getBlockHeader: %v", q.err)
-						return
-					}
-				}(q)
-			}
-		}
-		// filter nil
-		_sres, sres := sres, sres[:0]
-		for _, v := range _sres {
-			if v != nil {
-				sres = append(sres, v)
-			}
-		}
-		// sort and forward notifications
-		if len(sres) > 0 {
-			sort.SliceStable(sres, func(i, j int) bool {
-				return sres[i].Height < sres[j].Height
-			})
-			for i := range sres {
-				cursor++
-				next := sres[i]
-				if prevHeader == nil {
-					prevHeader = next.Header
-					continue
-				}
-				if vr.Next().Int64() >= height { // if height is greater than targetHeight, break loop
-					break
-				}
-				err := vr.Verify(prevHeader, next.Header, nil)
-				if err != nil {
-					return errors.Wrapf(err, "syncVerifier: Verify: %v", err)
-				}
-				err = vr.Update(prevHeader)
-				if err != nil {
-					return errors.Wrapf(err, "syncVerifier: Update: %v", err)
-				}
-				prevHeader = next.Header
-			}
-			c.log.WithFields(log.Fields{"height": vr.Next().String(), "target": height}).Debug("syncVerifier: syncing")
-		}
-	}
-
-	c.log.WithFields(log.Fields{"height": vr.Next().String()}).Info("syncVerifier: complete")
-	return nil
-}
-
 func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback func(v *types.BlockNotification) error) error {
 	if opts == nil {
 		return errors.New("receiveLoop: invalid options: <nil>")
 	}
 
-	var vr IVerifier
-	if c.opts.Verifier != nil {
-		vr, err = r.newVerifier(ctx, c.opts.Verifier)
-		if err != nil {
-			return err
-		}
-		err = c.syncVerifier(ctx, vr, int64(opts.StartHeight))
-		if err != nil {
-			return errors.Wrapf(err, "receiveLoop: syncVerifier: %v", err)
-		}
-	}
-
-	// block notification channel
+	// block a notification channel
 	// (buffered: to avoid deadlock)
 	// increase concurrency parameter for faster sync
-	bnch := make(chan *types.BlockNotification, c.opts.SyncConcurrency)
+	bnch := make(chan *types.BlockNotification, SyncConcurrency)
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -458,9 +294,8 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 	defer heightPoller.Stop()
 
 	latestHeight := func() uint64 {
-		height, err := r.client().GetBlockNumber()
+		height, err := c.GetBlockNumber()
 		if err != nil {
-			r.log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
 			return 0
 		}
 		return height - BlockFinalityConfirmations
@@ -482,7 +317,6 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 		case <-heightPoller.C:
 			if height := latestHeight(); height > 0 {
 				latest = height
-				r.log.WithFields(log.Fields{"latest": latest, "next": next}).Debug("poll height")
 			}
 
 		case bn := <-bnch:
@@ -491,18 +325,11 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 				if lbn != nil {
 					if bn.Height.Cmp(lbn.Height) == 0 {
 						if bn.Header.ParentHash != lbn.Header.ParentHash {
-							r.log.WithFields(log.Fields{"lbnParentHash": lbn.Header.ParentHash, "bnParentHash": bn.Header.ParentHash}).Error("verification failed on retry ")
 							break
 						}
 					} else {
 						if vr != nil {
 							if err := vr.Verify(lbn.Header, bn.Header, bn.Receipts); err != nil {
-								r.log.WithFields(log.Fields{
-									"height":     lbn.Height,
-									"lbnHash":    lbn.Hash,
-									"nextHeight": next,
-									"bnHash":     bn.Hash,
-								}).Error("verification failed. refetching block ", err)
 								next--
 								break
 							}
@@ -522,7 +349,6 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 			// remove unprocessed notifications
 			for len(bnch) > 0 {
 				<-bnch
-				// r.log.WithFields(log.Fields{"lenBnch": len(bnch), "height": t.Height}).Info("remove unprocessed block noitification")
 			}
 
 		default:
@@ -543,7 +369,7 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 				qch <- &bnq{i, nil, nil, RPCCallRetry} // fill bch with requests
 			}
 			if len(qch) == 0 {
-				r.log.Error("Fatal: Zero length of query channel. Avoiding deadlock")
+				c.log.Error("Fatal: Zero length of query channel. Avoiding deadlock")
 				continue
 			}
 			bns := make([]*types.BlockNotification, 0, len(qch))
@@ -556,7 +382,6 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 						qch <- q
 						continue
 					}
-					r.log.Debugf("receiveLoop: bnq: h=%d:%v, %v", q.h, q.v.Header.Hash(), q.err)
 					bns = append(bns, nil)
 					if len(bns) == cap(bns) {
 						close(qch)
@@ -581,7 +406,7 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 						q.v.Height = (&big.Int{}).SetUint64(q.h)
 
 						if q.v.Header == nil {
-							header, err := r.client().GetHeaderByHeight(ctx, q.v.Height)
+							header, err := c.GetHeaderByHeight(ctx, q.v.Height)
 							if err != nil {
 								q.err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
 								return
@@ -602,7 +427,7 @@ func (c *Client) MonitorBlock(ctx context.Context, opts *BnOptions, callback fun
 								return
 							}
 							// TODO optimize retry of GetBlockReceipts()
-							q.v.Receipts, q.err = r.client().GetBlockReceipts(q.v.Hash)
+							q.v.Receipts, q.err = c.GetBlockReceipts(q.v.Hash)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "GetBlockReceipts: %v", q.err)
 								return
@@ -669,141 +494,15 @@ func (c *Client) GetBlockHeaderByHeight(height int64) (*ethTypes.Header, error) 
 	return header, nil
 }
 
-func (c *Client) GetValidatorsByHash(hash common.Hash) ([]common.Address, error) {
-	data, err := c.GetDataByHash(&types.DataHashParam{Hash: types.NewHexBytes(hash.Bytes())})
-	if err != nil {
-		return nil, errors.Wrapf(err, "GetDataByHash; %v", err)
-	}
-	if !bytes.Equal(hash, crypto.SHA3Sum256(data)) {
-		return nil, errors.Errorf(
-			"invalid data: hash=%v, data=%v", hash, common.HexBytes(data))
-	}
-	var validators []common.Address
-	_, err = codec.BC.UnmarshalFromBytes(data, &validators)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Unmarshal Validators: %v", err)
-	}
-	return validators, nil
-}
-
-const (
-	HeaderKeyIconOptions = "Icon-Options"
-	IconOptionsDebug     = "debug"
-	IconOptionsTimeout   = "timeout"
-)
-
-type IconOptions map[string]string
-
-func (opts IconOptions) Set(key, value string) {
-	opts[key] = value
-}
-
-func (opts IconOptions) Get(key string) string {
-	if opts == nil {
-		return ""
-	}
-	v := opts[key]
-	if len(v) == 0 {
-		return ""
-	}
-	return v
-}
-
-func (opts IconOptions) Del(key string) {
-	delete(opts, key)
-}
-
-func (opts IconOptions) SetBool(key string, value bool) {
-	opts.Set(key, strconv.FormatBool(value))
-}
-
-func (opts IconOptions) GetBool(key string) (bool, error) {
-	return strconv.ParseBool(opts.Get(key))
-}
-
-func (opts IconOptions) SetInt(key string, v int64) {
-	opts.Set(key, strconv.FormatInt(v, 10))
-}
-
-func (opts IconOptions) GetInt(key string) (int64, error) {
-	return strconv.ParseInt(opts.Get(key), 10, 64)
-}
-
-func (opts IconOptions) ToHeaderValue() string {
-	if opts == nil {
-		return ""
-	}
-	strs := make([]string, len(opts))
-	i := 0
-	for k, v := range opts {
-		strs[i] = fmt.Sprintf("%s=%s", k, v)
-		i++
-	}
-	return strings.Join(strs, ",")
-}
-
-func NewIconOptionsByHeader(h http.Header) IconOptions {
-	s := h.Get(HeaderKeyIconOptions)
-	if s != "" {
-		kvs := strings.Split(s, ",")
-		m := make(map[string]string)
-		for _, kv := range kvs {
-			if kv != "" {
-				idx := strings.Index(kv, "=")
-				if idx > 0 {
-					m[kv[:idx]] = kv[(idx + 1):]
-				} else {
-					m[kv] = ""
-				}
-			}
-		}
-		return m
-	}
-	return nil
-}
-
-func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.HexInt, error) {
-	if len(c.DebugEndPoint) == 0 {
-		return nil, errors.New("UnavailableDebugEndPoint")
-	}
-	currTime := time.Now().UnixNano() / time.Hour.Microseconds()
-	param.Timestamp = types.NewHexInt(currTime)
-	var result types.HexInt
-	if _, err := c.DoURL(c.DebugEndPoint,
-		"debug_estimateStep", param, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func guessDebugEndpoint(endpoint string) string {
-	uo, err := url.Parse(endpoint)
-	if err != nil {
-		return ""
-	}
-	ps := strings.Split(uo.Path, "/")
-	for i, v := range ps {
-		if v == "api" {
-			if len(ps) > i+1 && ps[i+1] == "v3" {
-				ps[i+1] = "v3d"
-				uo.Path = strings.Join(ps, "/")
-				return uo.String()
-			}
-			break
-		}
-	}
-	return ""
-}
-
 func (c *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) {
 	hb, err := c.GetBlockByHash(hash)
 	if err != nil {
 		return nil, err
 	}
-	if hb.GasUsed == "0x0" || len(hb.Transactions) == 0 {
+	if len(hb.NormalTransactions) == 0 {
 		return nil, nil
 	}
-	txhs := hb.Transactions
+	txhs := hb.NormalTransactions
 	// fetch all txn receipts concurrently
 	type rcq struct {
 		txh   string
