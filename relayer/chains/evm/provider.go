@@ -1,29 +1,22 @@
 package evm
 
 import (
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/icon-project/centralized-relay/relayer/common"
 	"github.com/icon-project/centralized-relay/relayer/store"
 
 	"go.uber.org/zap"
 )
 
 type EVMProviderConfig struct {
-	ChainID         string            `json:"chain-id" yaml:"chain-id"`
-	Name            string            `json:"name" yaml:"name"`
-	RPCURL          string            `json:"rpc-url" yaml:"rpc-url"`
-	StartHeight     uint64            `json:"start-height" yaml:"start-height"`
-	BlockDelay      int64             `json:"block-delay" yaml:"block-delay"`
-	BlockInterval   int64             `json:"block-interval" yaml:"block-interval"`
-	Type            common.ModuleType `json:"type" yaml:"type"`
-	Keystore        string            `json:"keystore" yaml:"keystore"`
-	Password        string            `json:"password" yaml:"password"`
-	ContractAddress string            `json:"contract-address" yaml:"contract-address"`
-	Timeout         string            `json:"timeout" yaml:"timeout"`
+	ChainID         string `json:"chain-id" yaml:"chain-id"`
+	Name            string `json:"name" yaml:"name"`
+	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
+	StartHeight     uint64 `json:"start-height" yaml:"start-height"`
+	Keystore        string `json:"keystore" yaml:"keystore"`
+	Password        string `json:"password" yaml:"password"`
+	ContractAddress string `json:"contract-address" yaml:"contract-address"`
 }
 
 type EVMProvider struct {
@@ -41,7 +34,7 @@ func (p *EVMProvider) NewProvider() (*EVMProvider, error) {
 		return nil, err
 	}
 	log := zap.NewNop()
-	client, err := NewClient(p.cfg.RPCURL, log)
+	client, err := NewClient(p.cfg.RPCUrl, log)
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +50,8 @@ func (p *EVMProvider) ChainId() string {
 }
 
 func (p *EVMProviderConfig) Validate() error {
-	if _, err := time.ParseDuration(p.Timeout); err != nil {
-		return fmt.Errorf("invalid Timeout: %w", err)
-	}
-
-	if p.BlockInterval == 0 {
-		return fmt.Errorf("Block interval cannot be zero")
-	}
-
+	// TODO:
+	// add right validation
 	return nil
 }
 
