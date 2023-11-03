@@ -53,6 +53,16 @@ func (c Chains) MustGet(chainID string) *Chain {
 	return out
 }
 
+func (c Chains) GetAll() map[string]*Chain {
+	out := make(map[string]*Chain)
+
+	for _, chain := range c {
+		out[chain.ChainID()] = chain
+	}
+	return out
+
+}
+
 // Gets returns a map chainIDs to their chains
 func (c Chains) Gets(chainIDs ...string) (map[string]*Chain, error) {
 	out := make(map[string]*Chain)

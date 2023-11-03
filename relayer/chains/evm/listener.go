@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -83,7 +82,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					fmt.Println("block-notification received evm: ", lbn.Height)
+					r.log.Info("block-notification received evm: ", zap.Uint64("height", lbn.Height.Uint64()))
 
 					messages, err := r.FindMessages(ctx, lbn)
 					if err != nil {

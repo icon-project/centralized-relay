@@ -46,6 +46,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	}
 
 	return &EVMProvider{
+		cfg:    p,
 		log:    log.With(zap.String("chain_id", p.ChainID)),
 		client: client,
 	}, nil
