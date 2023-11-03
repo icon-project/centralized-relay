@@ -20,7 +20,6 @@ func (im *IconMessage) MsgBytes() ([]byte, error) {
 }
 
 func (icp *IconProvider) NewIconMessage(msg interface{}, method string) IconMessage {
-
 	return IconMessage{
 		Params: msg,
 		Method: method,

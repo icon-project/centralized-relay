@@ -4,25 +4,41 @@ import (
 	"context"
 	"math/big"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/pkg/errors"
 )
 
-// Listener goes block by block of a network and executes event handlers that are
-// configured for the listener.
-func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback func(v *types.BlockNotification) error) error {
-	if opts == nil {
-		return errors.New("receiveLoop: invalid options: <nil>")
+const (
+	BlockInterval              = 2 * time.Second
+	BlockHeightPollInterval    = 60 * time.Second
+	defaultReadTimeout         = 15 * time.Second
+	monitorBlockMaxConcurrency = 1000 // number of concurrent requests to synchronize older blocks from source chain
+)
+
+type BnOptions struct {
+	StartHeight uint64
+	Concurrency uint64
+}
+
+func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan relayertypes.BlockInfo) error {
+
+	startHeight, err := r.startFromHeight(ctx, lastSavedHeight)
+	if err != nil {
+		return err
 	}
 
-	// block a notification channel
+	concurrency := r.GetConcurrency(ctx)
+
+	// block notification channel
 	// (buffered: to avoid deadlock)
 	// increase concurrency parameter for faster sync
-	bnch := make(chan *types.BlockNotification, SyncConcurrency)
+	bnch := make(chan *types.BlockNotification, concurrency)
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -31,18 +47,19 @@ func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback fu
 	defer heightPoller.Stop()
 
 	latestHeight := func() uint64 {
-		height, err := c.GetBlockNumber()
+		height, err := r.client.eth.BlockNumber(context.TODO())
 		if err != nil {
+			// TODO:
+			// r.Log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
 			return 0
 		}
-		return height - BlockFinalityConfirmations
+		return height
 	}
-	next, latest := opts.StartHeight, latestHeight()
 
+	// Loop started
+	next, latest := startHeight, latestHeight()
 	// last unverified block notification
 	var lbn *types.BlockNotification
-	// start monitor loop
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -52,33 +69,28 @@ func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback fu
 			latest++
 
 		case <-heightPoller.C:
-			if height := latestHeight(); height > 0 {
+			if height := latestHeight(); height > latest {
 				latest = height
+				if next > latest {
+					// TODO:
+					// r.Log.Debugf("receiveLoop: skipping; latest=%d, next=%d", latest, next)
+				}
 			}
 
 		case bn := <-bnch:
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					if bn.Height.Cmp(lbn.Height) == 0 {
-						if bn.Header.ParentHash != lbn.Header.ParentHash {
-							break
-						}
-					} else {
-						if vr != nil {
-							if err := vr.Verify(lbn.Header, bn.Header, bn.Receipts); err != nil {
-								next--
-								break
-							}
-							if err := vr.Update(lbn.Header); err != nil {
-								return errors.Wrapf(err, "receiveLoop: vr.Update: %v", err)
-							}
-						}
-						if err := callback(lbn); err != nil {
-							return errors.Wrapf(err, "receiveLoop: callback: %v", err)
-						}
+					messages, err := r.FindMessages(ctx, lbn)
+					if err != nil {
+						return errors.Wrapf(err, "receiveLoop: callback: %v", err)
+					}
+					blockInfoChan <- relayertypes.BlockInfo{
+						Height:   lbn.Height.Uint64(),
+						Messages: messages,
 					}
 				}
+
 				if lbn, bn = bn, nil; len(bnch) > 0 {
 					bn = <-bnch
 				}
@@ -100,25 +112,28 @@ func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback fu
 				err   error
 				retry int
 			}
+
 			qch := make(chan *bnq, cap(bnch))
 			for i := next; i < latest &&
 				len(qch) < cap(qch); i++ {
-				qch <- &bnq{i, nil, nil, RPCCallRetry} // fill bch with requests
-			}
-			if len(qch) == 0 {
-				c.log.Error("Fatal: Zero length of query channel. Avoiding deadlock")
-				continue
+				qch <- &bnq{i, nil, nil, 3} // fill bch with requests
 			}
 			bns := make([]*types.BlockNotification, 0, len(qch))
 			for q := range qch {
 				switch {
 				case q.err != nil:
 					if q.retry > 0 {
-						q.retry--
-						q.v, q.err = nil, nil
-						qch <- q
-						continue
+						if !strings.HasSuffix(q.err.Error(), "requested block number greater than current block number") {
+							q.retry--
+							q.v, q.err = nil, nil
+							qch <- q
+							continue
+						}
+						if latest >= q.h {
+							latest = q.h - 1
+						}
 					}
+					//r.Log.Debugf("receiveLoop: bnq: h=%d:%v, %v", q.h, q.v.Header.Hash(), q.err)
 					bns = append(bns, nil)
 					if len(bns) == cap(bns) {
 						close(qch)
@@ -135,38 +150,22 @@ func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback fu
 							time.Sleep(500 * time.Millisecond)
 							qch <- q
 						}()
-
 						if q.v == nil {
 							q.v = &types.BlockNotification{}
 						}
-
 						q.v.Height = (&big.Int{}).SetUint64(q.h)
-
-						if q.v.Header == nil {
-							header, err := c.GetHeaderByHeight(ctx, q.v.Height)
-							if err != nil {
-								q.err = errors.Wrapf(err, "GetHeaderByHeight: %v", err)
-								return
-							}
-							q.v.Header = header
-							q.v.Hash = q.v.Header.Hash()
+						q.v.Header, q.err = r.client.eth.HeaderByNumber(context.TODO(), q.v.Height)
+						if q.err != nil {
+							//q.err = errors.Wrapf(q.err, "GetHmyHeaderByHeight: %v", q.err)
+							return
 						}
 						if q.v.Header.GasUsed > 0 {
-							if q.v.HasBTPMessage == nil {
-								hasBTPMessage, err := r.hasBTPMessage(ctx, q.v.Height)
-								if err != nil {
-									q.err = errors.Wrapf(err, "hasBTPMessage: %v", err)
-									return
-								}
-								q.v.HasBTPMessage = &hasBTPMessage
-							}
-							if !*q.v.HasBTPMessage {
-								return
-							}
-							// TODO optimize retry of GetBlockReceipts()
-							q.v.Receipts, q.err = c.GetBlockReceipts(q.v.Hash)
+							ht := big.NewInt(q.v.Height.Int64())
+							r.BlockReq.FromBlock = ht
+							r.BlockReq.ToBlock = ht
+							q.v.Logs, q.err = r.client.eth.FilterLogs(context.TODO(), r.BlockReq)
 							if q.err != nil {
-								q.err = errors.Wrapf(q.err, "GetBlockReceipts: %v", q.err)
+								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
 							}
 						}
@@ -195,7 +194,29 @@ func (p *EVMProvider) Listener(ctx context.Context, opts *BnOptions, callback fu
 	}
 }
 
-func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
+func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]relayertypes.Message, error) {
+
+	return nil, nil
+
+}
+
+func (p *EVMProvider) GetConcurrency(ctx context.Context) int {
+
+	// TODO: get concurrency from config
+	// if opts.Concurrency < 1 || opts.Concurrency > monitorBlockMaxConcurrency {
+	// 	concurrency := opts.Concurrency
+	// 	if concurrency < 1 {
+	// 		opts.Concurrency = 1
+	// 	} else {
+	// 		opts.Concurrency = monitorBlockMaxConcurrency
+	// 	}
+	// 	// r.Log.Warnf("receiveLoop: opts.Concurrency (%d): value out of range [%d, %d]: setting to default %d",
+	// 	// concurrency, 1, monitorBlockMaxConcurrency, opts.Concurrency)
+	// }
+	return monitorBlockMaxConcurrency
+}
+
+func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		return 0, err
@@ -210,14 +231,14 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 
 	// priority1: startHeight from config
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestHeight {
-		return int64(p.cfg.StartHeight), nil
+		return p.cfg.StartHeight, nil
 	}
 
 	// priority2: lastsaveheight from db
 	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		return int64(lastSavedHeight), nil
+		return lastSavedHeight, nil
 	}
 
 	// priority3: latest height
-	return int64(latestHeight), nil
+	return latestHeight, nil
 }

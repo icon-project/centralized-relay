@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/icon-project/centralized-relay/relayer/common"
 	"github.com/icon-project/centralized-relay/relayer/store"
 
@@ -27,10 +28,12 @@ type EVMProviderConfig struct {
 
 type EVMProvider struct {
 	sync.Mutex
-	client IClient
+	client *Client
 	store.BlockStore
-	log *zap.Logger
-	cfg *EVMProviderConfig
+	log         *zap.Logger
+	cfg         *EVMProviderConfig
+	StartHeight uint64
+	BlockReq    ethereum.FilterQuery
 }
 
 func (p *EVMProvider) NewProvider() (*EVMProvider, error) {

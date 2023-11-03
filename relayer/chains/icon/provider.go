@@ -41,7 +41,7 @@ func (pp *IconProviderConfig) Validate() error {
 
 	// TODO: validation for keystore
 	// TODO: contractaddress validation
-	// TODO: account should have balance
+	// TODO: account should have some balance no balance then use another accoutn
 
 	return nil
 }

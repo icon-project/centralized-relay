@@ -69,7 +69,7 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	blockReq := &types.BlockRequest{
 		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: GetMonitorEventFilters(icp.PCfg.ContractAddress),
+		EventFilters: GetMonitorEventFilters(icp.PCfg.ContractAddress, MonitorEventsList),
 	}
 
 loop:
