@@ -1,12 +1,18 @@
 package evm
 
 import (
+	"context"
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/store"
 
 	"go.uber.org/zap"
+)
+
+var (
+	_ provider.ProviderConfig = &EVMProviderConfig{}
 )
 
 type EVMProviderConfig struct {
@@ -29,18 +35,18 @@ type EVMProvider struct {
 	BlockReq    ethereum.FilterQuery
 }
 
-func (p *EVMProvider) NewProvider() (*EVMProvider, error) {
-	if err := p.cfg.Validate(); err != nil {
+func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+
+	if err := p.Validate(); err != nil {
 		return nil, err
 	}
-	log := zap.NewNop()
-	client, err := NewClient(p.cfg.RPCUrl, log)
+	client, err := NewClient(p.RPCUrl, log)
 	if err != nil {
 		return nil, err
 	}
 
 	return &EVMProvider{
-		log:    log,
+		log:    log.With(zap.String("chain_id", p.ChainID)),
 		client: client,
 	}, nil
 }
@@ -55,6 +61,6 @@ func (p *EVMProviderConfig) Validate() error {
 	return nil
 }
 
-func (p *EVMProvider) Init() error {
+func (p *EVMProvider) Init(context.Context) error {
 	return nil
 }

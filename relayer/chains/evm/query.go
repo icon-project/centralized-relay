@@ -6,6 +6,7 @@ import (
 
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
 func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
@@ -14,6 +15,11 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 		return 0, err
 	}
 	return
+}
+
+func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
+	//TODO:
+	return nil, nil
 }
 
 func (p *EVMProvider) QueryBlockByHeight(ctx context.Context, height uint64) (*ethTypes.Header, error) {

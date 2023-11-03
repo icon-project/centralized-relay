@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -34,6 +35,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	}
 
 	concurrency := r.GetConcurrency(ctx)
+	r.log.Info("Starting Evm listener from height ", zap.Uint64("start-height", startHeight))
 
 	// block notification channel
 	// (buffered: to avoid deadlock)
@@ -81,6 +83,8 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
+					fmt.Println("block-notification received evm: ", lbn.Height)
+
 					messages, err := r.FindMessages(ctx, lbn)
 					if err != nil {
 						return errors.Wrapf(err, "receiveLoop: callback: %v", err)
