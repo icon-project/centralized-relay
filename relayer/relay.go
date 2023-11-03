@@ -42,10 +42,10 @@ func Start(
 	go relayer.StartChainListeners(ctx, errorChan)
 
 	// start all the block processor
-	// go relayer.StartBlockProcessors(ctx, errorChan)
+	go relayer.StartBlockProcessors(ctx, errorChan)
 
 	// responsible to relaying  messages
-	// go relayer.StartRouter(ctx, flushInterval, fresh)
+	go relayer.StartRouter(ctx, flushInterval, fresh)
 
 	return errorChan, nil
 }
