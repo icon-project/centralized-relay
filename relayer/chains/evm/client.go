@@ -3,6 +3,7 @@ package evm
 import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	"go.uber.org/zap"
 )
 
@@ -27,4 +28,5 @@ type Client struct {
 	log *zap.Logger
 	rpc *rpc.Client
 	eth *ethclient.Client
+	abi *abi.Storage
 }

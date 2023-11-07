@@ -5,15 +5,15 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/store"
 
 	"go.uber.org/zap"
 )
 
-var (
-	_ provider.ProviderConfig = &EVMProviderConfig{}
-)
+var _ provider.ProviderConfig = &EVMProviderConfig{}
 
 type EVMProviderConfig struct {
 	ChainID         string `json:"chain-id" yaml:"chain-id"`
@@ -36,7 +36,6 @@ type EVMProvider struct {
 }
 
 func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
-
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
@@ -63,5 +62,13 @@ func (p *EVMProviderConfig) Validate() error {
 }
 
 func (p *EVMProvider) Init(context.Context) error {
+	p.BlockReq = ethereum.FilterQuery{
+		Addresses: []common.Address{common.HexToAddress(p.cfg.ContractAddress)},
+	}
+	abi, err := abi.NewStorage(common.HexToAddress(p.cfg.ContractAddress), p.client.eth)
+	if err != nil {
+		return err
+	}
+	p.client.abi = abi
 	return nil
 }
