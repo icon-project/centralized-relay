@@ -9,7 +9,7 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
+	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	types "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -28,7 +28,7 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
-	bridgeContract, err := abi.NewAbi(common.HexToAddress(contractAddress), cleth)
+	bridgeContract, err := bridgeContract.NewBridgeContract(common.HexToAddress(contractAddress), cleth)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ type Client struct {
 	rpc            *rpc.Client
 	eth            *ethclient.Client
 	chainID        *big.Int
-	bridgeContract *abi.Abi
+	bridgeContract *bridgeContract.BridgeContract
 }
 
 type IClient interface {
@@ -71,14 +71,14 @@ type IClient interface {
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 
 	// abiContract
-	ParseMessage(log ethTypes.Log) (*abi.AbiMessage, error)
+	ParseMessage(log ethTypes.Log) (*bridgeContract.BridgeContractMessage, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
 	return cl.eth.NonceAt(ctx, account, blockNumber)
 }
 
-func (cl *Client) ParseMessage(log ethTypes.Log) (*abi.AbiMessage, error) {
+func (cl *Client) ParseMessage(log ethTypes.Log) (*bridgeContract.BridgeContractMessage, error) {
 	return cl.bridgeContract.ParseMessage(log)
 }
 
