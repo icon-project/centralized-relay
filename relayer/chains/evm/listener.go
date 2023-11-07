@@ -48,7 +48,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	defer heightPoller.Stop()
 
 	latestHeight := func() uint64 {
-		height, err := r.client.eth.BlockNumber(context.TODO())
+		height, err := r.client.GetBlockNumber()
 		if err != nil {
 			// TODO:
 			// r.Log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
@@ -160,7 +160,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 							q.v = new(types.BlockNotification)
 						}
 						q.v.Height = new(big.Int).SetUint64(q.h)
-						q.v.Header, q.err = r.client.eth.HeaderByNumber(context.TODO(), q.v.Height)
+						q.v.Header, q.err = r.client.GetHeaderByHeight(ctx, q.v.Height)
 						if q.err != nil {
 							// q.err = errors.Wrapf(q.err, "GetHmyHeaderByHeight: %v", q.err)
 							return
@@ -169,7 +169,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 							ht := big.NewInt(q.v.Height.Int64())
 							r.BlockReq.FromBlock = ht
 							r.BlockReq.ToBlock = ht
-							q.v.Logs, q.err = r.client.eth.FilterLogs(context.TODO(), r.BlockReq)
+							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.BlockReq)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
@@ -207,14 +207,15 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 	var messages []relayertypes.Message
 	for _, log := range lbn.Logs {
 		if log.Address == common.HexToAddress(p.cfg.ContractAddress) {
-			message, err := p.client.abi.ParseMessage(log)
+			message, err := p.client.ParseMessage(log)
 			if err != nil {
 				return nil, err
 			}
-			p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()))
-			p.log.Debug("message received evm: ", zap.String("target-network", message.TargetNetwork))
-			p.log.Debug("message received evm: ", zap.String("address", message.Raw.Address.Hex()))
-			p.log.Debug("message received evm: ", zap.String("data", string(message.Raw.Data)))
+			p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+				zap.String("target-network", message.TargetNetwork),
+				zap.String("address", message.Raw.Address.Hex()),
+				zap.String("data", string(message.Raw.Data)),
+			)
 			messages = append(messages, relayertypes.Message{
 				Dst:           message.TargetNetwork,
 				Src:           message.Raw.Address.Hex(),

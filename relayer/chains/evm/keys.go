@@ -21,6 +21,10 @@ func (p *EVMProvider) RestoreKey() (string, error) {
 	return address, nil
 }
 
+func (p *EVMProvider) GetWallet() {
+
+}
+
 type Addr struct {
 	Address string `json:"address"`
 }

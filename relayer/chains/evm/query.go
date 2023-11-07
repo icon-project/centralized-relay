@@ -2,15 +2,13 @@ package evm
 
 import (
 	"context"
-	"math/big"
 
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
 func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
-	height, err = p.client.eth.BlockNumber(ctx)
+	height, err = p.client.GetBlockNumber()
 	if err != nil {
 		return 0, err
 	}
@@ -20,14 +18,6 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
 	//TODO:
 	return nil, nil
-}
-
-func (p *EVMProvider) QueryBlockByHeight(ctx context.Context, height uint64) (*ethTypes.Header, error) {
-	return p.client.eth.HeaderByNumber(ctx, big.NewInt(int64(height)))
-}
-
-func (p *EVMProvider) QueryBlockByNumber(ctx context.Context, height uint64) (*ethTypes.Block, error) {
-	return p.client.eth.BlockByNumber(ctx, big.NewInt(int64(height)))
 }
 
 func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {

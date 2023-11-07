@@ -13,3 +13,8 @@ type BlockNotification struct {
 	Header *types.Header
 	Logs   []types.Log
 }
+
+type Block struct {
+	Transactions []string `json:"transactions"`
+	GasUsed      string   `json:"gasUsed"`
+}
