@@ -9,7 +9,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -85,7 +84,8 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					r.log.Info("block-notification received evm: ", zap.Uint64("height", lbn.Height.Uint64()))
+					r.log.Info("block-notification received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
 
 					messages, err := r.FindMessages(ctx, lbn)
 					if err != nil {
@@ -162,14 +162,15 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 						q.v.Height = new(big.Int).SetUint64(q.h)
 						q.v.Header, q.err = r.client.GetHeaderByHeight(ctx, q.v.Height)
 						if q.err != nil {
-							// q.err = errors.Wrapf(q.err, "GetHmyHeaderByHeight: %v", q.err)
+							q.err = errors.Wrapf(q.err, "GetEvmHeaderByHeight %v", q.err)
 							return
 						}
+
 						if q.v.Header.GasUsed > 0 {
 							ht := big.NewInt(q.v.Height.Int64())
-							r.BlockReq.FromBlock = ht
-							r.BlockReq.ToBlock = ht
-							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.BlockReq)
+							r.blockReq.FromBlock = ht
+							r.blockReq.ToBlock = ht
+							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.blockReq)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
@@ -201,29 +202,22 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 }
 
 func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]relayertypes.Message, error) {
+
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
 	}
-	var messages []relayertypes.Message
+	messages := make([]relayertypes.Message, 0)
 	for _, log := range lbn.Logs {
-		if log.Address == common.HexToAddress(p.cfg.ContractAddress) {
-			message, err := p.client.ParseMessage(log)
-			if err != nil {
-				return nil, err
-			}
-			p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
-				zap.String("target-network", message.TargetNetwork),
-				zap.String("address", message.Raw.Address.Hex()),
-				zap.String("data", string(message.Raw.Data)),
-			)
-			messages = append(messages, relayertypes.Message{
-				Dst:           message.TargetNetwork,
-				Src:           message.Raw.Address.Hex(),
-				Data:          message.Raw.Data,
-				Sn:            message.Sn.Uint64(),
-				MessageHeight: message.Raw.BlockNumber,
-			})
+		message, err := p.getRelayMessageFromLog(log)
+		if err != nil {
+			return nil, err
 		}
+		p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+			zap.String("target-network", message.Dst),
+			zap.Uint64("sn", message.Sn),
+			zap.String("event-type", message.EventType),
+		)
+		messages = append(messages, message)
 	}
 	return messages, nil
 }

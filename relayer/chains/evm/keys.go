@@ -1,30 +1,34 @@
 package evm
 
 import (
-	"crypto/ecdsa"
-	"fmt"
+	"os"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 )
 
-func (p *EVMProvider) RestoreKey() (string, error) {
-	privateKey, err := crypto.LoadECDSA(p.cfg.Keystore)
+func RestoreKey(keystoreFile string, secret string) (*keystore.Key, error) {
+
+	file, err := os.Open(keystoreFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return "", fmt.Errorf("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
 	}
-	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-	return address, nil
-}
+	fileSize := fileInfo.Size()
 
-func (p *EVMProvider) GetWallet() {
+	data := make([]byte, fileSize)
 
-}
+	_, err = file.Read(data)
+	if err != nil {
+		return nil, err
+	}
 
-type Addr struct {
-	Address string `json:"address"`
+	key, err := keystore.DecryptKey(data, secret)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }

@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
@@ -32,10 +33,18 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 	if err != nil {
 		return nil, err
 	}
+
+	// getting the chain id
+	evmChainId, err := cleth.ChainID(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
 		log:            l,
 		rpc:            clrpc,
 		eth:            cleth,
+		EVMChainID:     evmChainId,
 		bridgeContract: bridgeContract,
 	}, nil
 
@@ -43,10 +52,11 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 
 // grouped rpc api clients
 type Client struct {
-	log            *zap.Logger
-	rpc            *rpc.Client
-	eth            *ethclient.Client
-	chainID        *big.Int
+	log *zap.Logger
+	rpc *rpc.Client
+	eth *ethclient.Client
+	// evm chain ID
+	EVMChainID     *big.Int
 	bridgeContract *bridgeContract.BridgeContract
 }
 
@@ -70,8 +80,12 @@ type IClient interface {
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 
+	// transaction
+	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
+
 	// abiContract
 	ParseMessage(log ethTypes.Log) (*bridgeContract.BridgeContractMessage, error)
+	SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
@@ -99,6 +113,7 @@ func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*
 }
 
 func (cl *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+
 	return cl.eth.CallContract(ctx, msg, blockNumber)
 }
 
@@ -237,7 +252,7 @@ func (cl *Client) GetMedianGasPriceForBlock(ctx context.Context) (gasPrice *big.
 }
 
 func (c *Client) GetChainID() *big.Int {
-	return c.chainID
+	return c.EVMChainID
 }
 
 func (c *Client) GetEthClient() *ethclient.Client {
@@ -246,4 +261,16 @@ func (c *Client) GetEthClient() *ethclient.Client {
 
 func (c *Client) Log() *zap.Logger {
 	return c.log
+}
+
+func (c *Client) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error) {
+	return c.bridgeContract.SendMessage(opts, _to, _svc, _sn, _msg)
+}
+
+func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn string, msg []byte) (*ethTypes.Transaction, error) {
+	return c.bridgeContract.RecvMessage(opts, srcNID, sn, msg)
+}
+
+func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {
+	return c.eth.SendTransaction(ctx, tx)
 }
