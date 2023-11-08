@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
@@ -22,8 +23,8 @@ type GlobalConfig struct {
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
-func newDefaultGlobalConfig(memo string) GlobalConfig {
-	return GlobalConfig{
+func newDefaultGlobalConfig(memo string) *GlobalConfig {
+	return &GlobalConfig{
 		APIListenPort:  ":5183",
 		Timeout:        "10s",
 		LightCacheSize: 20,
@@ -125,6 +126,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 	switch iw.Type {
 	case "icon":
 		iw.Value = new(icon.IconProviderConfig)
+	case "evm":
+		iw.Value = new(evm.EVMProviderConfig)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}

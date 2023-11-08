@@ -1,15 +1,17 @@
 package types
 
-type Metadata struct {
-	Priority uint8
-	Data     map[string]interface{}
-}
+import (
+	"math/big"
 
-type Message struct {
-	Source      string
-	Destination string
-	Payload     []interface{}
-	Metadata    Metadata
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+)
+
+type BlockNotification struct {
+	Hash   common.Hash
+	Height *big.Int
+	Header *types.Header
+	Logs   []types.Log
 }
 
 type Block struct {

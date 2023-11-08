@@ -1,6 +1,9 @@
 package types
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type BlockInfo struct {
 	Height   uint64
@@ -53,10 +56,7 @@ func (r *RouteMessage) GetIsProcessing() bool {
 	return r.IsProcessing
 }
 
-type ExecuteMessageResponse struct {
-	MessageKey
-	TxResponse
-}
+type TxResponseFunc func(key MessageKey, response TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
@@ -69,8 +69,8 @@ type TxResponse struct {
 type ResponseCode uint8
 
 const (
-	Success ResponseCode = 0
-	Failed  ResponseCode = 1
+	Failed  ResponseCode = 0
+	Success ResponseCode = 1
 )
 
 type MessageKey struct {
@@ -111,4 +111,17 @@ func (m *MessageCache) Remove(key MessageKey) {
 	m.MessageMapMu.Lock()
 	defer m.MessageMapMu.Unlock()
 	delete(m.Messages, key)
+}
+
+type Coin struct {
+	Denom  string
+	Amount uint64
+}
+
+func NewCoin(denom string, amount uint64) Coin {
+	return Coin{denom, amount}
+}
+
+func (c *Coin) String() string {
+	return fmt.Sprintf("%d%s", c.Amount, c.Denom)
 }

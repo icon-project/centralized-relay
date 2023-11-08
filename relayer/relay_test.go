@@ -144,7 +144,6 @@ loop:
 	}
 
 	s.T().Cleanup(func() {
-		fmt.Println("trying to cleanup testlistener")
 		s.db.Close()
 		s.db.RemoveDbFile(levelDbName)
 	})

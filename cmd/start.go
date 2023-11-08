@@ -24,18 +24,19 @@ func startCmd(a *appState) *cobra.Command {
 			$ %s start # start all the registered chains 
 		`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			chains := make(map[string]*relayer.Chain)
 
-			chainIDs := make([]string, 0, len(chains))
-			for chainID := range chains {
-				chainIDs = append(chainIDs, chainID)
-			}
+			// TODO: filter only mentioned chain
+			// chains := make(map[string]*relayer.Chain)
+
+			// if arg > 0{
+			// chainIDs := make([]string, 0, len(chains))
+			// for chainID := range chains {
+			// 	chainIDs = append(chainIDs, chainID)
+			// }
+			// }
 
 			// get chain configurations
-			chains, err := a.config.Chains.Gets(chainIDs...)
-			if err != nil {
-				return err
-			}
+			chains := a.config.Chains.GetAll()
 
 			flushInterval, err := cmd.Flags().GetDuration(flagFlushInterval)
 			if err != nil {
