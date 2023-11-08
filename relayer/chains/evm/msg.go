@@ -10,8 +10,6 @@ import (
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-const defaultStepLimit = 13610920010
-
 type Message struct {
 	transactionOpt *bind.TransactOpts
 	message        []byte

@@ -38,7 +38,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	return p, nil
 }
 
-func TestGetBalance(t *testing.T) {
+func TestTransferBalance(t *testing.T) {
 	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
 	assert.NoError(t, err)
 

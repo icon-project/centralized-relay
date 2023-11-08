@@ -8,7 +8,9 @@ import (
 )
 
 // All the events
-var EmitMessageSig = "Message(string,int256,bytes)"
+var (
+	EmitMessageSig = "Message(string,int256,bytes)"
+)
 
 var eventSigToEventType = map[common.Hash]string{
 	crypto.Keccak256Hash([]byte(EmitMessageSig)): events.EmitMessage,

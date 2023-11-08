@@ -269,11 +269,7 @@ func (c *Client) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _
 }
 
 func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error) {
-	op, err := c.bridgeContract.RecvMessage(opts, srcNID, sn, msg)
-	fmt.Println("error from recv message ", err)
-	fmt.Println("output", op)
-	fmt.Println("output", op.Hash().String())
-	return op, err
+	return c.bridgeContract.RecvMessage(opts, srcNID, sn, msg)
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {

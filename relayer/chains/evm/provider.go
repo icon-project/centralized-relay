@@ -146,7 +146,6 @@ func (r *EVMProvider) transferBalance(senderKey, recepientAddress string, amount
 		return common.Hash{}, err
 	}
 
-	fmt.Println(signedTx)
 	if err = r.client.SendTransaction(context.TODO(), signedTx); err != nil {
 		err = errors.Wrap(err, "SendTransaction ")
 		return
