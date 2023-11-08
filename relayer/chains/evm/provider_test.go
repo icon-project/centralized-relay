@@ -10,21 +10,20 @@ import (
 	"go.uber.org/zap"
 )
 
-func MockEvmProvider() (*EVMProvider, error) {
+func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 
 	evm := EVMProviderConfig{
-		ChainID:     "eth",
-		Name:        "eth",
-		RPCUrl:      "http://localhost:8545",
-		StartHeight: 0,
-		Keystore:    testKeyStore,
-		Password:    testKeyPassword,
-		GasPrice:    1000565528,
-		// GasLimit:        200_000_000,
-		ContractAddress: "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+		ChainID:         "eth",
+		Name:            "eth",
+		RPCUrl:          "http://localhost:8545",
+		StartHeight:     0,
+		Keystore:        testKeyStore,
+		Password:        testKeyPassword,
+		GasPrice:        1000565528,
+		ContractAddress: contractAddress,
 	}
 	log := zap.NewNop()
-	pro, err := evm.NewProvider(log, "/Users/viveksharmapoudel/my_work_bench/ibriz/ibc-related/centralized-relay", true, "evm-1")
+	pro, err := evm.NewProvider(log, "", true, "evm-1")
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +37,7 @@ func MockEvmProvider() (*EVMProvider, error) {
 }
 
 func TestGetBalance(t *testing.T) {
-	pro, err := MockEvmProvider()
+	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
 	assert.NoError(t, err)
 
 	header, _ := pro.client.GetHeaderByHeight(context.TODO(), big.NewInt(117))
