@@ -20,6 +20,7 @@ func (p *EVMProvider) Route(ctx context.Context, message providerTypes.Message, 
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
+
 	messageKey := message.MessageKey()
 
 	tx, err := p.SendTransaction(ctx, opts, message)
@@ -37,7 +38,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 	case events.EmitMessage:
 		tx, err := p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
 		if err != nil {
-			return nil, fmt.Errorf("routing failed: %w ", err)
+			return nil, err
 		}
 		return tx, nil
 
@@ -84,7 +85,7 @@ func (p *EVMProvider) WaitForTxResult(
 }
 
 func (p *EVMProvider) LogSuccessTx(messageKey providerTypes.MessageKey, receipt *types.Receipt) {
-	p.log.Info("Successful Transaction",
+	p.log.Info("successful transaction",
 		zap.Any("message-key", messageKey),
 		zap.String("tx_hash", receipt.TxHash.String()),
 		zap.Int64("height", receipt.BlockNumber.Int64()),
@@ -92,7 +93,7 @@ func (p *EVMProvider) LogSuccessTx(messageKey providerTypes.MessageKey, receipt 
 }
 
 func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *types.Receipt, err error) {
-	p.log.Info("Failed Transaction",
+	p.log.Info("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),
 		zap.Error(err),

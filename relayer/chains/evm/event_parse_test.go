@@ -38,33 +38,6 @@ func TestParseEventLog(t *testing.T) {
 
 }
 
-// func TestSendMessageTest(t *testing.T) {
-// 	// sending the transaction
-
-// 	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
-// 	assert.NoError(t, err)
-// 	ctx := context.Background()
-// 	opts, err := pro.GetTransationOpts(ctx)
-// 	assert.NoError(t, err)
-
-// 	tx, err := pro.client.SendMessage(opts, "icon", "--", big.NewInt(10), []byte("check"))
-// 	assert.NoError(t, err)
-
-// 	receipt, err := pro.WaitForResults(context.TODO(), tx.Hash())
-// 	assert.NoError(t, err)
-
-// 	for _, m := range receipt.Logs {
-// 		fmt.Println("transaction log ", m)
-// 		msg, err := pro.client.ParseMessage(*m)
-// 		if err != nil {
-// 			fmt.Println("show the error ", err)
-// 			continue
-// 		}
-// 		fmt.Println("the message is ", string(msg.Msg))
-// 	}
-
-// }
-
 // func TestFilterLog(t *testing.T) {
 
 // 	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
