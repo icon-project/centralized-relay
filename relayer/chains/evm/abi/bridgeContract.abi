@@ -95,9 +95,9 @@
         "type": "string"
       },
       {
-        "internalType": "string",
+        "internalType": "int256",
         "name": "sn",
-        "type": "string"
+        "type": "int256"
       },
       {
         "internalType": "bytes",

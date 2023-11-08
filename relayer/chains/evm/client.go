@@ -29,7 +29,7 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
-	bridgeContract, err := bridgeContract.NewBridgeContract(common.HexToAddress(contractAddress), cleth)
+	bridgeContract, err := bridgeContract.NewAbi(common.HexToAddress(contractAddress), cleth)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ type Client struct {
 	eth *ethclient.Client
 	// evm chain ID
 	EVMChainID     *big.Int
-	bridgeContract *bridgeContract.BridgeContract
+	bridgeContract *bridgeContract.Abi
 }
 
 type IClient interface {
@@ -84,15 +84,16 @@ type IClient interface {
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
 
 	// abiContract
-	ParseMessage(log ethTypes.Log) (*bridgeContract.BridgeContractMessage, error)
+	ParseMessage(log ethTypes.Log) (*bridgeContract.AbiMessage, error)
 	SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error)
+	ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
 	return cl.eth.NonceAt(ctx, account, blockNumber)
 }
 
-func (cl *Client) ParseMessage(log ethTypes.Log) (*bridgeContract.BridgeContractMessage, error) {
+func (cl *Client) ParseMessage(log ethTypes.Log) (*bridgeContract.AbiMessage, error) {
 	return cl.bridgeContract.ParseMessage(log)
 }
 
@@ -267,7 +268,7 @@ func (c *Client) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _
 	return c.bridgeContract.SendMessage(opts, _to, _svc, _sn, _msg)
 }
 
-func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn string, msg []byte) (*ethTypes.Transaction, error) {
+func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error) {
 	return c.bridgeContract.RecvMessage(opts, srcNID, sn, msg)
 }
 
