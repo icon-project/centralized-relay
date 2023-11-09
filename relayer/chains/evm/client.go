@@ -47,14 +47,14 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 		EVMChainID:     evmChainId,
 		bridgeContract: bridgeContract,
 	}, nil
-
 }
 
 // grouped rpc api clients
 type Client struct {
-	log *zap.Logger
-	rpc *rpc.Client
-	eth *ethclient.Client
+	log      *zap.Logger
+	rpc      *rpc.Client
+	eth      *ethclient.Client
+	verifier *Client
 	// evm chain ID
 	EVMChainID     *big.Int
 	bridgeContract *bridgeContract.Abi
@@ -114,7 +114,6 @@ func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*
 }
 
 func (cl *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-
 	return cl.eth.CallContract(ctx, msg, blockNumber)
 }
 
