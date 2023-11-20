@@ -34,6 +34,7 @@ type EVMProviderConfig struct {
 	GasPrice        int64  `json:"gas-price" yaml:"gas-price"`
 	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
+	// verify-rpc-url
 }
 
 type EVMProvider struct {
@@ -163,7 +164,7 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 		defer cancel()
 		txo.GasPrice, _ = p.client.SuggestGasPrice(ctx)
-		txo.GasLimit = uint64(p.cfg.GasLimit * 2)
+		txo.GasLimit = uint64(p.cfg.GasLimit)
 		return txo, nil
 	}
 

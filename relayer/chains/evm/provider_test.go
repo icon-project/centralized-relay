@@ -85,7 +85,7 @@ func TestRouteMessage(t *testing.T) {
 func TestSendMessageTest(t *testing.T) {
 	// sending the transaction
 
-	pro, err := MockEvmProvider("0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6")
+	pro, err := MockEvmProvider("0x5FC8d32690cc91D4c39d9d3abcBD16989F875707")
 	assert.NoError(t, err)
 	ctx := context.Background()
 	opts, err := pro.GetTransationOpts(ctx)
@@ -98,7 +98,6 @@ func TestSendMessageTest(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, m := range receipt.Logs {
-		fmt.Println("transaction log ", m)
 		msg, err := pro.client.ParseMessage(*m)
 		if err != nil {
 			fmt.Println("show the error ", err)

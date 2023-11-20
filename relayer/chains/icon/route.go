@@ -37,9 +37,13 @@ func (icp *IconProvider) Route(ctx context.Context, message providerTypes.Messag
 func (icp *IconProvider) MakeIconMessage(message providerTypes.Message) (IconMessage, error) {
 
 	switch message.EventType {
-	// TODO: generateMessage based on eventtype
 	case events.EmitMessage:
-		return IconMessage{}, nil
+		msg := types.RecvMessage{
+			SrcNetwork: message.Src,
+			Sn:         message.Sn,
+			Msg:        types.HexBytes(message.Data),
+		}
+		return icp.NewIconMessage(msg, MethodRecvMessage), nil
 
 	}
 	return IconMessage{}, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
