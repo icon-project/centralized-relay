@@ -2,12 +2,11 @@ package evm
 
 import (
 	"context"
-
-	"github.com/pkg/errors"
-
 	"fmt"
 	"math/big"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -28,17 +27,19 @@ type EVMProviderConfig struct {
 	ChainID         string `json:"chain-id" yaml:"chain-id"`
 	Name            string `json:"name" yaml:"name"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
+	VerifierRPCUrl  string `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"`
 	Keystore        string `json:"keystore" yaml:"keystore"`
 	Password        string `json:"password" yaml:"password"`
 	GasPrice        int64  `json:"gas-price" yaml:"gas-price"`
 	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
-	// verify-rpc-url
+	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
 }
 
 type EVMProvider struct {
-	client IClient
+	client   IClient
+	verifier IClient
 	store.BlockStore
 	log         *zap.Logger
 	cfg         *EVMProviderConfig
@@ -56,11 +57,24 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 		return nil, err
 	}
 
+	var verifierClient IClient
+
+	if p.VerifierRPCUrl != "" {
+		var err error
+		verifierClient, err = newClient(p.VerifierRPCUrl, p.ContractAddress, log)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		verifierClient = client // default to same client
+	}
+
 	return &EVMProvider{
 		cfg:      p,
 		log:      log.With(zap.String("chain_id", p.ChainID)),
 		client:   client,
 		blockReq: getEventFilterQuery(p.ContractAddress),
+		verifier: verifierClient,
 	}, nil
 }
 
@@ -78,7 +92,6 @@ func (p *EVMProviderConfig) Validate() error {
 }
 
 func (p *EVMProvider) Init(context.Context) error {
-
 	wallet, err := RestoreKey(p.cfg.Keystore, p.cfg.Password)
 	if err != nil {
 		return fmt.Errorf("failed to restore evm wallet %v", err)
@@ -92,7 +105,7 @@ func (p *EVMProvider) Wallet() *keystore.Key {
 }
 
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
-	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond //1.5sec
+	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond // 1.5sec
 	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
 	retryLimit := 10
 	retryCounter := 0
@@ -177,5 +190,4 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
 
 	return txOpts, nil
-
 }

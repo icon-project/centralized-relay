@@ -26,19 +26,23 @@ type BnOptions struct {
 	Concurrency uint64
 }
 
+func (r *EVMProvider) latestHeight() uint64 {
+	height, err := r.client.GetBlockNumber()
+	if err != nil {
+		// TODO:
+		// r.Log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
+		return 0
+	}
+	return height
+}
+
 func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan relayertypes.BlockInfo) error {
 	startHeight, err := r.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
 	}
 
-	concurrency := r.GetConcurrency(ctx)
 	r.log.Info("Starting Evm listener from height ", zap.Uint64("start-height", startHeight))
-
-	// block notification channel
-	// (buffered: to avoid deadlock)
-	// increase concurrency parameter for faster sync
-	bnch := make(chan *types.BlockNotification, concurrency)
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -46,20 +50,15 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	heightPoller := time.NewTicker(BlockHeightPollInterval)
 	defer heightPoller.Stop()
 
-	latestHeight := func() uint64 {
-		height, err := r.client.GetBlockNumber()
-		if err != nil {
-			// TODO:
-			// r.Log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
-			return 0
-		}
-		return height
-	}
-
-	// Loop started
-	next, latest := startHeight, latestHeight()
+	next, latest := startHeight, r.latestHeight()
+	concurrency := r.GetConcurrency(ctx, startHeight, latest)
+	// block notification channel
+	// (buffered: to avoid deadlock)
+	// increase concurrency parameter for faster sync
+	bnch := make(chan *types.BlockNotification, concurrency)
 	// last unverified block notification
 	var lbn *types.BlockNotification
+	// Loop started
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,7 +71,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 
 		case <-heightPoller.C:
 			r.log.Debug("receiveLoop: heightPoller")
-			if height := latestHeight(); height > latest {
+			if height := r.latestHeight(); height > latest {
 				latest = height
 				if next > latest {
 					// TODO:
@@ -202,7 +201,6 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 }
 
 func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]relayertypes.Message, error) {
-
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
 	}
@@ -222,19 +220,20 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 	return messages, nil
 }
 
-func (p *EVMProvider) GetConcurrency(ctx context.Context) int {
-	// TODO: get concurrency from config
-	// if opts.Concurrency < 1 || opts.Concurrency > monitorBlockMaxConcurrency {
-	// 	concurrency := opts.Concurrency
-	// 	if concurrency < 1 {
-	// 		opts.Concurrency = 1
-	// 	} else {
-	// 		opts.Concurrency = monitorBlockMaxConcurrency
-	// 	}
-	// 	// r.Log.Warnf("receiveLoop: opts.Concurrency (%d): value out of range [%d, %d]: setting to default %d",
-	// 	// concurrency, 1, monitorBlockMaxConcurrency, opts.Concurrency)
-	// }
-	return monitorBlockMaxConcurrency
+func (p *EVMProvider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
+	concurrency := p.cfg.Concurrency
+	if concurrency == 0 {
+		concurrency = monitorBlockMaxConcurrency
+	}
+	// we calculate concurrency based on the height to sync
+	// so that we avoid duplicate block number is picked up by multiple workers
+	heightTosync := currentHeight - startHeight
+	if heightTosync < 1 {
+		concurrency = 1 // we don't want to span multiple workers for 1 block
+	} else if heightTosync < concurrency {
+		concurrency = heightTosync // we don't want to span more workers than the height to sync
+	}
+	return int(concurrency)
 }
 
 func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
@@ -246,7 +245,7 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 	if p.cfg.StartHeight > latestHeight {
 		p.log.Error("start height provided on config cannot be greater than latest height",
 			zap.Uint64("start-height", p.cfg.StartHeight),
-			zap.Int64("latest-height", int64(latestHeight)),
+			zap.Uint64("latest-height", latestHeight),
 		)
 	}
 

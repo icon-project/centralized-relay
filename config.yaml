@@ -1,0 +1,14 @@
+global:
+  api-listen-addr: 8080
+  timeout: 10
+  memo: "This is a sample config file."
+light-cache-size: 100
+chains:
+  icon:
+    rpc-addr: http://localhost:9000/api/v3
+    cache-size: 100
+    cache-ttl: 10
+  avalanche:
+    rpc-addr: http://localhost:9650/ext/bc/C/rpc
+    cache-size: 100
+    cache-ttl: 10
