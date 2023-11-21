@@ -55,8 +55,6 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 	}
 
 	if routeMessage.GetIsProcessing() {
-		dst.log.Debug("Waiting to relay message until message is processing",
-			zap.Any("messageKey", routeMessage.MessageKey()))
 		return false
 	}
 

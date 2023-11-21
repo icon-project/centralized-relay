@@ -11,8 +11,8 @@ import (
 
 type IconProviderConfig struct {
 	ChainID         string `json:"chain-id" yaml:"chain-id"`
-	KeyStore        string `json:"key-store" yaml:"key-store"`
-	RPCAddr         string `json:"rpc-addr" yaml:"rpc-addr"`
+	KeyStore        string `json:"keystore" yaml:"keystore"`
+	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	Password        string `json:"password" yaml:"password"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"` //would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
@@ -28,14 +28,14 @@ func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 
 	return &IconProvider{
 		log:    log.With(zap.String("chain_id", pp.ChainID)),
-		client: NewClient(pp.RPCAddr, log),
+		client: NewClient(pp.RPCUrl, log),
 		PCfg:   pp,
 	}, nil
 
 }
 
 func (pp *IconProviderConfig) Validate() error {
-	if pp.RPCAddr == "" {
+	if pp.RPCUrl == "" {
 		return fmt.Errorf("icon provider rpc endpoint is empty")
 	}
 

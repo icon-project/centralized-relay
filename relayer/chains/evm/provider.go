@@ -113,8 +113,6 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 				err = nil
 				continue
 			}
-			p.log.Debug("GetTransactionResult ",
-				zap.String("txhash", txHash.String()), zap.Error(err))
 			return
 		}
 	}

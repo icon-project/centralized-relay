@@ -13,7 +13,7 @@ func GetMockIconProvider() (*IconProvider, error) {
 	pc := IconProviderConfig{
 		ChainID:         "icon",
 		KeyStore:        testKeyAddr,
-		RPCAddr:         "http://localhost:9082/api/v3",
+		RPCUrl:          "http://localhost:9082/api/v3",
 		Password:        testKeyPassword,
 		StartHeight:     0,
 		ContractAddress: "cxcacc844737024565cb56ac6ac8c1dab8fff1e2f7",

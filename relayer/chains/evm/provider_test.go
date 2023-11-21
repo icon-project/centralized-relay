@@ -15,8 +15,8 @@ import (
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 
 	evm := EVMProviderConfig{
-		ChainID:         "eth",
-		Name:            "eth",
+		ChainID:         "avalanche",
+		Name:            "avalanche",
 		RPCUrl:          "http://localhost:8545",
 		StartHeight:     0,
 		Keystore:        testKeyStore,
@@ -25,7 +25,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 		ContractAddress: contractAddress,
 	}
 	log := zap.NewNop()
-	pro, err := evm.NewProvider(log, "", true, "evm-1")
+	pro, err := evm.NewProvider(log, "", true, "avalanche")
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func TestTransferBalance(t *testing.T) {
 }
 
 func TestRouteMessage(t *testing.T) {
-	pro, err := MockEvmProvider("0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6")
+	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 	assert.NoError(t, err)
 
 	expected := providerTypes.Message{
@@ -85,17 +85,18 @@ func TestRouteMessage(t *testing.T) {
 func TestSendMessageTest(t *testing.T) {
 	// sending the transaction
 
-	pro, err := MockEvmProvider("0x5FC8d32690cc91D4c39d9d3abcBD16989F875707")
+	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 	assert.NoError(t, err)
 	ctx := context.Background()
 	opts, err := pro.GetTransationOpts(ctx)
 	assert.NoError(t, err)
 
-	tx, err := pro.client.SendMessage(opts, "icon", "--", big.NewInt(10), []byte("check"))
+	tx, err := pro.client.SendMessage(opts, "icon", "--", big.NewInt(19), []byte("check"))
 	assert.NoError(t, err)
 
 	receipt, err := pro.WaitForResults(context.TODO(), tx.Hash())
 	assert.NoError(t, err)
+	fmt.Println("receipt blocknumber  is:", receipt.BlockNumber)
 
 	for _, m := range receipt.Logs {
 		msg, err := pro.client.ParseMessage(*m)

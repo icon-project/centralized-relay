@@ -339,7 +339,7 @@ type SendMessage struct {
 }
 
 type RecvMessage struct {
-	SrcNetwork string   `json:"srcNetwork"`
-	Sn         uint64   `json:"sn"`
-	Msg        HexBytes `json:"msg"`
+	SrcNID string   `json:"srcNID"`
+	Sn     HexInt   `json:"sn"`
+	Msg    HexBytes `json:"msg"`
 }

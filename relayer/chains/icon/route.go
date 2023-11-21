@@ -36,12 +36,13 @@ func (icp *IconProvider) Route(ctx context.Context, message providerTypes.Messag
 
 func (icp *IconProvider) MakeIconMessage(message providerTypes.Message) (IconMessage, error) {
 
+	// TODO: as we have more eventType
 	switch message.EventType {
 	case events.EmitMessage:
 		msg := types.RecvMessage{
-			SrcNetwork: message.Src,
-			Sn:         message.Sn,
-			Msg:        types.HexBytes(message.Data),
+			SrcNID: message.Src,
+			Sn:     types.NewHexInt(int64(message.Sn)),
+			Msg:    types.NewHexBytes(message.Data),
 		}
 		return icp.NewIconMessage(msg, MethodRecvMessage), nil
 
@@ -73,6 +74,7 @@ func (icp *IconProvider) SendTransaction(
 	if err != nil {
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
+
 	stepVal, err := step.Int()
 	if err != nil {
 		return nil, err
@@ -95,6 +97,7 @@ func (icp *IconProvider) SendTransaction(
 	if err := icp.client.SignTransaction(wallet, txParam); err != nil {
 		return nil, err
 	}
+
 	_, err = icp.client.SendTransaction(txParam)
 	if err != nil {
 		return nil, err
