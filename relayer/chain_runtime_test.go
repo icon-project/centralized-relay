@@ -38,7 +38,7 @@ func TestChainRuntime(t *testing.T) {
 	}
 
 	t.Run("merge messages", func(t *testing.T) {
-		runtime.mergeMessages(ctx, info)
+		runtime.mergeMessages(ctx, info.Messages)
 		assert.Equal(t, len(runtime.MessageCache.Messages), len(info.Messages))
 	})
 

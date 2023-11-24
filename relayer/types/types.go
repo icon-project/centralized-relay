@@ -5,6 +5,12 @@ import (
 	"sync"
 )
 
+var (
+	DefaultTxRetry = 3
+	// message is stale after TotalMaxRetryTx
+	TotalMaxRetryTx = DefaultTxRetry * 5
+)
+
 type BlockInfo struct {
 	Height   uint64
 	Messages []Message
@@ -54,6 +60,11 @@ func (r *RouteMessage) SetIsProcessing(isProcessing bool) {
 
 func (r *RouteMessage) GetIsProcessing() bool {
 	return r.IsProcessing
+}
+
+// stale means message which is expired
+func (r *RouteMessage) IsStale() bool {
+	return r.Retry >= uint64(TotalMaxRetryTx)
 }
 
 type TxResponseFunc func(key MessageKey, response TxResponse, err error)

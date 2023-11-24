@@ -12,6 +12,30 @@ type MessageStore struct {
 	prefix string
 }
 
+type Pagination struct {
+	Limit  uint64
+	Offset uint64
+	All    bool
+}
+
+func NewPagination() Pagination {
+	return Pagination{}
+}
+func (p Pagination) GetAll() Pagination {
+	p.All = true
+	return p
+}
+
+func (p Pagination) WithLimit(l uint64) Pagination {
+	p.Limit = l
+	return p
+}
+
+func (p Pagination) WithOffset(o uint64) Pagination {
+	p.Offset = o
+	return p
+}
+
 func NewMessageStore(db Store, prefix string) *MessageStore {
 	return &MessageStore{
 		db:     db,
@@ -41,7 +65,12 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 	return uint64(count), nil
 }
 
-func (ms *MessageStore) StoreMessage(message types.Message) error {
+func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
+
+	if message == nil {
+		return fmt.Errorf("error while storingMessage: message cannot be nil")
+	}
+
 	key := GetKey([]string{ms.prefix,
 		message.Src,
 		fmt.Sprintf("%d", message.Sn),
@@ -55,24 +84,24 @@ func (ms *MessageStore) StoreMessage(message types.Message) error {
 
 }
 
-func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (types.Message, error) {
+func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix,
 		messageKey.Src,
 		fmt.Sprintf("%d", messageKey.Sn),
 	}))
 	if err != nil {
-		return types.Message{}, err
+		return nil, err
 	}
 
-	var msg types.Message
+	var msg types.RouteMessage
 	if err := ms.Decode(v, &msg); err != nil {
-		return types.Message{}, err
+		return nil, err
 	}
-	return msg, nil
+	return &msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit int) ([]types.Message, error) {
-	var messages []types.Message
+func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.RouteMessage, error) {
+	var messages []*types.RouteMessage
 
 	keyPrefixList := []string{ms.prefix}
 	if chainId != "" {
@@ -81,40 +110,40 @@ func (ms *MessageStore) GetMessages(chainId string, all bool, offset int, limit 
 	iter := ms.db.NewIterator(GetKey(keyPrefixList))
 
 	// return all the messages
-	if all {
+	if p.All {
 		for iter.Next() {
-			var msg types.Message
+			var msg types.RouteMessage
 			if err := ms.Decode(iter.Value(), &msg); err != nil {
 				return nil, err
 			}
-			messages = append(messages, msg)
+
+			messages = append(messages, &msg)
 		}
 		iter.Release()
 		err := iter.Error()
 		if err != nil {
-
 			return nil, err
 		}
 		return messages, nil
 	}
 
 	// if not all use the offset logic
-	for i := 0; i < int(offset); i++ {
+	for i := 0; i < int(p.Offset); i++ {
 		if !iter.Next() {
 			return nil, fmt.Errorf("no message after offset")
 		}
 	}
 
-	for i := 0; i < limit; i++ {
+	for i := uint64(0); i < p.Limit; i++ {
 		if !iter.Next() {
 			break
 		}
 
-		var msg types.Message
+		var msg types.RouteMessage
 		if err := ms.Decode(iter.Value(), &msg); err != nil {
 			return nil, err
 		}
-		messages = append(messages, msg)
+		messages = append(messages, &msg)
 	}
 	iter.Release()
 	err := iter.Error()

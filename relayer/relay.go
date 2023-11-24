@@ -14,9 +14,10 @@ import (
 var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
-	DefaultTxRetry            = 2
-	SaveHeightMaxAfter        = 1000
-	RouteDuration             = 1 * time.Second
+
+	SaveHeightMaxAfter = 1000
+	RouteDuration      = 1 * time.Second
+	maxFlushMessage    = 10
 
 	prefixMessageStore = "message"
 	prefixBlockStore   = "block"
@@ -144,14 +145,70 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, fresh bool) {
 	routeTimer := time.NewTicker(RouteDuration)
+	flushTimer := time.NewTicker(flushInterval)
 
 	// TODO: implement flush logic
 	for {
 		select {
+		case <-flushTimer.C:
+			r.flushMessages(ctx)
 		case <-routeTimer.C:
 			r.processMessages(ctx)
 		}
 	}
+}
+
+func (r *Relayer) flushMessages(ctx context.Context) {
+	r.log.Info("starting flush logic by adding messages to the messageCache")
+
+	count, err := r.messageStore.TotalCount()
+	if err != nil {
+		r.log.Warn("error occured when querying total failed delivery message")
+	}
+	if count == 0 {
+		r.log.Debug("no message to flushout")
+		return
+	}
+
+	for _, chain := range r.chains {
+		chainId := chain.Provider.ChainId()
+		messages, err := r.getActiveMessagesFromStore(chainId, maxFlushMessage)
+		if err != nil {
+			r.log.Warn("error occured when query messagesFromStore", zap.String("chain-id", chainId), zap.Error(err))
+			continue
+		}
+
+		if len(messages) == 0 {
+			continue
+		}
+		r.log.Debug(" flushing messages ", zap.String("chain-id", chainId), zap.Int("message count", len(messages)))
+		// adding message to messageCache
+		for _, m := range messages {
+			chain.MessageCache.Add(m)
+		}
+	}
+
+}
+
+// TODO: optimize the logic
+func (r *Relayer) getActiveMessagesFromStore(chainId string, maxMessages int) ([]*types.RouteMessage, error) {
+
+	activeMessages := make([]*types.RouteMessage, 0)
+
+	p := store.NewPagination().GetAll()
+	msgs, err := r.messageStore.GetMessages(chainId, p)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range msgs {
+		if !m.IsStale() {
+			activeMessages = append(activeMessages, m)
+		}
+		if len(activeMessages) > maxMessages {
+			break
+		}
+	}
+	return activeMessages, nil
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
@@ -180,7 +237,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 		r.log.Error("unable to save height", zap.Error(err))
 	}
 
-	go srcChainRuntime.mergeMessages(ctx, blockInfo)
+	go srcChainRuntime.mergeMessages(ctx, blockInfo.Messages)
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
@@ -232,7 +289,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 		routeMessage, ok := src.MessageCache.Messages[key]
 		if !ok {
-			r.log.Error("message not found for key", zap.Any("message key", key))
+			r.log.Error("message of key not found in messageCache", zap.Any("message key", key))
 			return
 		}
 
@@ -247,17 +304,16 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	if err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
-
 	}
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 
-	// open to resend the message
-	if routeMessage.GetRetry() >= uint64(DefaultTxRetry) {
+	routeMessage.SetIsProcessing(false)
 
+	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
 		// save to db
-		if err := r.messageStore.StoreMessage(routeMessage.Message); err != nil {
+		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
 			return
 		}
@@ -272,7 +328,6 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 		)
 		return
 	}
-	routeMessage.SetIsProcessing(false)
 }
 
 func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
