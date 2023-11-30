@@ -8,19 +8,18 @@ import (
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (providerTypes.Message, error) {
-
+func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
 	if len(log.Topics) != 1 {
-		return providerTypes.Message{}, fmt.Errorf("topic lenght mismatch")
+		return nil, fmt.Errorf("topic lenght mismatch")
 	}
 	topic := log.Topics[0]
 
 	if topic == crypto.Keccak256Hash([]byte(EmitMessageSig)) {
 		msg, err := p.client.ParseMessage(log)
 		if err != nil {
-			return providerTypes.Message{}, fmt.Errorf("error parsing message:%v ", err)
+			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
-		return providerTypes.Message{
+		return &providerTypes.Message{
 			Dst:           msg.TargetNetwork,
 			Src:           p.ChainId(),
 			Sn:            msg.Sn.Uint64(),
@@ -29,5 +28,5 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (providerTypes.Messa
 			Data:          msg.Msg,
 		}, nil
 	}
-	return providerTypes.Message{}, fmt.Errorf("failed to match eventname")
+	return nil, fmt.Errorf("failed to match eventname")
 }

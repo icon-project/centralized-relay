@@ -7,7 +7,6 @@ import (
 )
 
 func RestoreKey(keystoreFile string, secret string) (*keystore.Key, error) {
-
 	file, err := os.Open(keystoreFile)
 	if err != nil {
 		return nil, err

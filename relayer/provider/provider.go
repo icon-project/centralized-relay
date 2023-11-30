@@ -7,9 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	messageMaxRetry = 5
-)
+var messageMaxRetry = 5
 
 type ProviderConfig interface {
 	NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (ChainProvider, error)
@@ -25,7 +23,7 @@ type ChainProvider interface {
 	ChainId() string
 	Init(ctx context.Context) error
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
-	Route(ctx context.Context, message types.Message, callback types.TxResponseFunc) error
+	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error)
 

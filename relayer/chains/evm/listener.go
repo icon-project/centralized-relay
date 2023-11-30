@@ -200,11 +200,11 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	}
 }
 
-func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]relayertypes.Message, error) {
+func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
 	}
-	messages := make([]relayertypes.Message, 0)
+	messages := make([]*relayertypes.Message, 0)
 	for _, log := range lbn.Logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {

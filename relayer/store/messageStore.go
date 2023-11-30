@@ -21,6 +21,7 @@ type Pagination struct {
 func NewPagination() Pagination {
 	return Pagination{}
 }
+
 func (p Pagination) GetAll() Pagination {
 	p.All = true
 	return p
@@ -66,12 +67,12 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 }
 
 func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
-
 	if message == nil {
 		return fmt.Errorf("error while storingMessage: message cannot be nil")
 	}
 
-	key := GetKey([]string{ms.prefix,
+	key := GetKey([]string{
+		ms.prefix,
 		message.Src,
 		fmt.Sprintf("%d", message.Sn),
 	})
@@ -81,11 +82,11 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 		return err
 	}
 	return ms.db.SetByKey(key, msgByte)
-
 }
 
 func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
-	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix,
+	v, err := ms.db.GetByKey(GetKey([]string{
+		ms.prefix,
 		messageKey.Src,
 		fmt.Sprintf("%d", messageKey.Sn),
 	}))
@@ -154,7 +155,7 @@ func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.Rout
 	return messages, nil
 }
 
-func (ms *MessageStore) DeleteMessage(messageKey types.MessageKey) error {
+func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
 	return ms.db.DeleteByKey(
 		GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }

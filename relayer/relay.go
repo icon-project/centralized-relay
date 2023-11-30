@@ -187,12 +187,10 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 			chain.MessageCache.Add(m)
 		}
 	}
-
 }
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(chainId string, maxMessages int) ([]*types.RouteMessage, error) {
-
 	activeMessages := make([]*types.RouteMessage, 0)
 
 	p := store.NewPagination().GetAll()
@@ -265,9 +263,7 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-
-	var callback types.TxResponseFunc
-	callback = func(key types.MessageKey, response types.TxResponse, err error) {
+	callback := func(key *types.MessageKey, response types.TxResponse, err error) {
 		src := src
 		dst := dst
 
@@ -281,7 +277,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 			)
 
 			// if success remove message from everywhere
-			if err := r.ClearMessages(ctx, []types.MessageKey{key}, src); err != nil {
+			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 			return
@@ -308,7 +304,6 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
-
 	routeMessage.SetIsProcessing(false)
 
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
@@ -330,7 +325,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 	}
 }
 
-func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
+func (r *Relayer) ClearMessages(ctx context.Context, msgs []*types.MessageKey, srcChain *ChainRuntime) error {
 	// clear from cache
 	srcChain.clearMessageFromCache(msgs)
 
@@ -343,4 +338,4 @@ func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, sr
 	return nil
 }
 
-//TODO: auto connect property from last saved height if down
+// TODO: auto connect property from last saved height if down

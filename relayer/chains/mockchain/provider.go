@@ -19,7 +19,6 @@ type MockProviderConfig struct {
 
 // NewProvider should provide a new Mock provider
 func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
-
 	if err := pp.Validate(); err != nil {
 		return nil, err
 	}
@@ -28,7 +27,6 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 		PCfg:   pp,
 		Height: pp.StartHeight,
 	}, nil
-
 }
 
 func (pp *MockProviderConfig) Validate() error {
@@ -44,6 +42,7 @@ type MockProvider struct {
 func (icp *MockProvider) ChainId() string {
 	return icp.PCfg.ChainId
 }
+
 func (icp *MockProvider) Init(ctx context.Context) error {
 	return nil
 }
@@ -53,7 +52,6 @@ func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) 
 }
 
 func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
-
 	ticker := time.NewTicker(3 * time.Second)
 
 	if icp.Height == 0 {
@@ -78,12 +76,10 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 			incoming <- d
 			icp.Height += 1
 		}
-
 	}
 }
 
-func (icp *MockProvider) Route(ctx context.Context, message types.Message, callback types.TxResponseFunc) error {
-
+func (icp *MockProvider) Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error {
 	icp.log.Info("message received", zap.Any("message", message))
 	messageKey := message.MessageKey()
 
@@ -100,13 +96,11 @@ func (icp *MockProvider) FindMessages() []types.Message {
 		if m.MessageHeight == icp.Height {
 			messages = append(messages, m)
 		}
-
 	}
 	return messages
 }
 
 func (icp *MockProvider) DeleteMessage(msg types.Message) {
-
 	var deleteKey *types.MessageKey
 
 	for key := range icp.PCfg.ReceiveMessages {
@@ -119,13 +113,12 @@ func (icp *MockProvider) DeleteMessage(msg types.Message) {
 	if deleteKey != nil {
 		delete(icp.PCfg.ReceiveMessages, *deleteKey)
 	}
-
 }
 
 func (icp *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
 	return true, nil
-
 }
+
 func (icp *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
 	return true, nil
 }

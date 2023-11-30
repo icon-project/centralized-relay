@@ -8,7 +8,7 @@ import (
 )
 
 // All the events
-var (
+const (
 	EmitMessageSig = "Message(string,int256,bytes)"
 )
 
@@ -17,7 +17,7 @@ var eventSigToEventType = map[common.Hash]string{
 }
 
 var MonitorEvents []common.Hash = []common.Hash{
-	//TODO: list all the events to monitor
+	// TODO: list all the events to monitor
 	crypto.Keccak256Hash([]byte(EmitMessageSig)),
 }
 
@@ -28,5 +28,4 @@ func getEventFilterQuery(contractAddress string) ethereum.FilterQuery {
 			MonitorEvents,
 		},
 	}
-
 }
