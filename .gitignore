@@ -2,3 +2,6 @@
 
 **/testdb/**
 .idea/
+.xcall-multi
+artifacts
+vendor
