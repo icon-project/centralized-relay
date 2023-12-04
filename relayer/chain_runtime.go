@@ -29,21 +29,20 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
 		MessageCache: types.NewMessageCache(),
 	}, nil
-
 }
 
-func (r *ChainRuntime) mergeMessages(ctx context.Context, info types.BlockInfo) {
-	if len(info.Messages) == 0 {
+func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Message) {
+	if len(messages) == 0 {
 		return
 	}
 
-	for _, m := range info.Messages {
+	for _, m := range messages {
 		routeMessage := types.NewRouteMessage(m)
 		r.MessageCache.Add(routeMessage)
 	}
 }
 
-func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
+func (r *ChainRuntime) clearMessageFromCache(msgs []*types.MessageKey) {
 	for _, m := range msgs {
 		r.MessageCache.Remove(m)
 	}

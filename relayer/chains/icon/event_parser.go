@@ -6,8 +6,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func parseMessagesFromEventlogs(log *zap.Logger, eventlogs []types.EventLog, height uint64) []providerTypes.Message {
-	msgs := make([]providerTypes.Message, 0)
+func parseMessagesFromEventlogs(log *zap.Logger, eventlogs []types.EventLog, height uint64) []*providerTypes.Message {
+	msgs := make([]*providerTypes.Message, 0)
 	for _, el := range eventlogs {
 		message, ok := parseMessageFromEvent(log, el, height)
 		if ok {
@@ -21,7 +21,7 @@ func parseMessageFromEvent(
 	log *zap.Logger,
 	event types.EventLog,
 	height uint64,
-) (providerTypes.Message, bool) {
+) (*providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
 	eventType := EventNameToType[eventName]
 
@@ -29,15 +29,14 @@ func parseMessageFromEvent(
 	case EmitMessage:
 		m, err := parseEmitMessage(event, eventType, height)
 		if err != nil {
-			return providerTypes.Message{}, false
+			return nil, false
 		}
 		return m, true
 	}
-	return providerTypes.Message{}, false
+	return nil, false
 }
 
-func parseEmitMessage(e types.EventLog, eventType string, height uint64) (providerTypes.Message, error) {
-
+func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
 	if len(e.Indexed) != 2 && len(e.Data) != 2 {
 		panic("Icon processor, emitMessage event is not correct")
 	}
@@ -46,7 +45,7 @@ func parseEmitMessage(e types.EventLog, eventType string, height uint64) (provid
 	// TODO: temporary soln should be something permanent
 	sn := e.Data[0][0]
 
-	return providerTypes.Message{
+	return &providerTypes.Message{
 		MessageHeight: height,
 		EventType:     eventType,
 		Dst:           dst,

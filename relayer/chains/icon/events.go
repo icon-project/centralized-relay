@@ -5,26 +5,24 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/events"
 )
 
-var (
-	// All the events
-	EmitMessage = "Message(str,int,bytes)"
-)
+// All the events
+var EmitMessage = "Message(str,int,bytes)"
 
 var EventNameToType = map[string]string{
 	EmitMessage: events.EmitMessage,
 }
 
 var MonitorEventsList []string = []string{
-	//TODO: list all the events to monitor
+	// TODO: list all the events to monitor
 	EmitMessage,
 }
 
 func GetMonitorEventFilters(address string, eventsList []string) []*types.EventFilter {
+	if address == "" {
+		return nil
+	}
 
 	filters := []*types.EventFilter{}
-	if address == "" {
-		return filters
-	}
 
 	for _, event := range eventsList {
 		filters = append(filters, &types.EventFilter{

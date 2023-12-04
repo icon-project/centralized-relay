@@ -16,8 +16,7 @@ const (
 	defaultBroadcastWaitTimeout = 10 * time.Minute
 )
 
-func (icp *IconProvider) Route(ctx context.Context, message providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-
+func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	iconMessage, err := icp.MakeIconMessage(message)
 	if err != nil {
 		return err
@@ -34,8 +33,7 @@ func (icp *IconProvider) Route(ctx context.Context, message providerTypes.Messag
 	return nil
 }
 
-func (icp *IconProvider) MakeIconMessage(message providerTypes.Message) (IconMessage, error) {
-
+func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (IconMessage, error) {
 	// TODO: as we have more eventType
 	switch message.EventType {
 	case events.EmitMessage:
@@ -45,14 +43,14 @@ func (icp *IconProvider) MakeIconMessage(message providerTypes.Message) (IconMes
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return icp.NewIconMessage(msg, MethodRecvMessage), nil
-
 	}
 	return IconMessage{}, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
 
 func (icp *IconProvider) SendTransaction(
 	ctx context.Context,
-	msg IconMessage) ([]byte, error) {
+	msg IconMessage,
+) ([]byte, error) {
 	wallet, err := icp.Wallet()
 	if err != nil {
 		return nil, err
@@ -109,7 +107,7 @@ func (icp *IconProvider) SendTransaction(
 func (icp *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
-	messageKey providerTypes.MessageKey,
+	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
 ) {

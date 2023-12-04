@@ -13,7 +13,7 @@ import (
 )
 
 // this will be executed in go route
-func (p *EVMProvider) Route(ctx context.Context, message providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message", zap.Any("message", message))
 
 	opts, err := p.GetTransationOpts(ctx)
@@ -31,8 +31,7 @@ func (p *EVMProvider) Route(ctx context.Context, message providerTypes.Message, 
 	return nil
 }
 
-func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message providerTypes.Message) (*types.Transaction, error) {
-
+func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
 	switch message.EventType {
 	// TODO: estimate and throw error if failed
 	case events.EmitMessage:
@@ -41,7 +40,6 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 			return nil, err
 		}
 		return tx, nil
-
 	}
 	return nil, fmt.Errorf("contract method missing for eventtype: %s", message.EventType)
 }
@@ -49,7 +47,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 func (p *EVMProvider) WaitForTxResult(
 	ctx context.Context,
 	tx *types.Transaction,
-	messageKey providerTypes.MessageKey,
+	messageKey *providerTypes.MessageKey,
 	callback providerTypes.TxResponseFunc,
 ) {
 	if callback == nil {
@@ -84,7 +82,7 @@ func (p *EVMProvider) WaitForTxResult(
 	p.LogSuccessTx(messageKey, txReceipts)
 }
 
-func (p *EVMProvider) LogSuccessTx(messageKey providerTypes.MessageKey, receipt *types.Receipt) {
+func (p *EVMProvider) LogSuccessTx(messageKey *providerTypes.MessageKey, receipt *types.Receipt) {
 	p.log.Info("successful transaction",
 		zap.Any("message-key", messageKey),
 		zap.String("tx_hash", receipt.TxHash.String()),
@@ -92,7 +90,7 @@ func (p *EVMProvider) LogSuccessTx(messageKey providerTypes.MessageKey, receipt 
 	)
 }
 
-func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *types.Receipt, err error) {
+func (p *EVMProvider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
 	p.log.Info("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),

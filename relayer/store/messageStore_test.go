@@ -33,7 +33,8 @@ func TestMessageStoreSet(t *testing.T) {
 
 	t.Run("store message", func(t *testing.T) {
 		// storing the message
-		if err := messageStore.StoreMessage(storeMessage); err != nil {
+
+		if err := messageStore.StoreMessage(types.NewRouteMessage(storeMessage)); err != nil {
 			assert.Fail(t, "Failed to store message ", err)
 		}
 
@@ -59,7 +60,7 @@ func TestMessageStoreSet(t *testing.T) {
 	t.Run("getMessage", func(t *testing.T) {
 		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
 		assert.NoError(t, err, " error occured while getting message")
-		assert.Equal(t, getMessage, storeMessage)
+		assert.Equal(t, getMessage, types.NewRouteMessage(storeMessage))
 
 		if err := testdb.ClearStore(); err != nil {
 			assert.Fail(t, "failed to clear db ", err)
@@ -87,7 +88,10 @@ func TestMessageStoreSet(t *testing.T) {
 	t.Run("GetMessages", func(t *testing.T) {
 
 		t.Run("GetMessages empty", func(t *testing.T) {
-			msg, err := messageStore.GetMessages(chainId, false, 0, 10)
+			p := NewPagination().
+				WithLimit(10).
+				WithOffset(0)
+			msg, err := messageStore.GetMessages(chainId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, len(msg), 0)
 
@@ -114,25 +118,33 @@ func TestMessageStoreSet(t *testing.T) {
 				Sn:   uint64(3),
 				Data: []byte("test message"),
 			}
-		messageStore.StoreMessage(storeMessage1)
-		messageStore.StoreMessage(storeMessage2)
-		messageStore.StoreMessage(storeMessage3)
+		messageStore.StoreMessage(types.NewRouteMessage(storeMessage1))
+		messageStore.StoreMessage(types.NewRouteMessage(storeMessage2))
+		messageStore.StoreMessage(types.NewRouteMessage(storeMessage3))
 
 		t.Run("GetMessages all", func(t *testing.T) {
-			msgs, err := messageStore.GetMessages(chainId, true, 0, 0)
+			p := NewPagination().GetAll()
+			msgs, err := messageStore.GetMessages(chainId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 3, len(msgs))
 		})
 
 		t.Run("GetMessages pagination by limit & offset", func(t *testing.T) {
-			msgs, err := messageStore.GetMessages(chainId, false, 1, 2)
+			p := NewPagination().
+				WithLimit(2).
+				WithOffset(1)
+			msgs, err := messageStore.GetMessages(chainId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 2, len(msgs))
-			assert.Equal(t, []types.Message{storeMessage2, storeMessage3}, msgs)
+			assert.Equal(t, []*types.RouteMessage{
+				types.NewRouteMessage(storeMessage2), types.NewRouteMessage(storeMessage3)}, msgs)
 		})
 
 		t.Run("GetMessages when offset is greater than total element", func(t *testing.T) {
-			_, err := messageStore.GetMessages(chainId, false, 4, 1)
+			p := NewPagination().
+				WithLimit(1).
+				WithOffset(4)
+			_, err := messageStore.GetMessages(chainId, p)
 			assert.Error(t, err, "error occured when fetching messages")
 		})
 

@@ -14,14 +14,13 @@ type IconProviderConfig struct {
 	KeyStore        string `json:"keystore" yaml:"keystore"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	Password        string `json:"password" yaml:"password"`
-	StartHeight     uint64 `json:"start-height" yaml:"start-height"` //would be of highest priority
+	StartHeight     uint64 `json:"start-height" yaml:"start-height"` // would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
 	ICONNetworkID   int64  `json:"icon-network-id" yaml:"icon-network-id"`
 }
 
 // NewProvider returns new Icon provider
 func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
-
 	if err := pp.Validate(); err != nil {
 		return nil, err
 	}
@@ -31,7 +30,6 @@ func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 		client: NewClient(pp.RPCUrl, log),
 		PCfg:   pp,
 	}, nil
-
 }
 
 func (pp *IconProviderConfig) Validate() error {
@@ -55,6 +53,7 @@ type IconProvider struct {
 func (ip *IconProvider) ChainId() string {
 	return ip.PCfg.ChainID
 }
+
 func (ip *IconProvider) Init(ctx context.Context) error {
 	return nil
 }
