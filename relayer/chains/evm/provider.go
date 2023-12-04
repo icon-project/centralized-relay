@@ -126,8 +126,6 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 				err = nil
 				continue
 			}
-			p.log.Debug("GetTransactionResult ",
-				zap.String("txhash", txHash.String()), zap.Error(err))
 			return
 		}
 	}
@@ -177,7 +175,7 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 		defer cancel()
 		txo.GasPrice, _ = p.client.SuggestGasPrice(ctx)
-		txo.GasLimit = uint64(p.cfg.GasLimit * 2)
+		txo.GasLimit = uint64(p.cfg.GasLimit)
 		return txo, nil
 	}
 

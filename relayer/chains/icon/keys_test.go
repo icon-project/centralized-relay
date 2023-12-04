@@ -8,8 +8,8 @@ import (
 
 var (
 	testKeyAddr     = "../../../example/icon/keystore.json"
-	testKeyPassword = "x"
-	expectedAddr    = "hxf36d99db01ef599d8117cbdd4036c4a598fdb2f9"
+	testKeyPassword = "gochain"
+	expectedAddr    = "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd"
 )
 
 func TestRestoreIconKey(t *testing.T) {

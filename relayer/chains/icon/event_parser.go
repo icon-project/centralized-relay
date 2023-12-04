@@ -27,11 +27,30 @@ func parseMessageFromEvent(
 
 	switch eventName {
 	case EmitMessage:
-		// TODO: fetch message from eventlog
-		return providerTypes.Message{
-			MessageHeight: height,
-			EventType:     eventType,
-		}, true
+		m, err := parseEmitMessage(event, eventType, height)
+		if err != nil {
+			return providerTypes.Message{}, false
+		}
+		return m, true
 	}
 	return providerTypes.Message{}, false
+}
+
+func parseEmitMessage(e types.EventLog, eventType string, height uint64) (providerTypes.Message, error) {
+
+	if len(e.Indexed) != 2 && len(e.Data) != 2 {
+		panic("Icon processor, emitMessage event is not correct")
+	}
+
+	dst := string(e.Indexed[1][:])
+	// TODO: temporary soln should be something permanent
+	sn := e.Data[0][0]
+
+	return providerTypes.Message{
+		MessageHeight: height,
+		EventType:     eventType,
+		Dst:           dst,
+		Data:          e.Data[1][:],
+		Sn:            uint64(sn),
+	}, nil
 }

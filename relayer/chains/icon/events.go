@@ -7,7 +7,7 @@ import (
 
 var (
 	// All the events
-	EmitMessage = "EmitMessage(str,bytes)"
+	EmitMessage = "Message(str,int,bytes)"
 )
 
 var EventNameToType = map[string]string{

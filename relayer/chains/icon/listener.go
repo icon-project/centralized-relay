@@ -106,7 +106,7 @@ loop:
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
 			for ; br != nil; processedheight++ {
-				icp.log.Debug("Verified block ",
+				icp.log.Debug("block notification received",
 					zap.Int64("height", int64(processedheight)))
 
 				message := parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
