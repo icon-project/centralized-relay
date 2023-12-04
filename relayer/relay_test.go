@@ -30,7 +30,7 @@ func TestRunTestRelaySuite(t *testing.T) {
 	suite.Run(t, new(RelayTestSuite))
 }
 
-func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[types.MessageKey]types.Message {
+func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[*types.MessageKey]*types.Message {
 	messages := []types.Message{
 		{
 			Src:           srcChainId,
@@ -57,9 +57,9 @@ func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[t
 			EventType:     "emitMessage",
 		},
 	}
-	sendMockMessageMap := make(map[types.MessageKey]types.Message, 0)
+	sendMockMessageMap := make(map[*types.MessageKey]*types.Message, 0)
 	for _, m := range messages {
-		sendMockMessageMap[m.MessageKey()] = m
+		sendMockMessageMap[m.MessageKey()] = &m
 	}
 	return sendMockMessageMap
 }
@@ -75,11 +75,9 @@ func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, srcChain
 		ReceiveMessages: receiveMessage,
 	}
 	return mock1ProviderConfig.NewProvider(log, "empty", false, srcChainId)
-
 }
 
 func (s *RelayTestSuite) SetupTest() {
-
 	logger, _ := zap.NewProduction()
 	db, err := lvldb.NewLvlDB(levelDbName)
 	if err != nil {
@@ -88,11 +86,9 @@ func (s *RelayTestSuite) SetupTest() {
 
 	s.db = db
 	s.logger = logger
-
 }
 
 func (s *RelayTestSuite) TestListener() {
-
 	mock1 := "mock-1"
 	dstMock2 := "mock-2"
 	srcStartHeight := uint64(10)
@@ -150,7 +146,6 @@ loop:
 }
 
 func (s *RelayTestSuite) TestRelay() {
-
 	chains := make(map[string]*Chain, 0)
 
 	logger, _ := zap.NewProduction()
@@ -200,7 +195,6 @@ loop:
 			s.Fail(" failed to receive all the messeages")
 			return
 		}
-
 	}
 	s.T().Cleanup(func() {
 		s.db.Close()

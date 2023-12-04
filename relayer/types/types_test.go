@@ -7,8 +7,7 @@ import (
 )
 
 func TestRouteMessage(t *testing.T) {
-
-	m1 := Message{
+	m1 := &Message{
 		Dst: "mock-2",
 		Src: "mock-1",
 		Sn:  1,
@@ -32,10 +31,9 @@ func TestRouteMessage(t *testing.T) {
 }
 
 func TestMessageCache(t *testing.T) {
-
 	messageCache := NewMessageCache()
 
-	m1 := Message{
+	m1 := &Message{
 		Dst: "mock-2",
 		Src: "mock-1",
 		Sn:  1,
