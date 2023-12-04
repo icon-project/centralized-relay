@@ -13,7 +13,6 @@ import (
 )
 
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
-
 	evm := EVMProviderConfig{
 		ChainID:         "avalanche",
 		Name:            "avalanche",
@@ -60,7 +59,7 @@ func TestRouteMessage(t *testing.T) {
 	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 	assert.NoError(t, err)
 
-	expected := providerTypes.Message{
+	expected := &providerTypes.Message{
 		Dst:           "eth",
 		Src:           "icon",
 		Sn:            11,
@@ -71,7 +70,7 @@ func TestRouteMessage(t *testing.T) {
 
 	var callback providerTypes.TxResponseFunc
 
-	callback = func(key providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
+	callback = func(key *providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
 		if response.Code != 1 {
 			assert.Fail(t, "transaction failed")
 		}
@@ -79,7 +78,6 @@ func TestRouteMessage(t *testing.T) {
 
 	err = pro.Route(context.TODO(), expected, callback)
 	assert.NoError(t, err)
-
 }
 
 func TestSendMessageTest(t *testing.T) {
@@ -106,5 +104,4 @@ func TestSendMessageTest(t *testing.T) {
 		}
 		fmt.Println("the message is ", string(msg.Msg))
 	}
-
 }
