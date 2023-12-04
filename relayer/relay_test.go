@@ -59,7 +59,7 @@ func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[*
 	}
 	sendMockMessageMap := make(map[*types.MessageKey]*types.Message, 0)
 	for _, m := range messages {
-		sendMockMessageMap[m.MessageKey()] = m
+		sendMockMessageMap[m.MessageKey()] = &m
 	}
 	return sendMockMessageMap
 }
