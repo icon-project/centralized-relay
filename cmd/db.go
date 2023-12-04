@@ -31,7 +31,9 @@ func dbCmd(a *appState) *cobra.Command {
 		Short: "Prune the database",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Pruning the database...")
-			db.ClearStore()
+			if err := db.ClearStore(); err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 
@@ -39,13 +41,53 @@ func dbCmd(a *appState) *cobra.Command {
 		Use:   "messages",
 		Short: "Get messages stored in the database",
 		Run: func(cmd *cobra.Command, args []string) {
-			// TODO:
+			dbFlags(cmd)
+			dbMessageRemove(cmd, args)
 			fmt.Println("Getting messages stored in the database...")
+			// TODO:
 		},
 	}
 
-	dbCMD.AddCommand(pruneCmd)
-	dbCMD.AddCommand(messagesCmd)
+	relayCmd := &cobra.Command{
+		Use:   "relay",
+		Short: "Get relay stored in the database",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Getting relay stored in the database...")
+		},
+	}
 
+	dbCMD.AddCommand(pruneCmd, messagesCmd, relayCmd)
 	return dbCMD
+}
+
+func dbFlags(cmd *cobra.Command) {
+	// limit numberof results
+	cmd.Flags().IntP("limit", "l", 100, "limit number of results")
+	// filter by chain
+	cmd.Flags().StringP("chain", "c", "", "filter by chain")
+	// filter by src
+	cmd.Flags().StringP("src", "s", "", "filter by src")
+	// filter by dst
+	cmd.Flags().StringP("dst", "d", "", "filter by dst")
+}
+
+func dbMessageFlags(cmd *cobra.Command) {
+	// flag msg id
+	cmd.Flags().StringP("msg-id", "m", "", "message id to get")
+}
+
+func dbRelayFlags(cmd *cobra.Command) {
+	// flag msg id
+	cmd.Flags().StringP("msg-id", "m", "", "message id to relay")
+}
+
+func dbMessageRemove(cmd *cobra.Command, args []string) *cobra.Command {
+	rm := &cobra.Command{
+		Use:   "rm",
+		Short: "Remove a message from the database",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Removing a message from the database...")
+		},
+	}
+	return rm
 }

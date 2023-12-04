@@ -20,8 +20,10 @@ import (
 
 const appName = "centralized-relay"
 
-var defaultHome = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
-var defaultDBName = "datadb"
+var (
+	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
+	defaultDBName = "datadb"
+)
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -80,11 +82,11 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	// RootCmd represents the base command when called without any subcommands
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:   appName,
 		Short: "This application makes data relay between two chains!",
 		Long: strings.TrimSpace(`
-		 Use this to relay xcall packet between two chains 
+		 Use this to relay xcall packet between two chains
 		`),
 	}
 
@@ -126,9 +128,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	// Register subcommands
-	rootCmd.AddCommand(
-		startCmd(a),
-	)
+	rootCmd.AddCommand(startCmd(a), dbCmd(a))
 	return rootCmd
 }
 
