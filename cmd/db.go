@@ -2,28 +2,27 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/cobra"
 )
 
+type dbState struct {
+	chainID string
+	src     string
+	dst     string
+	limit   int
+	offset  int
+	page    int
+	total   int
+}
+
 func dbCmd(a *appState) *cobra.Command {
-	var db *lvldb.LVLDB
 	dbCMD := &cobra.Command{
 		Use:     "db",
 		Short:   "Manage the database",
 		Aliases: []string{"d"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			db, err = lvldb.NewLvlDB(filepath.Join(defaultHome, defaultDBName))
-			if err != nil {
-				return err
-			}
-			return nil
-		},
 	}
 
 	pruneCmd := &cobra.Command{
@@ -31,7 +30,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Short: "Prune the database",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Pruning the database...")
-			if err := db.ClearStore(); err != nil {
+			if err := a.db.ClearStore(); err != nil {
 				fmt.Println(err)
 			}
 		},
@@ -66,9 +65,9 @@ func dbFlags(cmd *cobra.Command) {
 	// filter by chain
 	cmd.Flags().StringP("chain", "c", "", "filter by chain")
 	// filter by src
-	cmd.Flags().StringP("src", "s", "", "filter by src")
+	cmd.Flags().StringP("src", "s", "", "filter by src chain")
 	// filter by dst
-	cmd.Flags().StringP("dst", "d", "", "filter by dst")
+	cmd.Flags().StringP("dst", "d", "", "filter by dst chain")
 }
 
 func dbMessageFlags(cmd *cobra.Command) {

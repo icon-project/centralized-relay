@@ -264,9 +264,6 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	callback := func(key *types.MessageKey, response types.TxResponse, err error) {
-		src := src
-		dst := dst
-
 		// note: it is ok if err is not checked
 		if response.Code == types.Success {
 			dst.log.Info("successfully relayed message:",

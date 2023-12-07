@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,7 +23,7 @@ const appName = "centralized-relay"
 
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
-	defaultDBName = "datadb"
+	defaultDBName = "data"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -85,9 +86,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   appName,
 		Short: "This application makes data relay between two chains!",
-		Long: strings.TrimSpace(`
-		 Use this to relay xcall packet between two chains
-		`),
+		Long:  strings.TrimSpace(`Use this to relay xcall packet between chains`),
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -100,6 +99,13 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 			a.log = log
 		}
+
+		// configure db
+		db, err := lvldb.NewLvlDB(a.dbPath)
+		if err != nil {
+			return err
+		}
+		a.db = db
 
 		// reads `homeDir/config/config.yaml` into `a.Config`
 		return a.loadConfigFile(rootCmd.Context())
@@ -124,6 +130,11 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 	rootCmd.PersistentFlags().String("log-format", "auto", "log output format (auto, logfmt, json, or console)")
 	if err := a.viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format")); err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", fmt.Sprintf("%s/%s", a.homePath, defaultDBName), "db path location")
+	if err := a.viper.BindPFlag("db-path", rootCmd.PersistentFlags().Lookup("db-path")); err != nil {
 		panic(err)
 	}
 
@@ -156,9 +167,7 @@ func newRootLogger(format string, debug bool) (*zap.Logger, error) {
 		level = zap.DebugLevel
 	}
 
-	core := zapcore.NewTee(
-		zapcore.NewCore(enc, os.Stderr, level),
-	)
+	core := zapcore.NewTee(zapcore.NewCore(enc, os.Stderr, level))
 
 	return zap.New(core), nil
 }

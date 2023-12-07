@@ -71,11 +71,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 		return fmt.Errorf("error while storingMessage: message cannot be nil")
 	}
 
-	key := GetKey([]string{
-		ms.prefix,
-		message.Src,
-		fmt.Sprintf("%d", message.Sn),
-	})
+	key := GetKey([]string{ms.prefix, message.Src, fmt.Sprintf("%d", message.Sn)})
 
 	msgByte, err := ms.Encode(message)
 	if err != nil {
@@ -94,11 +90,11 @@ func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMes
 		return nil, err
 	}
 
-	var msg types.RouteMessage
-	if err := ms.Decode(v, &msg); err != nil {
+	msg := new(types.RouteMessage)
+	if err := ms.Decode(v, msg); err != nil {
 		return nil, err
 	}
-	return &msg, nil
+	return msg, nil
 }
 
 func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.RouteMessage, error) {

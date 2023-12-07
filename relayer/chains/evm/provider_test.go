@@ -13,11 +13,10 @@ import (
 )
 
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
-
 	evm := EVMProviderConfig{
 		ChainID:         "avalanche",
 		Name:            "avalanche",
-		RPCUrl:          "http://localhost:8545",
+		RPCUrl:          "http://192.168.1.1:8545",
 		StartHeight:     0,
 		Keystore:        testKeyStore,
 		Password:        testKeyPassword,
@@ -42,8 +41,6 @@ func TestTransferBalance(t *testing.T) {
 	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
 	assert.NoError(t, err)
 
-	header, _ := pro.client.GetHeaderByHeight(context.TODO(), big.NewInt(117))
-	fmt.Println(header.GasLimit)
 	txhash, err := pro.transferBalance(
 		"ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 		pro.wallet.Address.Hex(), big.NewInt(100_000_000_000_000_000_0))
@@ -60,7 +57,7 @@ func TestRouteMessage(t *testing.T) {
 	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 	assert.NoError(t, err)
 
-	expected := providerTypes.Message{
+	expected := &providerTypes.Message{
 		Dst:           "eth",
 		Src:           "icon",
 		Sn:            11,
@@ -71,7 +68,7 @@ func TestRouteMessage(t *testing.T) {
 
 	var callback providerTypes.TxResponseFunc
 
-	callback = func(key providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
+	callback = func(key *providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
 		if response.Code != 1 {
 			assert.Fail(t, "transaction failed")
 		}
@@ -79,13 +76,12 @@ func TestRouteMessage(t *testing.T) {
 
 	err = pro.Route(context.TODO(), expected, callback)
 	assert.NoError(t, err)
-
 }
 
 func TestSendMessageTest(t *testing.T) {
 	// sending the transaction
 
-	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
+	pro, err := MockEvmProvider("e7f1725E7734CE288F8367e1Bb143E90bb3F0512")
 	assert.NoError(t, err)
 	ctx := context.Background()
 	opts, err := pro.GetTransationOpts(ctx)
@@ -106,5 +102,4 @@ func TestSendMessageTest(t *testing.T) {
 		}
 		fmt.Println("the message is ", string(msg.Msg))
 	}
-
 }
