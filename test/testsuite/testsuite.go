@@ -99,10 +99,7 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context) (ibc.Relayer, error) {
 		return nil, err
 	}
 
-	if err := chainA.SetupXCall(ctx, setup.XCallOwnerAccount); err != nil {
-		return nil, err
-	}
-	if err = chainB.SetupXCall(ctx, setup.XCallOwnerAccount); err != nil {
+	if err := s.SetupXCall(ctx); err != nil {
 		return nil, err
 	}
 
@@ -147,27 +144,21 @@ func (s *E2ETestSuite) buildWallets(ctx context.Context, chainA chains.Chain, ch
 }
 
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
-	testcase := ctx.Value("testcase").(string)
-	connectionKey := fmt.Sprintf("connection-%s", testcase)
+	//testcase := ctx.Value("testcase").(string)
+
 	chainA, chainB := s.GetChains()
-	if err := chainA.DeployXCallMockApp(ctx, chains.XCallConnection{
-		KeyName:                setup.XCallOwnerAccount,
-		CounterpartyNid:        chainB.(ibc.Chain).Config().ChainID,
-		ConnectionId:           "connection-0", //TODO
-		PortId:                 port,
-		CounterPartyPortId:     port,
-		CounterPartyConnection: chainB.GetContractAddress(connectionKey),
-	}); err != nil {
+	if err := chainA.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
+		Nid:         chainB.(ibc.Chain).Config().ChainID,
+		Destination: chainB.GetContractAddress("connection"),
+		Connection:  "connection",
+	}}); err != nil {
 		return err
 	}
-	if err := chainB.DeployXCallMockApp(ctx, chains.XCallConnection{
-		KeyName:                setup.XCallOwnerAccount,
-		CounterpartyNid:        chainA.(ibc.Chain).Config().ChainID,
-		ConnectionId:           "connection-0", //TODO
-		PortId:                 port,
-		CounterPartyPortId:     port,
-		CounterPartyConnection: chainA.GetContractAddress(connectionKey),
-	}); err != nil {
+	if err := chainB.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
+		Nid:         chainA.(ibc.Chain).Config().ChainID,
+		Destination: chainA.GetContractAddress("connection"),
+		Connection:  "connection",
+	}}); err != nil {
 		return err
 	}
 	return nil

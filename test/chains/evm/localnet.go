@@ -4,17 +4,19 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	eth_types "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	interchaintest "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	"io"
-	"log"
 	"math/big"
 	"regexp"
 	"strconv"
@@ -25,7 +27,6 @@ import (
 	dockertypes "github.com/docker/docker/api/types"
 	volumetypes "github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/test/chains"
 	icontypes "github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 
@@ -33,6 +34,17 @@ import (
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+)
+
+type Event struct {
+	name     string
+	hash     string
+	contract string
+}
+
+var (
+	CallMessageSent = Event{"CallMessageSent", "0x69e53ea70fdf945f6d035b3979748bc999151691fb1dc69d66f8017f8840ae28", "xcall"}
+	CallMessage     = Event{"CallMessage", "0x6ff9bfdb841175019a45e50c5c186a051194be6f51d46e2c901839550c9d413d", "xcall"}
 )
 
 type EVMLocalnet struct {
@@ -380,7 +392,7 @@ func (c *EVMLocalnet) GetBalance(ctx context.Context, address string, denom stri
 }
 
 func (c *EVMLocalnet) SetupXCall(ctx context.Context, keyName string) error {
-	//ctx.Value("testcase").(string)
+	//testcase := ctx.Value("testcase").(string)
 	nid := c.cfg.ChainID
 	//ibcAddress := c.IBCAddresses["ibc"]
 	_ = c.CheckForKeyStore(ctx, keyName)
@@ -389,7 +401,7 @@ func (c *EVMLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 		return err
 	}
 
-	_, err = c.getFullNode().ExecCallTx(ctx, xcall, "initialize", c.privateKey, nid)
+	_, err = c.getFullNode().ExecCallTx(ctx, xcall.Hex(), "initialize", c.privateKey, nid)
 	if err != nil {
 		fmt.Printf("fail to initialized xcall : %w\n", err)
 		return err
@@ -398,33 +410,53 @@ func (c *EVMLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.getFullNode().ExecCallTx(ctx, xcall, "initialize", c.privateKey, xcall)
+	relayerAddress := common.HexToAddress(c.Wallets[fmt.Sprintf("relayer-%s", c.Config().Name)].FormattedAddress())
+
+	_, err = c.getFullNode().ExecCallTx(ctx, connection.Hex(), "initialize", c.privateKey, relayerAddress, xcall)
 	if err != nil {
 		fmt.Printf("fail to initialized xcall-adapter : %w\n", err)
 		return err
 	}
 	//ctx, err = c.executeContract(context.Background(), ibcAddress, interchaintest.IBCOwnerAccount, "bindPort", `{"portId":"`+portId+`", "moduleAddress":"`+connection+`"}`)
-	c.IBCAddresses["xcall"] = xcall
-	c.IBCAddresses["connectoion"] = connection
+	//c.IBCAddresses[fmt.Sprintf("xcall-%s", testcase)] = xcall
+	//c.IBCAddresses[fmt.Sprintf("connection-%s", testcase)] = connection
+	c.IBCAddresses["xcall"] = xcall.Hex()
+	c.IBCAddresses["connection"] = connection.Hex()
 	return err
 }
 
-func (c *EVMLocalnet) DeployXCallMockApp(ctx context.Context, connection chains.XCallConnection) error {
+func (c *EVMLocalnet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
-	connectionKey := fmt.Sprintf("connection-%s", testcase)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	xCall := c.IBCAddresses[xCallKey]
-	params := `{"_callService":"` + xCall + `"}`
-	dapp, err := c.getFullNode().DeployContract(ctx, c.scorePaths["dapp"], c.privateKey, params)
+	c.CheckForKeyStore(ctx, keyName)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	xCall := c.GetContractAddress("xcall")
+	dapp, err := c.getFullNode().DeployContract(ctx, c.scorePaths["dapp"], c.privateKey)
 	if err != nil {
 		return err
 	}
-	params = `{"nid":"` + connection.CounterpartyNid + `", "source":"` + c.IBCAddresses[connectionKey] + `", "destination":"` + connection.CounterPartyConnection + `"}`
-	ctx, err = c.executeContract(context.Background(), dapp, connection.KeyName, "addConnection", params)
+	//_, err = c.executeContract(ctx,dapp,keyName,"initialize",xCall)
+	_, err = c.getFullNode().ExecCallTx(ctx, dapp.Hex(), "initialize", c.privateKey, common.HexToAddress(xCall))
 	if err != nil {
-		panic(err)
+		fmt.Printf("fail to initialized dapp : %w\n", err)
+		return err
 	}
-	c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = dapp
+
+	c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = dapp.Hex()
+
+	for _, connection := range connections {
+		//connectionKey := fmt.Sprintf("%s-%s", connection.Connection, testcase)
+		params := []interface{}{connection.Nid, c.IBCAddresses[connection.Connection], connection.Destination}
+		ctx, err = c.executeContract(context.Background(), dapp.Hex(), keyName, "addConnection", params...)
+		if err != nil {
+			c.log.Error("Unable to add connection",
+				zap.Error(err),
+				zap.String("nid", connection.Nid),
+				zap.String("source", c.IBCAddresses[connection.Connection]),
+				zap.String("destination", connection.Destination),
+			)
+		}
+	}
+
 	return nil
 }
 
@@ -474,17 +506,20 @@ func (c *EVMLocalnet) RestoreConfig(backup []byte) error {
 func (c *EVMLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
+
+	params := []interface{}{_to, data, rollback}
 	// TODO: send fees
-	var params = `{"_to":"` + _to + `", "_data":"` + hex.EncodeToString(data) + `"}`
-	if rollback != nil {
-		params = `{"_to":"` + _to + `", "_data":"` + hex.EncodeToString(data) + `", "_rollback":"` + hex.EncodeToString(rollback) + `"}`
-	}
-	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, "sendMessage", params)
+	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, "sendMessage", params...)
 	if err != nil {
 		return nil, err
 	}
-	txn := ctx.Value("txResult").(*icontypes.TransactionResult)
-	return context.WithValue(ctx, "sn", getSn(txn)), nil
+	txn := ctx.Value("txResult").(*eth_types.Receipt)
+
+	events, err := c.ParseEvent(CallMessageSent, txn.Logs)
+	if err != nil {
+		return nil, err
+	}
+	return context.WithValue(ctx, "sn", events["_sn"].(*big.Int).String()), nil
 }
 
 // HasPacketReceipt returns the receipt of the packet sent to the target chain
@@ -546,6 +581,9 @@ func (c *EVMLocalnet) XCall(ctx context.Context, targetChain chains.Chain, keyNa
 		return nil, err
 	}
 	// TODO: send fees
+	if rollback == nil {
+		rollback = make([]byte, 0)
+	}
 	ctx, err = c.SendPacketXCall(ctx, keyName, to, data, rollback)
 	if err != nil {
 		return nil, err
@@ -553,36 +591,78 @@ func (c *EVMLocalnet) XCall(ctx context.Context, targetChain chains.Chain, keyNa
 	return c.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
 }
 
-func getSn(tx *icontypes.TransactionResult) string {
-	for _, log := range tx.EventLogs {
-		if string(log.Indexed[0]) == "CallMessageSent(Address,str,int)" {
-			sn, _ := strconv.ParseInt(log.Indexed[3], 0, 64)
-			return strconv.FormatInt(sn, 10)
+func parseEventLogs(contractABI abi.ABI, logs []*eth_types.Log) ([]LogEvent, error) {
+	//0x69e53ea70fdf945f6d035b3979748bc999151691fb1dc69d66f8017f8840ae28
+	//0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d
+	var logEvents []LogEvent
+	for _, _log := range logs {
+		for _, topic := range _log.Topics {
+			event, err := contractABI.EventByID(topic)
+			if err != nil {
+				continue
+			}
+
+			//var decodedData = make(map[string]interface{})
+			decodedData, err := event.Inputs.UnpackValues(_log.Data)
+			if err != nil {
+				return nil, err
+			}
+
+			logEvent := LogEvent{
+				Event:   event.Name,
+				Message: decodedData[0].(string),
+			}
+
+			logEvents = append(logEvents, logEvent)
+
 		}
 	}
-	return ""
+
+	return logEvents, nil
 }
 
-func (c *EVMLocalnet) EOAXCall(ctx context.Context, targetChain chains.Chain, keyName, _to string, data []byte, sources, destinations []string) (string, string, string, error) {
-	// TODO: send fees
-	height, _ := targetChain.(ibc.Chain).Height(ctx)
-	params := `{"_to":"` + _to + `", "_data":"` + hex.EncodeToString(data) + `"}`
-	ctx, _ = c.executeContract(context.Background(), c.IBCAddresses["xcall"], keyName, "sendCallMessage", params)
-	sn := getSn(ctx.Value("txResult").(*icontypes.TransactionResult))
-	reqId, destData, err := targetChain.FindCallMessage(ctx, height, c.cfg.ChainID+"/"+c.IBCAddresses["dapp"], strings.Split(_to, "/")[1], sn)
-	return sn, reqId, destData, err
+type LogEvent struct {
+	Event   string
+	Message string
+}
+
+func (c *EVMLocalnet) ParseEvent(event Event, logs []*eth_types.Log) (map[string]interface{}, error) {
+	contractABI := c.getFullNode().ContractABI[c.IBCAddresses[event.contract]]
+	var ev = make(map[string]interface{})
+	var err error
+	for _, lg := range logs {
+		if event.hash != lg.Topics[0].Hex() {
+			continue
+		}
+		if len(lg.Data) > 0 {
+			if err = contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
+				break
+			}
+		}
+		var indexed abi.Arguments
+		for _, arg := range contractABI.Events[event.name].Inputs {
+			if arg.Indexed {
+				indexed = append(indexed, arg)
+			}
+		}
+		err = abi.ParseTopicsIntoMap(ev, indexed, lg.Topics[1:])
+
+		break
+	}
+	return ev, err
 }
 
 func (c *EVMLocalnet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
-	testcase := ctx.Value("testcase").(string)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	return c.executeContract(ctx, c.IBCAddresses[xCallKey], interchaintest.UserAccount, "executeCall", `{"_reqId":"`+reqId+`","_data":"`+data+`"}`)
+	//testcase := ctx.Value("testcase").(string)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+
+	return c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.UserAccount, "executeCall", reqId, data)
 }
 
 func (c *EVMLocalnet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	ctx, err := c.executeContract(ctx, c.IBCAddresses[xCallKey], interchaintest.UserAccount, "executeRollback", `{"_sn":"`+sn+`"}`)
+	ctx, err := c.executeContract(ctx, c.IBCAddresses[xCallKey], interchaintest.UserAccount, "executeRollback", sn)
 	if err != nil {
 		return nil, err
 	}
@@ -595,12 +675,12 @@ func (c *EVMLocalnet) ExecuteRollback(ctx context.Context, sn string) (context.C
 func (c *EVMLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	//index := []*string{&from, &to, &sn}
-	//event, err := c.FindEvent(ctx, startHeight, xCallKey, "CallMessage(str,str,int,int,bytes)", index)
-	//if err != nil {
-	//	return "", "", err
-	//}
-
+	index := []common.Hash{common.BytesToHash([]byte(from)), common.BytesToHash([]byte(to)), common.BytesToHash([]byte(sn))}
+	event, err := c.FindEvent(ctx, startHeight, CallMessage, index)
+	if err != nil {
+		return "", "", err
+	}
+	return event["_reqId"].(string), string(event["_data"].(byte)), nil
 	//intHeight, _internal := event.Height.Int()
 	//block, _internal := c.getFullNode().Client.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
 	//i, _internal := event.Index.Int()
@@ -609,7 +689,8 @@ func (c *EVMLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, f
 	//eventIndex, _internal := event.Events[0].Int()
 	//reqId := trResult.EventLogs[eventIndex].Data[0]
 	//data := trResult.EventLogs[eventIndex].Data[1]
-	return "reqId", "data", nil
+	//return reqId, data, nil
+	//return "", "", nil
 }
 
 func (c *EVMLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
@@ -633,45 +714,116 @@ func (c *EVMLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, 
 	return "", nil
 }
 
-func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, contract, signature string, index []*string) (*icontypes.EventNotification, error) {
-	filter := icontypes.EventFilter{
-		Addr:      icontypes.Address(c.IBCAddresses[contract]),
-		Signature: signature,
-		Indexed:   index,
+func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event Event, index []common.Hash) (map[string]interface{}, error) {
+	//eventSignature := []byte(event.hash)
+	eClient, err := ethclient.Dial(fmt.Sprintf("ws://%s", c.getFullNode().HostRPCPort))
+	defer eClient.Close()
+	if err != nil {
+		return nil, errors.New("error: fail to create eth client")
 	}
-
-	// Create a context with a timeout of 16 seconds.
-	_ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create an event request with the given filter and start height.
-	req := &icontypes.EventRequest{
-		EventFilter: filter,
-		Height:      icontypes.NewHexInt(int64(startHeight)),
-	}
-	channel := make(chan *icontypes.EventNotification)
-	response := func(_ *websocket.Conn, v *icontypes.EventNotification) error {
-		channel <- v
-		return nil
-	}
-	errRespose := func(conn *websocket.Conn, err error) {}
-	go func(ctx context.Context, req *icontypes.EventRequest, response func(*websocket.Conn, *icontypes.EventNotification) error, errRespose func(*websocket.Conn, error)) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("Recovered: %v", err)
-			}
-		}()
-		//if err := c.getFullNode().Client.MonitorEvent(ctx, req, response, errRespose); err != nil {
-		//	log.Printf("MonitorEvent error: %v", err)
-		//}
-	}(ctx, req, response, errRespose)
+	// Starting block number
+	fromBlock := new(big.Int).SetUint64(startHeight)
+	address := common.HexToAddress(c.IBCAddresses[event.contract])
 
-	select {
-	case v := <-channel:
-		return v, nil
-	case <-_ctx.Done():
-		return nil, fmt.Errorf("failed to find eventLog: %s", _ctx.Err())
+	query := ethereum.FilterQuery{
+		FromBlock: fromBlock,
+		Addresses: []common.Address{address},
+		Topics: [][]common.Hash{
+			{common.HexToHash(event.hash)},
+			index,
+		},
 	}
+
+	logs := make(chan eth_types.Log)
+
+	sub, err := eClient.SubscribeFilterLogs(ctx, query, logs)
+	if err != nil {
+		return nil, err
+	}
+	defer sub.Unsubscribe()
+
+	ev := make(map[string]interface{})
+	select {
+	case <-ctx.Done():
+		return nil, errors.New("timeout: event not found within specified duration")
+	case err := <-sub.Err():
+		return nil, err
+	case lg := <-logs:
+		contractABI := c.getFullNode().ContractABI[address.Hex()]
+		if len(lg.Data) > 0 {
+			if err = contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
+				return ev, err
+			}
+		}
+
+		var indexed abi.Arguments
+		for _, arg := range contractABI.Events[event.name].Inputs {
+			if arg.Indexed {
+				indexed = append(indexed, arg)
+			}
+		}
+
+		err = abi.ParseTopicsIntoMap(ev, indexed, lg.Topics[1:])
+		return ev, err
+	}
+
+}
+
+func (c *EVMLocalnet) FindEvent__(ctx context.Context, startHeight uint64, event Event, index []common.Hash) (map[string]interface{}, error) {
+	//eventSignature := []byte(event.hash)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Second)
+	defer cancel()
+
+	// Starting block number
+	fromBlock := new(big.Int).SetUint64(startHeight)
+	address := common.HexToAddress(c.IBCAddresses[event.contract])
+
+	query := ethereum.FilterQuery{
+		FromBlock: fromBlock,
+		Addresses: []common.Address{address},
+		Topics: [][]common.Hash{
+			{common.HexToHash(event.hash)},
+			index,
+		},
+	}
+
+	//logs := make(chan eth_types.Log)
+
+	logs, err := c.getFullNode().Client.FilterLogs(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	if len(logs) == 0 {
+		return nil, fmt.Errorf("No event found")
+	}
+
+	ev := make(map[string]interface{})
+	for _, lg := range logs {
+		contractABI := c.getFullNode().ContractABI[address.Hex()]
+		if len(lg.Data) > 0 {
+			if err := contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
+				return ev, err
+			}
+		}
+
+		var indexed abi.Arguments
+		for _, arg := range contractABI.Events[event.name].Inputs {
+			if arg.Indexed {
+				indexed = append(indexed, arg)
+			}
+		}
+
+		err := abi.ParseTopicsIntoMap(ev, indexed, lg.Topics[1:])
+		if err != nil {
+			return ev, err
+		}
+	}
+
+	return ev, nil
 }
 
 // DeployContract implements chains.Chain
@@ -699,12 +851,12 @@ func (c *EVMLocalnet) DeployContract(ctx context.Context, keyName string) (conte
 	scoreAddress, err := c.getFullNode().DeployContract(ctx, c.scorePaths[contractName], c.privateKey, initMessage)
 
 	contracts.ContractAddress = map[string]string{
-		contractName: scoreAddress,
+		contractName: scoreAddress.Hex(),
 	}
 
 	testcase := ctx.Value("testcase").(string)
 	contract := fmt.Sprintf("%s-%s", contractName, testcase)
-	c.IBCAddresses[contract] = scoreAddress
+	c.IBCAddresses[contract] = scoreAddress.Hex()
 	return context.WithValue(ctx, chains.Mykey("contract Names"), chains.ContractKey{
 		ContractAddress: contracts.ContractAddress,
 		ContractOwner:   contracts.ContractOwner,
@@ -712,35 +864,22 @@ func (c *EVMLocalnet) DeployContract(ctx context.Context, keyName string) (conte
 }
 
 // executeContract implements chains.Chain
-func (c *EVMLocalnet) executeContract(ctx context.Context, contractAddress, keyName, methodName, params string) (context.Context, error) {
-	// Check if 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore is alreadry available for given keyName
-	//c.CheckForKeyStore(ctx, keyName)
-	//
-	//hash, err := c.getFullNode().ExecuteContract(ctx, contractAddress, methodName, c.privateKey, params)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//fmt.Printf("Transaction Hash: %s\n", hash)
-	//
-	//txHashByte, err := hex.DecodeString(strings.TrimPrefix(hash, "0x"))
-	//if err != nil {
-	//	return nil, fmt.Errorf("error when executing contract %v ", err)
-	//}
-	//_internal, res, err := c.getFullNode().Client.WaitForResults(ctx, &icontypes.TransactionHashParam{Hash: icontypes.NewHexBytes(txHashByte)})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if res.Status == "0x1" {
-	//	return context.WithValue(ctx, "txResult", res), nil
-	//}
-	//
-	//return ctx, fmt.Errorf("%s", res.Failure.MessageValue)
-	return ctx, nil
+func (c *EVMLocalnet) executeContract(ctx context.Context, contractAddress, keyName, methodName string, params ...interface{}) (context.Context, error) {
+	c.CheckForKeyStore(ctx, keyName)
+
+	receipt, err := c.getFullNode().ExecCallTx(ctx, contractAddress, methodName, c.privateKey, params...)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Transaction Hash for %s: %s\n", methodName, receipt.TxHash.String())
+
+	return context.WithValue(ctx, "txResult", receipt), nil
+
 }
 
 func (c *EVMLocalnet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
 	execMethodName, execParams := c.getExecuteParam(ctx, methodName, params)
-	return c.executeContract(ctx, contractAddress, keyName, execMethodName, execParams)
+	return c.executeContract(ctx, contractAddress, keyName, execMethodName, execParams...)
 }
 
 // GetBlockByHeight implements chains.Chain
