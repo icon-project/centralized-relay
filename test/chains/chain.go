@@ -29,13 +29,12 @@ type Chain interface {
 	IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)
 	CheckForTimeout(ctx context.Context, src Chain, params map[string]interface{}, listener EventListener) (context.Context, error)
-	EOAXCall(ctx context.Context, targetChain Chain, keyName, _to string, data []byte, sources, destinations []string) (string, string, string, error)
 	ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error)
 	ExecuteRollback(ctx context.Context, sn string) (context.Context, error)
 	FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error)
 	FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error)
 	GetContractAddress(key string) string
-	DeployXCallMockApp(ctx context.Context, connection XCallConnection) error
+	DeployXCallMockApp(ctx context.Context, keyName string, connections []XCallConnection) error
 	PauseNode(context.Context) error
 	UnpauseNode(context.Context) error
 	InitEventListener(ctx context.Context, contract string) EventListener

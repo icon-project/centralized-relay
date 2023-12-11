@@ -182,6 +182,10 @@ func (in *IconNode) modifyGenesisToAddGenesisAccount(ctx context.Context, contai
 		if err := dyno.Append(g, genesisAccount, "accounts"); err != nil {
 			return fmt.Errorf("failed to set add genesis accounts in genesis json: %w", err)
 		}
+		in.log.Info("Genesis file update with faucet wallet",
+			zap.String("wallet", wallet.Address),
+			zap.String("amount", "0xd3c21bcecceda1000000"),
+		)
 	}
 	result, _ := json.Marshal(g)
 
@@ -189,6 +193,7 @@ func (in *IconNode) modifyGenesisToAddGenesisAccount(ctx context.Context, contai
 		"name": "genesis.json",
 	}
 	err = in.CopyFileToContainer(context.WithValue(ctx, "file-header", header), result, containerID, "/goloop/data/")
+
 	return err
 }
 

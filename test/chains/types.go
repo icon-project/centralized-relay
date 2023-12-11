@@ -15,14 +15,10 @@ type ContractKey struct {
 }
 
 type XCallConnection struct {
-	KeyName                string
-	ConnectionId           string
-	ClientId               string
-	CounterpartyNid        string
-	PortId                 string
-	CounterPartyPortId     string
-	CounterPartyConnection string
-	TimeoutHeight          int `default:"100"`
+	Connection    string
+	Nid           string
+	Destination   string
+	TimeoutHeight int `default:"100"`
 }
 
 type XCallResponse struct {

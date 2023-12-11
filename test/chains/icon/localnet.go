@@ -337,6 +337,10 @@ func (c *IconLocalnet) GetBalance(ctx context.Context, address string, denom str
 	return c.getFullNode().GetBalance(ctx, address)
 }
 
+//func (c *IconLocalnet) DeployConnections(ctx context.Context, keyName string) error {
+//	c.cfg.Connections
+//}
+
 func (c *IconLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 	//testcase := ctx.Value("testcase").(string)
 	nid := c.cfg.ChainID
@@ -347,33 +351,47 @@ func (c *IconLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 		return err
 	}
 	//
-	//connection, err := c.getFullNode().DeployContract(ctx, c.scorePaths["connection"], c.keystorePath, `{"_xCall":"`+xcall+`","_ibc":"`+ibcAddress+`", "_port":"`+"1"+`"}`)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//ctx, err = c.executeContract(context.Background(), ibcAddress, interchaintest.IBCOwnerAccount, "bindPort", `{"portId":"`+"1"+`", "moduleAddress":"`+connection+`"}`)
+	relayerAddress := c.Wallets[fmt.Sprintf("relayer-%s", c.Config().Name)].FormattedAddress()
+
+	connection, err := c.getFullNode().DeployContract(ctx, c.scorePaths["connection"], c.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+relayerAddress+`"}`)
+	if err != nil {
+		return err
+	}
+
+	//c.IBCAddresses[fmt.Sprintf("xcall-%s", testcase)] = xcall
+	//c.IBCAddresses[fmt.Sprintf("connection-%s", testcase)] = connection
 	c.IBCAddresses["xcall"] = xcall
-	//c.IBCAddresses["connection"] = connection
+	c.IBCAddresses["connection"] = connection
 	return err
 }
 
-func (c *IconLocalnet) DeployXCallMockApp(ctx context.Context, connection chains.XCallConnection) error {
+func (c *IconLocalnet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
-	connectionKey := fmt.Sprintf("connection-%s", testcase)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	xCall := c.IBCAddresses[xCallKey]
+	c.CheckForKeyStore(ctx, keyName)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+
+	xCall := c.IBCAddresses["xcall"]
 	params := `{"_callService":"` + xCall + `"}`
 	dapp, err := c.getFullNode().DeployContract(ctx, c.scorePaths["dapp"], c.keystorePath, params)
 	if err != nil {
 		return err
 	}
-	params = `{"nid":"` + connection.CounterpartyNid + `", "source":"` + c.IBCAddresses[connectionKey] + `", "destination":"` + connection.CounterPartyConnection + `"}`
-	ctx, err = c.executeContract(context.Background(), dapp, connection.KeyName, "addConnection", params)
-	if err != nil {
-		panic(err)
-	}
 	c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = dapp
+
+	for _, connection := range connections {
+		//connectionKey := fmt.Sprintf("%s-%s", connection.Connection, testcase)
+		params = `{"nid":"` + connection.Nid + `", "source":"` + c.IBCAddresses[connection.Connection] + `", "destination":"` + connection.Destination + `"}`
+		ctx, err = c.executeContract(context.Background(), dapp, keyName, "addConnection", params)
+		if err != nil {
+			c.log.Error("Unable to add connection",
+				zap.Error(err),
+				zap.String("nid", connection.Nid),
+				zap.String("source", c.IBCAddresses[connection.Connection]),
+				zap.String("destination", connection.Destination),
+			)
+		}
+	}
+
 	return nil
 }
 
@@ -418,30 +436,6 @@ func (c *IconLocalnet) RestoreConfig(backup []byte) error {
 	}
 	c.Wallets = wallets
 	return nil
-}
-
-func (c *IconLocalnet) ConfigureBaseConnection(ctx context.Context, connection chains.XCallConnection) (context.Context, error) {
-	testcase := ctx.Value("testcase").(string)
-	clientId := "07-tendermint-0"
-	params, _ := json.Marshal(map[string]string{
-		"connectionId":       connection.ConnectionId,
-		"counterpartyPortId": connection.CounterPartyPortId,
-		"counterpartyNid":    connection.CounterpartyNid,
-		"clientId":           clientId,
-		"timeoutHeight":      strconv.Itoa(connection.TimeoutHeight),
-	})
-	connectionAddress := c.IBCAddresses[fmt.Sprintf("connection-%s", testcase)]
-	ctx, err := c.executeContract(context.Background(), connectionAddress, connection.KeyName, "configureConnection", string(params))
-	if err != nil {
-		return nil, err
-	}
-	params = []byte(`{"_nid":"` + connection.CounterpartyNid + `","_connection":"` + connectionAddress + `"}`)
-	ctx, err = c.executeContract(context.Background(), c.IBCAddresses[fmt.Sprintf("xcall-%s", testcase)], connection.KeyName, "setDefaultConnection", string(params))
-	if err != nil {
-		return nil, err
-	}
-
-	return ctx, nil
 }
 
 func (c *IconLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
@@ -536,16 +530,6 @@ func getSn(tx *icontypes.TransactionResult) string {
 	return ""
 }
 
-func (c *IconLocalnet) EOAXCall(ctx context.Context, targetChain chains.Chain, keyName, _to string, data []byte, sources, destinations []string) (string, string, string, error) {
-	// TODO: send fees
-	height, _ := targetChain.(ibc.Chain).Height(ctx)
-	params := `{"_to":"` + _to + `", "_data":"` + hex.EncodeToString(data) + `"}`
-	ctx, _ = c.executeContract(context.Background(), c.IBCAddresses["xcall"], keyName, "sendCallMessage", params)
-	sn := getSn(ctx.Value("txResult").(*icontypes.TransactionResult))
-	reqId, destData, err := targetChain.FindCallMessage(ctx, height, c.cfg.ChainID+"/"+c.IBCAddresses["dapp"], strings.Split(_to, "/")[1], sn)
-	return sn, reqId, destData, err
-}
-
 func (c *IconLocalnet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	xCallKey := fmt.Sprintf("xcall-%s", testcase)
@@ -566,10 +550,10 @@ func (c *IconLocalnet) ExecuteRollback(ctx context.Context, sn string) (context.
 }
 
 func (c *IconLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
-	testcase := ctx.Value("testcase").(string)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	//testcase := ctx.Value("testcase").(string)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	index := []*string{&from, &to, &sn}
-	event, err := c.FindEvent(ctx, startHeight, xCallKey, "CallMessage(str,str,int,int,bytes)", index)
+	event, err := c.FindEvent(ctx, startHeight, "xcall", "CallMessage(str,str,int,int,bytes)", index)
 	if err != nil {
 		return "", "", err
 	}

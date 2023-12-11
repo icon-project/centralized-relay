@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
@@ -11,24 +10,19 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains"
 )
 
-func (c *EVMLocalnet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, string) {
+func (c *EVMLocalnet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, []interface{}) {
 	if strings.Contains(methodName, chains.BindPort) {
-		_params, _ := json.Marshal(map[string]interface{}{
-			"portId":        params["port_id"],
-			"moduleAddress": params["address"],
-		})
-		return "bindPort", string(_params)
+		return "bindPort", []interface{}{params["port_id"], params["address"]}
 	} else if strings.Contains(methodName, chains.SendMessage) {
-		_params, _ := json.Marshal(map[string]interface{}{
-			"data":          hex.EncodeToString(params["msg"].(chains.BufferArray)),
-			"timeoutHeight": fmt.Sprintf("%d", params["timeout_height"]),
-		})
-
-		return "sendPacket", string(_params)
+		return "sendPacket", []interface{}{params["msg"].(chains.BufferArray), fmt.Sprintf("%d", params["timeout_height"])}
 	}
-	_params, _ := json.Marshal(params)
 
-	return methodName, string(_params)
+	var _params []interface{}
+	for _, value := range params {
+		_params = append(_params, value)
+	}
+
+	return methodName, _params
 }
 
 func (c *EVMLocalnet) GetQueryParam(method string, params map[string]interface{}) Query {
