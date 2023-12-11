@@ -97,6 +97,16 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	}, nil
 }
 
+// GetBlockStore returns the block store
+func (r *Relayer) GetBlockStore() *store.BlockStore {
+	return r.blockStore
+}
+
+// GetBlockStore returns the block store
+func (r *Relayer) GetMessageStore() *store.MessageStore {
+	return r.messageStore
+}
+
 func (r *Relayer) StartChainListeners(
 	ctx context.Context,
 	errCh chan error,

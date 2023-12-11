@@ -24,6 +24,7 @@ const appName = "centralized-relay"
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
 	defaultDBName = "data"
+	defaultConfig = "config.yaml"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -100,7 +101,6 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 			a.log = log
 		}
 
-		// configure db
 		db, err := lvldb.NewLvlDB(a.dbPath)
 		if err != nil {
 			return err
@@ -108,7 +108,10 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		a.db = db
 
 		// reads `homeDir/config/config.yaml` into `a.Config`
-		return a.loadConfigFile(rootCmd.Context())
+		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
@@ -130,6 +133,11 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 	rootCmd.PersistentFlags().String("log-format", "auto", "log output format (auto, logfmt, json, or console)")
 	if err := a.viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format")); err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().StringVar(&a.configPath, "config-path", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
+	if err := a.viper.BindPFlag("config-path", rootCmd.PersistentFlags().Lookup("config-path")); err != nil {
 		panic(err)
 	}
 
