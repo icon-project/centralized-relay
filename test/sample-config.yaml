@@ -22,8 +22,7 @@ chains:
     contracts:
       xcall: "$BASE_PATH/artifacts/evm/CallService"
       connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
-      dapp: "$BASE_PATH/artifacts/evm/DAppProxySample"
-      mockdapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
+      dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
   - name: icon
     version: "3"
     environment: local
@@ -31,7 +30,7 @@ chains:
     chain_config:
       type: icon
       name: icon
-      chain_id: icon-1
+      chain_id: icon--1
       bech32_prefix: hx
       bin: "/goloop/bin/goloop"
       image:
@@ -42,7 +41,6 @@ chains:
       xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
       connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
       dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
-      mockdapp: "$BASE_PATH/artifacts/icon/mockapp-latest.jar"
 relayer:
-  image: centralized-rly
-  tag: latest
+    image: centralized-rly
+    tag: latest

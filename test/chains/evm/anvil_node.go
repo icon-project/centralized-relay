@@ -345,22 +345,22 @@ func (an *AnvilNode) GetBalance(ctx context.Context, address string) (int64, err
 	return int64(0), nil
 }
 
-func (an *AnvilNode) DeployContract(ctx context.Context, contractPath, key string, params ...interface{}) (string, error) {
+func (an *AnvilNode) DeployContract(ctx context.Context, contractPath, key string, params ...interface{}) (common.Address, error) {
 
 	bytecode, contractABI, err := an.loadABI(contractPath)
 	if err != nil {
-		return "", err
+		return common.Address{}, err
 	}
 
 	privateKey, fromAddress, err := getPrivateKey(key)
 
 	if err != nil {
-		return "", err
+		return common.Address{}, err
 	}
 
 	nonce, gasPrice, err := an.getNonceAndGasPrice(fromAddress)
 	if err != nil {
-		return "", err
+		return common.Address{}, err
 	}
 	chainID, _ := an.Client.ChainID(ctx)
 	auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
@@ -372,18 +372,18 @@ func (an *AnvilNode) DeployContract(ctx context.Context, contractPath, key strin
 	address, tx, _, err := bind.DeployContract(auth, contractABI, bytecode, &an.Client, params...)
 	if err != nil {
 		fmt.Printf("error while deploying contract :: %w", err)
-		return "", err
+		return common.Address{}, err
 	}
 	fmt.Println("Contract deployment transaction hash:", tx.Hash().Hex())
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // Set your desired timeout
 	defer cancel()
 	minedTx, err := bind.WaitMined(timeoutCtx, &an.Client, tx)
 	if err != nil {
-		return "", err
+		return common.Address{}, err
 	}
 	fmt.Println("Contract deployment transaction status:", minedTx.Status)
 	an.ContractABI[address.Hex()] = contractABI
-	return address.Hex(), err
+	return address, err
 }
 
 func (an *AnvilNode) loadABI(contractPath string) ([]byte, abi.ABI, error) {
@@ -443,16 +443,6 @@ func (an *AnvilNode) TransactionResult(ctx context.Context, hash string) (*icont
 }
 
 // ExecTx executes a transaction, waits for 2 blocks if successful, then returns the tx hash.
-func (an *AnvilNode) ExecTx(ctx context.Context, initMessage string, filePath string, keystorePath string, command ...string) (string, error) {
-	var output string
-	an.lock.Lock()
-	defer an.lock.Unlock()
-	stdout, _, err := an.Exec(ctx, an.TxCommand(ctx, initMessage, filePath, keystorePath, command...), nil)
-	if err != nil {
-		return "", err
-	}
-	return output, json.Unmarshal(stdout, &output)
-}
 
 // TxCommand is a helper to retrieve a full command for broadcasting a tx
 // with the chain node binary.
@@ -462,20 +452,13 @@ func (an *AnvilNode) TxCommand(ctx context.Context, initMessage, filePath, keyst
 	fileName := strings.Split(key, ".")
 	password := fileName[0]
 
-	command = append([]string{"rpc", "sendtx", "deploy", filePath}, command...)
+	command = append([]string{"run", "sendtx", "deploy", filePath}, command...)
 	command = append(command,
 		"--key_store", keystorePath,
 		"--key_password", password,
 		"--step_limit", "5000000000",
 		"--content_type", "application/java",
 	)
-	if initMessage != "" && initMessage != "{}" {
-		if strings.HasPrefix(initMessage, "{") {
-			command = append(command, "--params", initMessage)
-		} else {
-			command = append(command, "--param", initMessage)
-		}
-	}
 
 	return an.NodeCommand(command...)
 }
@@ -488,8 +471,7 @@ func (an *AnvilNode) TxCommand(ctx context.Context, initMessage, filePath, keyst
 func (an *AnvilNode) NodeCommand(command ...string) []string {
 	command = an.BinCommand(command...)
 	return append(command,
-		"--uri", fmt.Sprintf("http://%s:9080/api/v3", an.Name()), //fmt.Sprintf("http://%s/api/v3", an.HostRPCPort),
-		"--nid", "0x3",
+		"--rpc-url", fmt.Sprintf("http://%s", an.HostRPCPort),
 	)
 }
 
@@ -553,19 +535,23 @@ func (an *AnvilNode) GetChainConfig(ctx context.Context, rlyHome string, keyName
 	return yaml.Marshal(config)
 }
 
-func (an *AnvilNode) ExecCallTx(ctx context.Context, contractAddress, methodName, pKey string, params ...interface{}) (*big.Int, error) {
+func (an *AnvilNode) ExecCallTx(ctx context.Context, contractAddress, methodName, pKey string, params ...interface{}) (*eth_types.Receipt, error) {
 	address := common.HexToAddress(contractAddress)
 	parsedABI := an.ContractABI[contractAddress]
 	privateKey, fromAddress, _ := getPrivateKey(pKey)
 
 	nonce, gasPrice, _ := an.getNonceAndGasPrice(fromAddress)
 
-	data, _ := parsedABI.Pack(methodName, params...)
+	data, err := parsedABI.Pack(methodName, params...)
+	if err != nil {
+		an.log.Error("Failed to pack abi", zap.Error(err), zap.String("method", methodName), zap.Any("params", params))
+		return nil, err
+	}
 	txdata := &eth_types.LegacyTx{
 		To:       &address,
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      uint64(200000),
+		Gas:      uint64(2000000),
 		Value:    big.NewInt(0x0),
 		Data:     data,
 	}
@@ -574,18 +560,27 @@ func (an *AnvilNode) ExecCallTx(ctx context.Context, contractAddress, methodName
 	networkID, _ := an.Client.NetworkID(context.Background())
 	signedTx, err := eth_types.SignTx(tx, eth_types.NewEIP155Signer(networkID), privateKey)
 	if err != nil {
-		return big.NewInt(0), err
+		return nil, err
 	}
 	err = an.Client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
-		return big.NewInt(0), err
+		return nil, err
 	}
 	receipt, err := bind.WaitMined(context.Background(), &an.Client, signedTx)
 	if err != nil {
-		return big.NewInt(0), err
+		return nil, err
 	}
-
-	return receipt.BlockNumber, err
+	if receipt.Status == 0 {
+		cmd := []string{
+			"run",
+			receipt.TxHash.String(),
+			"--rpc-url",
+			an.Chain.GetRPCAddress(),
+		}
+		out, _, _ := an.ExecBin(ctx, cmd...)
+		return receipt, fmt.Errorf("error on trasaction :: %s\n%v", methodName, string(out))
+	}
+	return receipt, nil
 
 }
 
