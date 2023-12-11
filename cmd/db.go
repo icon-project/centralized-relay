@@ -5,13 +5,12 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
-type dbState struct {
-	app *appState
-}
+type dbState struct{}
 
 func dbCmd(a *appState) *cobra.Command {
 	dbCMD := &cobra.Command{
@@ -20,8 +19,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Aliases: []string{"db"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
-
-	var db &dbState
+	db := new(dbState)
 
 	pruneCmd := &cobra.Command{
 		Use:   "prune",
@@ -39,39 +37,70 @@ func dbCmd(a *appState) *cobra.Command {
 		Short:   "Get messages stored in the database",
 		Aliases: []string{"m"},
 	}
-	messagesCmd.AddCommand(db.dbMessagesList())
-	messagesCmd.AddCommand(db.dbMessagesRm())
-	messagesCmd.AddCommand(db.dbMessagesRelay())
-	dbCMD.AddCommand(messagesCmd, pruneCmd)
+	messagesCmd.AddCommand(db.messagesList(a))
+	messagesCmd.AddCommand(db.messagesRm(a))
+	messagesCmd.AddCommand(db.messagesRelay(a))
+	messagesCmd.AddCommand(db.messageRemove(a))
+
+	blockCmd := &cobra.Command{
+		Use:     "block",
+		Short:   "Get block info stored in the database",
+		Aliases: []string{"b"},
+	}
+	blockCmd.AddCommand(db.blockInfo(a))
+
+	dbCMD.AddCommand(messagesCmd, pruneCmd, blockCmd)
 	return dbCMD
 }
 
-func (r *dbState) dbMessagesList() *cobra.Command {
+func (d *dbState) messagesList(app *appState) *cobra.Command {
 	list := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List messages stored in the database",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Listing messages stored in the database...")
 			chainID := cmd.Flag("chain").Value.String()
-			src := cmd.Flag("src").Value.String()
-			dst := cmd.Flag("dst").Value.String()
-			limit, err := cmd.Flags().GetInt("limit")
+			limit, err := cmd.Flags().GetUint("limit")
 			if err != nil {
 				fmt.Println(err)
 			}
-			page, err := cmd.Flags().GetInt("page")
+			page, err := cmd.Flags().GetUint("page")
 			if err != nil {
 				fmt.Println(err)
 			}
-			fmt.Println("chainID: ", chainID, "src: ", src, "dst: ", dst, "limit: ", limit, "page: ", page)
+			rly, err := d.GetRelayer(app)
+			if err != nil {
+				return err
+			}
+			pg := store.NewPagination().WithPage(page, limit)
+			messages, err := rly.GetMessageStore().GetMessages(chainID, pg)
+			if err != nil {
+				return err
+			}
+			totalMessages := len(messages)
+			if totalMessages == 0 {
+				fmt.Println("No messages found in the database")
+				return nil
+			}
+			fmt.Printf("%-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Sn", "Src", "Dst", "Height", "Event", "Retry", "Data", "Time")
+			// print messages respecting pagination
+			for _, msg := range messages {
+				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d %-10s %-10s\n",
+					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry, string(msg.Data), msg.GetTime())
+			}
+			// Print total number of messages
+			fmt.Printf("Total: %d\n", totalMessages)
+			// Current and total pages of messages
+			fmt.Printf("Page: %d/%d\n", page, pg.CalculateTotalPages(totalMessages))
+			return nil
 		},
 	}
-	r.dbMessageFlagsListFlags(list)
+	d.dbMessageFlagsListFlags(list)
 	return list
 }
 
-func (r *dbState) dbMessagesRelay() *cobra.Command {
+func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 	rly := &cobra.Command{
 		Use:     "relay",
 		Aliases: []string{"rly"},
@@ -80,11 +109,11 @@ func (r *dbState) dbMessagesRelay() *cobra.Command {
 			fmt.Println("Relaying messages stored in the database...")
 		},
 	}
-	r.dbMessageMsgIDFlag(rly)
+	d.messageMsgIDFlag(rly)
 	return rly
 }
 
-func (r *dbState) dbMessagesRm() *cobra.Command {
+func (d *dbState) messagesRm(app *appState) *cobra.Command {
 	rm := &cobra.Command{
 		Use:   "rm",
 		Short: "Remove messages stored in the database",
@@ -92,45 +121,74 @@ func (r *dbState) dbMessagesRm() *cobra.Command {
 			fmt.Println("removing messages stored in the database...")
 		},
 	}
-	r.dbMessageMsgIDFlag(rm)
+	d.messageMsgIDFlag(rm)
 	return rm
 }
 
-func (r *dbState) dbMessageMsgIDFlag(cmd *cobra.Command) *string {
-	return cmd.Flags().String("sn", "", "message sn to select")
+func (r *dbState) messageMsgIDFlag(cmd *cobra.Command) {
+	cmd.Flags().Int("sn", 0, "message sn to select")
+	if err := cmd.MarkFlagRequired("sn"); err != nil {
+		panic(err)
+	}
 }
 
-func (r *dbState) dbMessageFlagsListFlags(cmd *cobra.Command) *cobra.Command {
+func (r *dbState) dbMessageFlagsListFlags(cmd *cobra.Command) {
 	// limit numberof results
-	cmd.Flags().IntP("limit", "l", 100, "limit number of results")
+	cmd.Flags().UintP("limit", "l", 10, "limit number of results")
 	// filter by chain
 	cmd.Flags().StringP("chain", "c", "", "filter by chain")
-	// filter by src
-	cmd.Flags().String("src", "", "filter by src chain")
-	// filter by dst
-	cmd.Flags().String("dst", "", "filter by dst chain")
 	// offset results
-	cmd.Flags().IntP("page", "p", 0, "offset results")
-	return cmd
+	cmd.Flags().UintP("page", "p", 1, "page number")
+
+	// make chain arg required
+	if err := cmd.MarkFlagRequired("chain"); err != nil {
+		panic(err)
+	}
 }
 
-func (r *dbState) dbMessageRemove(cmd *cobra.Command, args []string) *cobra.Command {
+func (r *dbState) messageRemove(app *appState) *cobra.Command {
 	rm := &cobra.Command{
-		Use:   "rm",
-		Short: "Remove a message from the database",
+		Use:     "rm",
+		Aliases: []string{"r"},
+		Short:   "Remove a message from the database",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Removing a message from the database...")
 		},
 	}
-	cmd.AddCommand(rm)
-	return cmd
+	r.messageMsgIDFlag(rm)
+	return rm
+}
+
+func (d *dbState) blockInfo(app *appState) *cobra.Command {
+	block := &cobra.Command{
+		Use:     "view",
+		Aliases: []string{"get"},
+		Short:   "Show blocks stored in the database",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("Show blocks stored in the database...")
+			rly, err := d.GetRelayer(app)
+			if err != nil {
+				return err
+			}
+			block := rly.GetBlockStore()
+			chainID := cmd.Flag("chain").Value.String()
+			height, err := block.GetLastStoredBlock(chainID)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Block height: %d\n", height)
+			return nil
+		},
+	}
+	block.Flags().StringP("chain", "c", "", "ChainID to filter by")
+	return block
 }
 
 // GetRelayer returns the relayer instance
-func (a *dbState) GetRelayer() (*relayer.Relayer, error) {
-	rly, err := relayer.NewRelayer(a.log, a.db, a.config.Chains.GetAll(), false)
+func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
+	rly, err := relayer.NewRelayer(app.log, app.db, app.config.Chains.GetAll(), false)
 	if err != nil {
-		a.log.Fatal("failed to create relayer", zap.Error(err))
+		app.log.Fatal("failed to create relayer", zap.Error(err))
 		return nil, err
 	}
 	return rly, nil

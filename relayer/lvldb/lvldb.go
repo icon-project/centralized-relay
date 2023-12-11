@@ -12,8 +12,7 @@ import (
 
 type LVLDB struct {
 	db *leveldb.DB
-
-	dbMu sync.Mutex
+	sync.Mutex
 }
 
 func NewLvlDB(path string) (*LVLDB, error) {
@@ -29,14 +28,14 @@ func (db *LVLDB) GetByKey(key []byte) ([]byte, error) {
 }
 
 func (db *LVLDB) SetByKey(key []byte, value []byte) error {
-	db.dbMu.Lock()
-	defer db.dbMu.Unlock()
+	db.Lock()
+	defer db.Unlock()
 	return db.db.Put(key, value, nil)
 }
 
 func (db *LVLDB) DeleteByKey(key []byte) error {
-	db.dbMu.Lock()
-	defer db.dbMu.Unlock()
+	db.Lock()
+	defer db.Unlock()
 	return db.db.Delete(key, nil)
 }
 

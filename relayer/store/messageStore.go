@@ -13,26 +13,50 @@ type MessageStore struct {
 }
 
 type Pagination struct {
-	Limit  uint64
-	Offset uint64
+	Limit  uint
+	Offset uint
 	All    bool
 }
 
-func NewPagination() Pagination {
-	return Pagination{}
+func NewPagination() *Pagination {
+	return new(Pagination)
 }
 
-func (p Pagination) GetAll() Pagination {
+func (p *Pagination) GetAll() *Pagination {
 	p.All = true
 	return p
 }
 
-func (p Pagination) WithLimit(l uint64) Pagination {
+func (p *Pagination) WithLimit(l uint) *Pagination {
 	p.Limit = l
 	return p
 }
 
-func (p Pagination) WithOffset(o uint64) Pagination {
+// WithPage sets the page and calculates the offset
+func (p *Pagination) WithPage(page, limit uint) *Pagination {
+	p.Limit = limit
+	p.Offset = p.CalculateOffset(page)
+	return p
+}
+
+// CalculateTotalPages calculates the total pages based on the limit and total count
+func (p *Pagination) CalculateTotalPages(total int) uint {
+	page := uint(total) / p.Limit
+	if uint(total)%p.Limit != 0 {
+		page++
+	}
+	return page
+}
+
+// CalculateOffset calculates the offset based on the page and limit
+func (p *Pagination) CalculateOffset(page uint) uint {
+	if page <= 1 {
+		return 0
+	}
+	return page * p.Limit
+}
+
+func (p *Pagination) WithOffset(o uint) *Pagination {
 	p.Offset = o
 	return p
 }
@@ -81,11 +105,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 }
 
 func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
-	v, err := ms.db.GetByKey(GetKey([]string{
-		ms.prefix,
-		messageKey.Src,
-		fmt.Sprintf("%d", messageKey.Sn),
-	}))
+	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +117,7 @@ func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMes
 	return msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessages(chainId string, p *Pagination) ([]*types.RouteMessage, error) {
 	var messages []*types.RouteMessage
 
 	keyPrefixList := []string{ms.prefix}
@@ -109,19 +129,15 @@ func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.Rout
 	// return all the messages
 	if p.All {
 		for iter.Next() {
-			var msg types.RouteMessage
-			if err := ms.Decode(iter.Value(), &msg); err != nil {
+			msg := new(types.RouteMessage)
+			if err := ms.Decode(iter.Value(), msg); err != nil {
 				return nil, err
 			}
 
-			messages = append(messages, &msg)
+			messages = append(messages, msg)
 		}
 		iter.Release()
-		err := iter.Error()
-		if err != nil {
-			return nil, err
-		}
-		return messages, nil
+		return messages, iter.Error()
 	}
 
 	// if not all use the offset logic
@@ -131,16 +147,16 @@ func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.Rout
 		}
 	}
 
-	for i := uint64(0); i < p.Limit; i++ {
+	for i := uint(0); i < p.Limit; i++ {
 		if !iter.Next() {
 			break
 		}
 
-		var msg types.RouteMessage
-		if err := ms.Decode(iter.Value(), &msg); err != nil {
+		msg := new(types.RouteMessage)
+		if err := ms.Decode(iter.Value(), msg); err != nil {
 			return nil, err
 		}
-		messages = append(messages, &msg)
+		messages = append(messages, msg)
 	}
 	iter.Release()
 	err := iter.Error()
@@ -152,8 +168,7 @@ func (ms *MessageStore) GetMessages(chainId string, p Pagination) ([]*types.Rout
 }
 
 func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
-	return ms.db.DeleteByKey(
-		GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
+	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }
 
 func (ms *MessageStore) Encode(d interface{}) ([]byte, error) {

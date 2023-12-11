@@ -227,8 +227,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
 				continue
 			}
-			ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime)
-			if !ok {
+			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
 				continue
 			}
 			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
@@ -312,6 +311,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.SetIsProcessing(false)
+	routeMessage.SetTime()
 
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
 		// save to db
