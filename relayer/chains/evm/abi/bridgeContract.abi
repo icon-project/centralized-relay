@@ -30,7 +30,7 @@
       {
         "indexed": false,
         "internalType": "bytes",
-        "name": "msg",
+        "name": "_msg",
         "type": "bytes"
       }
     ],
@@ -51,15 +51,22 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "claimFees",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "string",
-        "name": "_to",
+        "name": "to",
         "type": "string"
       },
       {
         "internalType": "bool",
-        "name": "_response",
+        "name": "response",
         "type": "bool"
       }
     ],
@@ -67,7 +74,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_fee",
+        "name": "fee",
         "type": "uint256"
       }
     ],
@@ -76,6 +83,35 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "string",
+        "name": "srcNetwork",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "sn",
+        "type": "uint256"
+      }
+    ],
+    "name": "getReceipt",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_relayer",
+        "type": "address"
+      },
       {
         "internalType": "address",
         "name": "_xCall",
@@ -91,59 +127,53 @@
     "inputs": [
       {
         "internalType": "string",
-        "name": "srcNID",
+        "name": "srcNetwork",
         "type": "string"
       },
       {
-        "internalType": "int256",
+        "internalType": "uint256",
         "name": "sn",
-        "type": "int256"
+        "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "msg",
+        "name": "_msg",
         "type": "bytes"
       }
     ],
     "name": "recvMessage",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "sn",
+        "type": "uint256"
       }
     ],
-    "name": "seenDeliveryVaaHashes",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
+    "name": "revertMessage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [
       {
         "internalType": "string",
-        "name": "_to",
+        "name": "to",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "_svc",
+        "name": "svc",
         "type": "string"
       },
       {
         "internalType": "int256",
-        "name": "_sn",
+        "name": "sn",
         "type": "int256"
       },
       {
