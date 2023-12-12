@@ -128,6 +128,8 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	// Register subcommands
 	rootCmd.AddCommand(
 		startCmd(a),
+		configCmd(a),
+		chainsCmd(a),
 	)
 	return rootCmd
 }

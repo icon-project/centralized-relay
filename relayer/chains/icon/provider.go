@@ -11,6 +11,7 @@ import (
 
 type IconProviderConfig struct {
 	ChainID         string `json:"chain-id" yaml:"chain-id"`
+	ChainName       string `json:"-" yaml:"-"`
 	KeyStore        string `json:"keystore" yaml:"keystore"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	Password        string `json:"password" yaml:"password"`
@@ -24,6 +25,8 @@ func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 	if err := pp.Validate(); err != nil {
 		return nil, err
 	}
+
+	pp.ChainName = chainName
 
 	return &IconProvider{
 		log:    log.With(zap.String("chain_id", pp.ChainID)),
@@ -56,6 +59,18 @@ func (ip *IconProvider) ChainId() string {
 
 func (ip *IconProvider) Init(ctx context.Context) error {
 	return nil
+}
+
+func (p *IconProvider) Type() string {
+	return "evm"
+}
+
+func (p *IconProvider) ProviderConfig() provider.ProviderConfig {
+	return p.PCfg
+}
+
+func (p *IconProvider) ChainName() string {
+	return p.PCfg.ChainName
 }
 
 func (cp *IconProvider) Wallet() (module.Wallet, error) {

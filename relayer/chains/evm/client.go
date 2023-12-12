@@ -29,9 +29,10 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
+
 	bridgeContract, err := bridgeContract.NewAbi(common.HexToAddress(contractAddress), cleth)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
 
 	// getting the chain id

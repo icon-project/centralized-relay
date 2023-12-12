@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/ethereum/go-ethereum v1.10.16
+	github.com/gofrs/flock v0.8.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/icon-project/goloop v1.3.11
 	github.com/jsternberg/zap-logfmt v1.3.0
