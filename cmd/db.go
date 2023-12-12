@@ -124,6 +124,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// skipping filters because we are relaying messages manually
 			rly.RouteMessage(cmd.Context(), message, dstChain, srcChain)
 			return nil
 		},

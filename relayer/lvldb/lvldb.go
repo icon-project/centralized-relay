@@ -67,6 +67,11 @@ func (db *LVLDB) ClearStore() error {
 	return db.db.Write(batch, nil)
 }
 
+// SnapShot snaphots the current state of the database
+func (db *LVLDB) SnapShot() (*leveldb.Snapshot, error) {
+	return db.db.GetSnapshot()
+}
+
 func (db *LVLDB) Close() error {
 	return db.db.Close()
 }
