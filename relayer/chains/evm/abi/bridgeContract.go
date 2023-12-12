@@ -31,7 +31,7 @@ var (
 
 // AbiMetaData contains all meta data concerning the Abi contract.
 var AbiMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"targetNetwork\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"msg\",\"type\":\"bytes\"}],\"name\":\"Message\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_to\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"_response\",\"type\":\"bool\"}],\"name\":\"getFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_fee\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_xCall\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNID\",\"type\":\"string\"},{\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"internalType\":\"bytes\",\"name\":\"msg\",\"type\":\"bytes\"}],\"name\":\"recvMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"seenDeliveryVaaHashes\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_to\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_svc\",\"type\":\"string\"},{\"internalType\":\"int256\",\"name\":\"_sn\",\"type\":\"int256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"sendMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"networkId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"messageFee\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"responseFee\",\"type\":\"uint256\"}],\"name\":\"setFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"targetNetwork\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"Message\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"claimFees\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"response\",\"type\":\"bool\"}],\"name\":\"getFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"fee\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"}],\"name\":\"getReceipt\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_relayer\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_xCall\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"recvMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"}],\"name\":\"revertMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"svc\",\"type\":\"string\"},{\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"sendMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"networkId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"messageFee\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"responseFee\",\"type\":\"uint256\"}],\"name\":\"setFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // AbiABI is the input ABI used to generate the binding from.
@@ -213,10 +213,10 @@ func (_Abi *AbiCallerSession) Admin() (common.Address, error) {
 
 // GetFee is a free data retrieval call binding the contract method 0x7d4c4f4a.
 //
-// Solidity: function getFee(string _to, bool _response) view returns(uint256 _fee)
-func (_Abi *AbiCaller) GetFee(opts *bind.CallOpts, _to string, _response bool) (*big.Int, error) {
+// Solidity: function getFee(string to, bool response) view returns(uint256 fee)
+func (_Abi *AbiCaller) GetFee(opts *bind.CallOpts, to string, response bool) (*big.Int, error) {
 	var out []interface{}
-	err := _Abi.contract.Call(opts, &out, "getFee", _to, _response)
+	err := _Abi.contract.Call(opts, &out, "getFee", to, response)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -230,110 +230,152 @@ func (_Abi *AbiCaller) GetFee(opts *bind.CallOpts, _to string, _response bool) (
 
 // GetFee is a free data retrieval call binding the contract method 0x7d4c4f4a.
 //
-// Solidity: function getFee(string _to, bool _response) view returns(uint256 _fee)
-func (_Abi *AbiSession) GetFee(_to string, _response bool) (*big.Int, error) {
-	return _Abi.Contract.GetFee(&_Abi.CallOpts, _to, _response)
+// Solidity: function getFee(string to, bool response) view returns(uint256 fee)
+func (_Abi *AbiSession) GetFee(to string, response bool) (*big.Int, error) {
+	return _Abi.Contract.GetFee(&_Abi.CallOpts, to, response)
 }
 
 // GetFee is a free data retrieval call binding the contract method 0x7d4c4f4a.
 //
-// Solidity: function getFee(string _to, bool _response) view returns(uint256 _fee)
-func (_Abi *AbiCallerSession) GetFee(_to string, _response bool) (*big.Int, error) {
-	return _Abi.Contract.GetFee(&_Abi.CallOpts, _to, _response)
+// Solidity: function getFee(string to, bool response) view returns(uint256 fee)
+func (_Abi *AbiCallerSession) GetFee(to string, response bool) (*big.Int, error) {
+	return _Abi.Contract.GetFee(&_Abi.CallOpts, to, response)
 }
 
-// SeenDeliveryVaaHashes is a free data retrieval call binding the contract method 0x180f6cc2.
+// GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function seenDeliveryVaaHashes(bytes32 ) view returns(bool)
-func (_Abi *AbiCaller) SeenDeliveryVaaHashes(opts *bind.CallOpts, arg0 [32]byte) (bool, error) {
+// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
+func (_Abi *AbiCaller) GetReceipt(opts *bind.CallOpts, srcNetwork string, sn *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _Abi.contract.Call(opts, &out, "seenDeliveryVaaHashes", arg0)
+	err := _Abi.contract.Call(opts, &out, "getReceipt", srcNetwork, sn)
 
 	if err != nil {
-		return *new(bool), err
+		return *new(*big.Int), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
 
 }
 
-// SeenDeliveryVaaHashes is a free data retrieval call binding the contract method 0x180f6cc2.
+// GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function seenDeliveryVaaHashes(bytes32 ) view returns(bool)
-func (_Abi *AbiSession) SeenDeliveryVaaHashes(arg0 [32]byte) (bool, error) {
-	return _Abi.Contract.SeenDeliveryVaaHashes(&_Abi.CallOpts, arg0)
+// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
+func (_Abi *AbiSession) GetReceipt(srcNetwork string, sn *big.Int) (*big.Int, error) {
+	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, sn)
 }
 
-// SeenDeliveryVaaHashes is a free data retrieval call binding the contract method 0x180f6cc2.
+// GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function seenDeliveryVaaHashes(bytes32 ) view returns(bool)
-func (_Abi *AbiCallerSession) SeenDeliveryVaaHashes(arg0 [32]byte) (bool, error) {
-	return _Abi.Contract.SeenDeliveryVaaHashes(&_Abi.CallOpts, arg0)
+// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
+func (_Abi *AbiCallerSession) GetReceipt(srcNetwork string, sn *big.Int) (*big.Int, error) {
+	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, sn)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
+// ClaimFees is a paid mutator transaction binding the contract method 0xd294f093.
 //
-// Solidity: function initialize(address _xCall) returns()
-func (_Abi *AbiTransactor) Initialize(opts *bind.TransactOpts, _xCall common.Address) (*types.Transaction, error) {
-	return _Abi.contract.Transact(opts, "initialize", _xCall)
+// Solidity: function claimFees() returns()
+func (_Abi *AbiTransactor) ClaimFees(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "claimFees")
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
+// ClaimFees is a paid mutator transaction binding the contract method 0xd294f093.
 //
-// Solidity: function initialize(address _xCall) returns()
-func (_Abi *AbiSession) Initialize(_xCall common.Address) (*types.Transaction, error) {
-	return _Abi.Contract.Initialize(&_Abi.TransactOpts, _xCall)
+// Solidity: function claimFees() returns()
+func (_Abi *AbiSession) ClaimFees() (*types.Transaction, error) {
+	return _Abi.Contract.ClaimFees(&_Abi.TransactOpts)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
+// ClaimFees is a paid mutator transaction binding the contract method 0xd294f093.
 //
-// Solidity: function initialize(address _xCall) returns()
-func (_Abi *AbiTransactorSession) Initialize(_xCall common.Address) (*types.Transaction, error) {
-	return _Abi.Contract.Initialize(&_Abi.TransactOpts, _xCall)
+// Solidity: function claimFees() returns()
+func (_Abi *AbiTransactorSession) ClaimFees() (*types.Transaction, error) {
+	return _Abi.Contract.ClaimFees(&_Abi.TransactOpts)
 }
 
-// RecvMessage is a paid mutator transaction binding the contract method 0xe60f915b.
+// Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function recvMessage(string srcNID, int256 sn, bytes msg) payable returns()
-func (_Abi *AbiTransactor) RecvMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*types.Transaction, error) {
-	return _Abi.contract.Transact(opts, "recvMessage", srcNID, sn, msg)
+// Solidity: function initialize(address _relayer, address _xCall) returns()
+func (_Abi *AbiTransactor) Initialize(opts *bind.TransactOpts, _relayer common.Address, _xCall common.Address) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "initialize", _relayer, _xCall)
 }
 
-// RecvMessage is a paid mutator transaction binding the contract method 0xe60f915b.
+// Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function recvMessage(string srcNID, int256 sn, bytes msg) payable returns()
-func (_Abi *AbiSession) RecvMessage(srcNID string, sn *big.Int, msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNID, sn, msg)
+// Solidity: function initialize(address _relayer, address _xCall) returns()
+func (_Abi *AbiSession) Initialize(_relayer common.Address, _xCall common.Address) (*types.Transaction, error) {
+	return _Abi.Contract.Initialize(&_Abi.TransactOpts, _relayer, _xCall)
 }
 
-// RecvMessage is a paid mutator transaction binding the contract method 0xe60f915b.
+// Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function recvMessage(string srcNID, int256 sn, bytes msg) payable returns()
-func (_Abi *AbiTransactorSession) RecvMessage(srcNID string, sn *big.Int, msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNID, sn, msg)
+// Solidity: function initialize(address _relayer, address _xCall) returns()
+func (_Abi *AbiTransactorSession) Initialize(_relayer common.Address, _xCall common.Address) (*types.Transaction, error) {
+	return _Abi.Contract.Initialize(&_Abi.TransactOpts, _relayer, _xCall)
+}
+
+// RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
+//
+// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
+func (_Abi *AbiTransactor) RecvMessage(opts *bind.TransactOpts, srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "recvMessage", srcNetwork, sn, _msg)
+}
+
+// RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
+//
+// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
+func (_Abi *AbiSession) RecvMessage(srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, sn, _msg)
+}
+
+// RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
+//
+// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
+func (_Abi *AbiTransactorSession) RecvMessage(srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, sn, _msg)
+}
+
+// RevertMessage is a paid mutator transaction binding the contract method 0x2d3fb823.
+//
+// Solidity: function revertMessage(uint256 sn) returns()
+func (_Abi *AbiTransactor) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "revertMessage", sn)
+}
+
+// RevertMessage is a paid mutator transaction binding the contract method 0x2d3fb823.
+//
+// Solidity: function revertMessage(uint256 sn) returns()
+func (_Abi *AbiSession) RevertMessage(sn *big.Int) (*types.Transaction, error) {
+	return _Abi.Contract.RevertMessage(&_Abi.TransactOpts, sn)
+}
+
+// RevertMessage is a paid mutator transaction binding the contract method 0x2d3fb823.
+//
+// Solidity: function revertMessage(uint256 sn) returns()
+func (_Abi *AbiTransactorSession) RevertMessage(sn *big.Int) (*types.Transaction, error) {
+	return _Abi.Contract.RevertMessage(&_Abi.TransactOpts, sn)
 }
 
 // SendMessage is a paid mutator transaction binding the contract method 0x522a901e.
 //
-// Solidity: function sendMessage(string _to, string _svc, int256 _sn, bytes _msg) payable returns()
-func (_Abi *AbiTransactor) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.contract.Transact(opts, "sendMessage", _to, _svc, _sn, _msg)
+// Solidity: function sendMessage(string to, string svc, int256 sn, bytes _msg) payable returns()
+func (_Abi *AbiTransactor) SendMessage(opts *bind.TransactOpts, to string, svc string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "sendMessage", to, svc, sn, _msg)
 }
 
 // SendMessage is a paid mutator transaction binding the contract method 0x522a901e.
 //
-// Solidity: function sendMessage(string _to, string _svc, int256 _sn, bytes _msg) payable returns()
-func (_Abi *AbiSession) SendMessage(_to string, _svc string, _sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.SendMessage(&_Abi.TransactOpts, _to, _svc, _sn, _msg)
+// Solidity: function sendMessage(string to, string svc, int256 sn, bytes _msg) payable returns()
+func (_Abi *AbiSession) SendMessage(to string, svc string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.SendMessage(&_Abi.TransactOpts, to, svc, sn, _msg)
 }
 
 // SendMessage is a paid mutator transaction binding the contract method 0x522a901e.
 //
-// Solidity: function sendMessage(string _to, string _svc, int256 _sn, bytes _msg) payable returns()
-func (_Abi *AbiTransactorSession) SendMessage(_to string, _svc string, _sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.SendMessage(&_Abi.TransactOpts, _to, _svc, _sn, _msg)
+// Solidity: function sendMessage(string to, string svc, int256 sn, bytes _msg) payable returns()
+func (_Abi *AbiTransactorSession) SendMessage(to string, svc string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.SendMessage(&_Abi.TransactOpts, to, svc, sn, _msg)
 }
 
 // SetAdmin is a paid mutator transaction binding the contract method 0x704b6c02.
@@ -589,7 +631,7 @@ type AbiMessage struct {
 
 // FilterMessage is a free log retrieval operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes msg)
+// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
 func (_Abi *AbiFilterer) FilterMessage(opts *bind.FilterOpts) (*AbiMessageIterator, error) {
 
 	logs, sub, err := _Abi.contract.FilterLogs(opts, "Message")
@@ -601,7 +643,7 @@ func (_Abi *AbiFilterer) FilterMessage(opts *bind.FilterOpts) (*AbiMessageIterat
 
 // WatchMessage is a free log subscription operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes msg)
+// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
 func (_Abi *AbiFilterer) WatchMessage(opts *bind.WatchOpts, sink chan<- *AbiMessage) (event.Subscription, error) {
 
 	logs, sub, err := _Abi.contract.WatchLogs(opts, "Message")
@@ -638,7 +680,7 @@ func (_Abi *AbiFilterer) WatchMessage(opts *bind.WatchOpts, sink chan<- *AbiMess
 
 // ParseMessage is a log parse operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes msg)
+// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
 func (_Abi *AbiFilterer) ParseMessage(log types.Log) (*AbiMessage, error) {
 	event := new(AbiMessage)
 	if err := _Abi.contract.UnpackLog(event, "Message", log); err != nil {
