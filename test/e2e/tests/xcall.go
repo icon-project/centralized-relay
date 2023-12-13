@@ -27,13 +27,14 @@ func (x *XCallTestSuite) TextXCall() {
 	x.Require().NoError(x.DeployXCallMockApp(ctx, portId), "fail to deploy xcall dapp")
 	chainA, chainB := x.GetChains()
 	x.T.Run("xcall one way message chainA-chainB", func(t *testing.T) {
-
-		x.testOneWayMessage(ctx, t, chainA, chainB)
+		err := x.testOneWayMessage(ctx, t, chainA, chainB)
+		assert.NoErrorf(t, err, "fail xcCll one way message chainA-chainB ::%v\n ", err)
 	})
 
 	x.T.Run("xcall one way message chainB-chainA", func(t *testing.T) {
 
-		x.testOneWayMessage(ctx, t, chainB, chainA)
+		err := x.testOneWayMessage(ctx, t, chainB, chainA)
+		assert.NoErrorf(t, err, "fail xcCll one way message chainB-chainA ::%v\n ", err)
 	})
 	//
 	//x.T.Run("xcall test rollback chainA-chainB", func(t *testing.T) {
@@ -98,23 +99,35 @@ func (x *XCallTestSuite) testPacketDrop(ctx context.Context, t *testing.T, chain
 	assert.Truef(t, response.HasRollbackCalled, "failed to call rollback  - %s", sn)
 }
 
-func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) {
+func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "MessageTransferTestingWithoutRollback"
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
 
 	res, err := chainA.XCall(ctx, chainB, interchaintest.UserAccount, dst, []byte(msg), nil)
-	assert.NoErrorf(t, err, "error on sending packet- %v", err)
-
+	result := assert.NoErrorf(t, err, "error on sending packet- %v", err)
+	if !result {
+		return err
+	}
 	ctx, err = chainB.ExecuteCall(ctx, res.RequestID, res.Data)
-	assert.NoErrorf(t, err, "error on execute call packet- %v", err)
+	result = assert.NoErrorf(t, err, "error on execute call packet- %v", err)
+	if !result {
+		return err
+	}
 	//x.Require().NoErrorf(err, "error on execute call packet- %v", err)
 	dataOutput, err := x.ConvertToPlainString(res.Data)
 	//x.Require().NoErrorf(err, "error on converting res data as msg- %v", err)
-	assert.NoErrorf(t, err, "error on converting res data as msg- %v", err)
-	assert.Equal(t, msg, dataOutput)
+	result = assert.NoErrorf(t, err, "error on converting res data as msg- %v", err)
+	if !result {
+		return err
+	}
+	result = assert.Equal(t, msg, dataOutput)
+	if !result {
+		return err
+	}
 	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and Received:" + dataOutput + " PASSED")
+	return nil
 }
 
 func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) {
