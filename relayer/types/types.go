@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 var (
@@ -33,6 +34,7 @@ type RouteMessage struct {
 	*Message
 	Retry        uint64
 	IsProcessing bool
+	Time         int64
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
@@ -66,6 +68,15 @@ func (r *RouteMessage) GetIsProcessing() bool {
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
 	return r.Retry >= uint64(TotalMaxRetryTx)
+}
+
+func (r *RouteMessage) SetTime() {
+	r.Time = time.Now().Unix()
+}
+
+// Parse time to human readable format
+func (r *RouteMessage) GetTime() string {
+	return time.Unix(r.Time, 0).String()
 }
 
 type TxResponseFunc func(key *MessageKey, response TxResponse, err error)

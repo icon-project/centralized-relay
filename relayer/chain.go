@@ -45,7 +45,7 @@ func (c Chains) Get(chainID string) (*Chain, error) {
 }
 
 // MustGet returns the chain and panics on any error
-func (c Chains) MustGet(chainID string) *Chain {
+func (c *Chains) MustGet(chainID string) *Chain {
 	out, err := c.Get(chainID)
 	if err != nil {
 		panic(err)
@@ -60,7 +60,6 @@ func (c Chains) GetAll() map[string]*Chain {
 		out[chain.ChainID()] = chain
 	}
 	return out
-
 }
 
 // Gets returns a map chainIDs to their chains

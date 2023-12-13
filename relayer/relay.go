@@ -97,6 +97,16 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	}, nil
 }
 
+// GetBlockStore returns the block store
+func (r *Relayer) GetBlockStore() *store.BlockStore {
+	return r.blockStore
+}
+
+// GetBlockStore returns the block store
+func (r *Relayer) GetMessageStore() *store.MessageStore {
+	return r.messageStore
+}
+
 func (r *Relayer) StartChainListeners(
 	ctx context.Context,
 	errCh chan error,
@@ -217,8 +227,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
 				continue
 			}
-			ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime)
-			if !ok {
+			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
 				continue
 			}
 			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
@@ -264,9 +273,6 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	callback := func(key *types.MessageKey, response types.TxResponse, err error) {
-		src := src
-		dst := dst
-
 		// note: it is ok if err is not checked
 		if response.Code == types.Success {
 			dst.log.Info("successfully relayed message:",
@@ -305,6 +311,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.SetIsProcessing(false)
+	routeMessage.SetTime()
 
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
 		// save to db

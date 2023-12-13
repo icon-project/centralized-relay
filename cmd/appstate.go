@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -19,26 +19,23 @@ type appState struct {
 
 	viper *viper.Viper
 
-	homePath string
-	debug    bool
-	config   *Config
-}
-
-func (a *appState) configPath() string {
-	return path.Join(a.homePath, "config", "config.yaml")
+	homePath   string
+	configPath string
+	dbPath     string
+	debug      bool
+	config     *Config
+	db         *lvldb.LVLDB
 }
 
 // loadConfigFile reads config file into a.Config if file is present.
 func (a *appState) loadConfigFile(ctx context.Context) error {
-	cfgPath := a.configPath()
-
-	if _, err := os.Stat(cfgPath); err != nil {
+	if _, err := os.Stat(a.configPath); err != nil {
 		// don't return error if file doesn't exist
 		return nil
 	}
 
 	// read the config file bytes
-	file, err := os.ReadFile(cfgPath)
+	file, err := os.ReadFile(a.configPath)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}
