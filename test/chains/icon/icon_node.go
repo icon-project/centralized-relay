@@ -495,7 +495,7 @@ func (in *IconNode) GetChainConfig(ctx context.Context, rlyHome string, keyName 
 			Keystore:        fmt.Sprintf("%s/keys/%s/%s", rlyHome, in.Chain.Config().ChainID, keyName),
 			Password:        keyName,
 			IconNetworkID:   0x3,
-			ContractAddress: in.Chain.GetContractAddress("xcall"),
+			ContractAddress: in.Chain.GetContractAddress("connection"),
 		},
 	}
 	return yaml.Marshal(config)

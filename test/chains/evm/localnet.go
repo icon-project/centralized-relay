@@ -733,7 +733,7 @@ func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event E
 		Addresses: []common.Address{address},
 		Topics: [][]common.Hash{
 			{common.HexToHash(event.hash)},
-			index,
+			//index,
 		},
 	}
 
