@@ -11,10 +11,16 @@ func (s *E2ETestSuite) SetupXCall(ctx context.Context) error {
 	if err := chainA.SetupXCall(ctx, interchaintest.XCallOwnerAccount); err != nil {
 		return err
 	}
-	if err := chainB.SetupXCall(ctx, interchaintest.XCallOwnerAccount); err != nil {
+	if err := chainA.SetupConnection(ctx, interchaintest.XCallOwnerAccount, chainB); err != nil {
 		return err
 	}
 
+	if err := chainB.SetupXCall(ctx, interchaintest.XCallOwnerAccount); err != nil {
+		return err
+	}
+	if err := chainB.SetupConnection(ctx, interchaintest.XCallOwnerAccount, chainA); err != nil {
+		return err
+	}
 	return nil
 }
 
