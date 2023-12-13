@@ -267,28 +267,28 @@ func (s *E2ETestSuite) GetRelayerExecReporter() *testreporter.RelayerExecReporte
 	return rep.RelayerExecReporter(s.T())
 }
 
-func (s *E2ETestSuite) ConvertToPlainString(input string) (string, error) {
+func (s *E2ETestSuite) ConvertToPlainString(input string) string {
 	var plainString []byte
 	if strings.HasPrefix(input, "[") && strings.HasSuffix(input, "]") {
 		input = input[1 : len(input)-1]
 		for _, part := range strings.Split(input, ", ") {
 			value, err := strconv.Atoi(part)
 			if err != nil {
-				return "", err
+				return ""
 			}
 			plainString = append(plainString, byte(value))
 		}
-		return string(plainString), nil
+		return string(plainString)
 	} else if strings.HasPrefix(input, "0x") {
 		input = input[2:]
 		for i := 0; i < len(input); i += 2 {
 			value, err := strconv.ParseUint(input[i:i+2], 16, 8)
 			if err != nil {
-				return "", err
+				return ""
 			}
 			plainString = append(plainString, byte(value))
 		}
-		return string(plainString), nil
+		return string(plainString)
 	}
-	return "", fmt.Errorf("invalid input length")
+	return input
 }

@@ -11,7 +11,7 @@ usage() {
   echo "  --clean : Clean contract directories (true/false, default: false)."
   echo "  --build-xcall : Build xCall contracts (true/false, default: false)."
   echo "  --xcall-branch <branch>: Specify the xCall branch to build (default: main)."
-  echo "  --test <test_type>: Specify the type of test (e2e, e2e-demo, integration, default: e2e)."
+  echo "  --test <test_type>: Specify the type of test (e2e, default: e2e)."
   exit 1
 }
 

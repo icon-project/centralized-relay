@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	interchaintest "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/icon-bridge/common/wallet"
-
 	"io"
 	"log"
 	"regexp"
@@ -248,7 +248,7 @@ func (c *IconLocalnet) createKeystore(ctx context.Context, keyName string) (stri
 
 	err = c.getFullNode().RestoreKeystore(ctx, ks, keyName)
 	if err != nil {
-		c.log.Error("fail to restore 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore", zap.Error(err))
+		c.log.Error("fail to restore keystore", zap.Error(err))
 		return "", "", err
 	}
 	ksd, err := wallet.NewKeyStoreData(ks)
@@ -337,9 +337,26 @@ func (c *IconLocalnet) GetBalance(ctx context.Context, address string, denom str
 	return c.getFullNode().GetBalance(ctx, address)
 }
 
-//func (c *IconLocalnet) DeployConnections(ctx context.Context, keyName string) error {
-//	c.cfg.Connections
-//}
+func (c *IconLocalnet) SetupConnection(ctx context.Context, keyName string, target chains.Chain) error {
+	//testcase := ctx.Value("testcase").(string)
+	xcall := c.IBCAddresses["xcall"]
+	_ = c.CheckForKeyStore(ctx, keyName)
+	relayerKey := fmt.Sprintf("relayer-%s", c.Config().Name)
+	relayerAddress := c.Wallets[relayerKey].FormattedAddress()
+
+	connection, err := c.getFullNode().DeployContract(ctx, c.scorePaths["connection"], c.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+relayerAddress+`"}`)
+	if err != nil {
+		return err
+	}
+
+	params := `{"networkId":"` + target.Config().ChainID + `", "messageFee":"0x0", "responseFee":"0x0"}`
+	ctx, err = c.executeContract(context.Background(), connection, relayerKey, "setFee", params)
+	if err != nil {
+		return err
+	}
+	c.IBCAddresses["connection"] = connection
+	return nil
+}
 
 func (c *IconLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 	//testcase := ctx.Value("testcase").(string)
@@ -351,18 +368,12 @@ func (c *IconLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 		return err
 	}
 	//
-	relayerAddress := c.Wallets[fmt.Sprintf("relayer-%s", c.Config().Name)].FormattedAddress()
-
-	connection, err := c.getFullNode().DeployContract(ctx, c.scorePaths["connection"], c.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+relayerAddress+`"}`)
-	if err != nil {
-		return err
-	}
 
 	//c.IBCAddresses[fmt.Sprintf("xcall-%s", testcase)] = xcall
 	//c.IBCAddresses[fmt.Sprintf("connection-%s", testcase)] = connection
 	c.IBCAddresses["xcall"] = xcall
-	c.IBCAddresses["connection"] = connection
-	return err
+
+	return nil
 }
 
 func (c *IconLocalnet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
@@ -451,6 +462,7 @@ func (c *IconLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string,
 		return nil, err
 	}
 	txn := ctx.Value("txResult").(*icontypes.TransactionResult)
+
 	return context.WithValue(ctx, "sn", getSn(txn)), nil
 }
 
@@ -531,15 +543,15 @@ func getSn(tx *icontypes.TransactionResult) string {
 }
 
 func (c *IconLocalnet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
-	testcase := ctx.Value("testcase").(string)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	return c.executeContract(ctx, c.IBCAddresses[xCallKey], interchaintest.UserAccount, "executeCall", `{"_reqId":"`+reqId+`","_data":"`+data+`"}`)
+	//testcase := ctx.Value("testcase").(string)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	return c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.UserAccount, "executeCall", `{"_reqId":"`+reqId+`","_data":"`+data+`"}`)
 }
 
 func (c *IconLocalnet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
-	testcase := ctx.Value("testcase").(string)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	ctx, err := c.executeContract(ctx, c.IBCAddresses[xCallKey], interchaintest.UserAccount, "executeRollback", `{"_sn":"`+sn+`"}`)
+	//testcase := ctx.Value("testcase").(string)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	ctx, err := c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.UserAccount, "executeRollback", `{"_sn":"`+sn+`"}`)
 	if err != nil {
 		return nil, err
 	}
@@ -570,10 +582,10 @@ func (c *IconLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, 
 }
 
 func (c *IconLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
-	testcase := ctx.Value("testcase").(string)
-	xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	//testcase := ctx.Value("testcase").(string)
+	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	index := []*string{&sn}
-	event, err := c.FindEvent(ctx, startHeight, xCallKey, "ResponseMessage(int,int)", index)
+	event, err := c.FindEvent(ctx, startHeight, "xcall", "ResponseMessage(int,int)", index)
 	if err != nil {
 		return "", err
 	}
@@ -626,7 +638,7 @@ func (c *IconLocalnet) FindEvent(ctx context.Context, startHeight uint64, contra
 	case v := <-channel:
 		return v, nil
 	case <-_ctx.Done():
-		return nil, fmt.Errorf("failed to find eventLog: %s", _ctx.Err())
+		return nil, errors.New(fmt.Sprintf("timeout : Event %s not found after %d block", signature, startHeight))
 	}
 }
 
@@ -643,7 +655,7 @@ func (c *IconLocalnet) DeployContract(ctx context.Context, keyName string) (cont
 
 	var contracts chains.ContractKey
 
-	// Check if 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore is alreadry available for given keyName
+	// Check if keystore is alreadry available for given keyName
 	ownerAddr := c.CheckForKeyStore(ctx, keyName)
 	if ownerAddr != nil {
 		contracts.ContractOwner = map[string]string{
@@ -669,7 +681,6 @@ func (c *IconLocalnet) DeployContract(ctx context.Context, keyName string) (cont
 
 // executeContract implements chains.Chain
 func (c *IconLocalnet) executeContract(ctx context.Context, contractAddress, keyName, methodName, params string) (context.Context, error) {
-	// Check if 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore is alreadry available for given keyName
 	c.CheckForKeyStore(ctx, keyName)
 
 	hash, err := c.getFullNode().ExecuteContract(ctx, contractAddress, methodName, c.keystorePath, params)
@@ -710,7 +721,6 @@ func (c *IconLocalnet) GetBlockByHeight(ctx context.Context) (context.Context, e
 
 // GetLastBlock implements chains.Chain
 func (c *IconLocalnet) GetLastBlock(ctx context.Context) (context.Context, error) {
-	time.Sleep(2 * time.Second)
 	h, err := c.getFullNode().Height(ctx)
 	return context.WithValue(ctx, chains.LastBlock{}, h), err
 }
@@ -794,32 +804,4 @@ func (c *IconLocalnet) PauseNode(ctx context.Context) error {
 // UnpauseNode starts the paused node
 func (c *IconLocalnet) UnpauseNode(ctx context.Context) error {
 	return c.getFullNode().DockerClient.ContainerUnpause(ctx, c.getFullNode().ContainerID)
-}
-
-func (c *IconLocalnet) SendPacketMockDApp(ctx context.Context, targetChain chains.Chain, keyName string, params map[string]interface{}) (chains.PacketTransferResponse, error) {
-	//listener := targetChain.InitEventListener(ctx, "ibc")
-	response := chains.PacketTransferResponse{}
-	testcase := ctx.Value("testcase").(string)
-	dappKey := fmt.Sprintf("mockdapp-%s", testcase)
-	execMethodName, execParams := c.getExecuteParam(ctx, chains.SendMessage, params)
-	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, execMethodName, execParams)
-	if err != nil {
-		return response, err
-	}
-	//txn := ctx.Value("txResult").(*icontypes.TransactionResult)
-	response.IsPacketSent = true
-
-	//var packet = chantypes.Packet{}
-	//var protoPacket = icontypes.HexBytes(txn.EventLogs[1].Indexed[1])
-	//_ = chains.HexBytesToProtoUnmarshal(protoPacket, &packet)
-	//response.Packet = packet
-	//filter := map[string]interface{}{
-	//	"wasm-recv_packet.packet_sequence":    fmt.Sprintf("%d", packet.Sequence),
-	//	"wasm-recv_packet.packet_src_port":    packet.SourcePort,
-	//	"wasm-recv_packet.packet_src_channel": packet.SourceChannel,
-	//}
-	//event, err := listener.FindEvent(filter)
-	//response.IsPacketReceiptEventFound = event != nil
-	return response, err
-
 }

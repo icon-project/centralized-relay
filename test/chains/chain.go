@@ -24,9 +24,9 @@ type Chain interface {
 	BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error)
 	GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error)
 	SetupXCall(ctx context.Context, keyName string) error
+	SetupConnection(ctx context.Context, keyName string, target Chain) error
 	FindTargetXCallMessage(ctx context.Context, target Chain, height uint64, to string) (*XCallResponse, error)
 	SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error)
-	IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)
 	CheckForTimeout(ctx context.Context, src Chain, params map[string]interface{}, listener EventListener) (context.Context, error)
 	ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error)
@@ -41,8 +41,6 @@ type Chain interface {
 
 	BackupConfig() ([]byte, error)
 	RestoreConfig([]byte) error
-	//integration test specific
-	SendPacketMockDApp(ctx context.Context, targetChain Chain, keyName string, params map[string]interface{}) (PacketTransferResponse, error)
 }
 
 func GetEnvOrDefault(key, defaultValue string) string {
@@ -51,29 +49,3 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-
-//
-//func HexBytesToProtoUnmarshal(encoded types.HexBytes, v proto.Message) error {
-//	inputBytes, err := encoded.Value()
-//	if err != nil {
-//		return fmt.Errorf("error unmarshalling HexByte: %s", err)
-//	}
-//
-//	if bytes.Equal(inputBytes, make([]byte, 0)) {
-//		return fmt.Errorf("encoded hexbyte is empty: %s", inputBytes)
-//	}
-//
-//	if err := proto.Unmarshal(inputBytes, v); err != nil {
-//		return err
-//
-//	}
-//	return nil
-//}
-//
-//func ProtoMarshalToHexBytes(v proto.Message) (string, error) {
-//	value, err := proto.Marshal(v)
-//	if err != nil {
-//		return "", fmt.Errorf("error marshalling proto.Message: %s", err)
-//	}
-//	return fmt.Sprintf("0x%s", hex.EncodeToString(value)), nil
-//}
