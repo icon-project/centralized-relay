@@ -35,6 +35,7 @@ type EVMProviderConfig struct {
 	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
 	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
+	NID             string `json:"nid" yaml:"nid"`
 }
 
 type EVMProvider struct {
@@ -46,6 +47,7 @@ type EVMProvider struct {
 	StartHeight uint64
 	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
+	NID         string
 }
 
 func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -79,7 +81,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 }
 
 func (p *EVMProvider) ChainId() string {
-	return p.cfg.ChainID
+	return fmt.Sprintf("0x%x.%s", p.client.GetChainID(), p.cfg.NID)
 }
 
 func (p *EVMProviderConfig) Validate() error {

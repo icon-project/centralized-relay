@@ -261,14 +261,10 @@ func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntim
 }
 
 func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
-	var chainRuntime *ChainRuntime
-	var ok bool
-
-	if chainRuntime, ok = r.chains[chainId]; !ok {
-		return nil, fmt.Errorf("chain runtime not found, chainId:%s ", chainId)
+	if chainRuntime, ok := r.chains[chainId]; ok {
+		return chainRuntime, nil
 	}
-
-	return chainRuntime, nil
+	return nil, fmt.Errorf("chain runtime not found, chainId:%s ", chainId)
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
@@ -337,9 +333,9 @@ func (r *Relayer) ClearMessages(ctx context.Context, msgs []*types.MessageKey, s
 	srcChain.clearMessageFromCache(msgs)
 
 	for _, m := range msgs {
-		err := r.messageStore.DeleteMessage(m)
-		if err != nil {
+		if err := r.messageStore.DeleteMessage(m); err != nil {
 			r.log.Error("error occured when deleting message from db ", zap.Error(err))
+			return err
 		}
 	}
 	return nil

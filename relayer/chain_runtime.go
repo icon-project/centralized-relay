@@ -1,6 +1,5 @@
 package relayer
 
-// import "github.com/icon-project/centralized-relay/relayer/store"
 import (
 	"context"
 	"fmt"

@@ -1,6 +1,7 @@
 package icon
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -8,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func parseMessagesFromEventlogs(log *zap.Logger, eventlogs []types.EventLog, height uint64) []*providerTypes.Message {
+func parseMessagesFromEventlogs(log *zap.Logger, eventlogs []*types.EventLog, height uint64) []*providerTypes.Message {
 	msgs := make([]*providerTypes.Message, 0)
 	for _, el := range eventlogs {
 		message, ok := parseMessageFromEvent(log, el, height)
@@ -19,11 +20,7 @@ func parseMessagesFromEventlogs(log *zap.Logger, eventlogs []types.EventLog, hei
 	return msgs
 }
 
-func parseMessageFromEvent(
-	log *zap.Logger,
-	event types.EventLog,
-	height uint64,
-) (*providerTypes.Message, bool) {
+func parseMessageFromEvent(log *zap.Logger, event *types.EventLog, height uint64) (*providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
 	eventType := EventNameToType[eventName]
 
@@ -31,6 +28,7 @@ func parseMessageFromEvent(
 	case EmitMessage:
 		m, err := parseEmitMessage(event, eventType, height)
 		if err != nil {
+			log.Error("invalid event", zap.Error(err))
 			return nil, false
 		}
 		return m, true
@@ -38,9 +36,9 @@ func parseMessageFromEvent(
 	return nil, false
 }
 
-func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
-	if len(e.Indexed) != 3 && len(e.Data) != 1 {
-		panic("Icon processor, emitMessage event is not correct")
+func parseEmitMessage(e *types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
+	if indexded, dataLength := len(e.Indexed), len(e.Data); indexded != 3 && dataLength != 1 {
+		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexded, dataLength)
 	}
 
 	dst := string(e.Indexed[1][:])
@@ -51,7 +49,7 @@ func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*provi
 		MessageHeight: height,
 		EventType:     eventType,
 		Dst:           dst,
-		Data:          e.Data[1][:],
+		Data:          e.Data[0],
 		Sn:            sn,
 	}, nil
 }

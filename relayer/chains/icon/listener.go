@@ -22,7 +22,7 @@ type btpBlockResponse struct {
 	Height    int64
 	Hash      common.HexHash
 	Header    *types.BlockHeader
-	EventLogs []types.EventLog
+	EventLogs []*types.EventLog
 }
 
 type btpBlockRequest struct {
@@ -38,7 +38,6 @@ type btpBlockRequest struct {
 // TODO: check for balance and if the balance is low show info balance is low
 // starting listener
 func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan providerTypes.BlockInfo) error {
-
 	errCh := make(chan error)                                            // error channel
 	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
 	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
@@ -102,12 +101,10 @@ loop:
 					reconnect()
 					icp.log.Warn("Error occured during monitor block", zap.Error(err))
 				}
-
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
 			for ; br != nil; processedheight++ {
-				icp.log.Debug("block notification received",
-					zap.Int64("height", int64(processedheight)))
+				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
 				message := parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
 
@@ -183,7 +180,6 @@ loop:
 						go icp.handleBTPBlockRequest(request, requestCh)
 
 					}
-
 				}
 				// filter nil
 				_brs, brs := brs, brs[:0]
@@ -208,11 +204,11 @@ loop:
 			}
 		}
 	}
-
 }
 
 func (icp *IconProvider) handleBTPBlockRequest(
-	request *btpBlockRequest, requestCh chan *btpBlockRequest) {
+	request *btpBlockRequest, requestCh chan *btpBlockRequest,
+) {
 	defer func() {
 		time.Sleep(500 * time.Millisecond)
 		requestCh <- request
@@ -245,7 +241,7 @@ func (icp *IconProvider) handleBTPBlockRequest(
 
 		}
 
-		var eventlogs []types.EventLog
+		var eventlogs []*types.EventLog
 		for id := 0; id < len(request.indexes); id++ {
 			for i, index := range request.indexes[id] {
 				p := &types.ProofEventsParam{
@@ -282,7 +278,7 @@ func (icp *IconProvider) handleBTPBlockRequest(
 						request.err = errors.Wrapf(err, "event.MPTProve: %v", err)
 						return
 					}
-					var el types.EventLog
+					var el *types.EventLog
 					_, err = codec.RLP.UnmarshalFromBytes(serializedEventLog, &el)
 					if err != nil {
 						request.err = errors.Wrapf(err, "event.UnmarshalFromBytes: %v", err)
@@ -300,7 +296,6 @@ func (icp *IconProvider) handleBTPBlockRequest(
 }
 
 func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
-
 	latestHeight, err := icp.QueryLatestHeight(ctx)
 	if err != nil {
 		return 0, err
@@ -325,5 +320,4 @@ func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight ui
 
 	// priority3: latest height
 	return int64(latestHeight), nil
-
 }

@@ -16,7 +16,7 @@ type IconProviderConfig struct {
 	Password        string `json:"password" yaml:"password"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"` // would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
-	ICONNetworkID   int64  `json:"icon-network-id" yaml:"icon-network-id"`
+	NID             int64  `json:"nid" yaml:"nid"`
 }
 
 // NewProvider returns new Icon provider
@@ -51,7 +51,7 @@ type IconProvider struct {
 }
 
 func (ip *IconProvider) ChainId() string {
-	return ip.PCfg.ChainID
+	return fmt.Sprintf("0x%d.%s", ip.PCfg.NID, ip.PCfg.ChainID)
 }
 
 func (ip *IconProvider) Init(ctx context.Context) error {

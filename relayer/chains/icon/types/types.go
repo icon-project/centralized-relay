@@ -202,6 +202,7 @@ func (hs HexBytes) Value() ([]byte, error) {
 	}
 	return hex.DecodeString(string(hs[2:]))
 }
+
 func NewHexBytes(b []byte) HexBytes {
 	return HexBytes("0x" + hex.EncodeToString(b))
 }
@@ -305,28 +306,28 @@ func NewAddress(b []byte) Address {
 }
 
 type Block struct {
-	//BlockHash              HexBytes  `json:"block_hash" validate:"required,t_hash"`
-	//Version                HexInt    `json:"version" validate:"required,t_int"`
+	// BlockHash              HexBytes  `json:"block_hash" validate:"required,t_hash"`
+	// Version                HexInt    `json:"version" validate:"required,t_int"`
 	Height    int64 `json:"height" validate:"required,t_int"`
 	Timestamp int64 `json:"time_stamp" validate:"required,t_int"`
-	//Proposer               HexBytes  `json:"peer_id" validate:"optional,t_addr_eoa"`
-	//PrevID                 HexBytes  `json:"prev_block_hash" validate:"required,t_hash"`
-	//NormalTransactionsHash HexBytes  `json:"merkle_tree_root_hash" validate:"required,t_hash"`
+	// Proposer               HexBytes  `json:"peer_id" validate:"optional,t_addr_eoa"`
+	// PrevID                 HexBytes  `json:"prev_block_hash" validate:"required,t_hash"`
+	// NormalTransactionsHash HexBytes  `json:"merkle_tree_root_hash" validate:"required,t_hash"`
 	NormalTransactions []struct {
 		TxHash HexBytes `json:"txHash"`
-		//Version   HexInt   `json:"version"`
+		// Version   HexInt   `json:"version"`
 		From Address `json:"from"`
 		To   Address `json:"to"`
-		//Value     HexInt   `json:"value,omitempty" `
-		//StepLimit HexInt   `json:"stepLimit"`
-		//TimeStamp HexInt   `json:"timestamp"`
-		//NID       HexInt   `json:"nid,omitempty"`
-		//Nonce     HexInt   `json:"nonce,omitempty"`
-		//Signature HexBytes `json:"signature"`
+		// Value     HexInt   `json:"value,omitempty" `
+		// StepLimit HexInt   `json:"stepLimit"`
+		// TimeStamp HexInt   `json:"timestamp"`
+		// NID       HexInt   `json:"nid,omitempty"`
+		// Nonce     HexInt   `json:"nonce,omitempty"`
+		// Signature HexBytes `json:"signature"`
 		DataType string          `json:"dataType,omitempty"`
 		Data     json.RawMessage `json:"data,omitempty"`
 	} `json:"confirmed_transaction_list"`
-	//Signature              HexBytes  `json:"signature" validate:"optional,t_hash"`
+	// Signature              HexBytes  `json:"signature" validate:"optional,t_hash"`
 }
 
 type WsReadCallback func(*websocket.Conn, interface{}) error
