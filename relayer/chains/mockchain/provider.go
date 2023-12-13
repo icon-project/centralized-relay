@@ -12,8 +12,8 @@ import (
 type MockProviderConfig struct {
 	ChainId         string
 	BlockDuration   time.Duration
-	SendMessages    map[types.MessageKey]types.Message
-	ReceiveMessages map[types.MessageKey]types.Message
+	SendMessages    map[*types.MessageKey]*types.Message
+	ReceiveMessages map[*types.MessageKey]*types.Message
 	StartHeight     uint64
 }
 
@@ -90,8 +90,8 @@ func (icp *MockProvider) Route(ctx context.Context, message *types.Message, call
 	return nil
 }
 
-func (icp *MockProvider) FindMessages() []types.Message {
-	messages := make([]types.Message, 0)
+func (icp *MockProvider) FindMessages() []*types.Message {
+	messages := make([]*types.Message, 0)
 	for _, m := range icp.PCfg.SendMessages {
 		if m.MessageHeight == icp.Height {
 			messages = append(messages, m)
@@ -100,18 +100,18 @@ func (icp *MockProvider) FindMessages() []types.Message {
 	return messages
 }
 
-func (icp *MockProvider) DeleteMessage(msg types.Message) {
+func (icp *MockProvider) DeleteMessage(msg *types.Message) {
 	var deleteKey *types.MessageKey
 
 	for key := range icp.PCfg.ReceiveMessages {
 		if msg.MessageKey() == key {
-			deleteKey = &key
+			deleteKey = key
 			break
 		}
 	}
 
 	if deleteKey != nil {
-		delete(icp.PCfg.ReceiveMessages, *deleteKey)
+		delete(icp.PCfg.ReceiveMessages, deleteKey)
 	}
 }
 

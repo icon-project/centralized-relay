@@ -23,7 +23,7 @@ func TestMessageStoreSet(t *testing.T) {
 	Sn := uint64(1)
 	messageStore := NewMessageStore(testdb, prefix)
 
-	storeMessage := types.Message{
+	storeMessage := &types.Message{
 		Src:  chainId,
 		Dst:  "archway",
 		Sn:   Sn,
@@ -89,19 +89,19 @@ func TestMessageStoreSet(t *testing.T) {
 			assert.Equal(t, len(msg), 0)
 		})
 
-		storeMessage1 := types.Message{
+		storeMessage1 := &types.Message{
 			Src:  chainId,
 			Dst:  "archway",
 			Sn:   uint64(1),
 			Data: []byte("test message"),
 		}
-		storeMessage2 := types.Message{
+		storeMessage2 := &types.Message{
 			Src:  chainId,
 			Dst:  "archway",
 			Sn:   uint64(2),
 			Data: []byte("test message"),
 		}
-		storeMessage3 := types.Message{
+		storeMessage3 := &types.Message{
 			Src:  chainId,
 			Dst:  "archway",
 			Sn:   uint64(3),

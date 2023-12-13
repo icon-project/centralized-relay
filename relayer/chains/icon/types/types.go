@@ -332,14 +332,14 @@ type Block struct {
 type WsReadCallback func(*websocket.Conn, interface{}) error
 
 type SendMessage struct {
-	TargetNetwork string   `json:"targetNetwork"`
+	TargetNetwork string   `json:"to"`
 	Svc           string   `json:"svc"`
 	Sn            uint64   `json:"sn"`
 	Msg           HexBytes `json:"msg"`
 }
 
 type RecvMessage struct {
-	SrcNID string   `json:"srcNID"`
+	SrcNID string   `json:"srcNetwork"`
 	Sn     HexInt   `json:"sn"`
 	Msg    HexBytes `json:"msg"`
 }

@@ -1,6 +1,8 @@
 package icon
 
 import (
+	"math/big"
+
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -43,13 +45,13 @@ func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*provi
 
 	dst := string(e.Indexed[1][:])
 	// TODO: temporary soln should be something permanent
-	sn := e.Data[0][0]
+	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
 
 	return &providerTypes.Message{
 		MessageHeight: height,
 		EventType:     eventType,
 		Dst:           dst,
 		Data:          e.Data[1][:],
-		Sn:            uint64(sn),
+		Sn:            sn,
 	}, nil
 }
