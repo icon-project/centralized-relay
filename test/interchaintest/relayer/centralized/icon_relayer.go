@@ -40,7 +40,7 @@ func NewICONRelayer(log *zap.Logger, testName string, cli *client.Client, networ
 
 type ICONRelayerChainConfigValue struct {
 	ChainID         string `yaml:"chain-id"`
-	RPCURL          string `yaml:"rpc-addr"`
+	RPCURL          string `yaml:"rpc-url"`
 	StartHeight     int    `yaml:"start-height"`
 	Keystore        string `yaml:"keystore"`
 	Password        string `yaml:"password"`

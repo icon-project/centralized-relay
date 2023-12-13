@@ -529,7 +529,7 @@ func (an *AnvilNode) GetChainConfig(ctx context.Context, rlyHome string, keyName
 			Password:        keyName,
 			GasPrice:        gasPrice.Int64(),
 			GasLimit:        2000000,
-			ContractAddress: an.Chain.GetContractAddress("xcall"), //cfg.ConfigFileOverrides["xcall-connection"].(string),
+			ContractAddress: an.Chain.GetContractAddress("connection"), //cfg.ConfigFileOverrides["xcall-connection"].(string),
 		},
 	}
 	return yaml.Marshal(config)
