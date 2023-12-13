@@ -39,7 +39,7 @@ func parseMessageFromEvent(
 }
 
 func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
-	if len(e.Indexed) != 2 && len(e.Data) != 2 {
+	if len(e.Indexed) != 3 && len(e.Data) != 1 {
 		panic("Icon processor, emitMessage event is not correct")
 	}
 
