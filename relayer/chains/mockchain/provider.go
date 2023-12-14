@@ -6,6 +6,7 @@ import (
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +46,10 @@ func (icp *MockProvider) ChainId() string {
 
 func (icp *MockProvider) Init(ctx context.Context) error {
 	return nil
+}
+
+func (icp *MockProvider) FinalityBlock(ctx context.Context) uint64 {
+	return 0
 }
 
 func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -124,5 +129,13 @@ func (icp *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types
 }
 
 func (icp *MockProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+	return nil, nil
+}
+
+func (icp *MockProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
+	return nil, nil
+}
+
+func (ip *MockProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
 	return nil, nil
 }

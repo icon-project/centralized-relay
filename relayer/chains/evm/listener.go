@@ -19,6 +19,7 @@ const (
 	BlockHeightPollInterval    = 60 * time.Second
 	defaultReadTimeout         = 15 * time.Second
 	monitorBlockMaxConcurrency = 1000 // number of concurrent requests to synchronize older blocks from source chain
+	DefaultFinalityBlock       = 10
 )
 
 type BnOptions struct {
@@ -42,7 +43,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 		return err
 	}
 
-	r.log.Info("Starting Evm listener from height ", zap.Uint64("start-height", startHeight))
+	r.log.Info("Start query from height ", zap.Uint64("start-height", startHeight))
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -62,19 +63,16 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	for {
 		select {
 		case <-ctx.Done():
-			r.log.Debug("receiveLoop: context done")
+			r.log.Debug("evm listener: context done")
 			return nil
 
 		case <-heightTicker.C:
-			r.log.Debug("receiveLoop: heightTicker")
 			latest++
 
 		case <-heightPoller.C:
-			r.log.Debug("receiveLoop: heightPoller")
 			if height := r.latestHeight(); height > latest {
 				latest = height
 				if next > latest {
-					// TODO:
 					// r.Log.Debugf("receiveLoop: skipping; latest=%d, next=%d", latest, next)
 				}
 			}
@@ -83,8 +81,9 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					r.log.Info("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
-						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
+					r.log.Debug("block notification received",
+						zap.Uint64("height", lbn.Height.Uint64()),
+					)
 
 					messages, err := r.FindMessages(ctx, lbn)
 					if err != nil {
@@ -210,7 +209,7 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+		p.log.Debug("detected eventlog ", zap.Uint64("height", lbn.Height.Uint64()),
 			zap.String("target-network", message.Dst),
 			zap.Uint64("sn", message.Sn),
 			zap.String("event-type", message.EventType),
@@ -242,21 +241,23 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 		return 0, err
 	}
 
-	if p.cfg.StartHeight > latestHeight {
-		p.log.Error("start height provided on config cannot be greater than latest height",
+	latestQueryHeight := latestHeight - p.cfg.FinalityBlock
+
+	if p.cfg.StartHeight > latestQueryHeight {
+		p.log.Error("start height provided on config cannot be greater than latest query height",
 			zap.Uint64("start-height", p.cfg.StartHeight),
-			zap.Uint64("latest-height", latestHeight),
+			zap.Uint64("latest-height", latestQueryHeight),
 		)
 	}
 
-	// priority1: startHeight from config
-	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestHeight {
-		return p.cfg.StartHeight, nil
+	// priority1: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestQueryHeight {
+		return lastSavedHeight, nil
 	}
 
-	// priority2: lastsaveheight from db
-	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		return lastSavedHeight, nil
+	// priority2: startHeight from config
+	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestQueryHeight {
+		return p.cfg.StartHeight, nil
 	}
 
 	// priority3: latest height

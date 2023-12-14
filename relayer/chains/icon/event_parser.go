@@ -51,7 +51,7 @@ func parseEmitMessage(e types.EventLog, eventType string, height uint64) (*provi
 		MessageHeight: height,
 		EventType:     eventType,
 		Dst:           dst,
-		Data:          e.Data[1][:],
+		Data:          e.Data[0][:],
 		Sn:            sn,
 	}, nil
 }
