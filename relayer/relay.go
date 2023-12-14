@@ -287,7 +287,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 		routeMessage, ok := src.MessageCache.Messages[key]
 		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("message key", key))
+			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
 			return
 		}
 
@@ -307,7 +307,6 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.SetIsProcessing(false)
-	routeMessage.SetTime()
 
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
 		// save to db
