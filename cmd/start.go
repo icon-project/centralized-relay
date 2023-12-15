@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -36,13 +37,18 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
+			dbReadWrite, err := lvldb.NewLvlDB(a.dbPath, false)
+			if err != nil {
+				return err
+			}
+
 			rlyErrCh, err := relayer.Start(
 				cmd.Context(),
 				a.log,
 				chains,
 				flushInterval,
 				fresh,
-				a.db,
+				dbReadWrite,
 			)
 			if err != nil {
 				return err

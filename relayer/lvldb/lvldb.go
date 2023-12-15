@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
@@ -15,8 +16,12 @@ type LVLDB struct {
 	sync.Mutex
 }
 
-func NewLvlDB(path string) (*LVLDB, error) {
-	ldb, err := leveldb.OpenFile(path, nil)
+func NewLvlDB(path string, readonly bool) (*LVLDB, error) {
+	opts := &opt.Options{
+		ReadOnly: readonly,
+	}
+
+	ldb, err := leveldb.OpenFile(path, opts)
 	if err != nil {
 		return nil, errors.Wrap(err, "levelDB.OpenFile fail")
 	}

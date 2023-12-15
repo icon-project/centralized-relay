@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -167,18 +166,11 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 						}
 						ht := big.NewInt(q.v.Height.Int64())
 
-						if q.v.Height.Int64() == 43586359 {
-							fmt.Println("header height ", q.v.Header.Number)
-							fmt.Println("header GasUsed", q.v.Header.GasUsed)
-						}
-
 						if q.v.Header.GasUsed > 0 {
-							fmt.Println("checking height before filterlogs", ht)
 							r.blockReq.FromBlock = ht
 							r.blockReq.ToBlock = ht
 							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.blockReq)
 							if q.err != nil {
-								fmt.Println("error occured during filterlogs", q.err)
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
 							}

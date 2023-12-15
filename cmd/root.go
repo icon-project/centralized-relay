@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -100,12 +99,6 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 			a.log = log
 		}
-
-		db, err := lvldb.NewLvlDB(a.dbPath)
-		if err != nil {
-			return err
-		}
-		a.db = db
 
 		// reads `homeDir/config/config.yaml` into `a.Config`
 		if err := a.loadConfigFile(rootCmd.Context()); err != nil {

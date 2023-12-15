@@ -79,7 +79,7 @@ func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, NId stri
 
 func (s *RelayTestSuite) SetupTest() {
 	logger, _ := zap.NewProduction()
-	db, err := lvldb.NewLvlDB(levelDbName)
+	db, err := lvldb.NewLvlDB(levelDbName, false)
 	if err != nil {
 		s.Fail("fail to create leveldb", err)
 	}

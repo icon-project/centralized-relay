@@ -15,7 +15,7 @@ var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
 
-	SaveHeightMaxAfter = 1000
+	SaveHeightMaxAfter = 10
 	RouteDuration      = 1 * time.Second
 	maxFlushMessage    = 10
 
@@ -255,9 +255,9 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
-	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 
 	if messageCount > 0 || (height-chainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
+		r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 		chainRuntime.LastSavedHeight = height
 		err := r.blockStore.StoreBlock(height, chainRuntime.Provider.NID())
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
@@ -12,10 +13,15 @@ import (
 )
 
 type dbState struct {
-	chain string
-	sn    uint64
-	page  uint
-	limit uint
+	chain      string
+	sn         uint64
+	page       uint
+	limit      uint
+	dbReadOnly *lvldb.LVLDB
+}
+
+func NewDBState(db *lvldb.LVLDB) dbState {
+	return dbState{dbReadOnly: db}
 }
 
 func dbCmd(a *appState) *cobra.Command {
@@ -25,14 +31,20 @@ func dbCmd(a *appState) *cobra.Command {
 		Aliases: []string{"db"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
-	db := new(dbState)
+
+	dbReadOnly, err := lvldb.NewLvlDB(a.dbPath, true)
+	if err != nil {
+		fmt.Println(fmt.Errorf("cannot open db in relay mode: %v", err))
+		return dbCMD
+	}
+	db := NewDBState(dbReadOnly)
 
 	pruneCmd := &cobra.Command{
 		Use:   "prune",
 		Short: "Prune the database",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Pruning the database...")
-			if err := a.db.ClearStore(); err != nil {
+			if err := dbReadOnly.ClearStore(); err != nil {
 				a.log.Error("failed to prune database", zap.Error(err))
 			}
 		},
@@ -213,7 +225,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 
 // GetRelayer returns the relayer instance
 func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
-	rly, err := relayer.NewRelayer(app.log, app.db, app.config.Chains.GetAll(), false)
+	rly, err := relayer.NewRelayer(app.log, d.dbReadOnly, app.config.Chains.GetAll(), false)
 	if err != nil {
 		app.log.Fatal("failed to create relayer", zap.Error(err))
 		return nil, err
