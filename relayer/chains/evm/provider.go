@@ -38,6 +38,8 @@ type EVMProviderConfig struct {
 	NID             string `json:"nid" yaml:"nid"`
 }
 
+//  NID -> 0x05.mumbai
+
 type EVMProvider struct {
 	client   IClient
 	verifier IClient
@@ -81,6 +83,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 }
 
 func (p *EVMProvider) ChainId() string {
+	// NID 0x05.mumbai
 	return fmt.Sprintf("0x%x.%s", p.client.GetChainID(), p.cfg.NID)
 }
 

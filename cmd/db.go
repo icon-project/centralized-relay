@@ -107,7 +107,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			key := &types.MessageKey{Src: d.chain, Sn: d.sn}
+			key := types.MessageKey{Src: d.chain, Sn: d.sn}
 			message, err := rly.GetMessageStore().GetMessage(key)
 			if err != nil {
 				return err
@@ -144,7 +144,7 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			key := &types.MessageKey{Src: d.chain, Sn: d.sn}
+			key := types.MessageKey{Src: d.chain, Sn: d.sn}
 			message, err := rly.GetMessageStore().GetMessage(key)
 			if err != nil {
 				return err
