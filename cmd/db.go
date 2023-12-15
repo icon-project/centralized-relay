@@ -79,11 +79,11 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 				fmt.Println("No messages found in the database")
 				return nil
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry", "Data", "Time")
+			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry", "Data")
 			// Print messages
 			for _, msg := range messages {
-				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d %-10s %-10s\n",
-					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry, string(msg.Data), msg.GetTime())
+				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d %-10s\n",
+					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry, string(msg.Data))
 			}
 			// Print total number of messages
 			fmt.Printf("Total: %d\n", totalMessages)
@@ -107,7 +107,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			key := &types.MessageKey{Src: d.chain, Sn: d.sn}
+			key := types.MessageKey{Src: d.chain, Sn: d.sn}
 			message, err := rly.GetMessageStore().GetMessage(key)
 			if err != nil {
 				return err
@@ -144,7 +144,7 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			key := &types.MessageKey{Src: d.chain, Sn: d.sn}
+			key := types.MessageKey{Src: d.chain, Sn: d.sn}
 			message, err := rly.GetMessageStore().GetMessage(key)
 			if err != nil {
 				return err
@@ -202,7 +202,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("ChainID", "Height")
+			printLabels("NID", "Height")
 			printValues(d.chain, height)
 			return nil
 		},

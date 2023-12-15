@@ -72,8 +72,8 @@ func (ms *MessageStore) TotalCount() (uint64, error) {
 	return ms.getCountByKey(GetKey([]string{ms.prefix}))
 }
 
-func (ms *MessageStore) TotalCountByChain(chainId string) (uint64, error) {
-	return ms.getCountByKey(GetKey([]string{ms.prefix, chainId}))
+func (ms *MessageStore) TotalCountByChain(nId string) (uint64, error) {
+	return ms.getCountByKey(GetKey([]string{ms.prefix, nId}))
 }
 
 func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
@@ -104,7 +104,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 	return ms.db.SetByKey(key, msgByte)
 }
 
-func (ms *MessageStore) GetMessage(messageKey *types.MessageKey) (*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 	if err != nil {
 		return nil, err
@@ -117,12 +117,12 @@ func (ms *MessageStore) GetMessage(messageKey *types.MessageKey) (*types.RouteMe
 	return msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, p *Pagination) ([]*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMessage, error) {
 	var messages []*types.RouteMessage
 
 	keyPrefixList := []string{ms.prefix}
-	if chainId != "" {
-		keyPrefixList = append(keyPrefixList, chainId)
+	if nId != "" {
+		keyPrefixList = append(keyPrefixList, nId)
 	}
 	iter := ms.db.NewIterator(GetKey(keyPrefixList))
 
@@ -167,7 +167,7 @@ func (ms *MessageStore) GetMessages(chainId string, p *Pagination) ([]*types.Rou
 	return messages, nil
 }
 
-func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
+func (ms *MessageStore) DeleteMessage(messageKey types.MessageKey) error {
 	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }
 

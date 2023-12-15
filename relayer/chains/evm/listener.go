@@ -83,7 +83,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					r.log.Info("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
+					r.log.Debug("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
 						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
 
 					messages, err := r.FindMessages(ctx, lbn)
@@ -210,7 +210,7 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+		p.log.Info("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
 			zap.String("target-network", message.Dst),
 			zap.Uint64("sn", message.Sn),
 			zap.String("event-type", message.EventType),

@@ -22,15 +22,6 @@ func startCmd(a *appState) *cobra.Command {
 			$ %s start # start all the registered chains
 		`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: filter only mentioned chain
-			// chains := make(map[string]*relayer.Chain)
-
-			// if arg > 0{
-			// chainIDs := make([]string, 0, len(chains))
-			// for chainID := range chains {
-			// 	chainIDs = append(chainIDs, chainID)
-			// }
-			// }
 
 			// get chain configurations
 			chains := a.config.Chains.GetAll()

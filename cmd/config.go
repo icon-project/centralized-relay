@@ -73,7 +73,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		}
 
 		chain := relayer.NewChain(a.log, prov, a.debug)
-		chains[chainName] = chain
+		chains[chain.ChainProvider.NID()] = chain
 	}
 
 	return &Config{
