@@ -268,7 +268,7 @@ func (r *Relayer) FindChainRuntime(chainId string) (*ChainRuntime, error) {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(key *types.MessageKey, response types.TxResponse, err error) {
+	callback := func(key types.MessageKey, response types.TxResponse, err error) {
 		// note: it is ok if err is not checked
 		if response.Code == types.Success {
 			dst.log.Info("successfully relayed message:",
@@ -279,7 +279,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 			)
 
 			// if success remove message from everywhere
-			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
+			if err := r.ClearMessages(ctx, []types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 			return
@@ -327,7 +327,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 	}
 }
 
-func (r *Relayer) ClearMessages(ctx context.Context, msgs []*types.MessageKey, srcChain *ChainRuntime) error {
+func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
 	// clear from cache
 	srcChain.clearMessageFromCache(msgs)
 

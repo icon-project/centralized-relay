@@ -30,7 +30,7 @@ func TestRunTestRelaySuite(t *testing.T) {
 	suite.Run(t, new(RelayTestSuite))
 }
 
-func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[*types.MessageKey]*types.Message {
+func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[types.MessageKey]*types.Message {
 	messages := []types.Message{
 		{
 			Src:           srcChainId,
@@ -57,7 +57,7 @@ func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[*
 			EventType:     "emitMessage",
 		},
 	}
-	sendMockMessageMap := make(map[*types.MessageKey]*types.Message, 0)
+	sendMockMessageMap := make(map[types.MessageKey]*types.Message, 0)
 	for _, m := range messages {
 		sendMockMessageMap[m.MessageKey()] = &m
 	}

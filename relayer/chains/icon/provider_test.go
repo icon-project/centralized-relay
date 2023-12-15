@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -34,6 +35,8 @@ func GetMockIconProvider() (*IconProvider, error) {
 
 func TestMessageFromEventlog(t *testing.T) {
 	adr := "cxcacc844737024565cb56ac6ac8c1dab8fff1e2f7"
+	pro, err := GetMockIconProvider()
+	assert.NoError(t, err)
 	eventlogs := &types.EventLog{
 		Addr: types.NewAddress([]byte(adr)),
 		Indexed: [][]byte{
@@ -47,6 +50,6 @@ func TestMessageFromEventlog(t *testing.T) {
 	}
 	logger := zap.NewNop()
 
-	m, _ := parseMessageFromEvent(logger, eventlogs, 20)
+	m, _ := pro.parseMessageFromEvent(logger, eventlogs, 20)
 	fmt.Println("message", m)
 }
