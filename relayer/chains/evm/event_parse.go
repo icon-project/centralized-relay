@@ -10,7 +10,7 @@ import (
 
 func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
 	if len(log.Topics) != 1 {
-		return nil, fmt.Errorf("topic lenght mismatch")
+		return nil, fmt.Errorf("topic length mismatch")
 	}
 	topic := log.Topics[0]
 
@@ -21,7 +21,7 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Mess
 		}
 		return &providerTypes.Message{
 			Dst:           msg.TargetNetwork,
-			Src:           p.ChainId(),
+			Src:           p.NID(),
 			Sn:            msg.Sn.Uint64(),
 			MessageHeight: log.BlockNumber,
 			EventType:     eventSigToEventType[topic],

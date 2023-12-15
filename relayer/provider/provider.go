@@ -20,7 +20,7 @@ type ChainQuery interface {
 
 type ChainProvider interface {
 	ChainQuery
-	ChainId() string
+	NID() string
 	ChainName() string
 	Init(ctx context.Context) error
 	Type() string

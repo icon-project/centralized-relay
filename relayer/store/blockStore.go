@@ -19,22 +19,22 @@ func NewBlockStore(db Store, prefix string) *BlockStore {
 	}
 }
 
-func (bs *BlockStore) GetKey(chainId string) []byte {
-	return GetKey([]string{bs.prefix, chainId})
+func (bs *BlockStore) GetKey(nId string) []byte {
+	return GetKey([]string{bs.prefix, nId})
 }
 
 // StoreBlock stores block number per domainID into blockstore
-func (bs *BlockStore) StoreBlock(height uint64, chainId string) error {
+func (bs *BlockStore) StoreBlock(height uint64, nId string) error {
 	heightByte, err := bs.Encode(height)
 	if err != nil {
 		return err
 	}
-	return bs.db.SetByKey(bs.GetKey(chainId), heightByte)
+	return bs.db.SetByKey(bs.GetKey(nId), heightByte)
 }
 
 // GetLastStoredBlock queries the blockstore and returns latest known block
-func (bs *BlockStore) GetLastStoredBlock(chainId string) (uint64, error) {
-	v, err := bs.db.GetByKey(bs.GetKey(chainId))
+func (bs *BlockStore) GetLastStoredBlock(nId string) (uint64, error) {
+	v, err := bs.db.GetByKey(bs.GetKey(nId))
 	if err != nil {
 		return 0, err
 	}

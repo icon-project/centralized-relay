@@ -18,6 +18,7 @@ const (
 	flagFlushInterval   = "flush-interval"
 	flagFresh           = "fresh"
 	flagFile            = "file"
+	flagConfig          = "config"
 )
 
 func flushIntervalFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
@@ -27,6 +28,7 @@ func flushIntervalFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 	}
 	return cmd
 }
+
 func freshFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().Bool(flagFresh, false, "whether to clear db and tart fresh")
 	if err := v.BindPFlag(flagFresh, cmd.Flags().Lookup(flagFresh)); err != nil {
@@ -54,6 +56,15 @@ func jsonFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 func fileFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().StringP(flagFile, "f", "", "fetch json data from specified file")
 	if err := v.BindPFlag(flagFile, cmd.Flags().Lookup(flagFile)); err != nil {
+		panic(err)
+	}
+	return cmd
+}
+
+// WIP: config file location path
+func configFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
+	cmd.Flags().Bool(flagConfig, false, "config file location path")
+	if err := v.BindPFlag(flagFresh, cmd.Flags().Lookup(flagConfig)); err != nil {
 		panic(err)
 	}
 	return cmd

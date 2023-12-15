@@ -30,48 +30,25 @@ func (c *Chain) String() string {
 	return string(out)
 }
 
-func (c *Chain) ChainID() string {
-	return c.ChainProvider.ChainId()
+func (c *Chain) NID() string {
+	return c.ChainProvider.NID()
 }
 
 // Get returns the configuration for a given chain
-func (c Chains) Get(chainID string) (*Chain, error) {
+func (c Chains) Get(nid string) (*Chain, error) {
 	for _, chain := range c {
-		if chainID == chain.ChainProvider.ChainId() {
+		if nid == chain.ChainProvider.NID() {
 			return chain, nil
 		}
 	}
-	return nil, fmt.Errorf("chain with ID %s is not configured", chainID)
-}
-
-// MustGet returns the chain and panics on any error
-func (c Chains) MustGet(chainID string) *Chain {
-	out, err := c.Get(chainID)
-	if err != nil {
-		panic(err)
-	}
-	return out
+	return nil, fmt.Errorf("chain with ID %s is not configured", nid)
 }
 
 func (c Chains) GetAll() map[string]*Chain {
 	out := make(map[string]*Chain)
 
 	for _, chain := range c {
-		out[chain.ChainID()] = chain
+		out[chain.NID()] = chain
 	}
 	return out
-
-}
-
-// Gets returns a map chainIDs to their chains
-func (c Chains) Gets(chainIDs ...string) (map[string]*Chain, error) {
-	out := make(map[string]*Chain)
-	for _, cid := range chainIDs {
-		chain, err := c.Get(cid)
-		if err != nil {
-			return out, err
-		}
-		out[cid] = chain
-	}
-	return out, nil
 }

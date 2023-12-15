@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"io"
 	"os"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -12,15 +13,7 @@ func RestoreKey(keystoreFile string, secret string) (*keystore.Key, error) {
 		return nil, err
 	}
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	fileSize := fileInfo.Size()
-
-	data := make([]byte, fileSize)
-
-	_, err = file.Read(data)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}

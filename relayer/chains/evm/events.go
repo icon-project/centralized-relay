@@ -9,7 +9,7 @@ import (
 
 // All the events
 const (
-	EmitMessageSig = "Message(string,int256,bytes)"
+	EmitMessageSig = "Message(string,uint256,bytes)"
 )
 
 var eventSigToEventType = map[common.Hash]string{

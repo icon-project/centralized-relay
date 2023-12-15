@@ -204,7 +204,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		}
 
 		chain := relayer.NewChain(a.log, prov, a.debug)
-		chains[chainName] = chain
+		chains[chain.ChainProvider.NID()] = chain
 	}
 
 	return &Config{
@@ -305,7 +305,7 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 			Type:  chain.ChainProvider.Type(),
 			Value: chain.ChainProvider.ProviderConfig(),
 		}
-		providers[chain.ChainProvider.ChainId()] = pcfgw
+		providers[chain.ChainProvider.NID()] = pcfgw
 	}
 	return &ConfigOutputWrapper{Global: c.Global, ProviderConfigs: providers}
 }
@@ -330,13 +330,13 @@ func (c Config) MustYAML() []byte {
 
 // AddChain adds an additional chain to the config
 func (c *Config) AddChain(chain *relayer.Chain) (err error) {
-	chainId := chain.ChainProvider.ChainId()
-	if chainId == "" {
+	nId := chain.ChainProvider.NID()
+	if nId == "" {
 		return fmt.Errorf("chain ID cannot be empty")
 	}
-	chn, err := c.Chains.Get(chainId)
+	chn, err := c.Chains.Get(nId)
 	if chn != nil || err == nil {
-		return fmt.Errorf("chain with ID %s already exists in config", chainId)
+		return fmt.Errorf("chain with ID %s already exists in config", nId)
 	}
 	c.Chains[chain.ChainProvider.ChainName()] = chain
 	return nil

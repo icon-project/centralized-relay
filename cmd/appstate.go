@@ -20,26 +20,22 @@ type appState struct {
 
 	viper *viper.Viper
 
-	homePath string
-	debug    bool
-	config   *Config
-}
-
-func (a *appState) configPath() string {
-	return path.Join(a.homePath, "config", "config.yaml")
+	homePath   string
+	configPath string
+	dbPath     string
+	debug      bool
+	config     *Config
 }
 
 // loadConfigFile reads config file into a.Config if file is present.
 func (a *appState) loadConfigFile(ctx context.Context) error {
-	cfgPath := a.configPath()
-
-	if _, err := os.Stat(cfgPath); err != nil {
+	if _, err := os.Stat(a.configPath); err != nil {
 		// don't return error if file doesn't exist
 		return nil
 	}
 
 	// read the config file bytes
-	file, err := os.ReadFile(cfgPath)
+	file, err := os.ReadFile(a.configPath)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}
@@ -69,7 +65,7 @@ func (a *appState) loadConfigFile(ctx context.Context) error {
 }
 
 func (a *appState) performConfigLockingOperation(ctx context.Context, operation func() error) error {
-	lockFilePath := path.Join(a.homePath, "config", "config.lock")
+	lockFilePath := path.Join(a.homePath, "config.lock")
 	fileLock := flock.New(lockFilePath)
 	_, err := fileLock.TryLock()
 	if err != nil {
@@ -105,7 +101,7 @@ func (a *appState) performConfigLockingOperation(ctx context.Context, operation 
 		return err
 	}
 
-	cfgPath := a.configPath()
+	cfgPath := a.configPath
 
 	// Overwrite the config file.
 	if err := os.WriteFile(cfgPath, out, 0600); err != nil {
@@ -114,3 +110,7 @@ func (a *appState) performConfigLockingOperation(ctx context.Context, operation 
 
 	return nil
 }
+
+// func (a *appState) configPath() string {
+// 	return path.Join(a.homePath, "config.yaml")
+// }

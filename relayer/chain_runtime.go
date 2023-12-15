@@ -1,6 +1,5 @@
 package relayer
 
-// import "github.com/icon-project/centralized-relay/relayer/store"
 import (
 	"context"
 	"fmt"
@@ -24,7 +23,7 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 		return nil, fmt.Errorf("failed to construct chain runtime")
 	}
 	return &ChainRuntime{
-		log:          log.With(zap.String("chain_id", chain.ChainID())),
+		log:          log.With(zap.String("nid ", chain.NID())),
 		Provider:     chain.ChainProvider,
 		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
 		MessageCache: types.NewMessageCache(),
@@ -42,7 +41,7 @@ func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Mess
 	}
 }
 
-func (r *ChainRuntime) clearMessageFromCache(msgs []*types.MessageKey) {
+func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
 	for _, m := range msgs {
 		r.MessageCache.Remove(m)
 	}

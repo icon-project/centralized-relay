@@ -7,17 +7,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LVLDB struct {
 	db *leveldb.DB
-
-	dbMu sync.Mutex
+	sync.Mutex
 }
 
-func NewLvlDB(path string) (*LVLDB, error) {
-	ldb, err := leveldb.OpenFile(path, nil)
+func NewLvlDB(path string, readonly bool) (*LVLDB, error) {
+	opts := &opt.Options{
+		ReadOnly: readonly,
+	}
+
+	ldb, err := leveldb.OpenFile(path, opts)
 	if err != nil {
 		return nil, errors.Wrap(err, "levelDB.OpenFile fail")
 	}
@@ -29,14 +33,14 @@ func (db *LVLDB) GetByKey(key []byte) ([]byte, error) {
 }
 
 func (db *LVLDB) SetByKey(key []byte, value []byte) error {
-	db.dbMu.Lock()
-	defer db.dbMu.Unlock()
+	db.Lock()
+	defer db.Unlock()
 	return db.db.Put(key, value, nil)
 }
 
 func (db *LVLDB) DeleteByKey(key []byte) error {
-	db.dbMu.Lock()
-	defer db.dbMu.Unlock()
+	db.Lock()
+	defer db.Unlock()
 	return db.db.Delete(key, nil)
 }
 
@@ -66,6 +70,11 @@ func (db *LVLDB) ClearStore() error {
 	}
 
 	return db.db.Write(batch, nil)
+}
+
+// SnapShot snaphots the current state of the database
+func (db *LVLDB) SnapShot() (*leveldb.Snapshot, error) {
+	return db.db.GetSnapshot()
 }
 
 func (db *LVLDB) Close() error {

@@ -10,10 +10,10 @@ import (
 )
 
 type MockProviderConfig struct {
-	ChainId         string
+	NId             string
 	BlockDuration   time.Duration
-	SendMessages    map[*types.MessageKey]*types.Message
-	ReceiveMessages map[*types.MessageKey]*types.Message
+	SendMessages    map[types.MessageKey]*types.Message
+	ReceiveMessages map[types.MessageKey]*types.Message
 	StartHeight     uint64
 	chainName       string
 }
@@ -26,7 +26,7 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 
 	pp.chainName = chainName
 	return &MockProvider{
-		log:    log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
+		log:    log.With(zap.String("nid", pp.NId), zap.String("chain_name", chainName)),
 		PCfg:   pp,
 		Height: pp.StartHeight,
 	}, nil
@@ -42,8 +42,8 @@ type MockProvider struct {
 	Height uint64
 }
 
-func (icp *MockProvider) ChainId() string {
-	return icp.PCfg.ChainId
+func (icp *MockProvider) NID() string {
+	return icp.PCfg.NId
 }
 
 func (icp *MockProvider) Init(ctx context.Context) error {
@@ -115,7 +115,7 @@ func (icp *MockProvider) FindMessages() []*types.Message {
 }
 
 func (icp *MockProvider) DeleteMessage(msg *types.Message) {
-	var deleteKey *types.MessageKey
+	var deleteKey types.MessageKey
 
 	for key := range icp.PCfg.ReceiveMessages {
 		if msg.MessageKey() == key {
@@ -124,9 +124,7 @@ func (icp *MockProvider) DeleteMessage(msg *types.Message) {
 		}
 	}
 
-	if deleteKey != nil {
-		delete(icp.PCfg.ReceiveMessages, deleteKey)
-	}
+	delete(icp.PCfg.ReceiveMessages, deleteKey)
 }
 
 func (icp *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
