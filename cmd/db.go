@@ -79,7 +79,7 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 				fmt.Println("No messages found in the database")
 				return nil
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry", "Data")
+			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
 			// Print messages
 			for _, msg := range messages {
 				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
