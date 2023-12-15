@@ -106,7 +106,7 @@ loop:
 			for ; br != nil; processedheight++ {
 				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
-				message := parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
+				message := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
 
 				// TODO: check for the concurrency
 				incoming <- providerTypes.BlockInfo{
@@ -272,14 +272,13 @@ func (icp *IconProvider) handleBTPBlockRequest(
 				}
 
 				for j := 0; j < len(p.Events); j++ {
-					serializedEventLog, err := MptProve(
-						p.Events[j], proofs[j+1], common.HexBytes(result.EventLogsHash))
+					serializedEventLog, err := MptProve(p.Events[j], proofs[j+1], common.HexBytes(result.EventLogsHash))
 					if err != nil {
 						request.err = errors.Wrapf(err, "event.MPTProve: %v", err)
 						return
 					}
-					var el *types.EventLog
-					_, err = codec.RLP.UnmarshalFromBytes(serializedEventLog, &el)
+					el := new(types.EventLog)
+					_, err = codec.RLP.UnmarshalFromBytes(serializedEventLog, el)
 					if err != nil {
 						request.err = errors.Wrapf(err, "event.UnmarshalFromBytes: %v", err)
 						return

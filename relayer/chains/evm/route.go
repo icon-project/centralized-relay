@@ -47,7 +47,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 func (p *EVMProvider) WaitForTxResult(
 	ctx context.Context,
 	tx *types.Transaction,
-	messageKey *providerTypes.MessageKey,
+	messageKey providerTypes.MessageKey,
 	callback providerTypes.TxResponseFunc,
 ) {
 	if callback == nil {
@@ -82,7 +82,7 @@ func (p *EVMProvider) WaitForTxResult(
 	p.LogSuccessTx(messageKey, txReceipts)
 }
 
-func (p *EVMProvider) LogSuccessTx(messageKey *providerTypes.MessageKey, receipt *types.Receipt) {
+func (p *EVMProvider) LogSuccessTx(messageKey providerTypes.MessageKey, receipt *types.Receipt) {
 	p.log.Info("successful transaction",
 		zap.Any("message-key", messageKey),
 		zap.String("tx_hash", receipt.TxHash.String()),
@@ -90,7 +90,7 @@ func (p *EVMProvider) LogSuccessTx(messageKey *providerTypes.MessageKey, receipt
 	)
 }
 
-func (p *EVMProvider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
+func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *types.Receipt, err error) {
 	p.log.Info("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),

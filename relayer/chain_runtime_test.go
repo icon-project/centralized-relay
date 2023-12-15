@@ -42,7 +42,7 @@ func TestChainRuntime(t *testing.T) {
 	})
 
 	t.Run("clear messages", func(t *testing.T) {
-		runtime.clearMessageFromCache([]*types.MessageKey{m1.MessageKey()})
+		runtime.clearMessageFromCache([]types.MessageKey{m1.MessageKey()})
 		assert.Equal(t, len(runtime.MessageCache.Messages), len(info.Messages)-1)
 		assert.Equal(t, runtime.MessageCache.Messages[m2.MessageKey()], types.NewRouteMessage(m2))
 	})

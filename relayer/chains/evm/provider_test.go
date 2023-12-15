@@ -68,7 +68,7 @@ func TestRouteMessage(t *testing.T) {
 
 	var callback providerTypes.TxResponseFunc
 
-	callback = func(key *providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
+	callback = func(key providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
 		if response.Code != 1 {
 			assert.Fail(t, "transaction failed")
 		}

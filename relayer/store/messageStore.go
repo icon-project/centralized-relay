@@ -104,7 +104,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 	return ms.db.SetByKey(key, msgByte)
 }
 
-func (ms *MessageStore) GetMessage(messageKey *types.MessageKey) (*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (ms *MessageStore) GetMessages(chainId string, p *Pagination) ([]*types.Rou
 	return messages, nil
 }
 
-func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
+func (ms *MessageStore) DeleteMessage(messageKey types.MessageKey) error {
 	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }
 

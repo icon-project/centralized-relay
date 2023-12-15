@@ -107,7 +107,7 @@ func (icp *IconProvider) SendTransaction(
 func (icp *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
-	messageKey *providerTypes.MessageKey,
+	messageKey providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
 ) {
