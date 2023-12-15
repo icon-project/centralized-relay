@@ -56,6 +56,26 @@ func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey provid
 
 }
 
+func (ip *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
+
+	callParam := ip.prepareCallParams(MethodGetReceipts, map[string]interface{}{
+		"srcNetwork": messageKey.Src,
+		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+	})
+
+	var status types.HexInt
+	err := ip.client.Call(callParam, &status)
+	if err != nil {
+		return false, fmt.Errorf("MessageReceived: %v", err)
+	}
+
+	if status == types.NewHexInt(1) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
 	param := types.AddressParam{
 		Address: types.Address(addr),

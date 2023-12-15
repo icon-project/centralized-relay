@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -26,6 +27,11 @@ func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey types
 
 func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
 	return true, nil
+}
+
+func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.MessageKey) (bool, error) {
+	snBigInt := big.NewInt(int64(messageKey.Sn))
+	return p.client.MessageReceived(nil, messageKey.Src, snBigInt)
 }
 
 // func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {

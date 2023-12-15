@@ -39,16 +39,17 @@ func dbCmd(a *appState) *cobra.Command {
 	}
 	db := NewDBState(dbReadOnly)
 
-	pruneCmd := &cobra.Command{
-		Use:   "prune",
-		Short: "Prune the database",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Pruning the database...")
-			if err := dbReadOnly.ClearStore(); err != nil {
-				a.log.Error("failed to prune database", zap.Error(err))
-			}
-		},
-	}
+	// TODO: implement prune
+	// pruneCmd := &cobra.Command{
+	// 	Use:   "prune",
+	// 	Short: "Prune the database",
+	// 	Run: func(cmd *cobra.Command, args []string) {
+	// 		fmt.Println("Pruning the database...")
+	// 		if err := dbReadOnly.ClearStore(); err != nil {
+	// 			a.log.Error("failed to prune database", zap.Error(err))
+	// 		}
+	// 	},
+	// }
 
 	messagesCmd := &cobra.Command{
 		Use:     "messages",
@@ -56,8 +57,10 @@ func dbCmd(a *appState) *cobra.Command {
 		Aliases: []string{"m"},
 	}
 	messagesCmd.AddCommand(db.messagesList(a))
-	messagesCmd.AddCommand(db.messagesRm(a))
-	messagesCmd.AddCommand(db.messagesRelay(a))
+	// TODO: implement remove message from db
+	// messagesCmd.AddCommand(db.messagesRm(a))
+	// TODO: finalize
+	// messagesCmd.AddCommand(db.messagesRelay(a))
 
 	blockCmd := &cobra.Command{
 		Use:     "block",
@@ -66,7 +69,7 @@ func dbCmd(a *appState) *cobra.Command {
 	}
 	blockCmd.AddCommand(db.blockInfo(a))
 
-	dbCMD.AddCommand(messagesCmd, pruneCmd, blockCmd)
+	dbCMD.AddCommand(messagesCmd, blockCmd)
 	return dbCMD
 }
 
