@@ -341,6 +341,6 @@ type SendMessage struct {
 
 type RecvMessage struct {
 	SrcNID string   `json:"srcNetwork"`
-	Sn     HexInt   `json:"sn"`
+	ConnSn HexInt   `json:"_connSn"`
 	Msg    HexBytes `json:"msg"`
 }

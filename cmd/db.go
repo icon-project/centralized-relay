@@ -82,8 +82,8 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry", "Data")
 			// Print messages
 			for _, msg := range messages {
-				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d %-10s\n",
-					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry, string(msg.Data))
+				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
+					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry)
 			}
 			// Print total number of messages
 			fmt.Printf("Total: %d\n", totalMessages)

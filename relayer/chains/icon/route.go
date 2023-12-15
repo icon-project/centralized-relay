@@ -39,7 +39,7 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (IconMe
 	case events.EmitMessage:
 		msg := types.RecvMessage{
 			SrcNID: message.Src,
-			Sn:     types.NewHexInt(int64(message.Sn)),
+			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return icp.NewIconMessage(msg, MethodRecvMessage), nil

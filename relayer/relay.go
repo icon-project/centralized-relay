@@ -38,11 +38,17 @@ func Start(
 		return nil, fmt.Errorf("error creating new relayer %v", err)
 	}
 
-	// create ctx -> with cancel function and senc cancel function to all -> ctx.done():
-	// start all the chain listeners
+	// once flush completes then only start processing
+	if !fresh {
+		// flush all the packet and then continue
+		relayer.flushMessages(ctx)
+	}
+
+	// // create ctx -> with cancel function and senc cancel function to all -> ctx.done():
+	// // start all the chain listeners
 	go relayer.StartChainListeners(ctx, errorChan)
 
-	// start all the block processor
+	// // start all the block processor
 	go relayer.StartBlockProcessors(ctx, errorChan)
 
 	// responsible to relaying  messages
@@ -157,7 +163,6 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration, 
 	routeTimer := time.NewTicker(RouteDuration)
 	flushTimer := time.NewTicker(flushInterval)
 
-	// TODO: implement flush logic
 	for {
 		select {
 		case <-flushTimer.C:
@@ -225,6 +230,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
 			if err != nil {
 				r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
+				// remove message if src runtime if dst not found
+				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
 				continue
 			}
 			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
