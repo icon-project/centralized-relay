@@ -14,13 +14,13 @@ import (
 
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	evm := EVMProviderConfig{
-		NID:             "0x05.avalanche",
+		NID:             "0x13881.mumbai",
 		Name:            "avalanche",
-		RPCUrl:          "http://192.168.1.1:8545",
-		StartHeight:     0,
+		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
+		StartHeight:     43586359,
 		Keystore:        testKeyStore,
 		Password:        testKeyPassword,
-		GasPrice:        1000565528,
+		GasPrice:        100056000,
 		ContractAddress: contractAddress,
 	}
 	log := zap.NewNop()
@@ -102,4 +102,33 @@ func TestSendMessageTest(t *testing.T) {
 		}
 		fmt.Println("the message is ", string(msg.Msg))
 	}
+}
+
+func TestEventLogReceived(t *testing.T) {
+
+	mock, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
+
+	assert.NoError(t, err)
+
+	ht := big.NewInt(43587936)
+	ht2 := big.NewInt(43587936)
+	blockRequest := mock.blockReq
+	blockRequest.ToBlock = ht2
+	blockRequest.FromBlock = ht
+
+	log, err := mock.client.FilterLogs(context.TODO(), blockRequest)
+	assert.NoError(t, err)
+
+	fmt.Println("logs is ", len(log))
+	for _, log := range log {
+		message, err := mock.getRelayMessageFromLog(log)
+		assert.NoError(t, err)
+		// p.log.Info("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+		// 	zap.String("target-network", message.Dst),
+		// 	zap.Uint64("sn", message.Sn),
+		// 	zap.String("event-type", message.EventType),
+		// )
+		fmt.Println("message", message)
+	}
+
 }

@@ -1,6 +1,8 @@
 package evm
 
 import (
+	"fmt"
+
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -9,7 +11,7 @@ import (
 
 // All the events
 const (
-	EmitMessageSig = "Message(string,int256,bytes)"
+	EmitMessageSig = "Message(string,uint256,bytes)"
 )
 
 var eventSigToEventType = map[common.Hash]string{
@@ -22,6 +24,7 @@ var MonitorEvents []common.Hash = []common.Hash{
 }
 
 func getEventFilterQuery(contractAddress string) ethereum.FilterQuery {
+	fmt.Println("evm contract address", contractAddress)
 	return ethereum.FilterQuery{
 		Addresses: []common.Address{common.HexToAddress(contractAddress)},
 		Topics: [][]common.Hash{

@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -18,7 +19,7 @@ const (
 	BlockInterval              = 2 * time.Second
 	BlockHeightPollInterval    = 60 * time.Second
 	defaultReadTimeout         = 15 * time.Second
-	monitorBlockMaxConcurrency = 1000 // number of concurrent requests to synchronize older blocks from source chain
+	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 )
 
 type BnOptions struct {
@@ -66,7 +67,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			return nil
 
 		case <-heightTicker.C:
-			r.log.Debug("receiveLoop: heightTicker")
+			r.log.Debug("receiveLoop: heightTicker", zap.Uint64("latest", latest))
 			latest++
 
 		case <-heightPoller.C:
@@ -75,7 +76,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 				latest = height
 				if next > latest {
 					// TODO:
-					// r.Log.Debugf("receiveLoop: skipping; latest=%d, next=%d", latest, next)
+					r.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 				}
 			}
 
@@ -164,13 +165,20 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 							q.err = errors.Wrapf(q.err, "GetEvmHeaderByHeight %v", q.err)
 							return
 						}
+						ht := big.NewInt(q.v.Height.Int64())
+
+						if q.v.Height.Int64() == 43586359 {
+							fmt.Println("header height ", q.v.Header.Number)
+							fmt.Println("header GasUsed", q.v.Header.GasUsed)
+						}
 
 						if q.v.Header.GasUsed > 0 {
-							ht := big.NewInt(q.v.Height.Int64())
+							fmt.Println("checking height before filterlogs", ht)
 							r.blockReq.FromBlock = ht
 							r.blockReq.ToBlock = ht
 							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.blockReq)
 							if q.err != nil {
+								fmt.Println("error occured during filterlogs", q.err)
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
 							}
