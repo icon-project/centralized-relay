@@ -48,7 +48,7 @@ $ %s cfg list`, appName, defaultHome, appName)),
 				return err
 			}
 
-			cfgPath := path.Join(home, "config", "config.yaml")
+			cfgPath := a.configPath
 			if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 				if _, err := os.Stat(home); os.IsNotExist(err) {
 					return fmt.Errorf("home path does not exist: %s", home)
@@ -104,7 +104,7 @@ $ %s cfg i`, appName, defaultHome, appName)),
 				return err
 			}
 
-			cfgDir := path.Join(home, "config")
+			cfgDir := path.Join(home)
 			cfgPath := path.Join(cfgDir, "config.yaml")
 
 			// If the config doesn't exist...

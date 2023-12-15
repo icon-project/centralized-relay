@@ -1,7 +1,6 @@
 {
     "type": "evm",
     "value": {
-        "chain-id":"avalanche",
         "rpc-url":"http://localhost:8545",
         "verifier-rpc-url":"",
         "start-height":0,
@@ -10,6 +9,7 @@
         "gas-price":10056,
         "gas-limit": 200000,
         "contract-address":"cx7bd6ad0ad8269bcc4b980c3025b349623fdd900e",
-        "concurrency":3
+        "concurrency":3,
+        "nid":"0x13881.mumbai"
     }
 }

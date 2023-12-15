@@ -1,12 +1,12 @@
 {
     "type": "icon",
     "value": {
-        "chain-id":"icon",
+        "rpc-url":"https://lisbon.net.solidwallet.io/api/v3/",
         "keystore":"/users/home/keystore/icon/godwallet.json",
-        "rpc-url":"http://localhost:9082/api/v3/",
         "password":"gochain",
         "start-height":0,
         "contract-address":"cx7bd6ad0ad8269bcc4b980c3025b349623fdd900e",
-        "icon-network-id":3
+        "network-id":3,
+        "nid":"0x2.icon"
     }
 }

@@ -11,8 +11,8 @@ import (
 
 type IconProviderConfig struct {
 	ChainName       string `json:"-" yaml:"-"`
-	KeyStore        string `json:"keystore" yaml:"keystore"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
+	KeyStore        string `json:"keystore" yaml:"keystore"`
 	Password        string `json:"password" yaml:"password"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"` // would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
