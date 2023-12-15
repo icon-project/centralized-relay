@@ -60,7 +60,7 @@ func (icp *IconProvider) SendTransaction(
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   types.Address(icp.PCfg.ContractAddress),
-		NetworkID:   types.NewHexInt(icp.PCfg.NID),
+		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -83,7 +83,7 @@ func (icp *IconProvider) SendTransaction(
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   types.Address(icp.PCfg.ContractAddress),
-		NetworkID:   types.NewHexInt(icp.PCfg.NID),
+		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",
 		Data: types.CallData{
@@ -151,7 +151,7 @@ func (icp *IconProvider) LogSuccessTx(method string, result *types.TransactionRe
 	height, _ := result.BlockHeight.Value()
 
 	icp.log.Info("Successful Transaction",
-		zap.String("chain_id", icp.ChainId()),
+		zap.String("chain_id", icp.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
@@ -164,7 +164,7 @@ func (icp *IconProvider) LogFailedTx(method string, result *types.TransactionRes
 	height, _ := result.BlockHeight.Value()
 
 	icp.log.Info("Failed Transaction",
-		zap.String("chain_id", icp.ChainId()),
+		zap.String("chain_id", icp.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),

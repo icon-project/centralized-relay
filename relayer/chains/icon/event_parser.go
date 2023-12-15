@@ -51,6 +51,6 @@ func (icp *IconProvider) parseEmitMessage(e *types.EventLog, eventType string, h
 		Dst:           dst,
 		Data:          e.Data[0],
 		Sn:            sn,
-		Src:           icp.ChainId(),
+		Src:           icp.NID(),
 	}, nil
 }

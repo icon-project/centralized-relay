@@ -202,7 +202,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("ChainID", "Height")
+			printLabels("NID", "Height")
 			printValues(d.chain, height)
 			return nil
 		},

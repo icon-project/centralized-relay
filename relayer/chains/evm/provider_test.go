@@ -14,7 +14,7 @@ import (
 
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	evm := EVMProviderConfig{
-		ChainID:         "avalanche",
+		NID:             "0x05.avalanche",
 		Name:            "avalanche",
 		RPCUrl:          "http://192.168.1.1:8545",
 		StartHeight:     0,

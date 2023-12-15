@@ -23,7 +23,7 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 		return nil, fmt.Errorf("failed to construct chain runtime")
 	}
 	return &ChainRuntime{
-		log:          log.With(zap.String("chain_id", chain.ChainID())),
+		log:          log.With(zap.String("nid ", chain.NID())),
 		Provider:     chain.ChainProvider,
 		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
 		MessageCache: types.NewMessageCache(),

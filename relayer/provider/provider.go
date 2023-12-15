@@ -20,7 +20,7 @@ type ChainQuery interface {
 
 type ChainProvider interface {
 	ChainQuery
-	ChainId() string
+	NID() string
 	Init(ctx context.Context) error
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error

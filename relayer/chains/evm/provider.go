@@ -16,7 +16,6 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/icon-project/centralized-relay/relayer/provider"
-	"github.com/icon-project/centralized-relay/relayer/store"
 
 	"go.uber.org/zap"
 )
@@ -24,7 +23,6 @@ import (
 var _ provider.ProviderConfig = &EVMProviderConfig{}
 
 type EVMProviderConfig struct {
-	ChainID         string `json:"chain-id" yaml:"chain-id"`
 	Name            string `json:"name" yaml:"name"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl  string `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
@@ -38,18 +36,14 @@ type EVMProviderConfig struct {
 	NID             string `json:"nid" yaml:"nid"`
 }
 
-//  NID -> 0x05.mumbai
-
 type EVMProvider struct {
-	client   IClient
-	verifier IClient
-	store.BlockStore
+	client      IClient
+	verifier    IClient
 	log         *zap.Logger
 	cfg         *EVMProviderConfig
 	StartHeight uint64
 	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
-	NID         string
 }
 
 func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -75,16 +69,15 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 
 	return &EVMProvider{
 		cfg:      p,
-		log:      log.With(zap.String("chain_id", p.ChainID)),
+		log:      log.With(zap.String("nid", p.NID)),
 		client:   client,
 		blockReq: getEventFilterQuery(p.ContractAddress),
 		verifier: verifierClient,
 	}, nil
 }
 
-func (p *EVMProvider) ChainId() string {
-	// NID 0x05.mumbai
-	return fmt.Sprintf("0x%x.%s", p.client.GetChainID(), p.cfg.NID)
+func (p *EVMProvider) NID() string {
+	return p.cfg.NID
 }
 
 func (p *EVMProviderConfig) Validate() error {

@@ -72,8 +72,8 @@ func (ms *MessageStore) TotalCount() (uint64, error) {
 	return ms.getCountByKey(GetKey([]string{ms.prefix}))
 }
 
-func (ms *MessageStore) TotalCountByChain(chainId string) (uint64, error) {
-	return ms.getCountByKey(GetKey([]string{ms.prefix, chainId}))
+func (ms *MessageStore) TotalCountByChain(nId string) (uint64, error) {
+	return ms.getCountByKey(GetKey([]string{ms.prefix, nId}))
 }
 
 func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
@@ -117,12 +117,12 @@ func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMes
 	return msg, nil
 }
 
-func (ms *MessageStore) GetMessages(chainId string, p *Pagination) ([]*types.RouteMessage, error) {
+func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMessage, error) {
 	var messages []*types.RouteMessage
 
 	keyPrefixList := []string{ms.prefix}
-	if chainId != "" {
-		keyPrefixList = append(keyPrefixList, chainId)
+	if nId != "" {
+		keyPrefixList = append(keyPrefixList, nId)
 	}
 	iter := ms.db.NewIterator(GetKey(keyPrefixList))
 

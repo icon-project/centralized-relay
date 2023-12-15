@@ -10,7 +10,7 @@ import (
 )
 
 type MockProviderConfig struct {
-	ChainId         string
+	NId             string
 	BlockDuration   time.Duration
 	SendMessages    map[types.MessageKey]*types.Message
 	ReceiveMessages map[types.MessageKey]*types.Message
@@ -23,7 +23,7 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 		return nil, err
 	}
 	return &MockProvider{
-		log:    log.With(zap.String("chain_id", pp.ChainId), zap.String("chain_name", chainName)),
+		log:    log.With(zap.String("nid", pp.NId), zap.String("chain_name", chainName)),
 		PCfg:   pp,
 		Height: pp.StartHeight,
 	}, nil
@@ -39,8 +39,8 @@ type MockProvider struct {
 	Height uint64
 }
 
-func (icp *MockProvider) ChainId() string {
-	return icp.PCfg.ChainId
+func (icp *MockProvider) NID() string {
+	return icp.PCfg.NId
 }
 
 func (icp *MockProvider) Init(ctx context.Context) error {

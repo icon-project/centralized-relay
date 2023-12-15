@@ -19,12 +19,12 @@ func TestMessageStoreSet(t *testing.T) {
 	}
 
 	prefix := "block"
-	chainId := "icon"
+	nId := "icon"
 	Sn := uint64(1)
 	messageStore := NewMessageStore(testdb, prefix)
 
 	storeMessage := &types.Message{
-		Src:  chainId,
+		Src:  nId,
 		Dst:  "archway",
 		Sn:   Sn,
 		Data: []byte("test message"),
@@ -40,7 +40,7 @@ func TestMessageStoreSet(t *testing.T) {
 
 	t.Run("getCount", func(t *testing.T) {
 		// checking count
-		count, err := messageStore.TotalCountByChain(chainId)
+		count, err := messageStore.TotalCountByChain(nId)
 		if err != nil {
 			assert.Fail(t, "failed to get message count ", err)
 		}
@@ -54,7 +54,7 @@ func TestMessageStoreSet(t *testing.T) {
 	})
 
 	t.Run("getMessage", func(t *testing.T) {
-		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
+		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
 		assert.NoError(t, err, " error occured while getting message")
 		assert.Equal(t, getMessage, types.NewRouteMessage(storeMessage))
 
@@ -72,10 +72,10 @@ func TestMessageStoreSet(t *testing.T) {
 	})
 
 	t.Run("deleteMessage", func(t *testing.T) {
-		err := messageStore.DeleteMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
+		err := messageStore.DeleteMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
 		assert.NoError(t, err)
 
-		_, err = messageStore.GetMessage(types.NewMessageKey(Sn, chainId, "", "emitMessage"))
+		_, err = messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
 		assert.Error(t, err)
 	})
 
@@ -84,25 +84,25 @@ func TestMessageStoreSet(t *testing.T) {
 			p := NewPagination().
 				WithLimit(10).
 				WithOffset(0)
-			msg, err := messageStore.GetMessages(chainId, p)
+			msg, err := messageStore.GetMessages(nId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, len(msg), 0)
 		})
 
 		storeMessage1 := &types.Message{
-			Src:  chainId,
+			Src:  nId,
 			Dst:  "archway",
 			Sn:   uint64(1),
 			Data: []byte("test message"),
 		}
 		storeMessage2 := &types.Message{
-			Src:  chainId,
+			Src:  nId,
 			Dst:  "archway",
 			Sn:   uint64(2),
 			Data: []byte("test message"),
 		}
 		storeMessage3 := &types.Message{
-			Src:  chainId,
+			Src:  nId,
 			Dst:  "archway",
 			Sn:   uint64(3),
 			Data: []byte("test message"),
@@ -113,7 +113,7 @@ func TestMessageStoreSet(t *testing.T) {
 
 		t.Run("GetMessages all", func(t *testing.T) {
 			p := NewPagination().GetAll()
-			msgs, err := messageStore.GetMessages(chainId, p)
+			msgs, err := messageStore.GetMessages(nId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 3, len(msgs))
 		})
@@ -122,7 +122,7 @@ func TestMessageStoreSet(t *testing.T) {
 			p := NewPagination().
 				WithLimit(2).
 				WithOffset(1)
-			msgs, err := messageStore.GetMessages(chainId, p)
+			msgs, err := messageStore.GetMessages(nId, p)
 			assert.NoError(t, err, "error occured when fetching messages")
 			assert.Equal(t, 2, len(msgs))
 			assert.Equal(t, []*types.RouteMessage{
@@ -134,7 +134,7 @@ func TestMessageStoreSet(t *testing.T) {
 			p := NewPagination().
 				WithLimit(1).
 				WithOffset(4)
-			_, err := messageStore.GetMessages(chainId, p)
+			_, err := messageStore.GetMessages(nId, p)
 			assert.Error(t, err, "error occured when fetching messages")
 		})
 	})

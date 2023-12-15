@@ -30,28 +30,28 @@ func TestRunTestRelaySuite(t *testing.T) {
 	suite.Run(t, new(RelayTestSuite))
 }
 
-func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[types.MessageKey]*types.Message {
+func GetMockMessages(srcNId, dstNId string, srcStartHeight uint64) map[types.MessageKey]*types.Message {
 	messages := []types.Message{
 		{
-			Src:           srcChainId,
-			Dst:           dstchainId,
-			Data:          []byte(fmt.Sprintf("from message %s", srcChainId)),
+			Src:           srcNId,
+			Dst:           dstNId,
+			Data:          []byte(fmt.Sprintf("from message %s", srcNId)),
 			MessageHeight: uint64(srcStartHeight + 3),
 			Sn:            1,
 			EventType:     "emitMessage",
 		},
 		{
-			Src:           srcChainId,
-			Dst:           dstchainId,
-			Data:          []byte(fmt.Sprintf("from message %s", srcChainId)),
+			Src:           srcNId,
+			Dst:           dstNId,
+			Data:          []byte(fmt.Sprintf("from message %s", srcNId)),
 			MessageHeight: uint64(srcStartHeight + 5),
 			Sn:            2,
 			EventType:     "emitMessage",
 		},
 		{
-			Src:           srcChainId,
-			Dst:           dstchainId,
-			Data:          []byte(fmt.Sprintf("from message %s", srcChainId)),
+			Src:           srcNId,
+			Dst:           dstNId,
+			Data:          []byte(fmt.Sprintf("from message %s", srcNId)),
 			MessageHeight: uint64(srcStartHeight + 7),
 			Sn:            3,
 			EventType:     "emitMessage",
@@ -64,17 +64,17 @@ func GetMockMessages(srcChainId, dstchainId string, srcStartHeight uint64) map[t
 	return sendMockMessageMap
 }
 
-func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, srcChainId string, dstchainId string, srcStartHeight uint64, dstStartHeight uint64) (provider.ChainProvider, error) {
-	sendMessages := GetMockMessages(srcChainId, dstchainId, srcStartHeight)
-	receiveMessage := GetMockMessages(dstchainId, srcChainId, dstStartHeight)
+func GetMockChainProvider(log *zap.Logger, blockDuration time.Duration, NId string, dstNId string, srcStartHeight uint64, dstStartHeight uint64) (provider.ChainProvider, error) {
+	sendMessages := GetMockMessages(NId, dstNId, srcStartHeight)
+	receiveMessage := GetMockMessages(dstNId, NId, dstStartHeight)
 	mock1ProviderConfig := mockchain.MockProviderConfig{
-		ChainId:         srcChainId,
+		NId:             NId,
 		BlockDuration:   blockDuration,
 		StartHeight:     srcStartHeight,
 		SendMessages:    sendMessages,
 		ReceiveMessages: receiveMessage,
 	}
-	return mock1ProviderConfig.NewProvider(log, "empty", false, srcChainId)
+	return mock1ProviderConfig.NewProvider(log, "empty", false, NId)
 }
 
 func (s *RelayTestSuite) SetupTest() {
@@ -150,23 +150,23 @@ func (s *RelayTestSuite) TestRelay() {
 
 	logger, _ := zap.NewProduction()
 
-	mock1ChainId := "mock-1"
-	mock2ChainId := "mock-2"
+	mock1Nid := "mock-1"
+	mock2Nid := "mock-2"
 	mock1StartHeight := 10
 	mock2StartHeight := 20
 
-	mock1Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock1ChainId, mock2ChainId, uint64(mock1StartHeight), uint64(mock2StartHeight))
+	mock1Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock1Nid, mock2Nid, uint64(mock1StartHeight), uint64(mock2StartHeight))
 	if err != nil {
 		s.Fail("fail to create mockProvider", err)
 	}
-	chains[mock1ChainId] = NewChain(logger, mock1Provider, true)
+	chains[mock1Nid] = NewChain(logger, mock1Provider, true)
 
-	mock2Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock2ChainId, mock1ChainId, uint64(mock2StartHeight), uint64(mock1StartHeight))
+	mock2Provider, err := GetMockChainProvider(s.logger, 500*time.Millisecond, mock2Nid, mock1Nid, uint64(mock2StartHeight), uint64(mock1StartHeight))
 	if err != nil {
 		s.Fail("fail to create mockProvider", err)
 	}
 
-	chains[mock2ChainId] = NewChain(logger, mock2Provider, true)
+	chains[mock2Nid] = NewChain(logger, mock2Provider, true)
 
 	ctx := context.Background()
 	errorchan, err := Start(ctx, s.logger, chains, 3*time.Second, true, s.db)
