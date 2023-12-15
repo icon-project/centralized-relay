@@ -31,7 +31,7 @@ var (
 
 // AbiMetaData contains all meta data concerning the Abi contract.
 var AbiMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"targetNetwork\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"Message\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"claimFees\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"response\",\"type\":\"bool\"}],\"name\":\"getFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"fee\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"}],\"name\":\"getReceipt\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_relayer\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_xCall\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"recvMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"}],\"name\":\"revertMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"svc\",\"type\":\"string\"},{\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"sendMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"networkId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"messageFee\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"responseFee\",\"type\":\"uint256\"}],\"name\":\"setFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"targetNetwork\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"Message\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"claimFees\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"connSn\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"response\",\"type\":\"bool\"}],\"name\":\"getFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"fee\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"_connSn\",\"type\":\"uint256\"}],\"name\":\"getReceipt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_relayer\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_xCall\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"srcNetwork\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"_connSn\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"recvMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"sn\",\"type\":\"uint256\"}],\"name\":\"revertMessage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"to\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"svc\",\"type\":\"string\"},{\"internalType\":\"int256\",\"name\":\"sn\",\"type\":\"int256\"},{\"internalType\":\"bytes\",\"name\":\"_msg\",\"type\":\"bytes\"}],\"name\":\"sendMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"networkId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"messageFee\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"responseFee\",\"type\":\"uint256\"}],\"name\":\"setFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // AbiABI is the input ABI used to generate the binding from.
@@ -211,6 +211,37 @@ func (_Abi *AbiCallerSession) Admin() (common.Address, error) {
 	return _Abi.Contract.Admin(&_Abi.CallOpts)
 }
 
+// ConnSn is a free data retrieval call binding the contract method 0x99f1fca7.
+//
+// Solidity: function connSn() view returns(uint256)
+func (_Abi *AbiCaller) ConnSn(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _Abi.contract.Call(opts, &out, "connSn")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// ConnSn is a free data retrieval call binding the contract method 0x99f1fca7.
+//
+// Solidity: function connSn() view returns(uint256)
+func (_Abi *AbiSession) ConnSn() (*big.Int, error) {
+	return _Abi.Contract.ConnSn(&_Abi.CallOpts)
+}
+
+// ConnSn is a free data retrieval call binding the contract method 0x99f1fca7.
+//
+// Solidity: function connSn() view returns(uint256)
+func (_Abi *AbiCallerSession) ConnSn() (*big.Int, error) {
+	return _Abi.Contract.ConnSn(&_Abi.CallOpts)
+}
+
 // GetFee is a free data retrieval call binding the contract method 0x7d4c4f4a.
 //
 // Solidity: function getFee(string to, bool response) view returns(uint256 fee)
@@ -244,16 +275,16 @@ func (_Abi *AbiCallerSession) GetFee(to string, response bool) (*big.Int, error)
 
 // GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
-func (_Abi *AbiCaller) GetReceipt(opts *bind.CallOpts, srcNetwork string, sn *big.Int) (*big.Int, error) {
+// Solidity: function getReceipt(string srcNetwork, uint256 _connSn) view returns(bool)
+func (_Abi *AbiCaller) GetReceipt(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error) {
 	var out []interface{}
-	err := _Abi.contract.Call(opts, &out, "getReceipt", srcNetwork, sn)
+	err := _Abi.contract.Call(opts, &out, "getReceipt", srcNetwork, _connSn)
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(bool), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
 
 	return out0, err
 
@@ -261,16 +292,16 @@ func (_Abi *AbiCaller) GetReceipt(opts *bind.CallOpts, srcNetwork string, sn *bi
 
 // GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
-func (_Abi *AbiSession) GetReceipt(srcNetwork string, sn *big.Int) (*big.Int, error) {
-	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, sn)
+// Solidity: function getReceipt(string srcNetwork, uint256 _connSn) view returns(bool)
+func (_Abi *AbiSession) GetReceipt(srcNetwork string, _connSn *big.Int) (bool, error) {
+	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, _connSn)
 }
 
 // GetReceipt is a free data retrieval call binding the contract method 0x9664da0e.
 //
-// Solidity: function getReceipt(string srcNetwork, uint256 sn) view returns(uint256)
-func (_Abi *AbiCallerSession) GetReceipt(srcNetwork string, sn *big.Int) (*big.Int, error) {
-	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, sn)
+// Solidity: function getReceipt(string srcNetwork, uint256 _connSn) view returns(bool)
+func (_Abi *AbiCallerSession) GetReceipt(srcNetwork string, _connSn *big.Int) (bool, error) {
+	return _Abi.Contract.GetReceipt(&_Abi.CallOpts, srcNetwork, _connSn)
 }
 
 // ClaimFees is a paid mutator transaction binding the contract method 0xd294f093.
@@ -317,23 +348,23 @@ func (_Abi *AbiTransactorSession) Initialize(_relayer common.Address, _xCall com
 
 // RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
 //
-// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
-func (_Abi *AbiTransactor) RecvMessage(opts *bind.TransactOpts, srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.contract.Transact(opts, "recvMessage", srcNetwork, sn, _msg)
+// Solidity: function recvMessage(string srcNetwork, uint256 _connSn, bytes _msg) returns()
+func (_Abi *AbiTransactor) RecvMessage(opts *bind.TransactOpts, srcNetwork string, _connSn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.contract.Transact(opts, "recvMessage", srcNetwork, _connSn, _msg)
 }
 
 // RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
 //
-// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
-func (_Abi *AbiSession) RecvMessage(srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, sn, _msg)
+// Solidity: function recvMessage(string srcNetwork, uint256 _connSn, bytes _msg) returns()
+func (_Abi *AbiSession) RecvMessage(srcNetwork string, _connSn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, _connSn, _msg)
 }
 
 // RecvMessage is a paid mutator transaction binding the contract method 0xb58b4cec.
 //
-// Solidity: function recvMessage(string srcNetwork, uint256 sn, bytes _msg) returns()
-func (_Abi *AbiTransactorSession) RecvMessage(srcNetwork string, sn *big.Int, _msg []byte) (*types.Transaction, error) {
-	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, sn, _msg)
+// Solidity: function recvMessage(string srcNetwork, uint256 _connSn, bytes _msg) returns()
+func (_Abi *AbiTransactorSession) RecvMessage(srcNetwork string, _connSn *big.Int, _msg []byte) (*types.Transaction, error) {
+	return _Abi.Contract.RecvMessage(&_Abi.TransactOpts, srcNetwork, _connSn, _msg)
 }
 
 // RevertMessage is a paid mutator transaction binding the contract method 0x2d3fb823.
@@ -629,9 +660,9 @@ type AbiMessage struct {
 	Raw           types.Log // Blockchain specific contextual infos
 }
 
-// FilterMessage is a free log retrieval operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
+// FilterMessage is a free log retrieval operation binding the contract event 0x37be353f216cf7e33639101fd610c542e6a0c0109173fa1c1d8b04d34edb7c1b.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
+// Solidity: event Message(string targetNetwork, uint256 sn, bytes _msg)
 func (_Abi *AbiFilterer) FilterMessage(opts *bind.FilterOpts) (*AbiMessageIterator, error) {
 
 	logs, sub, err := _Abi.contract.FilterLogs(opts, "Message")
@@ -641,9 +672,9 @@ func (_Abi *AbiFilterer) FilterMessage(opts *bind.FilterOpts) (*AbiMessageIterat
 	return &AbiMessageIterator{contract: _Abi.contract, event: "Message", logs: logs, sub: sub}, nil
 }
 
-// WatchMessage is a free log subscription operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
+// WatchMessage is a free log subscription operation binding the contract event 0x37be353f216cf7e33639101fd610c542e6a0c0109173fa1c1d8b04d34edb7c1b.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
+// Solidity: event Message(string targetNetwork, uint256 sn, bytes _msg)
 func (_Abi *AbiFilterer) WatchMessage(opts *bind.WatchOpts, sink chan<- *AbiMessage) (event.Subscription, error) {
 
 	logs, sub, err := _Abi.contract.WatchLogs(opts, "Message")
@@ -678,9 +709,9 @@ func (_Abi *AbiFilterer) WatchMessage(opts *bind.WatchOpts, sink chan<- *AbiMess
 	}), nil
 }
 
-// ParseMessage is a log parse operation binding the contract event 0x6dbbb5c83189670e066d281dfc37d9ded5132af5d6401cfc831c7499eb775f3d.
+// ParseMessage is a log parse operation binding the contract event 0x37be353f216cf7e33639101fd610c542e6a0c0109173fa1c1d8b04d34edb7c1b.
 //
-// Solidity: event Message(string targetNetwork, int256 sn, bytes _msg)
+// Solidity: event Message(string targetNetwork, uint256 sn, bytes _msg)
 func (_Abi *AbiFilterer) ParseMessage(log types.Log) (*AbiMessage, error) {
 	event := new(AbiMessage)
 	if err := _Abi.contract.UnpackLog(event, "Message", log); err != nil {

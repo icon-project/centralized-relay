@@ -39,7 +39,7 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (IconMe
 	case events.EmitMessage:
 		msg := types.RecvMessage{
 			SrcNID: message.Src,
-			Sn:     types.NewHexInt(int64(message.Sn)),
+			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return icp.NewIconMessage(msg, MethodRecvMessage), nil
@@ -60,7 +60,7 @@ func (icp *IconProvider) SendTransaction(
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   types.Address(icp.PCfg.ContractAddress),
-		NetworkID:   types.NewHexInt(icp.PCfg.ICONNetworkID),
+		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -83,7 +83,7 @@ func (icp *IconProvider) SendTransaction(
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   types.Address(icp.PCfg.ContractAddress),
-		NetworkID:   types.NewHexInt(icp.PCfg.ICONNetworkID),
+		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",
 		Data: types.CallData{
@@ -107,7 +107,7 @@ func (icp *IconProvider) SendTransaction(
 func (icp *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
-	messageKey *providerTypes.MessageKey,
+	messageKey providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
 ) {
@@ -151,7 +151,7 @@ func (icp *IconProvider) LogSuccessTx(method string, result *types.TransactionRe
 	height, _ := result.BlockHeight.Value()
 
 	icp.log.Info("Successful Transaction",
-		zap.String("chain_id", icp.ChainId()),
+		zap.String("chain_id", icp.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
@@ -164,7 +164,7 @@ func (icp *IconProvider) LogFailedTx(method string, result *types.TransactionRes
 	height, _ := result.BlockHeight.Value()
 
 	icp.log.Info("Failed Transaction",
-		zap.String("chain_id", icp.ChainId()),
+		zap.String("chain_id", icp.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
