@@ -336,7 +336,7 @@ func (c *Config) AddChain(chain *relayer.Chain) (err error) {
 	}
 	chn, err := c.Chains.Get(nId)
 	if chn != nil || err == nil {
-		return fmt.Errorf("chain with ID %s already exists in config", nId)
+		return fmt.Errorf("chain with NID %s already exists in config", nId)
 	}
 	c.Chains[chain.ChainProvider.ChainName()] = chain
 	return nil

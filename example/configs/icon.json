@@ -5,7 +5,7 @@
         "keystore":"/users/home/keystore/icon/godwallet.json",
         "password":"gochain",
         "start-height":0,
-        "contract-address":"cx7bd6ad0ad8269bcc4b980c3025b349623fdd900e",
+        "contract-address":"cxb2b31a5252bfcc9be29441c626b8b918d578a58b",
         "network-id":3,
         "nid":"0x2.icon"
     }

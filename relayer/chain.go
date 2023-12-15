@@ -41,7 +41,7 @@ func (c Chains) Get(nid string) (*Chain, error) {
 			return chain, nil
 		}
 	}
-	return nil, fmt.Errorf("chain with ID %s is not configured", nid)
+	return nil, fmt.Errorf("chain with NID %s is not configured", nid)
 }
 
 func (c Chains) GetAll() map[string]*Chain {

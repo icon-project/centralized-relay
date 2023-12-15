@@ -1,7 +1,7 @@
 {
     "type": "evm",
     "value": {
-        "rpc-url":"http://localhost:8545",
+        "rpc-url":"https://rpc-mumbai.maticvigil.com",
         "verifier-rpc-url":"",
         "start-height":0,
         "keystore":"/Users/viveksharmapoudel/my_work_bench/ibriz/ibc-related/centralized-relay/example/wallets/evm/keystore.json",
