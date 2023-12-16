@@ -104,6 +104,17 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
 			return err
 		}
+
+		// // create or open db
+		// if a.db == nil {
+		// 	db, err := lvldb.NewLvlDB(a.dbPath, false)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+
+		// 	a.db = db
+		// }
+
 		return nil
 	}
 

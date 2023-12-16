@@ -17,10 +17,7 @@ var (
 
 	SaveHeightMaxAfter = 10
 	RouteDuration      = 1 * time.Second
-	maxFlushMessage    = 10
-
-	prefixMessageStore = "message"
-	prefixBlockStore   = "block"
+	maxFlushMessage    = 10000
 )
 
 // main start loop
@@ -74,10 +71,10 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	}
 
 	// initializing message store
-	messageStore := store.NewMessageStore(db, prefixMessageStore)
+	messageStore := store.NewMessageStore(db)
 
 	// blockStore store
-	blockStore := store.NewBlockStore(db, prefixBlockStore)
+	blockStore := store.NewBlockStore(db)
 
 	chainRuntimes := make(map[string]*ChainRuntime, len(chains))
 	for _, chain := range chains {

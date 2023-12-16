@@ -7,15 +7,28 @@ import (
 	"encoding/json"
 )
 
+var (
+	PrefixBlockStore = "block"
+)
+
 type BlockStore struct {
-	db     Store
-	prefix string
+	dbReader KeyValueReader
+	dbWriter KeyValueWriter
+	prefix   string
 }
 
-func NewBlockStore(db Store, prefix string) *BlockStore {
+func NewBlockStore(db Store) *BlockStore {
 	return &BlockStore{
-		db:     db,
-		prefix: prefix,
+		dbReader: db,
+		dbWriter: db,
+		prefix:   PrefixBlockStore,
+	}
+}
+
+func NewBlockStoreReadOnly(reader KeyValueReader) *BlockStore {
+	return &BlockStore{
+		dbReader: reader,
+		prefix:   PrefixBlockStore,
 	}
 }
 
@@ -29,12 +42,12 @@ func (bs *BlockStore) StoreBlock(height uint64, nId string) error {
 	if err != nil {
 		return err
 	}
-	return bs.db.SetByKey(bs.GetKey(nId), heightByte)
+	return bs.dbWriter.SetByKey(bs.GetKey(nId), heightByte)
 }
 
 // GetLastStoredBlock queries the blockstore and returns latest known block
 func (bs *BlockStore) GetLastStoredBlock(nId string) (uint64, error) {
-	v, err := bs.db.GetByKey(bs.GetKey(nId))
+	v, err := bs.dbReader.GetByKey(bs.GetKey(nId))
 	if err != nil {
 		return 0, err
 	}

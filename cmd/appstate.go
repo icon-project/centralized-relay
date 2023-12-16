@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/gofrs/flock"
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -25,6 +26,7 @@ type appState struct {
 	dbPath     string
 	debug      bool
 	config     *Config
+	db         *lvldb.LVLDB
 }
 
 // loadConfigFile reads config file into a.Config if file is present.

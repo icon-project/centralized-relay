@@ -22,9 +22,8 @@ func TestBlockStore(t *testing.T) {
 		assert.Fail(t, "failed to clear db ", err)
 	}
 
-	prefix := "block"
 	nId := "icon"
-	blockStore := NewBlockStore(testdb, prefix)
+	blockStore := NewBlockStore(testdb)
 
 	key := blockStore.GetKey(nId)
 	assert.Equal(t, key, []byte("block-icon"), "key computation looks good")

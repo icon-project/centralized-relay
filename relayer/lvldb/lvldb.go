@@ -13,22 +13,26 @@ import (
 
 type LVLDB struct {
 	db *leveldb.DB
-	sync.Mutex
+	sync.RWMutex
 }
 
 func NewLvlDB(path string, readonly bool) (*LVLDB, error) {
 	opts := &opt.Options{
-		ReadOnly: readonly,
+		ReadOnly:               readonly,
+		OpenFilesCacheCapacity: 5000,
 	}
 
 	ldb, err := leveldb.OpenFile(path, opts)
 	if err != nil {
 		return nil, errors.Wrap(err, "levelDB.OpenFile fail")
 	}
+
 	return &LVLDB{db: ldb}, nil
 }
 
 func (db *LVLDB) GetByKey(key []byte) ([]byte, error) {
+	db.RLock()
+	defer db.RUnlock()
 	return db.db.Get(key, nil)
 }
 
@@ -45,6 +49,8 @@ func (db *LVLDB) DeleteByKey(key []byte) error {
 }
 
 func (db *LVLDB) NewIterator(prefix []byte) iterator.Iterator {
+	db.RLock()
+	defer db.RUnlock()
 	return db.db.NewIterator(util.BytesPrefix(prefix), nil)
 }
 
@@ -56,6 +62,9 @@ func (db *LVLDB) RemoveDbFile(filepath string) error {
 }
 
 func (db *LVLDB) ClearStore() error {
+	db.Lock()
+	defer db.Unlock()
+
 	iter := db.db.NewIterator(nil, nil)
 	batch := new(leveldb.Batch)
 
@@ -74,9 +83,13 @@ func (db *LVLDB) ClearStore() error {
 
 // SnapShot snaphots the current state of the database
 func (db *LVLDB) SnapShot() (*leveldb.Snapshot, error) {
+	db.RLock()
+	defer db.RUnlock()
 	return db.db.GetSnapshot()
 }
 
 func (db *LVLDB) Close() error {
+	db.Lock()
+	defer db.Unlock()
 	return db.db.Close()
 }

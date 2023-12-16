@@ -7,9 +7,14 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
+var (
+	PrefixMessageStore = "message"
+)
+
 type MessageStore struct {
-	db     Store
-	prefix string
+	dbReader KeyValueReader
+	dbWriter KeyValueWriter
+	prefix   string
 }
 
 type Pagination struct {
@@ -61,10 +66,18 @@ func (p *Pagination) WithOffset(o uint) *Pagination {
 	return p
 }
 
-func NewMessageStore(db Store, prefix string) *MessageStore {
+func NewMessageStore(db Store) *MessageStore {
 	return &MessageStore{
-		db:     db,
-		prefix: prefix,
+		dbReader: db,
+		dbWriter: db,
+		prefix:   PrefixMessageStore,
+	}
+}
+
+func NewMessageStoreReadOnly(keyValueReader KeyValueReader) *MessageStore {
+	return &MessageStore{
+		dbReader: keyValueReader,
+		prefix:   PrefixMessageStore,
 	}
 }
 
@@ -77,7 +90,11 @@ func (ms *MessageStore) TotalCountByChain(nId string) (uint64, error) {
 }
 
 func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
-	iter := ms.db.NewIterator(key)
+	iter := ms.dbReader.NewIterator(key)
+	if iter == nil {
+		return 0, fmt.Errorf("both db and snapshot object cannot be empty")
+	}
+
 	count := 0
 	for iter.Next() {
 		count++
@@ -91,9 +108,6 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 }
 
 func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
-	if message == nil {
-		return fmt.Errorf("error while storingMessage: message cannot be nil")
-	}
 
 	key := GetKey([]string{ms.prefix, message.Src, fmt.Sprintf("%d", message.Sn)})
 
@@ -101,11 +115,12 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 	if err != nil {
 		return err
 	}
-	return ms.db.SetByKey(key, msgByte)
+	return ms.dbWriter.SetByKey(key, msgByte)
 }
 
 func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
-	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
+
+	v, err := ms.dbReader.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +139,7 @@ func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMe
 	if nId != "" {
 		keyPrefixList = append(keyPrefixList, nId)
 	}
-	iter := ms.db.NewIterator(GetKey(keyPrefixList))
+	iter := ms.dbReader.NewIterator(GetKey(keyPrefixList))
 
 	// return all the messages
 	if p.All {
@@ -168,7 +183,7 @@ func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMe
 }
 
 func (ms *MessageStore) DeleteMessage(messageKey types.MessageKey) error {
-	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
+	return ms.dbWriter.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 }
 
 func (ms *MessageStore) Encode(d interface{}) ([]byte, error) {

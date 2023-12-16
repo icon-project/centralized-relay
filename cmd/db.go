@@ -13,15 +13,15 @@ import (
 )
 
 type dbState struct {
-	chain      string
-	sn         uint64
-	page       uint
-	limit      uint
-	dbReadOnly *lvldb.LVLDB
+	chain string
+	sn    uint64
+	page  uint
+	limit uint
+	// dbReadOnly *lvldb.LVLDB
 }
 
-func NewDBState(db *lvldb.LVLDB) dbState {
-	return dbState{dbReadOnly: db}
+func NewDBState() dbState {
+	return dbState{}
 }
 
 func dbCmd(a *appState) *cobra.Command {
@@ -32,12 +32,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
 
-	dbReadOnly, err := lvldb.NewLvlDB(a.dbPath, true)
-	if err != nil {
-		fmt.Println(fmt.Errorf("cannot open db in relay mode: %v", err))
-		return dbCMD
-	}
-	db := NewDBState(dbReadOnly)
+	db := NewDBState()
 
 	// TODO: implement prune
 	// pruneCmd := &cobra.Command{
@@ -80,12 +75,16 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 		Short:   "List messages stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Listing messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+
+			// fetch dbSnapshot
+			snapshot, err := lvldb.NewDBShapshot(app.db)
 			if err != nil {
 				return err
 			}
+
+			messageStore := store.NewMessageStoreReadOnly(snapshot)
 			pg := store.NewPagination().WithPage(d.page, d.limit)
-			messages, err := rly.GetMessageStore().GetMessages(d.chain, pg)
+			messages, err := messageStore.GetMessages(d.chain, pg)
 			if err != nil {
 				return err
 			}
@@ -118,7 +117,11 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 		Short:   "Relay message",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app.log.Debug("Relaying messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+			dbReadOnly, err := lvldb.NewLvlDB(app.dbPath, true)
+			if err != nil {
+				return err
+			}
+			rly, err := d.GetRelayer(app, dbReadOnly)
 			if err != nil {
 				return err
 			}
@@ -155,7 +158,11 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 		Short: "Remove messages stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app.log.Debug("removing messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+			dbReadOnly, err := lvldb.NewLvlDB(app.dbPath, true)
+			if err != nil {
+				return err
+			}
+			rly, err := d.GetRelayer(app, dbReadOnly)
 			if err != nil {
 				return err
 			}
@@ -208,11 +215,17 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 		Short:   "Show blocks stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app.log.Debug("Show blocks stored in the database...")
-			rly, err := d.GetRelayer(app)
+
+			db, err := lvldb.NewLvlDB(app.dbPath, true)
+			if err != nil {
+				return fmt.Errorf("reading block Info: error when opening DB: %v", err)
+			}
+
+			dbSnapshot, err := lvldb.NewDBShapshot(db)
 			if err != nil {
 				return err
 			}
-			block := rly.GetBlockStore()
+			block := store.NewBlockStoreReadOnly(dbSnapshot)
 			height, err := block.GetLastStoredBlock(d.chain)
 			if err != nil {
 				return err
@@ -227,8 +240,8 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 }
 
 // GetRelayer returns the relayer instance
-func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
-	rly, err := relayer.NewRelayer(app.log, d.dbReadOnly, app.config.Chains.GetAll(), false)
+func (d *dbState) GetRelayer(app *appState, dbReadonly store.Store) (*relayer.Relayer, error) {
+	rly, err := relayer.NewRelayer(app.log, dbReadonly, app.config.Chains.GetAll(), false)
 	if err != nil {
 		app.log.Fatal("failed to create relayer", zap.Error(err))
 		return nil, err

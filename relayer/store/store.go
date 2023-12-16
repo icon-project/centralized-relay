@@ -13,15 +13,15 @@ var (
 type Store interface {
 	KeyValueReader
 	KeyValueWriter
-	NewIterator(prefix []byte) iterator.Iterator
-	ClearStore() error
-	DeleteByKey(key []byte) error
 }
 
 type KeyValueReader interface {
 	GetByKey(key []byte) ([]byte, error)
+	NewIterator(prefix []byte) iterator.Iterator
 }
 
 type KeyValueWriter interface {
+	ClearStore() error
 	SetByKey(key []byte, value []byte) error
+	DeleteByKey(key []byte) error
 }

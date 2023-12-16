@@ -37,18 +37,17 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
-			dbReadWrite, err := lvldb.NewLvlDB(a.dbPath, false)
+			db, err := lvldb.NewLvlDB(a.dbPath, true)
 			if err != nil {
 				return err
 			}
-
 			rlyErrCh, err := relayer.Start(
 				cmd.Context(),
 				a.log,
 				chains,
 				flushInterval,
 				fresh,
-				dbReadWrite,
+				db,
 			)
 			if err != nil {
 				return err
@@ -61,9 +60,6 @@ func startCmd(a *appState) *cobra.Command {
 			if err := <-rlyErrCh; err != nil && !errors.Is(err, context.Canceled) {
 				a.log.Warn("Relayer start error", zap.Error(err))
 				// error case close the db
-				if dbReadWrite != nil {
-					dbReadWrite.ClearStore()
-				}
 				return err
 			}
 			return nil

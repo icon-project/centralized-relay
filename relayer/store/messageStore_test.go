@@ -18,10 +18,9 @@ func TestMessageStoreSet(t *testing.T) {
 		assert.Fail(t, "failed to clear db ", err)
 	}
 
-	prefix := "block"
 	nId := "icon"
 	Sn := uint64(1)
-	messageStore := NewMessageStore(testdb, prefix)
+	messageStore := NewMessageStore(testdb)
 
 	storeMessage := &types.Message{
 		Src:  nId,
