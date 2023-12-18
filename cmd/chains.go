@@ -75,7 +75,8 @@ $ %s ch l`, appName, appName)),
 			default:
 				i := 0
 				for _, c := range a.config.Chains {
-					fmt.Fprintf(cmd.OutOrStdout(), "%2d: %-20s -> type(%s)\n", i, c.NID(), c.ChainProvider.Type())
+					i++
+					fmt.Fprintf(cmd.OutOrStdout(), "%d: %-20s -> type(%s)\n", i, c.NID(), c.ChainProvider.Type())
 				}
 				return nil
 			}

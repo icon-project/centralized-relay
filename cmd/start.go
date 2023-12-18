@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -37,18 +36,13 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
-			dbReadWrite, err := lvldb.NewLvlDB(a.dbPath, false)
-			if err != nil {
-				return err
-			}
-
 			rlyErrCh, err := relayer.Start(
 				cmd.Context(),
 				a.log,
 				chains,
 				flushInterval,
 				fresh,
-				dbReadWrite,
+				a.db,
 			)
 			if err != nil {
 				return err
@@ -60,10 +54,6 @@ func startCmd(a *appState) *cobra.Command {
 			// because we would risk returning before the relayer cleans up.
 			if err := <-rlyErrCh; err != nil && !errors.Is(err, context.Canceled) {
 				a.log.Warn("Relayer start error", zap.Error(err))
-				// error case close the db
-				if dbReadWrite != nil {
-					dbReadWrite.ClearStore()
-				}
 				return err
 			}
 			return nil

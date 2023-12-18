@@ -305,7 +305,7 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 			Type:  chain.ChainProvider.Type(),
 			Value: chain.ChainProvider.ProviderConfig(),
 		}
-		providers[chain.ChainProvider.NID()] = pcfgw
+		providers[chain.ChainProvider.ChainName()] = pcfgw
 	}
 	return &ConfigOutputWrapper{Global: c.Global, ProviderConfigs: providers}
 }
