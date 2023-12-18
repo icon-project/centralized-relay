@@ -248,6 +248,20 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
 				continue
 			}
+
+			// if message reached delete the message
+			messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
+			if err != nil {
+				r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
+				continue
+			}
+
+			// if message is received we can remove the message from db
+			if messageReceived {
+				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+				continue
+			}
+
 			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
 				continue
 			}

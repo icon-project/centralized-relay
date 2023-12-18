@@ -15,7 +15,7 @@ import (
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	evm := EVMProviderConfig{
 		NID:             "0x13881.mumbai",
-		Name:            "avalanche",
+		ChainName:       "avalanche",
 		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
 		StartHeight:     43586359,
 		Keystore:        testKeyStore,

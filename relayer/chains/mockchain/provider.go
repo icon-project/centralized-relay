@@ -16,6 +16,7 @@ type MockProviderConfig struct {
 	SendMessages    map[types.MessageKey]*types.Message
 	ReceiveMessages map[types.MessageKey]*types.Message
 	StartHeight     uint64
+	chainName       string
 }
 
 // NewProvider should provide a new Mock provider
@@ -23,6 +24,8 @@ func (pp *MockProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 	if err := pp.Validate(); err != nil {
 		return nil, err
 	}
+
+	pp.chainName = chainName
 	return &MockProvider{
 		log:    log.With(zap.String("nid", pp.NId), zap.String("chain_name", chainName)),
 		PCfg:   pp,
@@ -50,6 +53,16 @@ func (icp *MockProvider) Init(ctx context.Context) error {
 
 func (icp *MockProvider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
+}
+func (p *MockProvider) Type() string {
+	return "evm"
+}
+func (p *MockProvider) ProviderConfig() provider.ProviderConfig {
+	return p.PCfg
+}
+
+func (p *MockProvider) ChainName() string {
+	return p.PCfg.chainName
 }
 
 func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -136,4 +149,7 @@ func (icp *MockProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 
 func (ip *MockProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
 	return nil, nil
+}
+func (icp *MockProvider) MessageReceived(ctx context.Context, key types.MessageKey) (bool, error) {
+	return false, nil
 }
