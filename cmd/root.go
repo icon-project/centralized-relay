@@ -90,21 +90,14 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		// Inside persistent pre-run because this takes effect after flags are parsed.
-		if log == nil {
-			log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
-			if err != nil {
-				return err
-			}
-
-			a.log = log
-		}
-
-		// reads `homeDir/config/config.yaml` into `a.Config`
-		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
+		log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
+		if err != nil {
 			return err
 		}
-		return nil
+		a.log = log
+
+		// reads `homeDir/config/config.yaml` into `a.Config`
+		return a.loadConfigFile(rootCmd.Context())
 	}
 
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {

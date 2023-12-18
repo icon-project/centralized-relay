@@ -155,9 +155,5 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 		return nil, err
 	}
 
-	if err = json.Unmarshal(valueBytes, &provCfg); err != nil {
-		return nil, err
-	}
-
-	return provCfg, nil
+	return provCfg, json.Unmarshal(valueBytes, &provCfg)
 }

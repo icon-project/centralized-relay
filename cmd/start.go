@@ -8,6 +8,7 @@ import (
 
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
+	"github.com/icon-project/centralized-relay/relayer/socket"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -23,7 +24,6 @@ func startCmd(a *appState) *cobra.Command {
 			$ %s start # start all the registered chains
 		`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			// get chain configurations
 			chains := a.config.Chains.GetAll()
 
@@ -37,7 +37,7 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
-			dbReadWrite, err := lvldb.NewLvlDB(a.dbPath, false)
+			db, err := lvldb.NewLvlDB(a.dbPath)
 			if err != nil {
 				return err
 			}
@@ -48,11 +48,17 @@ func startCmd(a *appState) *cobra.Command {
 				chains,
 				flushInterval,
 				fresh,
-				dbReadWrite,
+				db,
 			)
 			if err != nil {
 				return err
 			}
+			listener, err := socket.NewSocket(chains)
+			if err != nil {
+				return err
+			}
+			go listener.Listen(rlyErrCh)
+			defer listener.Close()
 
 			// Block until the error channel sends a message.
 			// The context being canceled will cause the relayer to stop,
