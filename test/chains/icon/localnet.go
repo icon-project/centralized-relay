@@ -730,41 +730,6 @@ func (c *IconLocalnet) InitEventListener(ctx context.Context, contract string) c
 	return listener
 }
 
-func (c *IconLocalnet) CheckForTimeout(ctx context.Context, target chains.Chain, params map[string]interface{}, listener chains.EventListener) (context.Context, error) {
-	//
-	//var result = new(chains.TimeoutResponse)
-	//ctx, err := target.QueryContract(ctx, target.GetContractAddress("ibc"), chains.HasPacketReceipt, params)
-	//if err != nil {
-	//	result.IsPacketFound = false
-	//} else {
-	//	response := ctx.Value("query-result").(map[string]interface{})
-	//	result.IsPacketFound = response["data"].(bool)
-	//}
-	//
-	//filters := map[string]interface{}{
-	//	"signature": "PacketTimeout(bytes)",
-	//	"index":     []*string{},
-	//}
-	//event, err := listener.FindEvent(filters)
-	//
-	//if err != nil {
-	//	result.HasTimeout = false
-	//	return context.WithValue(ctx, "timeout-response", result), err
-	//}
-	//
-	//var packet = new(chantypes.Packet)
-	//var connStr = icontypes.HexBytes(event["indexed"][1])
-	//
-	//sn := fmt.Sprintf("%d", params["sequence"])
-	//_ = chains.HexBytesToProtoUnmarshal(connStr, packet)
-	//result.HasTimeout = packet != nil && packet.Sequence == params["sequence"].(uint64)
-	//
-	//ctx, err = c.ExecuteRollback(ctx, sn)
-	//result.HasRollbackCalled = err == nil && ctx.Value("IsRollbackEventFound").(bool)
-	//return context.WithValue(ctx, "timeout-response", result), nil
-	return nil, nil
-}
-
 // QueryContract implements chains.Chain
 func (c *IconLocalnet) QueryContract(ctx context.Context, contractAddress, methodName string, params map[string]interface{}) (context.Context, error) {
 	time.Sleep(2 * time.Second)

@@ -9,9 +9,9 @@ import (
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/testsuite"
 	"github.com/stretchr/testify/assert"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type XCallTestSuite struct {
@@ -60,7 +60,7 @@ func (x *XCallTestSuite) TextXCall() {
 
 }
 
-func (x *XCallTestSuite) TestXCallPacketDrop() {
+func (x *XCallTestSuite) TestXCallFlush() {
 	testcase := "packet-drop"
 	portId := "transfer-1"
 	ctx := context.WithValue(context.TODO(), "testcase", testcase)
@@ -68,38 +68,70 @@ func (x *XCallTestSuite) TestXCallPacketDrop() {
 	x.Require().NoError(x.DeployXCallMockApp(ctx, portId), "fail to deploy xcall dapp")
 	chainA, chainB := x.GetChains()
 	x.T.Run("xcall packet drop chainA-chainB", func(t *testing.T) {
-		x.testPacketDrop(ctx, t, chainA, chainB)
+		err := x.testPacketFlush(ctx, chainA, chainB)
+		assert.NoErrorf(t, err, "xcall packet flush chainA-chainB ::%v\n ", err)
+
 	})
 
-	x.T.Run("xcall packet drop chainB-chainA", func(t *testing.T) {
-		x.testPacketDrop(ctx, t, chainB, chainA)
+	x.T.Run("xcall packet flush chainB-chainA", func(t *testing.T) {
+		err := x.testPacketFlush(ctx, chainB, chainA)
+		assert.NoErrorf(t, err, "xcall packet flush chainB-chainA ::%v\n ", err)
 	})
 }
 
-func (x *XCallTestSuite) testPacketDrop(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) {
+func (x *XCallTestSuite) testPacketFlush(ctx context.Context, chainA, chainB chains.Chain) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "drop-msg"
-	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
-	//height, _internal := chainA.(ibc.Chain).Height(ctx)
-	listener := chainA.InitEventListener(ctx, "ibc")
-	defer listener.Stop()
-	res, err := chainA.XCall(ctx, chainB, interchaintest.UserAccount, dst, []byte(msg), []byte("rollback-data"))
-	assert.Errorf(t, err, "failed to find eventlog - %w", err)
+	heightB, _ := chainB.Height(ctx)
 
-	sn := res.SerialNo
-	snInt, _ := strconv.Atoi(res.SerialNo)
-	params := map[string]interface{}{
-		"port_id":    "transfer-1",
-		"channel_id": "channel-0",
-		"sequence":   uint64(snInt),
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
+
+	err := chainB.PauseNode(ctx)
+	if err != nil {
+		return errors.New(fmt.Sprintf("failed to pause node %s - %v", chainB.Config().Name, err))
+	}
+	res, err := chainA.XCall(ctx, chainB, interchaintest.UserAccount, dst, []byte(msg), []byte("rollback-data"))
+	if err != nil {
+		return errors.New(fmt.Sprintf("failed to find eventlog - %v", err))
 	}
 
-	ctx, err = chainA.CheckForTimeout(ctx, chainB, params, listener)
-	response := ctx.Value("timeout-response").(*chains.TimeoutResponse)
-	assert.Truef(t, response.HasTimeout, "timeout event not found - %s", sn)
-	assert.Falsef(t, response.IsPacketFound, "packet found on target chain - %s", sn)
-	assert.Truef(t, response.HasRollbackCalled, "failed to call rollback  - %s", sn)
+	sn := res.SerialNo
+
+	isPacketStaled := false
+
+	timeout := time.After(5 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for !isPacketStaled {
+		select {
+		case <-timeout:
+			return errors.New(fmt.Sprintf("timeout: %s packet is not staled", sn))
+		case <-ticker.C:
+			// TODO: Check for packet stale and update isPacketStale accordingly
+			_ = x.Relayers["centralized"].ExecBin(ctx, x.GetRelayerExecReporter(), "stale")
+			isPacketStaled = false
+		}
+	}
+	if !isPacketStaled {
+		return errors.New(fmt.Sprintf("timeout: %s packet is not staled", sn))
+	}
+	err = chainB.UnpauseNode(ctx)
+	if err != nil {
+		return errors.New(fmt.Sprintf("failed to unpause node %s - %v", chainB.Config().Name, err))
+	}
+
+	// TODO: Flush packet
+	_ = x.Relayers["centralized"].ExecBin(ctx, x.GetRelayerExecReporter(), "flush")
+
+	reqId, destData, err := chainB.FindCallMessage(ctx, heightB, chainA.Config().ChainID+"/"+chainA.GetContractAddress(dappKey), chainB.GetContractAddress(dappKey), sn)
+
+	ctx, err = chainB.ExecuteCall(ctx, reqId, destData)
+	if err != nil {
+		return errors.New(fmt.Sprintf("error on execute call packet req-id::%s- %v", reqId, err))
+	}
+
+	return nil
 }
 
 func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) error {
