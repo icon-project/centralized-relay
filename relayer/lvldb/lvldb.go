@@ -23,7 +23,8 @@ func NewLvlDB(path string, readonly bool) (*LVLDB, error) {
 
 	ldb, err := leveldb.OpenFile(path, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "levelDB.OpenFile fail")
+
+		return nil, errors.Wrap(err, "levelDB.OpenFile fail: database might be used by other instance: please check")
 	}
 	return &LVLDB{db: ldb}, nil
 }

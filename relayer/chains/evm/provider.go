@@ -23,7 +23,7 @@ import (
 var _ provider.ProviderConfig = &EVMProviderConfig{}
 
 type EVMProviderConfig struct {
-	Name            string `json:"name" yaml:"name"`
+	ChainName       string `json:"-" yaml:"-"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl  string `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"`
@@ -52,7 +52,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	}
 	client, err := newClient(p.RPCUrl, p.ContractAddress, log)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
 
 	var verifierClient IClient
@@ -66,6 +66,8 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	} else {
 		verifierClient = client // default to same client
 	}
+
+	p.ChainName = chainName
 
 	return &EVMProvider{
 		cfg:      p,
@@ -95,7 +97,22 @@ func (p *EVMProvider) Init(context.Context) error {
 		return fmt.Errorf("failed to restore evm wallet %v", err)
 	}
 	p.wallet = wallet
+
+	//
+
 	return nil
+}
+
+func (p *EVMProvider) Type() string {
+	return "evm"
+}
+
+func (p *EVMProvider) ProviderConfig() provider.ProviderConfig {
+	return p.cfg
+}
+
+func (p *EVMProvider) ChainName() string {
+	return p.cfg.ChainName
 }
 
 func (p *EVMProvider) Wallet() *keystore.Key {

@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	testKeyAddr     = "../../../example/icon/keystore.json"
+	testKeyAddr     = "../../../example/wallet/icon/keystore.json"
 	testKeyPassword = "gochain"
 	expectedAddr    = "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd"
 )
