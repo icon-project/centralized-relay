@@ -306,7 +306,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 					r.log.Error("message of key not found in messageCache", zap.Any("message key", key))
 					return
 				}
-				txObj := types.NewTransactionObject(*types.NewMessagekeyWithMessageHeight(*key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
+				txObj := types.NewTransactionObject(*types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
 				if err := r.finalityStore.StoreTxObject(txObj); err != nil {
 					r.log.Error("error occured: while storing transaction object in db", zap.Error(err))
 				}
@@ -395,10 +395,10 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 		latestHeight := c.LastBlockHeight
 		if finalityBlock > 0 {
 			pagination := store.NewPagination().GetAll()
-			txObjects, err := r.finalityStore.GetTxObjects(c.Provider.ChainId(), pagination)
+			txObjects, err := r.finalityStore.GetTxObjects(c.Provider.NID(), pagination)
 			if err != nil {
 				r.log.Warn("finality processor: retrive message from store",
-					zap.String("chain id ", c.Provider.ChainId()),
+					zap.String("nid", c.Provider.NID()),
 					zap.Error(err),
 				)
 				continue
@@ -410,7 +410,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 				if txObject.TxHeight == 0 {
 					r.log.Warn(" stored  transaction height of txObject cannot be 0 ",
-						zap.String("chain-id", c.Provider.ChainId()),
+						zap.String("nid", c.Provider.NID()),
 						zap.Any("message key", txObject.MessageKey))
 					continue
 				}

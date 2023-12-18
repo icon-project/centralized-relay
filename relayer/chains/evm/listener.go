@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -30,8 +31,7 @@ type BnOptions struct {
 func (r *EVMProvider) latestHeight() uint64 {
 	height, err := r.client.GetBlockNumber()
 	if err != nil {
-		// TODO:
-		// r.Log.WithFields(log.Fields{"error": err}).Error("receiveLoop: failed to GetBlockNumber")
+		r.log.Error("Evm listener: failed to GetBlockNumber", zap.Error(err))
 		return 0
 	}
 	return height
@@ -43,7 +43,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 		return err
 	}
 
-	r.log.Info("Start query from height ", zap.Uint64("start-height", startHeight))
+	r.log.Info("Start query from height ", zap.Uint64("start-height", startHeight), zap.Uint64("finality block", r.FinalityBlock(ctx)))
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -242,6 +242,8 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 		return 0, err
 	}
 
+	fmt.Println("latest height is ", latestHeight)
+
 	latestQueryHeight := latestHeight - p.cfg.FinalityBlock
 
 	if p.cfg.StartHeight > latestQueryHeight {
@@ -262,5 +264,5 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 	}
 
 	// priority3: latest height
-	return latestHeight, nil
+	return latestQueryHeight, nil
 }

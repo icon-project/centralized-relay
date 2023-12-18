@@ -23,8 +23,8 @@ func (ms *FinalityStore) TotalCount() (uint64, error) {
 	return ms.getCountByKey(GetKey([]string{ms.prefix}))
 }
 
-func (ms *FinalityStore) TotalCountByChain(chainId string) (uint64, error) {
-	return ms.getCountByKey(GetKey([]string{ms.prefix, chainId}))
+func (ms *FinalityStore) TotalCountByChain(nId string) (uint64, error) {
+	return ms.getCountByKey(GetKey([]string{ms.prefix, nId}))
 }
 
 func (ms *FinalityStore) getCountByKey(key []byte) (uint64, error) {
@@ -41,7 +41,7 @@ func (ms *FinalityStore) getCountByKey(key []byte) (uint64, error) {
 	return uint64(count), nil
 }
 
-// message will be stored based on destination chainId
+// message will be stored based on destination nId
 func (ms *FinalityStore) StoreTxObject(message *types.TransactionObject) error {
 	if message == nil {
 		return fmt.Errorf("error while storingMessage: message cannot be nil")
@@ -77,12 +77,12 @@ func (ms *FinalityStore) GetTxObject(messageKey *types.MessageKey) (*types.Trans
 	return &msg, nil
 }
 
-func (ms *FinalityStore) GetTxObjects(chainId string, p Pagination) ([]*types.TransactionObject, error) {
+func (ms *FinalityStore) GetTxObjects(nId string, p *Pagination) ([]*types.TransactionObject, error) {
 	var messages []*types.TransactionObject
 
 	keyPrefixList := []string{ms.prefix}
-	if chainId != "" {
-		keyPrefixList = append(keyPrefixList, chainId)
+	if nId != "" {
+		keyPrefixList = append(keyPrefixList, nId)
 	}
 	iter := ms.db.NewIterator(GetKey(keyPrefixList))
 
