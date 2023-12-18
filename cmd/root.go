@@ -20,8 +20,11 @@ import (
 
 const appName = "centralized-relay"
 
-var defaultHome = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
-var defaultDBName = "datadb"
+var (
+	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
+	defaultDBName = "data"
+	defaultConfig = "config.yaml"
+)
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -80,12 +83,10 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	// RootCmd represents the base command when called without any subcommands
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:   appName,
 		Short: "This application makes data relay between two chains!",
-		Long: strings.TrimSpace(`
-		 Use this to relay xcall packet between two chains 
-		`),
+		Long:  strings.TrimSpace(`Use this to relay xcall packet between chains`),
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -100,7 +101,10 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		}
 
 		// reads `homeDir/config/config.yaml` into `a.Config`
-		return a.loadConfigFile(rootCmd.Context())
+		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
@@ -125,10 +129,18 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		panic(err)
 	}
 
+	rootCmd.PersistentFlags().StringVar(&a.configPath, "config-path", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
+	if err := a.viper.BindPFlag("config-path", rootCmd.PersistentFlags().Lookup("config-path")); err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", fmt.Sprintf("%s/%s", a.homePath, defaultDBName), "db path location")
+	if err := a.viper.BindPFlag("db-path", rootCmd.PersistentFlags().Lookup("db-path")); err != nil {
+		panic(err)
+	}
+
 	// Register subcommands
-	rootCmd.AddCommand(
-		startCmd(a),
-	)
+	rootCmd.AddCommand(startCmd(a), dbCmd(a))
 	return rootCmd
 }
 
@@ -156,9 +168,7 @@ func newRootLogger(format string, debug bool) (*zap.Logger, error) {
 		level = zap.DebugLevel
 	}
 
-	core := zapcore.NewTee(
-		zapcore.NewCore(enc, os.Stderr, level),
-	)
+	core := zapcore.NewTee(zapcore.NewCore(enc, os.Stderr, level))
 
 	return zap.New(core), nil
 }

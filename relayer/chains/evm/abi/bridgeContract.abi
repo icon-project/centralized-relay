@@ -23,9 +23,9 @@
       },
       {
         "indexed": false,
-        "internalType": "int256",
+        "internalType": "uint256",
         "name": "sn",
-        "type": "int256"
+        "type": "uint256"
       },
       {
         "indexed": false,
@@ -55,6 +55,19 @@
     "name": "claimFees",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "connSn",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -90,16 +103,16 @@
       },
       {
         "internalType": "uint256",
-        "name": "sn",
+        "name": "_connSn",
         "type": "uint256"
       }
     ],
     "name": "getReceipt",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -132,7 +145,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "sn",
+        "name": "_connSn",
         "type": "uint256"
       },
       {

@@ -14,13 +14,13 @@ import (
 
 func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	evm := EVMProviderConfig{
-		ChainID:         "avalanche",
+		NID:             "0x13881.mumbai",
 		Name:            "avalanche",
-		RPCUrl:          "http://localhost:8545",
-		StartHeight:     0,
+		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
+		StartHeight:     43586359,
 		Keystore:        testKeyStore,
 		Password:        testKeyPassword,
-		GasPrice:        1000565528,
+		GasPrice:        100056000,
 		ContractAddress: contractAddress,
 	}
 	log := zap.NewNop()
@@ -41,8 +41,6 @@ func TestTransferBalance(t *testing.T) {
 	pro, err := MockEvmProvider("0x0165878A594ca255338adfa4d48449f69242Eb8F")
 	assert.NoError(t, err)
 
-	header, _ := pro.client.GetHeaderByHeight(context.TODO(), big.NewInt(117))
-	fmt.Println(header.GasLimit)
 	txhash, err := pro.transferBalance(
 		"ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 		pro.wallet.Address.Hex(), big.NewInt(100_000_000_000_000_000_0))
@@ -70,7 +68,7 @@ func TestRouteMessage(t *testing.T) {
 
 	var callback providerTypes.TxResponseFunc
 
-	callback = func(key *providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
+	callback = func(key providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
 		if response.Code != 1 {
 			assert.Fail(t, "transaction failed")
 		}
@@ -83,7 +81,7 @@ func TestRouteMessage(t *testing.T) {
 func TestSendMessageTest(t *testing.T) {
 	// sending the transaction
 
-	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
+	pro, err := MockEvmProvider("e7f1725E7734CE288F8367e1Bb143E90bb3F0512")
 	assert.NoError(t, err)
 	ctx := context.Background()
 	opts, err := pro.GetTransationOpts(ctx)
@@ -104,4 +102,33 @@ func TestSendMessageTest(t *testing.T) {
 		}
 		fmt.Println("the message is ", string(msg.Msg))
 	}
+}
+
+func TestEventLogReceived(t *testing.T) {
+
+	mock, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
+
+	assert.NoError(t, err)
+
+	ht := big.NewInt(43587936)
+	ht2 := big.NewInt(43587936)
+	blockRequest := mock.blockReq
+	blockRequest.ToBlock = ht2
+	blockRequest.FromBlock = ht
+
+	log, err := mock.client.FilterLogs(context.TODO(), blockRequest)
+	assert.NoError(t, err)
+
+	fmt.Println("logs is ", len(log))
+	for _, log := range log {
+		message, err := mock.getRelayMessageFromLog(log)
+		assert.NoError(t, err)
+		// p.log.Info("message received evm: ", zap.Uint64("height", lbn.Height.Uint64()),
+		// 	zap.String("target-network", message.Dst),
+		// 	zap.Uint64("sn", message.Sn),
+		// 	zap.String("event-type", message.EventType),
+		// )
+		fmt.Println("message", message)
+	}
+
 }

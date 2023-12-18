@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -21,19 +20,9 @@ func startCmd(a *appState) *cobra.Command {
 		Short:   "Start the listening relayer on a given path",
 		Args:    withUsage(cobra.MinimumNArgs(0)),
 		Example: strings.TrimSpace(fmt.Sprintf(`
-			$ %s start # start all the registered chains 
+			$ %s start # start all the registered chains
 		`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			// TODO: filter only mentioned chain
-			// chains := make(map[string]*relayer.Chain)
-
-			// if arg > 0{
-			// chainIDs := make([]string, 0, len(chains))
-			// for chainID := range chains {
-			// 	chainIDs = append(chainIDs, chainID)
-			// }
-			// }
 
 			// get chain configurations
 			chains := a.config.Chains.GetAll()
@@ -48,7 +37,7 @@ func startCmd(a *appState) *cobra.Command {
 				return err
 			}
 
-			db, err := lvldb.NewLvlDB(filepath.Join(defaultHome, defaultDBName))
+			dbReadWrite, err := lvldb.NewLvlDB(a.dbPath, false)
 			if err != nil {
 				return err
 			}
@@ -59,7 +48,7 @@ func startCmd(a *appState) *cobra.Command {
 				chains,
 				flushInterval,
 				fresh,
-				db,
+				dbReadWrite,
 			)
 			if err != nil {
 				return err
@@ -70,10 +59,7 @@ func startCmd(a *appState) *cobra.Command {
 			// so we don't want to separately monitor the ctx.Done channel,
 			// because we would risk returning before the relayer cleans up.
 			if err := <-rlyErrCh; err != nil && !errors.Is(err, context.Canceled) {
-				a.log.Warn(
-					"Relayer start error",
-					zap.Error(err),
-				)
+				a.log.Warn("Relayer start error", zap.Error(err))
 				return err
 			}
 			return nil

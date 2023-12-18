@@ -111,7 +111,7 @@ func (ms *FinalityStore) GetTxObjects(chainId string, p Pagination) ([]*types.Tr
 		}
 	}
 
-	for i := uint64(0); i < p.Limit; i++ {
+	for i := uint64(0); i < uint64(p.Limit); i++ {
 		if !iter.Next() {
 			break
 		}

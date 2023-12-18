@@ -39,7 +39,7 @@ func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Me
 // }
 
 // TODO: may not be need anytime soon so its ok to implement later on
-func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKey) (*providerTypes.Message, error) {
+func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
 	return nil, nil
 }
 
