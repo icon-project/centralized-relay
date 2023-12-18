@@ -29,7 +29,8 @@ func (s *E2ETestSuite) SetupXCall(ctx context.Context) error {
 // with E2ETestSuite.StartRelayer if needed.
 // This should be called at the start of every test, unless fine grained control is required.
 func (s *E2ETestSuite) SetupChainsAndRelayer(ctx context.Context) ibc.Relayer {
-	relayer, err := s.SetupRelayer(ctx)
+	relayer, err := s.SetupRelayer(ctx, "centralized")
+
 	s.Require().NoErrorf(err, "Error while configuring relayer %v", err)
 	//eRep := s.GetRelayerExecReporter()
 

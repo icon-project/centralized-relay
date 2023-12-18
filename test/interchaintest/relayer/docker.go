@@ -179,6 +179,12 @@ func (r *DockerRelayer) Flush(ctx context.Context, rep ibc.RelayerExecReporter, 
 	return res.Err
 }
 
+func (r *DockerRelayer) ExecBin(ctx context.Context, rep ibc.RelayerExecReporter, command string, params ...interface{}) ibc.RelayerExecResult {
+
+	cmd := r.c.RelayerCommand(command, params)
+	return r.Exec(ctx, rep, cmd, nil)
+}
+
 func (r *DockerRelayer) Exec(ctx context.Context, rep ibc.RelayerExecReporter, cmd []string, env []string) ibc.RelayerExecResult {
 	job := dockerutil.NewImage(r.log, r.client, r.networkID, r.testName, r.containerImage().Repository, r.containerImage().Version)
 	opts := dockerutil.ContainerOptions{
@@ -492,4 +498,6 @@ type RelayerCommander interface {
 	RestoreKey(chainID, keyName, coinType, mnemonic, homeDir string) []string
 	StartRelayer(homeDir string, pathNames ...string) []string
 	CreateWallet(keyName, address, mnemonic string) ibc.Wallet
+
+	RelayerCommand(command string, params ...interface{}) []string
 }

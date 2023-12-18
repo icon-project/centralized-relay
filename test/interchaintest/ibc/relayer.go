@@ -36,6 +36,8 @@ type Relayer interface {
 	// "env" are environment variables in the format "MY_ENV_VAR=value"
 	Exec(ctx context.Context, rep RelayerExecReporter, cmd []string, env []string) RelayerExecResult
 
+	ExecBin(ctx context.Context, rep RelayerExecReporter, command string, params ...interface{}) RelayerExecResult
+
 	HomeDir() string
 	RestartRelayerContainer(context.Context) error
 	StopRelayerContainer(context.Context, RelayerExecReporter) error
