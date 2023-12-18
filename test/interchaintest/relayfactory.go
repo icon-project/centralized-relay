@@ -39,7 +39,7 @@ func NewICONRelayerFactory(logger *zap.Logger, options ...relayer.RelayerOption)
 
 // Build returns a relayer chosen depending on f.impl.
 func (f builtinRelayerFactory) Build(t *testing.T, cli *client.Client, networkID string) ibc.Relayer {
-	return centralized.NewICONRelayer(f.log, t.Name(), cli, networkID, f.options...)
+	return centralized.NewCentralizedRelayer(f.log, t.Name(), cli, networkID, f.options...)
 }
 
 func (f builtinRelayerFactory) Name() string {

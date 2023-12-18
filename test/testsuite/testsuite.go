@@ -27,15 +27,16 @@ import (
 // E2ETestSuite has methods and functionality which can be shared among all test suites.
 type E2ETestSuite struct {
 	suite.Suite
-	relayer ibc.Relayer
-	cfg     *testconfig.TestConfig
+
+	cfg *testconfig.TestConfig
 	//grpcClients    map[string]GRPCClients
-	paths          map[string]path
-	relayers       ibc.RelayerMap
-	logger         *zap.Logger
-	DockerClient   *dockerclient.Client
-	network        string
-	startRelayerFn func(relayer ibc.Relayer) error
+	paths           map[string]path
+	Relayers        map[string]ibc.Relayer
+	RelayersWallets ibc.RelayerMap
+	logger          *zap.Logger
+	DockerClient    *dockerclient.Client
+	network         string
+	startRelayerFn  func(relayer ibc.Relayer) error
 
 	// pathNameIndex is the latest index to be used for generating paths
 	pathNameIndex   int64
@@ -67,7 +68,7 @@ func newPath(chainA, chainB chains.Chain) path {
 
 // SetupRelayer sets up the relayer, creates interchain networks, builds chains, and starts the relayer.
 // It returns a Relayer interface and an error if any.
-func (s *E2ETestSuite) SetupRelayer(ctx context.Context) (ibc.Relayer, error) {
+func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relayer, error) {
 	chainA, chainB := s.GetChains()
 	r := interchaintest.New(s.T(), s.cfg.RelayerConfig, s.logger, s.DockerClient, s.network)
 	//pathName := s.GeneratePathName()
@@ -117,7 +118,10 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context) (ibc.Relayer, error) {
 		}
 		return nil
 	}
-	s.relayer = r
+	if s.Relayers == nil {
+		s.Relayers = make(map[string]ibc.Relayer)
+	}
+	s.Relayers[name] = r
 	return r, err
 }
 

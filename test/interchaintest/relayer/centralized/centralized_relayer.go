@@ -23,7 +23,7 @@ type ICONRelayer struct {
 	*relayer.DockerRelayer
 }
 
-func NewICONRelayer(log *zap.Logger, testName string, cli *client.Client, networkID string, options ...relayer.RelayerOption) *ICONRelayer {
+func NewCentralizedRelayer(log *zap.Logger, testName string, cli *client.Client, networkID string, options ...relayer.RelayerOption) *ICONRelayer {
 	c := commander{log: log}
 	for _, opt := range options {
 		switch o := opt.(type) {
@@ -114,6 +114,21 @@ func (commander) RestoreKey(chainID, keyName, coinType, mnemonic, homeDir string
 		"centralized-rly", "keys", "restore", chainID, keyName, mnemonic,
 		"--coin-type", fmt.Sprint(coinType),
 	}
+}
+
+func (c commander) RelayerExecutable() string {
+	return "centralized-rly"
+}
+
+func (c commander) RelayerCommand(command string, params ...interface{}) []string {
+	cmd := []string{
+		c.RelayerExecutable(),
+	}
+	switch command {
+	case "stale":
+		cmd = append(cmd, "database", "messages", "list")
+	}
+	return cmd
 }
 
 func (c commander) StartRelayer(homeDir string, pathNames ...string) []string {

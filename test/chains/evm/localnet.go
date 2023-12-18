@@ -60,11 +60,6 @@ type EVMLocalnet struct {
 	Wallets       map[string]ibc.Wallet `json:"wallets"`
 }
 
-func (c *EVMLocalnet) CheckForTimeout(ctx context.Context, src chains.Chain, params map[string]interface{}, listener chains.EventListener) (context.Context, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *EVMLocalnet) CreateKey(ctx context.Context, keyName string) error {
 	//TODO implement me
 	panic("implement me")

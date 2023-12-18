@@ -28,7 +28,6 @@ type Chain interface {
 	FindTargetXCallMessage(ctx context.Context, target Chain, height uint64, to string) (*XCallResponse, error)
 	SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error)
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)
-	CheckForTimeout(ctx context.Context, src Chain, params map[string]interface{}, listener EventListener) (context.Context, error)
 	ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error)
 	ExecuteRollback(ctx context.Context, sn string) (context.Context, error)
 	FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error)
