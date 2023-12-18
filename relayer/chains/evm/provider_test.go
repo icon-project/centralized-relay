@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -17,7 +18,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 		NID:             "0x13881.mumbai",
 		Name:            "avalanche",
 		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
-		StartHeight:     43586359,
+		StartHeight:     0,
 		Keystore:        testKeyStore,
 		Password:        testKeyPassword,
 		GasPrice:        100056000,
@@ -32,9 +33,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	if !ok {
 		return nil, fmt.Errorf("failed to create mock evmprovider")
 	}
-
-	p.Init(context.TODO())
-	return p, nil
+	return p, p.Init(context.TODO())
 }
 
 func TestTransferBalance(t *testing.T) {
@@ -105,7 +104,6 @@ func TestSendMessageTest(t *testing.T) {
 }
 
 func TestEventLogReceived(t *testing.T) {
-
 	mock, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
 
 	assert.NoError(t, err)
@@ -130,5 +128,44 @@ func TestEventLogReceived(t *testing.T) {
 		// )
 		fmt.Println("message", message)
 	}
+}
 
+// test flush message to the chain
+func TestFlushMessage(t *testing.T) {
+	pro, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
+	assert.NoError(t, err)
+	ctx := context.Background()
+	opts, err := pro.GetTransationOpts(ctx)
+	assert.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	opts.Context = ctx
+
+	tx, err := pro.client.SendMessage(opts, "icon", "--", big.NewInt(19), []byte("check"))
+	assert.NoError(t, err)
+
+	receipt, err := pro.WaitForResults(context.TODO(), tx.Hash())
+	assert.NoError(t, err)
+	fmt.Println("receipt blocknumber  is:", receipt.BlockNumber)
+
+	for _, m := range receipt.Logs {
+		msg, err := pro.client.ParseMessage(*m)
+		if err != nil {
+			assert.Error(t, err, msg)
+		}
+		assert.Fail(t, "should not reach here", string(msg.Msg))
+	}
+	// wait for flush to mechanism to work
+	time.Sleep(15 * time.Second)
+
+	// check the failed message is delivered
+	for _, m := range receipt.Logs {
+		msg, err := pro.client.ParseMessage(*m)
+		if err != nil {
+			fmt.Println("show the failed error ", err)
+			continue
+		}
+		assert.Equal(t, "check", string(msg.Msg))
+	}
 }
