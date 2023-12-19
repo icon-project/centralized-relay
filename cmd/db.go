@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/lvldb"
+	"github.com/icon-project/centralized-relay/relayer/socket"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
@@ -12,10 +15,11 @@ import (
 )
 
 type dbState struct {
-	chain string
-	sn    uint64
-	page  uint
-	limit uint
+	chain  string
+	height uint64
+	sn     uint64
+	page   uint
+	limit  uint
 }
 
 func NewDBState() dbState {
@@ -29,6 +33,8 @@ func dbCmd(a *appState) *cobra.Command {
 		Aliases: []string{"db"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
+
+	db := NewDBState()
 
 	pruneCmd := &cobra.Command{
 		Use:   "prune",
@@ -46,18 +52,16 @@ func dbCmd(a *appState) *cobra.Command {
 		Short:   "Get messages stored in the database",
 		Aliases: []string{"m"},
 	}
-	messagesCmd.AddCommand(db.messagesList(a))
-	//messagesCmd.AddCommand(db.messagesRm(a))
-	//messagesCmd.AddCommand(db.messagesRelay(a))
+	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRm(a))
 
 	blockCmd := &cobra.Command{
 		Use:     "block",
 		Short:   "Get block info stored in the database",
 		Aliases: []string{"b"},
 	}
-	// blockCmd.AddCommand(db.blockInfo(a))
+	blockCmd.AddCommand(db.blockInfo(a))
 
-	dbCMD.AddCommand(messagesCmd, blockCmd)
+	dbCMD.AddCommand(messagesCmd, blockCmd, pruneCmd)
 	return dbCMD
 }
 
@@ -68,30 +72,24 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 		Short:   "List messages stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Listing messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
+			defer client.Close()
 			pg := store.NewPagination().WithPage(d.page, d.limit)
-			messages, err := rly.GetMessageStore().GetMessages(d.chain, pg)
+			messages, err := client.GetMessageList(d.chain, pg)
 			if err != nil {
-				return err
+				panic(err)
 			}
-			totalMessages := len(messages)
-			if totalMessages == 0 {
-				fmt.Println("No messages found in the database")
-				return nil
-			}
+
 			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
 			// Print messages
-			for _, msg := range messages {
+			for _, msg := range messages.Messages {
 				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
 					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry)
 			}
-			// Print total number of messages
-			fmt.Printf("Total: %d\n", totalMessages)
-			// Current and total pages of messages
-			fmt.Printf("Page: %d/%d\n", d.page, pg.CalculateTotalPages(totalMessages))
+
 			return nil
 		},
 	}
@@ -134,6 +132,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 	}
 	d.messageMsgIDFlag(rly)
 	d.messageChainFlag(rly)
+	d.messageHeightFlag(rly)
 	return rly
 }
 
@@ -168,6 +167,10 @@ func (d *dbState) messageMsgIDFlag(cmd *cobra.Command) {
 	}
 }
 
+func (d *dbState) messageHeightFlag(cmd *cobra.Command) {
+	cmd.Flags().Uint64Var(&d.height, "height", 0, "block height")
+}
+
 func (d *dbState) messageChainFlag(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&d.chain, "chain", "c", "", "message chain to select")
 	if err := cmd.MarkFlagRequired("chain"); err != nil {
@@ -195,18 +198,19 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 		Aliases: []string{"get"},
 		Short:   "Show blocks stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app.log.Debug("Show blocks stored in the database...")
-			rly, err := d.GetRelayer(app)
+			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
-			block := rly.GetBlockStore()
-			height, err := block.GetLastStoredBlock(d.chain)
+			defer client.Close()
+			blocks, err := client.GetBlock(d.chain)
 			if err != nil {
 				return err
 			}
 			printLabels("NID", "Height")
-			printValues(d.chain, height)
+			for _, block := range blocks {
+				printValues(block.Chain, block.Height)
+			}
 			return nil
 		},
 	}
@@ -216,7 +220,11 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 
 // GetRelayer returns the relayer instance
 func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
-	rly, err := relayer.NewRelayer(app.log, app.db, app.config.Chains.GetAll(), false)
+	db, err := lvldb.NewLvlDB(app.dbPath)
+	if err != nil {
+		return nil, err
+	}
+	rly, err := relayer.NewRelayer(app.log, db, app.config.Chains.GetAll(), false)
 	if err != nil {
 		fmt.Println("failed to create relayer", zap.Error(err))
 		return nil, err
@@ -254,4 +262,23 @@ func printValues(values ...any) {
 	}
 	valueCell += "\n"
 	fmt.Printf(valueCell, values...)
+}
+
+func (d *dbState) getSocket(app *appState) (*socket.Client, error) {
+	client, err := socket.NewClient()
+	if err != nil {
+		if errors.Is(err, socket.ErrSocketClosed) {
+			rly, err := d.GetRelayer(app)
+			if err != nil {
+				panic(err)
+			}
+			server, err := socket.NewSocket(rly)
+			if err != nil {
+				panic(err)
+			}
+			go server.Listen()
+		}
+		return socket.NewClient()
+	}
+	return client, nil
 }

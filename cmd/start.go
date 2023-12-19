@@ -54,7 +54,7 @@ func startCmd(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			go listener.Listen(rlyErrCh)
+			go listener.Listen()
 			defer listener.Close()
 
 			// Block until the error channel sends a message.

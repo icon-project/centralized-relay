@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -97,14 +96,6 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		}
 		a.log = log
 
-		if a.db == nil {
-			db, err := lvldb.NewLvlDB(a.dbPath, false)
-			if err != nil {
-				return fmt.Errorf("error while creating db %v", err)
-			}
-			a.db = db
-		}
-
 		// reads `homeDir/config/config.yaml` into `a.Config`
 		return a.loadConfigFile(rootCmd.Context())
 	}
@@ -112,10 +103,6 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
 		// Force syncing the logs before exit, if anything is buffered.
 		_ = a.log.Sync()
-
-		if a.db != nil {
-			a.db.Close()
-		}
 	}
 
 	// Register --home flag

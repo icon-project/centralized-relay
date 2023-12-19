@@ -26,11 +26,10 @@ func NewSocket(rly *relayer.Relayer) (*dbServer, error) {
 }
 
 // Listen to socket
-func (s *dbServer) Listen(errChan chan error) {
+func (s *dbServer) Listen() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			errChan <- err
 			return
 		}
 		go s.server(conn)
@@ -40,7 +39,7 @@ func (s *dbServer) Listen(errChan chan error) {
 // Send sends message to socket
 func (s *dbServer) server(c net.Conn) {
 	for {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 1024*2)
 		nr, err := c.Read(buf)
 		if err != nil {
 			return
@@ -86,6 +85,7 @@ func (s *dbServer) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		var blocks []*ResGetBlock
+
 		if req.All {
 			for _, chain := range s.rly.GetAllChainsRuntime() {
 				blocks = append(blocks, &ResGetBlock{chain.Provider.NID(), chain.LastSavedHeight})
@@ -95,20 +95,22 @@ func (s *dbServer) parseEvent(msg *Message) (*Message, error) {
 				return nil, err
 			}
 			return &Message{EventGetBlock, data}, nil
-		} else if req.Chain != "" {
-			store := s.rly.GetBlockStore()
-			height, err := store.GetLastStoredBlock(req.Chain)
-			if err != nil {
-				return nil, err
-			}
-			blocks = append(blocks, &ResGetBlock{req.Chain, height})
-			data, err := json.Marshal(blocks)
-			if err != nil {
-				return nil, err
-			}
-			return &Message{EventGetBlock, data}, nil
 		}
-		return nil, fmt.Errorf("invalid request")
+
+		store := s.rly.GetBlockStore()
+		height, err := store.GetLastStoredBlock(req.Chain)
+		fmt.Println("height", err)
+		if err != nil {
+			return nil, err
+		}
+
+		blocks = append(blocks, &ResGetBlock{req.Chain, height})
+		data, err := json.Marshal(blocks)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("blocks", blocks)
+		return &Message{EventGetBlock, data}, nil
 	case EventGetMessageList:
 		req := new(ReqMessageList)
 		if err := json.Unmarshal(msg.Data, req); err != nil {

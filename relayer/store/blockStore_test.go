@@ -7,13 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	testDBName = "./testdb"
-)
+var testDBName = "./testdb"
 
 func TestBlockStore(t *testing.T) {
-
-	testdb, err := lvldb.NewLvlDB(testDBName, false)
+	testdb, err := lvldb.NewLvlDB(testDBName)
 	if err != nil {
 		assert.Fail(t, "error while creating test db ", err)
 	}
@@ -50,5 +47,4 @@ func TestBlockStore(t *testing.T) {
 	if err := testdb.ClearStore(); err != nil {
 		assert.Fail(t, "failed to clear db ", err)
 	}
-
 }

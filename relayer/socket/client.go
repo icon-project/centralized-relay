@@ -52,7 +52,7 @@ func (c *Client) send(event Event, req interface{}) error {
 
 // read and parse message from socket
 func (c *Client) read() (interface{}, error) {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 1024*2)
 	nr, err := c.conn.Read(buf)
 	if err != nil {
 		return nil, err
@@ -68,8 +68,8 @@ func (c *Client) read() (interface{}, error) {
 func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 	switch msg.Event {
 	case EventGetBlock:
-		res := new([]*ResGetBlock)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		var res []*ResGetBlock
+		if err := json.Unmarshal(msg.Data, &res); err != nil {
 			return nil, err
 		}
 		return res, nil
@@ -101,8 +101,8 @@ func (c *Client) Close() error {
 }
 
 // GetBlock sends GetBlock event to socket
-func (c *Client) GetBlock(chain string, all bool) ([]*ResGetBlock, error) {
-	req := &ReqGetBlock{Chain: chain, All: all}
+func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
+	req := &ReqGetBlock{Chain: chain, All: chain == ""}
 	if err := c.send(EventGetBlock, req); err != nil {
 		return nil, err
 	}

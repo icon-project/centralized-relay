@@ -43,17 +43,17 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 	go r.StartBlockProcessors(ctx, errorChan)
 
 	// responsible to relaying  messages
-	go relayer.StartRouter(ctx, flushInterval)
+	go r.StartRouter(ctx, flushInterval)
 
 	// responsible for checking finality
-	go relayer.StartFinalityProcessor(ctx)
+	go r.StartFinalityProcessor(ctx)
 
 	return errorChan, nil
 }
 
 type Relayer struct {
 	log           *zap.Logger
-  db           store.Store
+	db            store.Store
 	chains        map[string]*ChainRuntime
 	messageStore  *store.MessageStore
 	blockStore    *store.BlockStore
@@ -63,8 +63,7 @@ type Relayer struct {
 func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
 	// if fresh clearing db
 	if fresh {
-		err := db.ClearStore()
-		if err != nil {
+		if err := db.ClearStore(); err != nil {
 			return nil, err
 		}
 	}
@@ -96,7 +95,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 
 	return &Relayer{
 		log:           log,
-    db:           db,
+		db:            db,
 		chains:        chainRuntimes,
 		messageStore:  messageStore,
 		blockStore:    blockStore,
@@ -408,11 +407,9 @@ func (r *Relayer) StartFinalityProcessor(ctx context.Context) {
 			r.CheckFinality(ctx)
 		}
 	}
-
 }
 
 func (r *Relayer) CheckFinality(ctx context.Context) {
-
 	for _, c := range r.chains {
 		// check for the finality only if finalityblock is provided by the chain
 		finalityBlock := c.Provider.FinalityBlock(ctx)
