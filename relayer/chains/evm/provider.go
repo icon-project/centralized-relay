@@ -33,6 +33,7 @@ type EVMProviderConfig struct {
 	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
 	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
+	FinalityBlock   uint64 `json:"finality-block" yaml:"finality-block"`
 	NID             string `json:"nid" yaml:"nid"`
 }
 
@@ -67,6 +68,10 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 		verifierClient = client // default to same client
 	}
 
+	// setting default finality block
+	if p.FinalityBlock == 0 {
+		p.FinalityBlock = uint64(DefaultFinalityBlock)
+	}
 	p.ChainName = chainName
 
 	return &EVMProvider{
@@ -117,6 +122,10 @@ func (p *EVMProvider) ChainName() string {
 
 func (p *EVMProvider) Wallet() *keystore.Key {
 	return p.wallet
+}
+
+func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
+	return p.cfg.FinalityBlock
 }
 
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {

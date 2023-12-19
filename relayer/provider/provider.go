@@ -16,6 +16,7 @@ type ProviderConfig interface {
 
 type ChainQuery interface {
 	QueryLatestHeight(ctx context.Context) (uint64, error)
+	QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
 }
 
 type ChainProvider interface {
@@ -31,5 +32,7 @@ type ChainProvider interface {
 	ShouldSendMessage(ctx context.Context, message types.Message) (bool, error)
 	MessageReceived(ctx context.Context, key types.MessageKey) (bool, error)
 
+	FinalityBlock(ctx context.Context) uint64
+	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 }

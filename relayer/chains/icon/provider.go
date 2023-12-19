@@ -80,3 +80,7 @@ func (cp *IconProvider) Wallet() (module.Wallet, error) {
 func (cp *IconProvider) GetWalletAddress() (address string, err error) {
 	return getAddrFromKeystore(cp.PCfg.KeyStore)
 }
+
+func (icp *IconProvider) FinalityBlock(ctx context.Context) uint64 {
+	return 0
+}
