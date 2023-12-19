@@ -18,6 +18,7 @@ Currently, communication with any of the EVM chains is supported.
     ```
 
 2. **Create and store wallets as a json keystore file in proper location**
+
     Centralized relay requires wallets of each chain to communicate with the bridge
     contracts of each chain. So, create wallets for each chain and store in proper
     location.
@@ -29,6 +30,7 @@ Currently, communication with any of the EVM chains is supported.
    bridge addresses of the chains.**
 
 5. **Configure the chains you want to relay messages between.**
+   
    Centralized relay by default points to the path: ```$HOME/.centralized-relay/config.yaml``` 
    as a config file for storing the configuration for each chain that you want to relay messages in between.
 
@@ -50,7 +52,7 @@ Currently, communication with any of the EVM chains is supported.
    ```shell
    $ centralized-rly start --config-path <your-config-path> --db-path <your-db-path>
    ```
-   ```your-db-path``` refers to the path where the centralized-rly stores persistent data(messages)
+   ```your-db-path``` refers to the path where the centralized-rly stores data(messages)
    that is relayed or to be relayed between chains. The default path is ```$HOME/.centralized-relay/data```
    Once the relay is up and running, you can test for relaying messages from one chain to another chain. For
    testing and demonstration, please refer [here]()
