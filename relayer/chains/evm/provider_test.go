@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"testing"
@@ -17,10 +18,11 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 		NID:             "0x13881.mumbai",
 		ChainName:       "avalanche",
 		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
-		StartHeight:     43586359,
+		StartHeight:     0,
 		Keystore:        testKeyStore,
 		Password:        testKeyPassword,
-		GasPrice:        100056000,
+		GasPrice:        3000000015,
+		GasLimit:        431877,
 		ContractAddress: contractAddress,
 	}
 	log := zap.NewNop()
@@ -54,21 +56,24 @@ func TestTransferBalance(t *testing.T) {
 }
 
 func TestRouteMessage(t *testing.T) {
-	pro, err := MockEvmProvider("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
+	pro, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
 	assert.NoError(t, err)
 
+	d, _ := hex.DecodeString("f89501b892f890b33078322e69636f6e2f687862366235373931626530623565663637303633623363313062383430666238313531346462326664aa30783865383362316430613264656636646433633735346139316638633038636466386139313766343282019e0061ebaa307836344644433042383730313963456541363033663944443535396239624164333146313135376238")
+
 	expected := &providerTypes.Message{
-		Dst:           "eth",
-		Src:           "icon",
-		Sn:            11,
-		Data:          []byte("check"),
-		MessageHeight: 4061,
+		Dst:           "0x13881.mumbai",
+		Src:           "0x2.icon",
+		Sn:            28,
+		Data:          d,
+		MessageHeight: 31965963,
 		EventType:     events.EmitMessage,
 	}
 
 	var callback providerTypes.TxResponseFunc
 
 	callback = func(key providerTypes.MessageKey, response providerTypes.TxResponse, err error) {
+		fmt.Println("response obj", response)
 		if response.Code != 1 {
 			assert.Fail(t, "transaction failed")
 		}

@@ -32,8 +32,7 @@ func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Me
 }
 
 func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.MessageKey) (bool, error) {
-	snBigInt := big.NewInt(int64(messageKey.Sn))
-	return p.client.MessageReceived(nil, messageKey.Src, snBigInt)
+	return p.client.MessageReceived(nil, messageKey.Src, big.NewInt(int64(messageKey.Sn)))
 }
 
 // func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
