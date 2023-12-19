@@ -24,35 +24,24 @@ var (
 )
 
 // main start loop
-func Start(
-	ctx context.Context,
-	log *zap.Logger,
-	chains map[string]*Chain,
-	flushInterval time.Duration,
-	fresh bool,
-	db store.Store,
-) (chan error, error) {
+func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh bool) (chan error, error) {
 	errorChan := make(chan error, 1)
-	relayer, err := NewRelayer(log, db, chains, fresh)
-	if err != nil {
-		return nil, fmt.Errorf("error creating new relayer %v", err)
-	}
 
 	// once flush completes then only start processing
-	if !fresh {
+	if fresh {
 		// flush all the packet and then continue
-		relayer.flushMessages(ctx)
+		r.flushMessages(ctx)
 	}
 
 	// // create ctx -> with cancel function and senc cancel function to all -> ctx.done():
 	// // start all the chain listeners
-	go relayer.StartChainListeners(ctx, errorChan)
+	go r.StartChainListeners(ctx, errorChan)
 
 	// // start all the block processor
-	go relayer.StartBlockProcessors(ctx, errorChan)
+	go r.StartBlockProcessors(ctx, errorChan)
 
 	// responsible to relaying  messages
-	go relayer.StartRouter(ctx, flushInterval, fresh)
+	go r.StartRouter(ctx, flushInterval, fresh)
 
 	return errorChan, nil
 }
@@ -60,6 +49,7 @@ func Start(
 type Relayer struct {
 	log          *zap.Logger
 	chains       map[string]*ChainRuntime
+	db           store.Store
 	messageStore *store.MessageStore
 	blockStore   *store.BlockStore
 }
@@ -97,6 +87,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 
 	return &Relayer{
 		log:          log,
+		db:           db,
 		chains:       chainRuntimes,
 		messageStore: messageStore,
 		blockStore:   blockStore,
@@ -273,15 +264,23 @@ func (r *Relayer) FindChainRuntime(nId string) (*ChainRuntime, error) {
 	return nil, fmt.Errorf("chain runtime not found, nId:%s ", nId)
 }
 
+func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
+	var chains []*ChainRuntime
+	for _, chainRuntime := range r.chains {
+		chains = append(chains, chainRuntime)
+	}
+	return chains
+}
+
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	callback := func(key types.MessageKey, response types.TxResponse, err error) {
 		// note: it is ok if err is not checked
 		if response.Code == types.Success {
-			dst.log.Info("successfully relayed message:",
-				zap.String("src chain", src.Provider.NID()),
-				zap.String("dst chain", dst.Provider.NID()),
-				zap.Uint64("Sn number", key.Sn),
-				zap.Any("Tx hash", response.TxHash),
+			dst.log.Info("message relayed successfully",
+				zap.String("src", src.Provider.NID()),
+				zap.String("dst", dst.Provider.NID()),
+				zap.Uint64("sn", key.Sn),
+				zap.String("tx_hash", response.TxHash),
 			)
 
 			// if success remove message from everywhere
@@ -324,13 +323,19 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 		// removed message from messageCache
 		src.MessageCache.Remove(routeMessage.MessageKey())
 
-		dst.log.Error("failed to send message saving to database",
-			zap.String("src chain", routeMessage.Src),
-			zap.String("dst chain", routeMessage.Dst),
-			zap.Uint64("Sn number", routeMessage.Sn),
+		dst.log.Error("message relay failed",
+			zap.String("src", routeMessage.Src),
+			zap.String("dst", routeMessage.Dst),
+			zap.Uint64("sn", routeMessage.Sn),
+			zap.Uint64("count", routeMessage.Retry),
 		)
 		return
 	}
+}
+
+// PruneDB removes all the messages from db
+func (r *Relayer) PruneDB() error {
+	return r.db.ClearStore()
 }
 
 func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {

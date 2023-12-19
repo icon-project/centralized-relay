@@ -68,17 +68,17 @@ func NewMessageStore(db Store, prefix string) *MessageStore {
 	}
 }
 
-func (ms *MessageStore) TotalCount() (uint64, error) {
+func (ms *MessageStore) TotalCount() (uint, error) {
 	return ms.getCountByKey(GetKey([]string{ms.prefix}))
 }
 
-func (ms *MessageStore) TotalCountByChain(nId string) (uint64, error) {
+func (ms *MessageStore) TotalCountByChain(nId string) (uint, error) {
 	return ms.getCountByKey(GetKey([]string{ms.prefix, nId}))
 }
 
-func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
+func (ms *MessageStore) getCountByKey(key []byte) (uint, error) {
 	iter := ms.db.NewIterator(key)
-	count := 0
+	var count uint
 	for iter.Next() {
 		count++
 	}
@@ -87,7 +87,7 @@ func (ms *MessageStore) getCountByKey(key []byte) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return uint64(count), nil
+	return count, nil
 }
 
 func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {

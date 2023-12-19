@@ -41,19 +41,16 @@ func startCmd(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rly, err := relayer.NewRelayer(a.log, db, chains, fresh)
+			if err != nil {
+				return fmt.Errorf("error creating new relayer %v", err)
+			}
 
-			rlyErrCh, err := relayer.Start(
-				cmd.Context(),
-				a.log,
-				chains,
-				flushInterval,
-				fresh,
-				db,
-			)
+			rlyErrCh, err := rly.Start(cmd.Context(), flushInterval, fresh)
 			if err != nil {
 				return err
 			}
-			listener, err := socket.NewSocket(chains)
+			listener, err := socket.NewSocket(rly)
 			if err != nil {
 				return err
 			}
