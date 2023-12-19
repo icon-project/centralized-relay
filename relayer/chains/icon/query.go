@@ -93,7 +93,7 @@ func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*provide
 }
 
 func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
-
+	ip.log.Info("generating message", zap.Any("messagekey", key))
 	if key == nil {
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
@@ -127,7 +127,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 			}
 
 			dst := el.Indexed[1]
-			sn, ok := big.NewInt(0).SetString(el.Indexed[2], 16)
+			sn, ok := big.NewInt(0).SetString(el.Indexed[2], 0)
 			if !ok {
 				ip.log.Error("GenerateMessage: error decoding int value ")
 				continue
@@ -144,6 +144,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 				MessageHeight: key.MsgHeight,
 				EventType:     key.EventType,
 				Dst:           dst,
+				Src:           key.Src,
 				Data:          dataValue,
 				Sn:            sn.Uint64(),
 			}, nil

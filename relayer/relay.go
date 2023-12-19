@@ -249,6 +249,10 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				continue
 			}
 
+			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
+				continue
+			}
+
 			// if message reached delete the message
 			messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
 			if err != nil {
@@ -261,10 +265,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
 				continue
 			}
-
-			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
-				continue
-			}
 			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
 		}
 	}
@@ -274,6 +274,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // save block height to database
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
+	srcChainRuntime.LastBlockHeight = blockInfo.Height
 	err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages))
 	if err != nil {
 		r.log.Error("unable to save height", zap.Error(err))
@@ -305,8 +306,10 @@ func (r *Relayer) FindChainRuntime(nId string) (*ChainRuntime, error) {
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	callback := func(key types.MessageKey, response types.TxResponse, err error) {
 		// note: it is ok if err is not checked
+		dst := dst
+		src := src
 		if response.Code == types.Success {
-			dst.log.Info("successfully relayed message:",
+			dst.log.Info("successfully relayed message",
 				zap.String("src chain", src.Provider.NID()),
 				zap.String("dst chain", dst.Provider.NID()),
 				zap.Uint64("Sn number", key.Sn),
@@ -315,16 +318,19 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 			// cannot clear incase of finality block
 			if dst.Provider.FinalityBlock(ctx) > 0 {
+
 				routeMessage, ok := src.MessageCache.Messages[key]
 				if !ok {
 					r.log.Error("message of key not found in messageCache", zap.Any("message key", key))
 					return
 				}
+
 				txObj := types.NewTransactionObject(*types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
+				r.log.Info("storing txhash to check finality later", zap.Any("txObj", txObj))
 				if err := r.finalityStore.StoreTxObject(txObj); err != nil {
 					r.log.Error("error occured: while storing transaction object in db", zap.Error(err))
+					return
 				}
-				return
 			}
 
 			// if success remove message from everywhere
@@ -419,6 +425,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 			}
 
 			for _, txObject := range txObjects {
+				r.log.Debug("checking finality for tx object", zap.Any("txobj", txObjects), zap.Int64("latest height", int64(latestHeight)))
 				if txObject == nil {
 					continue
 				}
@@ -428,6 +435,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 						zap.Any("message key", txObject.MessageKey))
 					continue
 				}
+
 				// hasn't reached finality
 				if txObject.TxHeight+finalityBlock > latestHeight {
 					continue
@@ -478,7 +486,9 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),
+						zap.Error(err),
 					)
+					continue
 				}
 
 				// merging message to srcChainRuntime

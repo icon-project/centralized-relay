@@ -198,20 +198,33 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 		defer cancel()
-		txo.GasPrice, _ = p.client.SuggestGasPrice(ctx)
-		txo.GasLimit = uint64(p.cfg.GasLimit)
+		txo.GasPrice, err = p.client.SuggestGasPrice(ctx)
 		return txo, nil
+	}
+
+	h, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	non, err := p.client.NonceAt(ctx, p.wallet.Address, big.NewInt(int64(h)))
+	if err != nil {
+		return nil, err
 	}
 
 	txOpts, err := newTransactOpts(p.wallet)
 	if err != nil {
 		return nil, err
 	}
+	txOpts.Nonce = big.NewInt(int64(non))
 	txOpts.Context = ctx
+	if p.cfg.GasPrice > 0 {
+		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+	}
+
 	if p.cfg.GasLimit > 0 {
 		txOpts.GasLimit = p.cfg.GasLimit
 	}
-	txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
 
 	return txOpts, nil
 }

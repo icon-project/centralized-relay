@@ -106,12 +106,15 @@ loop:
 			for ; br != nil; processedheight++ {
 				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
-				message := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
+				//note: because of monitorLoop height should be subtract by 1
+				height := br.Height - 1
+
+				messages := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(height))
 
 				// TODO: check for the concurrency
 				incoming <- providerTypes.BlockInfo{
-					Messages: message,
-					Height:   uint64(br.Height),
+					Messages: messages,
+					Height:   uint64(height),
 				}
 
 				if br = nil; len(btpBlockRespCh) > 0 {

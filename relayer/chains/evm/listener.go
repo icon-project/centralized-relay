@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -241,8 +240,6 @@ func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint6
 	if err != nil {
 		return 0, err
 	}
-
-	fmt.Println("latest height is ", latestHeight)
 
 	latestQueryHeight := latestHeight - p.cfg.FinalityBlock
 
