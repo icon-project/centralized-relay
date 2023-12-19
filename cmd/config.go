@@ -149,17 +149,13 @@ $ %s cfg i`, appName, defaultHome, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	APIListenPort  string `yaml:"api-listen-addr" json:"api-listen-addr"`
-	Timeout        string `yaml:"timeout" json:"timeout"`
-	LightCacheSize int    `yaml:"light-cache-size" json:"light-cache-size"`
+	Timeout string `yaml:"timeout" json:"timeout"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		APIListenPort:  ":5183",
-		Timeout:        "10s",
-		LightCacheSize: 20,
+		Timeout: "10s",
 	}
 }
 
@@ -316,6 +312,7 @@ func DefaultConfig() *Config {
 		Chains: make(relayer.Chains),
 	}
 }
+
 func (c Config) MustYAML() []byte {
 	out, err := yaml.Marshal(c)
 	if err != nil {

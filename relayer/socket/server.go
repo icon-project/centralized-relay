@@ -169,12 +169,9 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 }
 
 func (s *Server) Close() error {
-	if s.IsClosed() {
-		return nil
-	}
 	return s.listener.Close()
 }
 
 func (s *Server) IsClosed() bool {
-	return s == nil
+	return s.listener == nil
 }

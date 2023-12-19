@@ -39,7 +39,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Use:   "prune",
 		Short: "Prune the database",
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return db.server.Close()
+			return db.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Pruning the database...")
@@ -80,6 +80,9 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List messages stored in the database",
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return d.closeSocket()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Listing messages stored in the database...")
 			client, err := d.getSocket(app)
@@ -112,13 +115,15 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 		Use:     "relay",
 		Aliases: []string{"rly"},
 		Short:   "Relay message",
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return d.closeSocket()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Relaying messages stored in the database...")
 			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
-			defer client.Close()
 			result, err := client.RelayMessage(d.chain, d.sn)
 			if err != nil {
 				return err
@@ -138,6 +143,9 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 	rm := &cobra.Command{
 		Use:   "rm",
 		Short: "Remove messages stored in the database",
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return d.closeSocket()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("removing messages stored in the database...")
 			rly, err := d.GetRelayer(app)
@@ -199,7 +207,10 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 	block := &cobra.Command{
 		Use:     "view",
 		Aliases: []string{"get"},
-		Short:   "Show blocks stored in the database",
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return d.server.Close()
+		},
+		Short: "Show blocks stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := d.getSocket(app)
 			if err != nil {
@@ -285,4 +296,12 @@ func (d *dbState) getSocket(app *appState) (*socket.Client, error) {
 		return socket.NewClient()
 	}
 	return client, nil
+}
+
+// PostRunE is a function that is called after the command is run
+func (d *dbState) closeSocket() error {
+	if d.server != nil {
+		return d.server.Close()
+	}
+	return nil
 }
