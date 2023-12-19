@@ -11,7 +11,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 type dbState struct {
@@ -20,13 +19,15 @@ type dbState struct {
 	sn     uint64
 	page   uint
 	limit  uint
+	server *socket.Server
 }
 
-func NewDBState() dbState {
-	return dbState{}
+func newDBState() *dbState {
+	return new(dbState)
 }
 
 func dbCmd(a *appState) *cobra.Command {
+	db := newDBState()
 	dbCMD := &cobra.Command{
 		Use:     "database",
 		Short:   "Manage the database",
@@ -34,16 +35,25 @@ func dbCmd(a *appState) *cobra.Command {
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
 
-	db := NewDBState()
-
 	pruneCmd := &cobra.Command{
 		Use:   "prune",
 		Short: "Prune the database",
-		Run: func(cmd *cobra.Command, args []string) {
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return db.server.Close()
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Pruning the database...")
-			// if err := dbReadOnly.ClearStore(); err != nil {
-			// 	a.log.Error("failed to prune database", zap.Error(err))
-			// }
+			client, err := db.getSocket(a)
+			if err != nil {
+				return err
+			}
+			result, err := client.PruneDB()
+			if err != nil {
+				fmt.Printf("Pruning the database: %s\n", err)
+			}
+			printLabels("Status")
+			printValues(result.Status)
+			return nil
 		},
 	}
 
@@ -80,7 +90,7 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 			pg := store.NewPagination().WithPage(d.page, d.limit)
 			messages, err := client.GetMessageList(d.chain, pg)
 			if err != nil {
-				panic(err)
+				return err
 			}
 
 			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
@@ -103,35 +113,23 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 		Aliases: []string{"rly"},
 		Short:   "Relay message",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app.log.Debug("Relaying messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+			fmt.Println("Relaying messages stored in the database...")
+			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
-			key := types.MessageKey{Src: d.chain, Sn: d.sn}
-			message, err := rly.GetMessageStore().GetMessage(key)
+			defer client.Close()
+			result, err := client.RelayMessage(d.chain, d.sn)
 			if err != nil {
 				return err
 			}
-			message.SetIsProcessing(true)
-			if err = rly.GetMessageStore().StoreMessage(message); err != nil {
-				return err
-			}
-			srcChain, err := rly.FindChainRuntime(message.Src)
-			if err != nil {
-				return err
-			}
-			dstChain, err := rly.FindChainRuntime(message.Dst)
-			if err != nil {
-				return err
-			}
-			// skipping filters because we are relaying messages manually
-			rly.RouteMessage(cmd.Context(), message, dstChain, srcChain)
+			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
+			printValues(result.Sn, result.Src, result.Dst, result.MessageHeight, result.EventType, result.Retry)
 			return nil
 		},
 	}
-	d.messageMsgIDFlag(rly)
-	d.messageChainFlag(rly)
+	d.messageMsgIDFlag(rly, true)
+	d.messageChainFlag(rly, true)
 	d.messageHeightFlag(rly)
 	return rly
 }
@@ -141,7 +139,7 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 		Use:   "rm",
 		Short: "Remove messages stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app.log.Debug("removing messages stored in the database...")
+			fmt.Println("removing messages stored in the database...")
 			rly, err := d.GetRelayer(app)
 			if err != nil {
 				return err
@@ -151,19 +149,22 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			app.log.Debug("message", zap.Any("message", message))
+			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
+			printValues(message.Sn, message.Src, message.Dst, message.MessageHeight, message.EventType, message.Retry)
 			return rly.GetMessageStore().DeleteMessage(key)
 		},
 	}
-	d.messageMsgIDFlag(rm)
-	d.messageChainFlag(rm)
+	d.messageMsgIDFlag(rm, true)
+	d.messageChainFlag(rm, true)
 	return rm
 }
 
-func (d *dbState) messageMsgIDFlag(cmd *cobra.Command) {
+func (d *dbState) messageMsgIDFlag(cmd *cobra.Command, markRequired bool) {
 	cmd.Flags().Uint64Var(&d.sn, "sn", 0, "message sn to select")
-	if err := cmd.MarkFlagRequired("sn"); err != nil {
-		panic(err)
+	if markRequired {
+		if err := cmd.MarkFlagRequired("sn"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -171,10 +172,12 @@ func (d *dbState) messageHeightFlag(cmd *cobra.Command) {
 	cmd.Flags().Uint64Var(&d.height, "height", 0, "block height")
 }
 
-func (d *dbState) messageChainFlag(cmd *cobra.Command) {
+func (d *dbState) messageChainFlag(cmd *cobra.Command, markRequired bool) {
 	cmd.Flags().StringVarP(&d.chain, "chain", "c", "", "message chain to select")
-	if err := cmd.MarkFlagRequired("chain"); err != nil {
-		panic(err)
+	if markRequired {
+		if err := cmd.MarkFlagRequired("chain"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -214,7 +217,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			return nil
 		},
 	}
-	d.messageChainFlag(block)
+	d.messageChainFlag(block, false)
 	return block
 }
 
@@ -226,7 +229,7 @@ func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
 	}
 	rly, err := relayer.NewRelayer(app.log, db, app.config.Chains.GetAll(), false)
 	if err != nil {
-		fmt.Println("failed to create relayer", zap.Error(err))
+		fmt.Printf("failed to create relayer: %s\n", err)
 		return nil, err
 	}
 	return rly, nil
@@ -270,12 +273,13 @@ func (d *dbState) getSocket(app *appState) (*socket.Client, error) {
 		if errors.Is(err, socket.ErrSocketClosed) {
 			rly, err := d.GetRelayer(app)
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 			server, err := socket.NewSocket(rly)
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
+			d.server = server
 			go server.Listen()
 		}
 		return socket.NewClient()

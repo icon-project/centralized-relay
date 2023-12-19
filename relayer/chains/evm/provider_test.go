@@ -110,7 +110,6 @@ func TestSendMessageTest(t *testing.T) {
 }
 
 func TestEventLogReceived(t *testing.T) {
-
 	mock, err := MockEvmProvider("0x64FDC0B87019cEeA603f9DD559b9bAd31F1157b8")
 
 	assert.NoError(t, err)
@@ -135,5 +134,4 @@ func TestEventLogReceived(t *testing.T) {
 		// )
 		fmt.Println("message", message)
 	}
-
 }

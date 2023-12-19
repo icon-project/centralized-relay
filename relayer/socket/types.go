@@ -15,7 +15,7 @@ type Message struct {
 	Data  []byte
 }
 
-type dbServer struct {
+type Server struct {
 	listener net.Listener
 	rly      *relayer.Relayer
 }
@@ -36,6 +36,11 @@ type ReqRelayMessage struct {
 	Height uint64
 }
 
+type ReqMessageRemove struct {
+	Chain string
+	Sn    uint64
+}
+
 type ResMessageList struct {
 	Messages []*types.RouteMessage
 	Total    int
@@ -48,7 +53,6 @@ type ResGetBlock struct {
 
 type ResRelayMessage struct {
 	*types.RouteMessage
-	Hash string
 }
 
 type ReqPruneDB struct {

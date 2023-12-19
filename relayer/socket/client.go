@@ -135,8 +135,8 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, sn uint64, height uint64) (*ResRelayMessage, error) {
-	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
+func (c *Client) RelayMessage(chain string, sn uint64) (*ResRelayMessage, error) {
+	req := &ReqRelayMessage{Chain: chain, Sn: sn}
 	if err := c.send(EventRelayMessage, req); err != nil {
 		return nil, err
 	}
