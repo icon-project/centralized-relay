@@ -127,6 +127,25 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventGetMessageList, data}, nil
+	case EventMessageRemove:
+		req := new(ReqMessageRemove)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		store := s.rly.GetMessageStore()
+		key := types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		message, err := store.GetMessage(key)
+		if err != nil {
+			return nil, err
+		}
+		if err := store.DeleteMessage(key); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResMessageRemove{req.Sn, req.Chain, message.Dst, message.MessageHeight, message.EventType})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventMessageRemove, data}, nil
 	case EventRelayMessage:
 		req := new(ReqRelayMessage)
 		if err := json.Unmarshal(msg.Data, req); err != nil {

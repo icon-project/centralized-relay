@@ -41,6 +41,14 @@ type ReqMessageRemove struct {
 	Sn    uint64
 }
 
+type ResMessageRemove struct {
+	Sn     uint64
+	Chain  string
+	Dst    string
+	Height uint64
+	Event  string
+}
+
 type ResMessageList struct {
 	Messages []*types.RouteMessage
 	Total    int

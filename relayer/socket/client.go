@@ -12,6 +12,7 @@ const (
 	EventGetBlock       Event = "GetBlock"
 	EventGetMessageList Event = "GetMessageList"
 	EventRelayMessage   Event = "RelayMessage"
+	EventMessageRemove  Event = "MessageRemove"
 	EventPruneDB        Event = "PruneDB"
 )
 
@@ -85,6 +86,12 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 			return nil, err
 		}
 		return res, nil
+	case EventMessageRemove:
+		res := new(ResMessageRemove)
+		if err := json.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
 	case EventPruneDB:
 		res := new(ResPruneDB)
 		if err := json.Unmarshal(msg.Data, res); err != nil {
@@ -145,6 +152,23 @@ func (c *Client) RelayMessage(chain string, sn uint64) (*ResRelayMessage, error)
 		return nil, err
 	}
 	res, ok := data.(*ResRelayMessage)
+	if !ok {
+		return nil, ErrInvalidResponse
+	}
+	return res, nil
+}
+
+// MessageRemove sends MessageRemove event to socket
+func (c *Client) MessageRemove(chain string, sn uint64) (*ResMessageRemove, error) {
+	req := &ReqMessageRemove{Chain: chain, Sn: sn}
+	if err := c.send(EventMessageRemove, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResMessageRemove)
 	if !ok {
 		return nil, ErrInvalidResponse
 	}

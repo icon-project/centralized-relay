@@ -148,18 +148,19 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("removing messages stored in the database...")
-			rly, err := d.GetRelayer(app)
+			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
-			key := types.MessageKey{Src: d.chain, Sn: d.sn}
-			message, err := rly.GetMessageStore().GetMessage(key)
+			defer client.Close()
+
+			result, err := client.MessageRemove(d.chain, d.sn)
 			if err != nil {
 				return err
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
-			printValues(message.Sn, message.Src, message.Dst, message.MessageHeight, message.EventType, message.Retry)
-			return rly.GetMessageStore().DeleteMessage(key)
+			printLabels("Sn", "Src", "Dst", "Height", "Event")
+			printValues(result.Sn, result.Chain, result.Dst, result.Height, result.Event)
+			return nil
 		},
 	}
 	d.messageMsgIDFlag(rm, true)
@@ -232,8 +233,8 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 	return block
 }
 
-// GetRelayer returns the relayer instance
-func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
+// getRelayer returns the relayer instance
+func (d *dbState) getRelayer(app *appState) (*relayer.Relayer, error) {
 	db, err := lvldb.NewLvlDB(app.dbPath)
 	if err != nil {
 		return nil, err
@@ -282,7 +283,7 @@ func (d *dbState) getSocket(app *appState) (*socket.Client, error) {
 	client, err := socket.NewClient()
 	if err != nil {
 		if errors.Is(err, socket.ErrSocketClosed) {
-			rly, err := d.GetRelayer(app)
+			rly, err := d.getRelayer(app)
 			if err != nil {
 				return nil, err
 			}
