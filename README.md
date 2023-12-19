@@ -1,43 +1,59 @@
 # Centralized Relay
-A trusted centralized relay for message transfer between ICON and the other chains.
+A trusted centralized relay for message transfer between ICON and the various other chains.
 Currently, communication with any of the EVM chains is supported.
 
-## Getting Started
+## Relay installation and configuration
+1. **Clone, checkout and install the latest release ([releases page](https://github.com/icon-project/centralised-relay/releases)).**
 
-### Prerequisites
-The following tools and environment are required to set up and run the project. 
+   *[Go](https://go.dev/doc/install) needs to be installed and a proper Go environment needs to be configured*
 
-#### Go Programming Language.
-Go is an open source programming language that makes it easy to build simple, reliable, and efficient software.
-Please visit [this link](https://go.dev/doc/install) for installation guide.
-
-#### Foundry 
-Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.
-Please find the installation and usage guide [here](https://book.getfoundry.sh/getting-started/installation).
-
-#### Goloop CLI
-Goloop CLI is a command-line interface tool designed for managing nodes, executing transactions, deploying smart contracts, 
-and interacting with the ICON blockchain network.
-Run the following command to install Goloop CLI.
-```
-go install github.com/icon-project/goloop/cmd/goloop@latest
-```
-More about Goloop can be found [here](https://docs.icon.community/concepts/computational-utilities/goloop).  
-                                             
-
-### Centralized Relay Installation
-- Clone the repository:
+    ```shell
+    $ git clone git@github.com:icon-project/centralised-relay.git
+    $ cd centralised-relay
+    $ make install
     ```
-    git@github.com:icon-project/centralised-relay.git
+   Verify the installation and explore all the commands, sub commands and their usages.
+    ```shell
+   $ centralized-rly
     ```
-- Build and install the binary(coding standards and style conventions are also checked):
-    ```
-    make all
-    ```                
-  Please run ```centralized-rly``` to verify the installation.
 
-### Build and deploy the contracts
+2. **Create and store wallets as a json keystore file in proper location**
+    Centralized relay requires wallets of each chain to communicate with the bridge
+    contracts of each chain. So, create wallets for each chain and store in proper
+    location.
+    *for example:*
+      * for evm: $HOME/wallets/evm/keystore.json
+      * for icon: $HOME/wallets/icon/keystore.json
+3. **Acquire the bridge contract addresses for each chain**
+4. **Configure the wallets that you created earlier in step 2 as an admin in particular
+   bridge addresses of the chains.**
 
+5. **Configure the chains you want to relay messages between.**
+   Centralized relay by default points to the path: ```$HOME/.centralized-relay/config.yaml``` 
+   as a config file for storing the configuration for each chain that you want to relay messages in between.
 
-### Transfer messages
+   To add the chain config files run the following command:
+   ```shell
+   $ centralized-rly chains add --config-path <your-config-path> --file <chain-config-file-path>
+   ```
+   If you don't provide the ```--config-path```, the chain config will be added to default config path.
+   ```chain-config-file-path``` should be the path of json file where you have the metadata of the 
+   chain that you want to add to config. The content of chain config file should be as that of [here](/example/configs). 
+   You can list the added chains using the following the command:
+   ```shell
+   $ centralized-rly chains list
+   ```
+
+6. **Run(start) the centralized relay**
+
+   Centralized relay can be started using the command:
+   ```shell
+   $ centralized-rly start --config-path <your-config-path> --db-path <your-db-path>
+   ```
+   ```your-db-path``` refers to the path where the centralized-rly stores persistent data(messages)
+   that is relayed or to be relayed between chains. The default path is ```$HOME/.centralized-relay/data```
+   Once the relay is up and running, you can test for relaying messages from one chain to another chain. For
+   testing and demonstration, please refer [here]()
+  
+
   
