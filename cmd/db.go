@@ -9,7 +9,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/icon-project/centralized-relay/relayer/socket"
 	"github.com/icon-project/centralized-relay/relayer/store"
-	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
 )
 
