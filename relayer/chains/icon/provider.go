@@ -10,8 +10,9 @@ import (
 )
 
 type IconProviderConfig struct {
-	KeyStore        string `json:"keystore" yaml:"keystore"`
+	ChainName       string `json:"-" yaml:"-"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
+	KeyStore        string `json:"keystore" yaml:"keystore"`
 	Password        string `json:"password" yaml:"password"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"` // would be of highest priority
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
@@ -24,6 +25,8 @@ func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debu
 	if err := pp.Validate(); err != nil {
 		return nil, err
 	}
+
+	pp.ChainName = chainName
 
 	return &IconProvider{
 		log:    log.With(zap.String("nid ", pp.NID)),
@@ -58,10 +61,26 @@ func (ip *IconProvider) Init(ctx context.Context) error {
 	return nil
 }
 
+func (p *IconProvider) Type() string {
+	return "icon"
+}
+
+func (p *IconProvider) ProviderConfig() provider.ProviderConfig {
+	return p.PCfg
+}
+
+func (p *IconProvider) ChainName() string {
+	return p.PCfg.ChainName
+}
+
 func (cp *IconProvider) Wallet() (module.Wallet, error) {
 	return cp.RestoreIconKeyStore()
 }
 
 func (cp *IconProvider) GetWalletAddress() (address string, err error) {
 	return getAddrFromKeystore(cp.PCfg.KeyStore)
+}
+
+func (icp *IconProvider) FinalityBlock(ctx context.Context) uint64 {
+	return 0
 }

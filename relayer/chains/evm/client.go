@@ -29,9 +29,10 @@ func newClient(url string, contractAddress string, l *zap.Logger) (IClient, erro
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
+
 	bridgeContract, err := bridgeContract.NewAbi(common.HexToAddress(contractAddress), cleth)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
 
 	// getting the chain id
@@ -87,6 +88,7 @@ type IClient interface {
 	ParseMessage(log ethTypes.Log) (*bridgeContract.AbiMessage, error)
 	SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error)
 	ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error)
+	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
@@ -273,4 +275,8 @@ func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.
 
 func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {
 	return c.eth.SendTransaction(ctx, tx)
+}
+
+func (c *Client) MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error) {
+	return c.bridgeContract.GetReceipt(opts, srcNetwork, _connSn)
 }

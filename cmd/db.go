@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
@@ -13,15 +12,14 @@ import (
 )
 
 type dbState struct {
-	chain      string
-	sn         uint64
-	page       uint
-	limit      uint
-	dbReadOnly *lvldb.LVLDB
+	chain string
+	sn    uint64
+	page  uint
+	limit uint
 }
 
-func NewDBState(db *lvldb.LVLDB) dbState {
-	return dbState{dbReadOnly: db}
+func NewDBState() dbState {
+	return dbState{}
 }
 
 func dbCmd(a *appState) *cobra.Command {
@@ -48,9 +46,9 @@ func dbCmd(a *appState) *cobra.Command {
 		Short:   "Get messages stored in the database",
 		Aliases: []string{"m"},
 	}
-	// messagesCmd.AddCommand(db.messagesList(a))
-	// messagesCmd.AddCommand(db.messagesRm(a))
-	// messagesCmd.AddCommand(db.messagesRelay(a))
+	messagesCmd.AddCommand(db.messagesList(a))
+	//messagesCmd.AddCommand(db.messagesRm(a))
+	//messagesCmd.AddCommand(db.messagesRelay(a))
 
 	blockCmd := &cobra.Command{
 		Use:     "block",
@@ -59,7 +57,7 @@ func dbCmd(a *appState) *cobra.Command {
 	}
 	// blockCmd.AddCommand(db.blockInfo(a))
 
-	dbCMD.AddCommand(messagesCmd, pruneCmd, blockCmd)
+	dbCMD.AddCommand(messagesCmd, blockCmd)
 	return dbCMD
 }
 
@@ -218,7 +216,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 
 // GetRelayer returns the relayer instance
 func (d *dbState) GetRelayer(app *appState) (*relayer.Relayer, error) {
-	rly, err := relayer.NewRelayer(app.log, d.dbReadOnly, app.config.Chains.GetAll(), false)
+	rly, err := relayer.NewRelayer(app.log, app.db, app.config.Chains.GetAll(), false)
 	if err != nil {
 		fmt.Println("failed to create relayer", zap.Error(err))
 		return nil, err
