@@ -39,17 +39,17 @@ func NewCentralizedRelayer(log *zap.Logger, testName string, cli *client.Client,
 }
 
 type ICONRelayerChainConfigValue struct {
-	ChainID         string `yaml:"chain-id"`
+	NID             string `yaml:"nid"`
 	RPCURL          string `yaml:"rpc-url"`
 	StartHeight     int    `yaml:"start-height"`
 	Keystore        string `yaml:"keystore"`
 	Password        string `yaml:"password"`
 	ContractAddress string `yaml:"contract-address"`
-	IconNetworkID   int    `yaml:"icon-network-id"`
+	NetworkID       int    `yaml:"network-id"`
 }
 
 type EVMRelayerChainConfigValue struct {
-	ChainID         string `yaml:"chain-id"`
+	NID             string `yaml:"nid"`
 	RPCURL          string `yaml:"rpc-url"`
 	StartHeight     int    `yaml:"start-height"`
 	Keystore        string `yaml:"keystore"`
@@ -133,7 +133,7 @@ func (c commander) RelayerCommand(command string, params ...interface{}) []strin
 
 func (c commander) StartRelayer(homeDir string, pathNames ...string) []string {
 	cmd := []string{
-		"centralized-rly", "start", "--debug",
+		"centralized-rly", "start", "--debug", "--flush-interval", "40s",
 	}
 	cmd = append(cmd, c.extraStartFlags...)
 	cmd = append(cmd, pathNames...)
