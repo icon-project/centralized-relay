@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -47,8 +46,10 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				opts.GasLimit = 0
+				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			} else if strings.HasPrefix(err.Error(), "err: max fee per gas less than block base fee") && maxRetry > 0 {
+				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
 				// get gas price parsing error message
 				startIndex := strings.Index(err.Error(), "baseFee: ")
 				endIndex := strings.Index(err.Error(), "(supplied gas")
@@ -58,6 +59,8 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 					return nil, fmt.Errorf("failed to convert baseGasPrice to big.Int")
 				}
 				opts.GasPrice = gasPrice
+				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
+				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			}
 			return nil, err

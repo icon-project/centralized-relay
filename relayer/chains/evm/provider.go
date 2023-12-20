@@ -150,6 +150,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 				err = nil
 				continue
 			}
+
 			return
 		}
 	}
