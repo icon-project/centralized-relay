@@ -57,6 +57,16 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				opts.GasLimit = 0
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			} else if strings.HasPrefix(err.Error(), "err: max fee per gas less than block base fee") && maxRetry > 0 {
+				startIndex := strings.Index(err.Error(), "baseFee: ")
+				endIndex := strings.Index(err.Error(), "(supplied gas")
+				baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
+				gasPrice, err := big.NewInt(0).SetString(baseGasPrice, 10)
+				if !err {
+					return nil, fmt.Errorf("failed to convert baseGasPrice to big.Int")
+				}
+				opts.GasPrice = gasPrice
+				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			}
 			return nil, err
 		}
