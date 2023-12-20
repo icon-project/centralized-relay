@@ -2,14 +2,21 @@ package evm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
+)
+
+var (
+	ErrGasPriceTooHigh = fmt.Errorf("gas price is too high")
+	ErrGasLimitTooHigh = fmt.Errorf("gas limit is too high")
 )
 
 // this will be executed in go route
@@ -23,20 +30,34 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message)
+	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
 	if err != nil {
+		if errors.Is(err, ErrGasPriceTooHigh) || errors.Is(err, ErrGasLimitTooHigh) {
+			p.log.Info("failed to send transaction", zap.Error(err))
+			return nil
+		}
 		return fmt.Errorf("routing failed: %w", err)
 	}
 	p.WaitForTxResult(ctx, tx, messageKey, callback)
 	return nil
 }
 
-func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
+func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
 	switch message.EventType {
-	// TODO: estimate and throw error if failed
+	// check estimated gas and gas price
 	case events.EmitMessage:
 		tx, err := p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
 		if err != nil {
+			if strings.HasPrefix(err.Error(), "transaction underpriced") && maxRetry > 0 {
+				p.log.Info("transaction underpriced", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
+				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
+				gas := big.NewFloat(gasRatio)
+				gasPrice, _ := gas.Int(nil)
+				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
+				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				opts.GasLimit = 0
+				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			}
 			return nil, err
 		}
 		return tx, nil
