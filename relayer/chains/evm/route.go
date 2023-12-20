@@ -21,6 +21,10 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 		return fmt.Errorf("routing failed: %w", err)
 	}
 
+	fmt.Println("opts parameter before sendig transaction ")
+	fmt.Println("options gas price ", opts.GasPrice)
+	fmt.Println("options gas limit ", opts.GasLimit)
+
 	messageKey := message.MessageKey()
 
 	tx, err := p.SendTransaction(ctx, opts, message)

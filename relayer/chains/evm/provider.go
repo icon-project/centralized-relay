@@ -22,6 +22,10 @@ import (
 
 var _ provider.ProviderConfig = &EVMProviderConfig{}
 
+var (
+	MaxBoostGasPrice = 10.0
+)
+
 type EVMProviderConfig struct {
 	ChainName       string `json:"-" yaml:"-"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
@@ -35,16 +39,21 @@ type EVMProviderConfig struct {
 	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock   uint64 `json:"finality-block" yaml:"finality-block"`
 	NID             string `json:"nid" yaml:"nid"`
+	// gas price will be increase incase of tx failure
+	// ratio control like gas price cannot go greater than this ratio like 1.0 max is 10
+	BoostGasPrice float64 `json:"boost-gas-price" yaml:"boost-gas-price"`
 }
 
 type EVMProvider struct {
-	client      IClient
-	verifier    IClient
-	log         *zap.Logger
-	cfg         *EVMProviderConfig
-	StartHeight uint64
-	blockReq    ethereum.FilterQuery
-	wallet      *keystore.Key
+	client               IClient
+	verifier             IClient
+	log                  *zap.Logger
+	cfg                  *EVMProviderConfig
+	StartHeight          uint64
+	blockReq             ethereum.FilterQuery
+	wallet               *keystore.Key
+	prevGasPrice         *big.Int
+	UpdatedBoostGasPrice float64
 }
 
 func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -74,12 +83,26 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	}
 	p.ChainName = chainName
 
+	// Setting PrevGasPrice
+	gasprice, err := client.SuggestGasPrice(context.TODO())
+	if err != nil {
+		return nil, errors.Wrap(err, "evm NewProvider: failed to fetch suggested gasprice")
+	}
+	if p.GasPrice > gasprice.Int64() {
+		gasprice = big.NewInt(p.GasPrice)
+	}
+
+	// Boost gasPrice
+	var boostGasPrice float64
+
 	return &EVMProvider{
-		cfg:      p,
-		log:      log.With(zap.String("nid", p.NID)),
-		client:   client,
-		blockReq: getEventFilterQuery(p.ContractAddress),
-		verifier: verifierClient,
+		cfg:                  p,
+		log:                  log.With(zap.String("nid", p.NID)),
+		client:               client,
+		blockReq:             getEventFilterQuery(p.ContractAddress),
+		verifier:             verifierClient,
+		prevGasPrice:         gasprice,
+		UpdatedBoostGasPrice: boostGasPrice,
 	}, nil
 }
 
@@ -198,33 +221,41 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 		defer cancel()
-		txo.GasPrice, err = p.client.SuggestGasPrice(ctx)
+		gasPrice, err := p.client.SuggestGasPrice(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		p.prevGasPrice = gasPrice
+		boostedGasPrice, _ := (&big.Float{}).Mul(
+			(&big.Float{}).SetInt64(gasPrice.Int64()),
+			(&big.Float{}).SetFloat64(p.UpdatedBoostGasPrice),
+		).Int(nil)
+		txo.GasPrice = boostedGasPrice
+
 		return txo, nil
-	}
-
-	h, err := p.QueryLatestHeight(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	non, err := p.client.NonceAt(ctx, p.wallet.Address, big.NewInt(int64(h)))
-	if err != nil {
-		return nil, err
 	}
 
 	txOpts, err := newTransactOpts(p.wallet)
 	if err != nil {
 		return nil, err
 	}
-	txOpts.Nonce = big.NewInt(int64(non))
-	txOpts.Context = ctx
-	if p.cfg.GasPrice > 0 {
-		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+
+	height, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "GetTransactionOps: failed to fetch latest height")
 	}
 
-	if p.cfg.GasLimit > 0 {
-		txOpts.GasLimit = p.cfg.GasLimit
+	non, err := p.client.NonceAt(ctx, p.wallet.Address, big.NewInt(int64(height)))
+	if err != nil {
+		return nil, err
 	}
+	txOpts.Nonce = big.NewInt(int64(non))
+
+	txOpts.Context = ctx
+	// if p.cfg.GasPrice > txOpts.GasPrice.Int64() {
+	// 	txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+	// }
 
 	return txOpts, nil
 }
