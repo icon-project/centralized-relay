@@ -52,7 +52,6 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				gas := big.NewFloat(gasRatio)
 				gasPrice, _ := gas.Int(nil)
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
-				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			case ErrorLimitLessThanGas:
@@ -66,7 +65,6 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 					return nil, fmt.Errorf("failed to convert baseGasPrice to big.Int")
 				}
 				opts.GasPrice = gasPrice
-				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
 				p.log.Info("gasfee new", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			default:
