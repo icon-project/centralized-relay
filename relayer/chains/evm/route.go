@@ -13,6 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	ErrorLessGas          = "transaction underpriced"
+	ErrorLimitLessThanGas = "err: max fee per gas less than block base fee"
+	ErrUnKnown            = "unknown"
+	ErrMaxTried           = "max tried"
+)
+
 // this will be executed in go route
 func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message", zap.Any("message", message))
@@ -38,18 +45,18 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 	case events.EmitMessage:
 		tx, err := p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
 		if err != nil {
-			if strings.HasPrefix(err.Error(), "transaction underpriced") && maxRetry > 0 {
-				p.log.Info("transaction underpriced", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
+			switch p.parseErr(err, maxRetry > 0) {
+			case ErrorLessGas:
+				p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
 				gas := big.NewFloat(gasRatio)
 				gasPrice, _ := gas.Int(nil)
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
-				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				opts.GasLimit = 0
 				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
+				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
-			} else if strings.HasPrefix(err.Error(), "err: max fee per gas less than block base fee") && maxRetry > 0 {
-				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
+			case ErrorLimitLessThanGas:
+				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				// get gas price parsing error message
 				startIndex := strings.Index(err.Error(), "baseFee: ")
 				endIndex := strings.Index(err.Error(), "(supplied gas")
@@ -60,10 +67,11 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				}
 				opts.GasPrice = gasPrice
 				opts.Nonce = opts.Nonce.Add(opts.Nonce, big.NewInt(1))
-				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
+				p.log.Info("gasfee new", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			default:
+				return nil, err
 			}
-			return nil, err
 		}
 		return tx, nil
 	}
@@ -122,4 +130,15 @@ func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *t
 		zap.Int64("height", result.BlockNumber.Int64()),
 		zap.Error(err),
 	)
+}
+
+func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
+	if !shouldParse {
+		return ErrMaxTried
+	} else if strings.HasPrefix(err.Error(), ErrorLimitLessThanGas) {
+		return ErrorLimitLessThanGas
+	} else if strings.HasPrefix(err.Error(), ErrorLimitLessThanGas) {
+		return ErrorLimitLessThanGas
+	}
+	return ErrUnKnown
 }

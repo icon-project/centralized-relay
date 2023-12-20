@@ -141,7 +141,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 			return
 		case <-ticker.C:
 			if retryCounter >= retryLimit {
-				err = errors.New("Retry Limit Exceeded while waiting for results of transaction")
+				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
 				return
 			}
 			retryCounter++
