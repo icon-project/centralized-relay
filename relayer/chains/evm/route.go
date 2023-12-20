@@ -14,11 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrGasPriceTooHigh = fmt.Errorf("gas price is too high")
-	ErrGasLimitTooHigh = fmt.Errorf("gas limit is too high")
-)
-
 // this will be executed in go route
 func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message", zap.Any("message", message))
@@ -32,10 +27,6 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 
 	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
 	if err != nil {
-		if errors.Is(err, ErrGasPriceTooHigh) || errors.Is(err, ErrGasLimitTooHigh) {
-			p.log.Info("failed to send transaction", zap.Error(err))
-			return nil
-		}
 		return fmt.Errorf("routing failed: %w", err)
 	}
 	p.WaitForTxResult(ctx, tx, messageKey, callback)
@@ -58,6 +49,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				opts.GasLimit = 0
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			} else if strings.HasPrefix(err.Error(), "err: max fee per gas less than block base fee") && maxRetry > 0 {
+				// get gas price parsing error message
 				startIndex := strings.Index(err.Error(), "baseFee: ")
 				endIndex := strings.Index(err.Error(), "(supplied gas")
 				baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
