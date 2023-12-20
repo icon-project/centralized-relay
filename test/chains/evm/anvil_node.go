@@ -522,7 +522,7 @@ func (an *AnvilNode) GetChainConfig(ctx context.Context, rlyHome string, keyName
 	config := &centralized.EVMRelayerChainConfig{
 		Type: "evm",
 		Value: centralized.EVMRelayerChainConfigValue{
-			ChainID:         an.Chain.Config().ChainID,
+			NID:             an.Chain.Config().ChainID,
 			RPCURL:          an.Chain.GetRPCAddress(),
 			StartHeight:     0,
 			Keystore:        fmt.Sprintf("%s/keys/%s/%s", rlyHome, an.Chain.Config().ChainID, keyName),

@@ -394,7 +394,7 @@ func (r *DockerRelayer) GetKeystore(chain string, wallet ibc.Wallet) ([]byte, er
 }
 
 func (r *DockerRelayer) CreateConfig(ctx context.Context, configYAML []byte) error {
-	path := ".centralized-relay/config/config.yaml"
+	path := ".centralized-relay/config.yaml"
 	fw := dockerutil.NewFileWriter(r.log, r.client, r.testName)
 	if err := fw.WriteFile(ctx, r.volumeName, path, configYAML); err != nil {
 		return fmt.Errorf("failed to restore config: %w", err)

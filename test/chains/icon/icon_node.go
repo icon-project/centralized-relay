@@ -489,12 +489,12 @@ func (in *IconNode) GetChainConfig(ctx context.Context, rlyHome string, keyName 
 	config := &centralized.ICONRelayerChainConfig{
 		Type: "icon",
 		Value: centralized.ICONRelayerChainConfigValue{
-			ChainID:         in.Chain.Config().ChainID,
+			NID:             in.Chain.Config().ChainID,
 			RPCURL:          in.Chain.GetRPCAddress(),
 			StartHeight:     0,
 			Keystore:        fmt.Sprintf("%s/keys/%s/%s", rlyHome, in.Chain.Config().ChainID, keyName),
 			Password:        keyName,
-			IconNetworkID:   0x3,
+			NetworkID:       0x3,
 			ContractAddress: in.Chain.GetContractAddress("connection"),
 		},
 	}

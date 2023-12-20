@@ -32,7 +32,7 @@ func (s *E2ETest) TestE2E_all() {
 	})
 
 	t.Run("test xcall packet flush", func(t *testing.T) {
-		//xcall.TestXCallFlush()
+		xcall.TestXCallFlush()
 	})
 
 }

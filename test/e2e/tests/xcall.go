@@ -61,13 +61,13 @@ func (x *XCallTestSuite) TextXCall() {
 }
 
 func (x *XCallTestSuite) TestXCallFlush() {
-	testcase := "packet-drop"
+	testcase := "packet-flush"
 	portId := "transfer-1"
 	ctx := context.WithValue(context.TODO(), "testcase", testcase)
 	//x.Require().NoError(x.SetupXCall(ctx), "fail to setup xcall")
 	x.Require().NoError(x.DeployXCallMockApp(ctx, portId), "fail to deploy xcall dapp")
 	chainA, chainB := x.GetChains()
-	x.T.Run("xcall packet drop chainA-chainB", func(t *testing.T) {
+	x.T.Run("xcall packet flush chainA-chainB", func(t *testing.T) {
 		err := x.testPacketFlush(ctx, chainA, chainB)
 		assert.NoErrorf(t, err, "xcall packet flush chainA-chainB ::%v\n ", err)
 
@@ -82,7 +82,7 @@ func (x *XCallTestSuite) TestXCallFlush() {
 func (x *XCallTestSuite) testPacketFlush(ctx context.Context, chainA, chainB chains.Chain) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	msg := "drop-msg"
+	msg := "flush-msg"
 	heightB, _ := chainB.Height(ctx)
 
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
@@ -91,38 +91,27 @@ func (x *XCallTestSuite) testPacketFlush(ctx context.Context, chainA, chainB cha
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to pause node %s - %v", chainB.Config().Name, err))
 	}
-	res, err := chainA.XCall(ctx, chainB, interchaintest.UserAccount, dst, []byte(msg), []byte("rollback-data"))
+
+	ctx, err = chainA.SendPacketXCall(ctx, interchaintest.UserAccount, dst, []byte(msg), make([]byte, 0))
+
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to find eventlog - %v", err))
+		return errors.New(fmt.Sprintf("failed send xCall message find eventlog - %v", err))
 	}
+	sn := ctx.Value("sn").(string)
 
-	sn := res.SerialNo
+	waitDuration := 90 * time.Second
+	fmt.Printf("Wait for %v ", waitDuration)
+	// TODO: Wait for 1.5 mins (90 seconds)
+	time.Sleep(waitDuration)
 
-	isPacketStaled := false
-
-	timeout := time.After(5 * time.Minute)
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for !isPacketStaled {
-		select {
-		case <-timeout:
-			return errors.New(fmt.Sprintf("timeout: %s packet is not staled", sn))
-		case <-ticker.C:
-			// TODO: Check for packet stale and update isPacketStale accordingly
-			_ = x.Relayers["centralized"].ExecBin(ctx, x.GetRelayerExecReporter(), "stale")
-			isPacketStaled = false
-		}
-	}
-	if !isPacketStaled {
-		return errors.New(fmt.Sprintf("timeout: %s packet is not staled", sn))
-	}
 	err = chainB.UnpauseNode(ctx)
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to unpause node %s - %v", chainB.Config().Name, err))
 	}
 
-	// TODO: Flush packet
-	_ = x.Relayers["centralized"].ExecBin(ctx, x.GetRelayerExecReporter(), "flush")
+	//wait 90 sec
+	fmt.Printf("Wait for %v after node unpause", waitDuration)
+	time.Sleep(waitDuration)
 
 	reqId, destData, err := chainB.FindCallMessage(ctx, heightB, chainA.Config().ChainID+"/"+chainA.GetContractAddress(dappKey), chainB.GetContractAddress(dappKey), sn)
 
