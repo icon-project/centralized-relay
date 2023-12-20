@@ -5,8 +5,8 @@ Currently, supports the following chains:
 - AVALANCHE
 ---
 ## Features
-- **Low transaction fee**
-- **Easy integration with DAAP**
+- **Quick integration with DAAP**
+- **Prevention from abnormal transactions**
 
 ---
 ## Prerequisites
