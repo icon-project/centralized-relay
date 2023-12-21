@@ -131,12 +131,15 @@ func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *t
 }
 
 func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
-	if !shouldParse {
+	msg := err.Error()
+	switch {
+	case !shouldParse:
 		return ErrMaxTried
-	} else if strings.HasPrefix(err.Error(), ErrorLimitLessThanGas) {
+	case strings.HasPrefix(msg, ErrorLimitLessThanGas):
 		return ErrorLimitLessThanGas
-	} else if strings.HasPrefix(err.Error(), ErrorLessGas) {
+	case strings.HasPrefix(msg, ErrorLessGas):
 		return ErrorLessGas
+	default:
+		return ErrUnKnown
 	}
-	return ErrUnKnown
 }
