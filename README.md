@@ -1,16 +1,12 @@
 # Centralized Relay
 Centralized Relay serves as a trusted medium for message transfer between different chains.
-Currently, supports the following chains:
+The following chains are supported:
 - ICON
 - AVALANCHE
 
-## Features
-- **Quick integration with DAAP**
-- **Prevention from abnormal transactions**
-
 ## Prerequisites
 
-- **Go Language**: Version 1.20.0 or higher. Make sure to have Go properly installed and configured on your system. 
+- **Go Language**: Version 1.21.0 or higher. Make sure to have Go properly installed and configured on your system. 
    For detailed installation instructions, visit the [Go Installation Guide](https://go.dev/doc/install).
 
 - **GNU Make**: This is an essential build automation tool used to compile and build the project from source files. 
@@ -38,15 +34,16 @@ Currently, supports the following chains:
     ```
 2. **Wallet Creation and Storage**
 
-   Centralized Relay necessitates the use of specific wallets for each chain to facilitate communication with their respective bridge(connection) contracts. Follow these steps to create and properly store the wallets:
+   Centralized Relay necessitates the use of specific wallets for each chain to facilitate communication with their respective bridge(connection) contracts. 
+   Follow these steps to create and properly store the wallets:
 
    - **Create Wallets**: Generate a new wallet for each chain you intend to interact with.
-   - **Store in JSON Keystore Format**: Save the wallet details in a JSON keystore file format.
-
-   *Example Storage Locations:*
-   - evm:  `$HOME/wallets/evm/keystore.json`
-   - icon: `$HOME/wallets/icon/keystore.json`
-
+   Evm wallet can be created using any of the wallet application. Please follow the instruction [here](https://ethereum.org/en/wallets/find-wallet/).
+   Icon wallet can be created by installing [ICONex](https://chromewebstore.google.com/detail/iconex/flpiciilemghbmfalicajoolhkkenfel) chrome extension.
+   
+   - **Store in JSON Keystore Format**: Once the wallets has been created, export the wallet as a JSON keystore file. The json keystore file for 
+     wallet looks like as shown in the example [here](/example/wallets).
+      
 
 4. **Configure the chains you want to relay messages between.**
 
@@ -69,6 +66,10 @@ Currently, supports the following chains:
    - To view the list of configured chains, use the command:
      ```shell
      centralized-rly chains list
+     ```
+   - To view the config file, use the command:
+      ```shell
+     centralized-rly config show
      ```
 
    Ensure that each chain's configuration is accurately set up to facilitate smooth message relay between the specified networks.
