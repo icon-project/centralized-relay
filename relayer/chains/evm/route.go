@@ -135,8 +135,8 @@ func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
 		return ErrMaxTried
 	} else if strings.HasPrefix(err.Error(), ErrorLimitLessThanGas) {
 		return ErrorLimitLessThanGas
-	} else if strings.HasPrefix(err.Error(), ErrorLimitLessThanGas) {
-		return ErrorLimitLessThanGas
+	} else if strings.HasPrefix(err.Error(), ErrorLessGas) {
+		return ErrorLessGas
 	}
 	return ErrUnKnown
 }
