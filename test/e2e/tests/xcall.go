@@ -92,15 +92,15 @@ func (x *XCallTestSuite) testPacketFlush(ctx context.Context, chainA, chainB cha
 		return errors.New(fmt.Sprintf("failed to pause node %s - %v", chainB.Config().Name, err))
 	}
 
-	ctx, err = chainA.SendPacketXCall(ctx, interchaintest.UserAccount, dst, []byte(msg), make([]byte, 0))
+	ctx, err = chainA.SendPacketXCall(ctx, interchaintest.UserAccount, dst, []byte(msg), nil)
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed send xCall message find eventlog - %v", err))
 	}
 	sn := ctx.Value("sn").(string)
-
+	fmt.Printf("sn-%s\n", sn)
 	waitDuration := 90 * time.Second
-	fmt.Printf("Wait for %v ", waitDuration)
+	fmt.Printf("Wait for %v \n", waitDuration)
 	// TODO: Wait for 1.5 mins (90 seconds)
 	time.Sleep(waitDuration)
 
@@ -110,7 +110,7 @@ func (x *XCallTestSuite) testPacketFlush(ctx context.Context, chainA, chainB cha
 	}
 
 	//wait 90 sec
-	fmt.Printf("Wait for %v after node unpause", waitDuration)
+	fmt.Printf("Wait for %v after node unpause\n", waitDuration)
 	time.Sleep(waitDuration)
 
 	reqId, destData, err := chainB.FindCallMessage(ctx, heightB, chainA.Config().ChainID+"/"+chainA.GetContractAddress(dappKey), chainB.GetContractAddress(dappKey), sn)

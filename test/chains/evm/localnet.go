@@ -509,7 +509,9 @@ func (c *EVMLocalnet) RestoreConfig(backup []byte) error {
 func (c *EVMLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-
+	if rollback == nil {
+		rollback = make([]byte, 0)
+	}
 	params := []interface{}{_to, data, rollback}
 	// TODO: send fees
 	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, "sendMessage", params...)
@@ -540,9 +542,7 @@ func (c *EVMLocalnet) XCall(ctx context.Context, targetChain chains.Chain, keyNa
 		return nil, err
 	}
 	// TODO: send fees
-	if rollback == nil {
-		rollback = make([]byte, 0)
-	}
+
 	ctx, err = c.SendPacketXCall(ctx, keyName, to, data, rollback)
 	if err != nil {
 		return nil, err
@@ -576,8 +576,10 @@ func (c *EVMLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, f
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	fmt.Printf("%s,--%s,--%s\n", from, to, sn)
-	topics := []common.Hash{common.HexToHash(CallMessage.hash), crypto.Keccak256Hash([]byte(from)), crypto.Keccak256Hash([]byte(to)), common.BytesToHash([]byte(sn))}
+	_sn, _ := big.NewInt(0).SetString(sn, 10)
+	topics := []common.Hash{common.HexToHash(CallMessage.hash), crypto.Keccak256Hash([]byte(from)), crypto.Keccak256Hash([]byte(to)), common.BytesToHash(_sn.Bytes())}
 	event, err := c.FindEvent(ctx, startHeight, CallMessage, topics)
+
 	if err != nil {
 		fmt.Printf("Topics %v\n", topics)
 		return "", "", err
@@ -588,7 +590,8 @@ func (c *EVMLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, f
 func (c *EVMLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	topics := []common.Hash{common.HexToHash(ResponseMessage.hash), common.BytesToHash([]byte(sn))}
+	_sn, _ := big.NewInt(0).SetString(sn, 10)
+	topics := []common.Hash{common.HexToHash(ResponseMessage.hash), common.BytesToHash(_sn.Bytes())}
 
 	event, err := c.FindEvent(ctx, startHeight, ResponseMessage, topics)
 	if err != nil {
@@ -621,40 +624,38 @@ func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event E
 			topics,
 		},
 	}
-
-	logs := make(chan eth_types.Log)
-
-	sub, err := eClient.SubscribeFilterLogs(ctx, query, logs)
-	if err != nil {
-		return nil, err
-	}
-	defer sub.Unsubscribe()
-
 	ev := make(map[string]interface{})
-	select {
-	case <-ctx.Done():
-		return nil, errors.New(fmt.Sprintf("timeout : Event %s not found after %d block", CallMessage.name, startHeight))
-	case err := <-sub.Err():
-		return nil, err
-	case lg := <-logs:
-		contractABI := c.getFullNode().ContractABI[address.Hex()]
-		if len(lg.Data) > 0 {
-			if err = contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
-				return ev, err
-			}
+	maxIterations := 6
+	iterations := 0
+	for iterations < maxIterations {
+		logs, err := eClient.FilterLogs(context.Background(), query)
+		if err != nil {
+			return ev, err
 		}
 
-		var indexed abi.Arguments
-		for _, arg := range contractABI.Events[event.name].Inputs {
-			if arg.Indexed {
-				indexed = append(indexed, arg)
+		for _, lg := range logs {
+			contractABI := c.getFullNode().ContractABI[address.Hex()]
+			if len(lg.Data) > 0 {
+				if err = contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
+					return ev, err
+				}
 			}
-		}
 
-		err = abi.ParseTopicsIntoMap(ev, indexed, lg.Topics[1:])
-		return ev, err
+			var indexed abi.Arguments
+			for _, arg := range contractABI.Events[event.name].Inputs {
+				if arg.Indexed {
+					indexed = append(indexed, arg)
+				}
+			}
+
+			err = abi.ParseTopicsIntoMap(ev, indexed, lg.Topics[1:])
+			return ev, err
+
+		}
+		iterations++
+		time.Sleep(5 * time.Second)
 	}
-
+	return ev, errors.New("event not found after maximum iterations")
 }
 
 func (c *EVMLocalnet) ParseEvent(event Event, logs []*eth_types.Log) (map[string]interface{}, error) {
