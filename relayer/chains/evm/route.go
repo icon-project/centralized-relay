@@ -60,12 +60,15 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				startIndex := strings.Index(err.Error(), "baseFee: ")
 				endIndex := strings.Index(err.Error(), "(supplied gas")
 				baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
-				gasPrice, err := big.NewInt(0).SetString(baseGasPrice, 10)
-				if !err {
-					return nil, fmt.Errorf("failed to convert baseGasPrice to big.Int")
+				gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 10)
+				if !ok {
+					gasPrice, err = p.client.SuggestGasPrice(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get gas price: %w", err)
+					}
 				}
 				opts.GasPrice = gasPrice
-				p.log.Info("gasfee new", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			default:
 				return nil, err
