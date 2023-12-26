@@ -13,6 +13,18 @@ The following chains are supported:
    GNU Make streamlines the process of generating executables and other non-source components of the program. 
    To install GNU Make on your system, refer to the [GNU Make Official Website](https://www.gnu.org/software/make/).
 
+- **Foundry**: Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.Please find the installation and usage guide [here](https://book.getfoundry.sh/getting-started/installation).
+
+- **Geth(go-ethereum)**: It is the official Go implementation of the Ethereum protocol, enabling users to run a full Ethereum node. 
+   It facilitates interacting with the Ethereum blockchain, executing transactions, and developing decentralized applications.
+   Please visit the installation guide [here](https://geth.ethereum.org/docs/getting-started/installing-geth).
+
+- **Goloop CLI**: Goloop CLI is a command-line interface tool designed for managing nodes, executing transactions, deploying smart contracts, and interacting with the ICON blockchain network. Run the following command to install Goloop CLI.
+   ```shell
+   $ go install github.com/icon-project/goloop/cmd/goloop@latest
+   ```
+    More about Goloop can be found [here](https://docs.icon.community/concepts/computational-utilities/goloop).  
+
 ## Contract Addresses
 | Chain     | xCall Address                               | Connection Address                         | Networks | 
 |-----------|---------------------------------------------|--------------------------------------------|----------|
@@ -32,18 +44,25 @@ The following chains are supported:
     ```shell
    $ centralized-rly
     ```
-2. **Wallet Creation and Storage**
+2. **Wallet Creation**
 
-   Centralized Relay necessitates the use of specific wallets for each chain to facilitate communication with their respective bridge(connection) contracts. 
-   Follow these steps to create and properly store the wallets:
+   Centralized Relay necessitates the use of specific wallets in a JSON keystore file format for each chain to facilitate communication with their respective bridge(connection) contracts. 
+   Use the following commands to create wallet for each chain:
 
-   - **Create Wallets**: Generate a new wallet for each chain you intend to interact with.
-   Evm wallet can be created using any of the wallet application. Please follow the instruction [here](https://ethereum.org/en/wallets/find-wallet/).
-   Icon wallet can be created by installing [ICONex](https://chromewebstore.google.com/detail/iconex/flpiciilemghbmfalicajoolhkkenfel) chrome extension.
+   - For evm:
+     ```shell
+     $ geth account new --keystore <directory-for-keystore> --password <keystore-password>
+     ```
+   - For icon:
+     ```shell
+     $ goloop ks gen --out <directory-for-keystore> --password <keystore-password>
+     ```
+   Also make sure to load sufficient fake test balance in these wallets to perform operations like contract deployment and sending transactions.
+   Balance can be loaded using faucets for each testnet. Look for the following faucets for specific testnet.
+    - [Mumbai testnet faucet](https://mumbaifaucet.com/).
+    - [Icon testnet faucet](https://faucet.iconosphere.io/).
    
-   - **Store in JSON Keystore Format**: Once the wallets has been created, export the wallet as a JSON keystore file. The json keystore file for 
-     wallet looks like as shown in the example [here](/example/wallets).
-      
+   Next store these keystore files in a proper location. The wallet keystore file needs to be referenced in the chain configuration file. Follow next steps for chain configuration.
 
 4. **Configure the chains you want to relay messages between.**
 
@@ -59,7 +78,7 @@ The following chains are supported:
      ```shell
      centralized-rly chains add --config-path <your-config-path> --file <chain-config-file-path>
      ```
-     - If `--config-path` is not specified, the configuration will default to the standard path.
+     - If `config-path` is not specified, the configuration will default to the standard path.
      - The `<chain-config-file-path>` should be the path to a JSON file containing the chain's metadata. The structure of this file can be modeled similar to the example found [here](/example/configs).
 
    **Listing Configured Chains**:
@@ -80,7 +99,7 @@ The following chains are supported:
    ```shell
    $ centralized-rly start --config-path <your-config-path> --db-path <your-db-path>
    ```
-   - `your-db-path` refers to the path where the centralized-rly stores data(messages)
+   - `db-path` refers to the path where the centralized-rly stores data(messages)
    that is relayed or to be relayed between chains. The default path is ```$HOME/.centralized-relay/data```
    
 6. **Testing and Demo**
