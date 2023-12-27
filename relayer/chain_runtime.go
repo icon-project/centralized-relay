@@ -58,6 +58,7 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 
 	ok, _ := dst.Provider.ShouldReceiveMessage(ctx, routeMessage.Message)
 	if !ok {
+		dst.log.Info("message already processed", zap.Uint64("sn", routeMessage.Message.Sn))
 		return false
 	}
 

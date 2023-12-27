@@ -52,7 +52,8 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, msg *providerTypes.Message) (bool, error) {
 	processed, err := ip.MessageReceived(ctx, msg)
 	if err != nil {
-		return false, fmt.Errorf("ShouldReceiveMessage: %v", err)
+		ip.log.Error("failed checking receipt", zap.Error(err))
+		return false, err
 	}
 	return !processed, nil
 }

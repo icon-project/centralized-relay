@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"go.uber.org/zap"
 )
 
 func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
@@ -21,7 +22,8 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, msg *types.Message) (bool, error) {
 	processed, err := p.MessageReceived(ctx, msg)
 	if err != nil {
-		return false, fmt.Errorf("ShouldReceiveMessage: %v", err)
+		p.log.Error("failed checking receipt", zap.Error(err))
+		return false, err
 	}
 	return !processed, nil
 }
