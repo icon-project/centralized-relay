@@ -22,7 +22,6 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 }
 
 func (ip *IconProvider) prepareCallParams(methodName string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
-
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
@@ -40,7 +39,6 @@ func (ip *IconProvider) prepareCallParams(methodName string, param map[string]in
 	}
 
 	return callParam
-
 }
 
 func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -51,20 +49,22 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return uint64(block.Height), nil
 }
 
-func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey providerTypes.Message) (bool, error) {
+func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
 	return true, nil
-
-}
-func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey providerTypes.Message) (bool, error) {
-	return true, nil
-
 }
 
-func (ip *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
+func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
+	received, err := ip.MessageReceived(ctx, messageKey)
+	if err != nil {
+		return false, fmt.Errorf("ShouldSendMessage: %v", err)
+	}
+	return !received, nil
+}
 
+func (ip *IconProvider) MessageReceived(ctx context.Context, message *providerTypes.Message) (bool, error) {
 	callParam := ip.prepareCallParams(MethodGetReceipts, map[string]interface{}{
-		"srcNetwork": messageKey.Src,
-		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+		"srcNetwork": message.Src,
+		"_connSn":    types.NewHexInt(int64(message.Sn)),
 	})
 
 	var status types.HexInt
@@ -98,7 +98,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
 
-	var eventName = ""
+	eventName := ""
 	switch key.EventType {
 	case events.EmitMessage:
 		eventName = EmitMessage
@@ -173,7 +173,6 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 	status, err := res.Status.Int()
 	if err != nil {
 		return nil, fmt.Errorf("QueryTransactionReceipt: bigIntConversion %v", err)
-
 	}
 
 	receipt := providerTypes.Receipt{
@@ -184,5 +183,4 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 		receipt.Status = true
 	}
 	return &receipt, nil
-
 }

@@ -5,3 +5,5 @@
 .xcall-multi
 artifacts
 vendor
+.artifacts/
+.xcall/

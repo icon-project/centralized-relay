@@ -56,12 +56,12 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	ok, _ := dst.Provider.ShouldReceiveMessage(ctx, *routeMessage.Message)
+	ok, _ := dst.Provider.ShouldReceiveMessage(ctx, routeMessage.Message)
 	if !ok {
 		return false
 	}
 
-	ok, _ = src.Provider.ShouldSendMessage(ctx, *routeMessage.Message)
+	ok, _ = src.Provider.ShouldSendMessage(ctx, routeMessage.Message)
 	if !ok {
 		return false
 	}

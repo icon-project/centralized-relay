@@ -28,9 +28,9 @@ type ChainProvider interface {
 	ProviderConfig() ProviderConfig
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
-	ShouldReceiveMessage(ctx context.Context, message types.Message) (bool, error)
-	ShouldSendMessage(ctx context.Context, message types.Message) (bool, error)
-	MessageReceived(ctx context.Context, key types.MessageKey) (bool, error)
+	ShouldReceiveMessage(ctx context.Context, msg *types.Message) (bool, error)
+	ShouldSendMessage(ctx context.Context, msg *types.Message) (bool, error)
+	MessageReceived(ctx context.Context, msg *types.Message) (bool, error)
 
 	FinalityBlock(ctx context.Context) uint64
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)

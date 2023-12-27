@@ -18,30 +18,29 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 	return
 }
 
-func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
-	//TODO:
-	return nil, nil
-}
-
-func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
+func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, msg *types.Message) (bool, error) {
 	return true, nil
 }
 
-func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
-	return true, nil
+func (p *EVMProvider) ShouldSendMessage(ctx context.Context, msg *types.Message) (bool, error) {
+	received, err := p.MessageReceived(ctx, msg)
+	if err != nil {
+		return false, fmt.Errorf("ShouldSendMessage: %v", err)
+	}
+	return !received, nil
 }
 
-func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.MessageKey) (bool, error) {
-	return p.client.MessageReceived(nil, messageKey.Src, big.NewInt(int64(messageKey.Sn)))
+func (p *EVMProvider) MessageReceived(ctx context.Context, msg *types.Message) (bool, error) {
+	return p.client.MessageReceived(nil, msg.Src, big.NewInt(int64(msg.Sn)))
 }
 
-// func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-// 	balance, err := p.client.GetBalance(ctx, addr)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
-// }
+func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+	balance, err := p.client.GetBalance(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
+}
 
 // TODO: may not be need anytime soon so its ok to implement later on
 func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {

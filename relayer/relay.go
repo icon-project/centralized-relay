@@ -254,7 +254,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 
 			// if message reached delete the message
-			messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
+			messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.Message)
 			if err != nil {
 				r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
 				continue
@@ -284,7 +284,6 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
-
 	if messageCount > 0 || (height-chainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
 		r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 		chainRuntime.LastSavedHeight = height
@@ -404,11 +403,9 @@ func (r *Relayer) StartFinalityProcessor(ctx context.Context) {
 			r.CheckFinality(ctx)
 		}
 	}
-
 }
 
 func (r *Relayer) CheckFinality(ctx context.Context) {
-
 	for _, c := range r.chains {
 		// check for the finality only if finalityblock is provided by the chain
 		finalityBlock := c.Provider.FinalityBlock(ctx)
