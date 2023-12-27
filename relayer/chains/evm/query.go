@@ -19,15 +19,15 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 }
 
 func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, msg *types.Message) (bool, error) {
-	return true, nil
+	processed, err := p.MessageReceived(ctx, msg)
+	if err != nil {
+		return false, fmt.Errorf("ShouldReceiveMessage: %v", err)
+	}
+	return !processed, nil
 }
 
 func (p *EVMProvider) ShouldSendMessage(ctx context.Context, msg *types.Message) (bool, error) {
-	received, err := p.MessageReceived(ctx, msg)
-	if err != nil {
-		return false, fmt.Errorf("ShouldSendMessage: %v", err)
-	}
-	return !received, nil
+	return true, nil
 }
 
 func (p *EVMProvider) MessageReceived(ctx context.Context, msg *types.Message) (bool, error) {

@@ -49,16 +49,16 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return uint64(block.Height), nil
 }
 
-func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
-	return true, nil
+func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, msg *providerTypes.Message) (bool, error) {
+	processed, err := ip.MessageReceived(ctx, msg)
+	if err != nil {
+		return false, fmt.Errorf("ShouldReceiveMessage: %v", err)
+	}
+	return !processed, nil
 }
 
 func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
-	received, err := ip.MessageReceived(ctx, messageKey)
-	if err != nil {
-		return false, fmt.Errorf("ShouldSendMessage: %v", err)
-	}
-	return !received, nil
+	return true, nil
 }
 
 func (ip *IconProvider) MessageReceived(ctx context.Context, message *providerTypes.Message) (bool, error) {
