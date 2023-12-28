@@ -275,13 +275,15 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
 	srcChainRuntime.LastBlockHeight = blockInfo.Height
-	err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages))
-	if err != nil {
-		r.log.Error("unable to save height", zap.Error(err))
+
+	if len(blockInfo.Messages) > 0 {
+		for msg := range r.getMessageStreamAfterSavingToDB(blockInfo.Messages) {
+			srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
+		}
 	}
 
-	for msg := range r.getMessageStreamAfterSavingToDB(blockInfo.Messages) {
-		srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
+	if err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages)); err != nil {
+		r.log.Error("unable to save height", zap.Error(err))
 	}
 }
 
