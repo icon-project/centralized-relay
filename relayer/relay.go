@@ -280,6 +280,10 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 		r.log.Error("unable to save height", zap.Error(err))
 	}
 
+	if err := r.messageStore.StoreMessages(blockInfo.Messages); err != nil {
+		r.log.Error(fmt.Sprintf("failed to save messages in db: %v", err))
+	}
+
 	go srcChainRuntime.mergeMessages(ctx, blockInfo.Messages)
 }
 

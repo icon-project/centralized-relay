@@ -104,6 +104,16 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 	return ms.db.SetByKey(key, msgByte)
 }
 
+func (ms *MessageStore) StoreMessages(messages []*types.Message) error {
+	for _, message := range messages {
+		routeMessage := types.NewRouteMessage(message)
+		if err := ms.StoreMessage(routeMessage); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (ms *MessageStore) GetMessage(messageKey types.MessageKey) (*types.RouteMessage, error) {
 	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
 	if err != nil {
