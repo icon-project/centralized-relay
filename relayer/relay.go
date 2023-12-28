@@ -284,7 +284,25 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 		r.log.Error(fmt.Sprintf("failed to save messages in db: %v", err))
 	}
 
-	go srcChainRuntime.mergeMessages(ctx, blockInfo.Messages)
+	msgStream := r.getMessageStreamAfterSavingToDB(blockInfo.Messages)
+	for msg := range msgStream {
+		srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
+	}
+}
+
+func (r *Relayer) getMessageStreamAfterSavingToDB(messages []*types.Message) <-chan *types.Message {
+	msgStream := make(chan *types.Message)
+	go func(msgList []*types.Message) {
+		defer close(msgStream)
+		for _, msg := range msgList {
+			if err := r.messageStore.StoreMessage(types.NewRouteMessage(msg)); err != nil {
+				r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
+			}
+			msgStream <- msg
+		}
+	}(messages)
+
+	return msgStream
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
