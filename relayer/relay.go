@@ -280,12 +280,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 		r.log.Error("unable to save height", zap.Error(err))
 	}
 
-	if err := r.messageStore.StoreMessages(blockInfo.Messages); err != nil {
-		r.log.Error(fmt.Sprintf("failed to save messages in db: %v", err))
-	}
-
-	msgStream := r.getMessageStreamAfterSavingToDB(blockInfo.Messages)
-	for msg := range msgStream {
+	for msg := range r.getMessageStreamAfterSavingToDB(blockInfo.Messages) {
 		srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
 	}
 }
