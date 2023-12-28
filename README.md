@@ -106,6 +106,49 @@ The following chains are supported:
    
    Once the relay is up and running, you can test for relaying messages from one chain to another chain. For
    testing and demonstration, please refer [here]()
+
+## Messages and Blocks Query
+
+### 1. Message Queries
+These commands are used for managing and querying messages in the `centralized-rly` database.
+
+#### i. List Messages
+- **Command:** `$ centralized-rly database messages list --page 1 --limit 2 --chain 0x2.icon`
+- **Description and Parameters:**
+    - List messages from the database.
+    - `--page 1`: Specifies the page number for pagination.
+    - `--limit 2`: Limits the number of messages displayed to 2.
+    - `--chain 0x2.icon`: Filters messages belonging to the blockchain or network identified by `0x2.icon`.
+
+#### ii. Remove Message
+- **Command:** `$ centralized-rly database messages rm --sn 1 --chain 0x2.icon`
+- **Description and Parameters:**
+    - Removes a specific message from the database.
+    - `--sn 1`: Identifies the serial number of the message to be removed.
+    - `--chain 0x2.icon`: Specifies the blockchain or network of the message.
+
+#### iii. Relay Message
+- **Command:** `$ centralized-rly database messages rly --height 32359902 --sn 2 --chain 0x2.icon`
+- **Description and Parameters:**
+    - Relays or processes a specific message.
+    - `--height 32359902`: Specifies the blockchain height for the message relay.
+    - `--sn 2`: Identifies the serial number of the message to be relayed.
+    - `--chain 0x2.icon`: Indicates the blockchain or network for the message.
+
+### 2. Block Queries
+This command is used for viewing information about blocks in the database.
+
+#### i. View Blocks
+- **Command:** `$ centralized-rly database blocks view --chain 0x2.icon`
+- **Description and Parameter:**
+    - Displays information about blocks stored in the database.
+    - `--chain 0x2.icon`: Filters blocks to those belonging to the specified blockchain or network.
+
+### 3. Prune Database
+- **Command:** `$ centralized-rly database prune`
+- **Description:**
+    - Deletes every blocks and messages from database.
+
   
 
   
