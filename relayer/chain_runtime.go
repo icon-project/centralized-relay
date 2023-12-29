@@ -56,12 +56,15 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	// TODO: filter from the src
+	ok, _ := dst.Provider.ShouldReceiveMessage(ctx, *routeMessage.Message)
+	if !ok {
+		return false
+	}
 
-	// TODO: filter for dst
-
-	// TODO: query if the message is received to destination
-	// if received remove from the destination
+	ok, _ = src.Provider.ShouldSendMessage(ctx, *routeMessage.Message)
+	if !ok {
+		return false
+	}
 
 	return true
 }

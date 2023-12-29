@@ -23,7 +23,7 @@ import (
 var _ provider.ProviderConfig = &EVMProviderConfig{}
 
 type EVMProviderConfig struct {
-	Name            string `json:"name" yaml:"name"`
+	ChainName       string `json:"-" yaml:"-"`
 	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl  string `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight     uint64 `json:"start-height" yaml:"start-height"`
@@ -33,6 +33,7 @@ type EVMProviderConfig struct {
 	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
 	ContractAddress string `json:"contract-address" yaml:"contract-address"`
 	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
+	FinalityBlock   uint64 `json:"finality-block" yaml:"finality-block"`
 	NID             string `json:"nid" yaml:"nid"`
 }
 
@@ -52,7 +53,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	}
 	client, err := newClient(p.RPCUrl, p.ContractAddress, log)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
 
 	var verifierClient IClient
@@ -66,6 +67,12 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	} else {
 		verifierClient = client // default to same client
 	}
+
+	// setting default finality block
+	if p.FinalityBlock == 0 {
+		p.FinalityBlock = uint64(DefaultFinalityBlock)
+	}
+	p.ChainName = chainName
 
 	return &EVMProvider{
 		cfg:      p,
@@ -95,11 +102,30 @@ func (p *EVMProvider) Init(context.Context) error {
 		return fmt.Errorf("failed to restore evm wallet %v", err)
 	}
 	p.wallet = wallet
+
+	//
+
 	return nil
+}
+
+func (p *EVMProvider) Type() string {
+	return "evm"
+}
+
+func (p *EVMProvider) ProviderConfig() provider.ProviderConfig {
+	return p.cfg
+}
+
+func (p *EVMProvider) ChainName() string {
+	return p.cfg.ChainName
 }
 
 func (p *EVMProvider) Wallet() *keystore.Key {
 	return p.wallet
+}
+
+func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
+	return p.cfg.FinalityBlock
 }
 
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
@@ -172,20 +198,33 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 		defer cancel()
-		txo.GasPrice, _ = p.client.SuggestGasPrice(ctx)
-		txo.GasLimit = uint64(p.cfg.GasLimit)
+		txo.GasPrice, err = p.client.SuggestGasPrice(ctx)
 		return txo, nil
+	}
+
+	h, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	non, err := p.client.NonceAt(ctx, p.wallet.Address, big.NewInt(int64(h)))
+	if err != nil {
+		return nil, err
 	}
 
 	txOpts, err := newTransactOpts(p.wallet)
 	if err != nil {
 		return nil, err
 	}
+	txOpts.Nonce = big.NewInt(int64(non))
 	txOpts.Context = ctx
+	if p.cfg.GasPrice > 0 {
+		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+	}
+
 	if p.cfg.GasLimit > 0 {
 		txOpts.GasLimit = p.cfg.GasLimit
 	}
-	txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
 
 	return txOpts, nil
 }

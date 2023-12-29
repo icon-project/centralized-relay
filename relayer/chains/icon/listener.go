@@ -85,7 +85,7 @@ loop:
 
 			go func(ctx context.Context, cancel context.CancelFunc) {
 				blockReq.Height = types.NewHexInt(int64(processedheight))
-				icp.log.Debug("Try to reconnect from", zap.Int64("height", processedheight))
+				icp.log.Debug("try to reconnect from", zap.Int64("height", processedheight))
 				err := icp.client.MonitorBlock(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						btpBlockNotifCh <- v
@@ -99,19 +99,22 @@ loop:
 					}
 					time.Sleep(time.Second * 5)
 					reconnect()
-					icp.log.Warn("Error occured during monitor block", zap.Error(err))
+					icp.log.Warn("error occured during monitor block", zap.Error(err))
 				}
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
 			for ; br != nil; processedheight++ {
 				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
-				message := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(br.Height))
+				//note: because of monitorLoop height should be subtract by 1
+				height := br.Height - 1
+
+				messages := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(height))
 
 				// TODO: check for the concurrency
 				incoming <- providerTypes.BlockInfo{
-					Messages: message,
-					Height:   uint64(br.Height),
+					Messages: messages,
+					Height:   uint64(height),
 				}
 
 				if br = nil; len(btpBlockRespCh) > 0 {
@@ -307,14 +310,14 @@ func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight ui
 		)
 	}
 
-	// priority1: startHeight from config
-	if icp.PCfg.StartHeight != 0 && icp.PCfg.StartHeight < latestHeight {
-		return int64(icp.PCfg.StartHeight), nil
-	}
-
 	// priority2: lastsaveheight from db
 	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
 		return int64(lastSavedHeight), nil
+	}
+
+	// priority1: startHeight from config
+	if icp.PCfg.StartHeight != 0 && icp.PCfg.StartHeight < latestHeight {
+		return int64(icp.PCfg.StartHeight), nil
 	}
 
 	// priority3: latest height

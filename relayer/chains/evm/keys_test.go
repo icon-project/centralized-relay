@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	testKeyStore    = "../../../example/evm/keystore.json"
+	testKeyStore    = "../../../example/wallets/evm/keystore.json"
 	testKeyPassword = "secret"
 	expectedAddr    = "0x33768aEdeAF1D4d3634C93d551dEbB69Eb4104a5"
 )

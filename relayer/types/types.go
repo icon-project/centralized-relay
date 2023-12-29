@@ -97,6 +97,15 @@ func NewMessageKey(sn uint64, src string, dst string, eventType string) MessageK
 	return MessageKey{sn, src, dst, eventType}
 }
 
+type MessageKeyWithMessageHeight struct {
+	MessageKey
+	MsgHeight uint64
+}
+
+func NewMessagekeyWithMessageHeight(key MessageKey, height uint64) *MessageKeyWithMessageHeight {
+	return &MessageKeyWithMessageHeight{key, height}
+}
+
 type MessageCache struct {
 	Messages map[MessageKey]*RouteMessage
 	sync.Mutex
@@ -136,4 +145,20 @@ func NewCoin(denom string, amount uint64) Coin {
 
 func (c *Coin) String() string {
 	return fmt.Sprintf("%d%s", c.Amount, c.Denom)
+}
+
+type TransactionObject struct {
+	MessageKeyWithMessageHeight
+	TxHash   string
+	TxHeight uint64
+}
+
+func NewTransactionObject(messageKey MessageKeyWithMessageHeight, txHash string, height uint64) *TransactionObject {
+	return &TransactionObject{messageKey, txHash, height}
+}
+
+type Receipt struct {
+	TxHash string
+	Height uint64
+	Status bool
 }
