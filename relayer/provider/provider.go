@@ -35,4 +35,8 @@ type ChainProvider interface {
 	FinalityBlock(ctx context.Context) uint64
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
+
+	RestoreKeyStore(ctx context.Context, keyStorePath string, password string) error
+	NewKeyStore(ctx context.Context, keyStorePath string, password string) ([]byte, error)
+	AddressFromKeyStore(keyStorePath string) (string, error)
 }

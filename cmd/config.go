@@ -152,6 +152,7 @@ type GlobalConfig struct {
 	APIListenPort  string `yaml:"api-listen-addr" json:"api-listen-addr"`
 	Timeout        string `yaml:"timeout" json:"timeout"`
 	LightCacheSize int    `yaml:"light-cache-size" json:"light-cache-size"`
+	KMSKeyID       string `yaml:"kms-key-id" json:"kms-key-id"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
@@ -320,6 +321,7 @@ func DefaultConfig() *Config {
 		Chains: make(relayer.Chains),
 	}
 }
+
 func (c Config) MustYAML() []byte {
 	out, err := yaml.Marshal(c)
 	if err != nil {

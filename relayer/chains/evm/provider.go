@@ -97,7 +97,7 @@ func (p *EVMProviderConfig) Validate() error {
 }
 
 func (p *EVMProvider) Init(context.Context) error {
-	wallet, err := RestoreKey(p.cfg.Keystore, p.cfg.Password)
+	wallet, err := p.RestoreKey(p.cfg.Keystore, p.cfg.Password)
 	if err != nil {
 		return fmt.Errorf("failed to restore evm wallet %v", err)
 	}
