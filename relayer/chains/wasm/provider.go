@@ -1,16 +1,12 @@
-package cosmos
+package wasm
 
 import (
 	"context"
 	"fmt"
-	abciTypes "github.com/cometbft/cometbft/abci/types"
-	"github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
-	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
-	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"io"
 	"os"
 	"sync"
@@ -25,7 +21,7 @@ type Provider struct {
 	logger *zap.Logger
 	config *ProviderConfig
 
-	client *grpc.ClientConn
+	client client.IClient
 
 	Input  io.Reader
 	Output io.Writer
@@ -44,8 +40,9 @@ type ProviderConfig struct {
 	ChainID   string `json:"chain_id" yaml:"chain-id"`
 	NID       string `json:"nid" yaml:"nid"`
 
-	Keystore string `json:"keystore" yaml:"keystore"`
-	Password string `json:"password" yaml:"password"`
+	KeyringBackend  string `json:"keyring_backend" yaml:"keyring-backend"`
+	KeyringFilePath string `json:"keyring_file_path" yaml:"keyring-file-path"`
+	KeyName         string `json:"key_name" yaml:"key-name"`
 
 	RPCUrl string `json:"rpc-url" yaml:"rpc-url"`
 
@@ -88,26 +85,11 @@ func (pc ProviderConfig) Validate() error {
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	serviceClient := cmtservice.NewServiceClient(p.client)
-	res, err := serviceClient.GetLatestBlock(ctx, &cmtservice.GetLatestBlockRequest{})
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64(res.GetBlock().Header.Height), nil
+	return p.client.GetLatestBlock(ctx)
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
-	serviceClient := txTypes.NewServiceClient(p.client)
-	res, err := serviceClient.GetTx(ctx, &txTypes.GetTxRequest{Hash: txHash})
-	if err != nil {
-		return nil, err
-	}
-	return &types.Receipt{
-		TxHash: txHash,
-		Height: uint64(res.TxResponse.Height),
-		Status: abciTypes.CodeTypeOK == res.TxResponse.Code,
-	}, nil
+	return p.client.GetTransactionReceipt(ctx, txHash)
 }
 
 func (p *Provider) NID() string {
@@ -147,24 +129,12 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message types.Message)
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key types.MessageKey) (bool, error) {
+
 	return false, nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-	queryClient := bankTypes.NewQueryClient(p.client)
-
-	res, err := queryClient.Balance(ctx, &bankTypes.QueryBalanceRequest{
-		Address: addr,
-		Denom:   "s",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.Coin{
-		Denom:  res.GetBalance().Denom,
-		Amount: res.GetBalance().Amount.Uint64(),
-	}, nil
+	return p.client.GetBalance(ctx, addr)
 }
 
 func (p *Provider) GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error) {
