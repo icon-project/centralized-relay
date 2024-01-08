@@ -7,8 +7,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
-	"io"
-	"os"
 	"sync"
 	"time"
 )
@@ -20,19 +18,8 @@ const (
 type Provider struct {
 	logger *zap.Logger
 	config *ProviderConfig
-
 	client client.IClient
-
-	Input  io.Reader
-	Output io.Writer
-	//Cdc       Codec
-
-	nextAccountSeq uint64
-	txMu           sync.Mutex
-
-	// metrics to monitor the provider
-	//TotalFees   sdk.Coins
-	totalFeesMu sync.Mutex
+	txMu   sync.Mutex
 }
 
 type ProviderConfig struct {
@@ -55,10 +42,13 @@ type ProviderConfig struct {
 	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
-	Timeout          string `json:"timeout" yaml:"timeout"`
-	BlockTimeout     string `json:"block-timeout" yaml:"block-timeout"`
+	BlockInterval string `json:"block_interval" yaml:"block-interval"`
+
 	SignModeStr      string `json:"sign-mode" yaml:"sign-mode"`
 	SigningAlgorithm string `json:"signing-algorithm" yaml:"signing-algorithm"`
+
+	Debug    bool   `json:"debug"`
+	HomePath string `json:"home_path"`
 }
 
 func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -70,16 +60,14 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 
 	cp := &Provider{
 		logger: logger,
-		Input:  os.Stdin,
-		Output: os.Stdout,
 	}
 
 	return cp, nil
 }
 
 func (pc ProviderConfig) Validate() error {
-	if _, err := time.ParseDuration(pc.Timeout); err != nil {
-		return fmt.Errorf("invalid Timeout: %w", err)
+	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
+		return fmt.Errorf("invalid block-interval: %w", err)
 	}
 	return nil
 }

@@ -47,7 +47,7 @@ func (cl *Client) GetTransactionReceipt(ctx context.Context, txHash string) (*ty
 	}, nil
 }
 
-func (cl *Client) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+func (cl *Client) GetBalance(ctx context.Context, addr string) (*types.Coin, error) {
 	queryClient := bankTypes.NewQueryClient(cl.grpcConn)
 
 	res, err := queryClient.Balance(ctx, &bankTypes.QueryBalanceRequest{
