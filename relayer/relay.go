@@ -289,6 +289,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRu
 
 func (r *Relayer) getMessageStreamAfterSavingToDB(messages []*types.Message) <-chan *types.Message {
 	msgStream := make(chan *types.Message)
+
 	go func(msgList []*types.Message) {
 		defer close(msgStream)
 		for _, msg := range msgList {
