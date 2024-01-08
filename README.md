@@ -7,7 +7,7 @@ The following chains are supported:
 ## Prerequisites
 
 - **Go Language**: Version 1.21.0 or higher. Make sure to have Go properly installed and configured on your system. 
-   For detailed installation instructions, visit the [Go Installation Guide](https://go.dev/doc/install).
+   For detailed installation instructions, please visit the [Go Installation Guide](https://go.dev/doc/install).
 
 - **GNU Make**: This is an essential build automation tool used to compile and build the project from source files. 
    GNU Make streamlines the process of generating executables and other non-source components of the program. 
