@@ -3,10 +3,14 @@ package wasm
 import (
 	"context"
 	"fmt"
+	abiTypes "github.com/cometbft/cometbft/abci/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
+	wasmTypes "github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"go.uber.org/zap"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -73,11 +77,19 @@ func (pc ProviderConfig) Validate() error {
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return p.client.GetLatestBlock(ctx)
+	return p.client.GetLatestBlockHeight(ctx)
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
-	return p.client.GetTransactionReceipt(ctx, txHash)
+	res, err := p.client.GetTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Receipt{
+		TxHash: txHash,
+		Height: uint64(res.TxResponse.Height),
+		Status: abiTypes.CodeTypeOK == res.TxResponse.Code,
+	}, nil
 }
 
 func (p *Provider) NID() string {
@@ -101,6 +113,58 @@ func (p *Provider) ProviderConfig() provider.ProviderConfig {
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error {
+	startHeight, err := p.getStartHeight(ctx, lastSavedHeight)
+	if err != nil {
+		return err
+	}
+
+	latestHeight, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return err
+	}
+
+	blockInterval, err := time.ParseDuration(p.config.BlockInterval)
+	if err != nil {
+		return err
+	}
+
+	blockIntervalTicker := time.NewTicker(blockInterval)
+	defer blockIntervalTicker.Stop()
+
+	for {
+		select {
+		case <-blockIntervalTicker.C:
+			func() {
+				done := make(chan interface{})
+				defer close(done)
+
+				heightStream := p.getHeightStream(done, startHeight, latestHeight)
+
+				numOfPipelines := runtime.NumCPU()
+
+				pipelines := make([]<-chan interface{}, numOfPipelines)
+
+				for i := 0; i < numOfPipelines; i++ {
+					pipelines[i] = p.getBlockInfoStream(done, heightStream)
+				}
+
+				for bn := range concurrency.FanIn(done, pipelines...) {
+					block, ok := bn.(types.BlockInfo)
+					if !ok {
+						// Todo handle this
+					}
+					if !block.HasError() {
+						blockInfo <- types.BlockInfo{
+							Height: block.Height, Messages: block.Messages,
+						}
+					}
+					//Todo Handle Error
+				}
+			}()
+
+		}
+	}
+
 	return nil
 }
 
@@ -122,7 +186,14 @@ func (p *Provider) MessageReceived(ctx context.Context, key types.MessageKey) (b
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-	return p.client.GetBalance(ctx, addr)
+	coin, err := p.client.GetBalance(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Coin{
+		Denom:  coin.Denom,
+		Amount: coin.Amount.Uint64(),
+	}, nil
 }
 
 func (p *Provider) GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error) {
@@ -131,4 +202,58 @@ func (p *Provider) GenerateMessage(ctx context.Context, messageKey *types.Messag
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
+}
+
+func (p *Provider) getStartHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
+	latestHeight, err := p.client.GetLatestBlockHeight(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if lastSavedHeight > latestHeight {
+		return 0, fmt.Errorf("last saved height cannot be greater than latest height")
+	}
+
+	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
+		return lastSavedHeight, nil
+	}
+
+	return latestHeight, nil
+}
+
+func (p *Provider) getHeightStream(done <-chan interface{}, fromHeight, toHeight uint64) <-chan uint64 {
+	heightStream := make(chan uint64)
+	go func() {
+		defer close(heightStream)
+		for i := fromHeight; i <= toHeight; i++ {
+			select {
+			case <-done:
+				return
+			case heightStream <- i:
+			}
+		}
+	}()
+	return heightStream
+}
+
+func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-chan uint64) <-chan interface{} {
+	blockInfoStream := make(chan interface{})
+	go func() {
+		defer close(blockInfoStream)
+		for {
+			select {
+			case <-done:
+				return
+			case height := <-heightStream:
+				searchParam := wasmTypes.TxSearchParam{}
+				messages, err := p.client.GetMessages(context.Background(), searchParam)
+				blockInfoStream <- types.BlockInfo{
+					Height:   height,
+					Messages: messages,
+					Error:    err,
+				}
+			}
+		}
+	}()
+	return blockInfoStream
 }

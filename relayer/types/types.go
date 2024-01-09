@@ -14,6 +14,11 @@ var (
 type BlockInfo struct {
 	Height   uint64
 	Messages []*Message
+	Error    error
+}
+
+func (b BlockInfo) HasError() bool {
+	return b.Error != nil
 }
 
 type Message struct {

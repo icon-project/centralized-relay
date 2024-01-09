@@ -2,52 +2,43 @@ package client
 
 import (
 	"context"
-	abiTypes "github.com/cometbft/cometbft/abci/types"
-	"github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
+	"github.com/cosmos/cosmos-sdk/client/grpc/node"
+	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	"github.com/icon-project/centralized-relay/relayer/types"
-	"go.uber.org/zap"
+	wasmTypes "github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
+	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	tmHttp "github.com/tendermint/tendermint/rpc/client/http"
 	"google.golang.org/grpc"
 )
 
 type IClient interface {
-	GetLatestBlock(ctx context.Context) (uint64, error)
-	GetTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
-	GetBalance(ctx context.Context, addr string) (*types.Coin, error)
+	GetLatestBlockHeight(ctx context.Context) (uint64, error)
+	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
+	GetBalance(ctx context.Context, addr string) (*sdkTypes.Coin, error)
+	GetMessages(ctx context.Context, param wasmTypes.TxSearchParam) ([]*relayTypes.Message, error)
 }
 
 type Client struct {
-	logger          *zap.Logger
 	grpcConn        *grpc.ClientConn
+	tmHttpClient    *tmHttp.HTTP
 	contractAddress string
-	chainID         string
 }
 
-func (cl *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
-	serviceClient := cmtservice.NewServiceClient(cl.grpcConn)
-	res, err := serviceClient.GetLatestBlock(ctx, &cmtservice.GetLatestBlockRequest{})
+func (cl *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
+	nodeStatus, err := cl.getNodeStatus(ctx)
 	if err != nil {
 		return 0, err
 	}
-
-	return uint64(res.GetBlock().Header.Height), nil
+	return nodeStatus.Height, nil
 }
 
-func (cl *Client) GetTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
+func (cl *Client) GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error) {
 	serviceClient := txTypes.NewServiceClient(cl.grpcConn)
-	res, err := serviceClient.GetTx(ctx, &txTypes.GetTxRequest{Hash: txHash})
-	if err != nil {
-		return nil, err
-	}
-	return &types.Receipt{
-		TxHash: txHash,
-		Height: uint64(res.TxResponse.Height),
-		Status: abiTypes.CodeTypeOK == res.TxResponse.Code,
-	}, nil
+	return serviceClient.GetTx(ctx, &txTypes.GetTxRequest{Hash: txHash})
 }
 
-func (cl *Client) GetBalance(ctx context.Context, addr string) (*types.Coin, error) {
+func (cl *Client) GetBalance(ctx context.Context, addr string) (*sdkTypes.Coin, error) {
 	queryClient := bankTypes.NewQueryClient(cl.grpcConn)
 
 	res, err := queryClient.Balance(ctx, &bankTypes.QueryBalanceRequest{
@@ -57,9 +48,25 @@ func (cl *Client) GetBalance(ctx context.Context, addr string) (*types.Coin, err
 	if err != nil {
 		return nil, err
 	}
+	return res.Balance, nil
+}
 
-	return &types.Coin{
-		Denom:  res.GetBalance().Denom,
-		Amount: res.GetBalance().Amount.Uint64(),
-	}, nil
+func (cl *Client) getNodeStatus(ctx context.Context) (*node.StatusResponse, error) {
+	serviceClient := node.NewServiceClient(cl.grpcConn)
+	return serviceClient.Status(ctx, &node.StatusRequest{})
+}
+
+func (cl *Client) GetMessages(ctx context.Context, param wasmTypes.TxSearchParam) ([]*relayTypes.Message, error) {
+	result, err := cl.tmHttpClient.TxSearch(ctx, param.Query, param.Prove, param.Page, param.PerPage, param.OrderBy)
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*relayTypes.Message, len(result.Txs))
+
+	//for _, tx := range result.Txs {
+	//	tx.TxResult.Log
+	//}
+
+	return messages, nil
 }
