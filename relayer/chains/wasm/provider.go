@@ -14,6 +14,7 @@ import (
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"go.uber.org/zap"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,10 @@ const (
 )
 
 type Provider struct {
-	logger *zap.Logger
-	config ProviderConfig
-	client client.IClient
+	logger  *zap.Logger
+	config  ProviderConfig
+	client  client.IClient
+	txMutex sync.Mutex
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -119,18 +121,26 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
-	txFactory := p.buildTxFactory()
-	//Todo customize txFactory: update account number and sequence
 
 	//Build message
 	msg := p.getMsgExecuteContract(message)
 
-	//Todo apply retry strategy here
-	_, err := p.client.SendTx(ctx, txFactory, []sdkTypes.Msg{&msg})
-	if err != nil {
+	res, err := p.client.SendTx(ctx, p.buildTxFactory(), []sdkTypes.Msg{&msg})
+	if err != nil || res.Code != abiTypes.CodeTypeOK {
+		if err == nil {
+			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
+		}
 		callback(message.MessageKey(), relayTypes.TxResponse{}, err)
 		return err
 	}
+
+	callback(message.MessageKey(), relayTypes.TxResponse{
+		Height:    res.Height,
+		TxHash:    res.TxHash,
+		Codespace: res.Codespace,
+		Code:      relayTypes.ResponseCode(res.Code),
+		Data:      res.Data,
+	}, nil)
 
 	return nil
 }
@@ -226,7 +236,11 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 }
 
 func (p *Provider) buildTxFactory() tx.Factory {
-	return tx.Factory{}
+	return tx.Factory{}.
+		WithKeybase(p.client.Context().Keyring).
+		WithFeePayer(p.client.Context().FeePayer).
+		WithChainID(p.config.ChainID).
+		WithGasAdjustment(p.config.GasAdjustment)
 }
 
 func (p *Provider) getMsgExecuteContract(message *relayTypes.Message) wasmTypes.MsgExecuteContract {

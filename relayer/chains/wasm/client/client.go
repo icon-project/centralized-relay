@@ -7,9 +7,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"sync"
 )
 
 type IClient interface {
@@ -19,16 +21,19 @@ type IClient interface {
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 	GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error)
 
+	GetAccountInfo(ctx context.Context, accountAddr string) (*authtypes.QueryAccountInfoResponse, error)
+
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	SendTx(ctx context.Context, tf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
 }
 
 type Client struct {
 	context sdkClient.Context
+	txMutex *sync.Mutex
 }
 
 func New(clientCtx sdkClient.Context) Client {
-	return Client{clientCtx}
+	return Client{clientCtx, &sync.Mutex{}}
 }
 
 func (cl Client) Context() sdkClient.Context {
@@ -62,6 +67,14 @@ func (cl Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
+func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (*authtypes.QueryAccountInfoResponse, error) {
+	qc := authtypes.NewQueryClient(cl.context.GRPCClient)
+	return qc.AccountInfo(
+		ctx,
+		&authtypes.QueryAccountInfoRequest{Address: accountAddr},
+	)
+}
+
 func (cl Client) GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error) {
 	result, err := cl.context.Client.TxSearch(ctx, param.Query, param.Prove, param.Page, param.PerPage, param.OrderBy)
 	if err != nil {
@@ -84,6 +97,16 @@ func (cl Client) QuerySmartContract(ctx context.Context, contractAddress string,
 }
 
 func (cl Client) SendTx(ctx context.Context, tf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	cl.txMutex.Lock()
+	defer cl.txMutex.Unlock()
+
+	senderAccount, err := cl.GetAccountInfo(ctx, cl.context.FromAddress.String())
+	if err != nil {
+		return nil, err
+	}
+
+	tf = tf.WithAccountNumber(senderAccount.Info.AccountNumber).WithSequence(senderAccount.Info.Sequence)
+
 	txBuilder, err := tf.BuildUnsignedTx(messages...)
 	if err != nil {
 		return nil, err
