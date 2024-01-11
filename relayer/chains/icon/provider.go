@@ -47,8 +47,12 @@ func (pp *IconProviderConfig) Validate() error {
 	return nil
 }
 
-func (p *IconProviderConfig) SetWallet(wallet string) {
-	p.KeyStore = wallet
+func (p *IconProviderConfig) SetWallet(addr string) {
+	p.KeyStore = addr
+}
+
+func (p *IconProviderConfig) GetWallet() string {
+	return p.KeyStore
 }
 
 type IconProvider struct {

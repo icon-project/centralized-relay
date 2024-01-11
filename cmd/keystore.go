@@ -7,29 +7,27 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/spf13/cobra"
 )
 
 var TempDir = os.TempDir()
 
 type keystoreState struct {
+	client   kms.KMS
 	chain    string
 	password string
 	address  string
 	path     string
-	client   *kms.Client
 	app      *appState
 }
 
 func newKeyStoreState(ctx context.Context, app *appState) (*keystoreState, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile("iconosphere"))
+	k, err := kms.NewKMSConfig(ctx, "iconosphere")
 	if err != nil {
 		return nil, err
 	}
-	return &keystoreState{client: kms.NewFromConfig(cfg), app: app}, nil
+	return &keystoreState{client: k, app: app}, nil
 }
 
 func keystoreCmd(a *appState) *cobra.Command {
@@ -55,14 +53,11 @@ func (k *keystoreState) init() *cobra.Command {
 		Use:   "init",
 		Short: "init keystore",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input := &kms.CreateKeyInput{
-				Description: aws.String("centralized-relay"),
-			}
-			output, err := k.client.CreateKey(cmd.Context(), input)
+			keyID, err := k.client.Init(cmd.Context())
 			if err != nil {
 				return err
 			}
-			k.app.config.Global.KMSKeyID = *output.KeyMetadata.KeyId
+			k.app.config.Global.KMSKeyID = *keyID
 			if err := k.app.config.Save(k.app.homePath); err != nil {
 				return err
 			}
@@ -91,15 +86,11 @@ func (k *keystoreState) new() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			input := &kms.EncryptInput{
-				KeyId:     &k.app.config.Global.KMSKeyID,
-				Plaintext: []byte(k.password),
-			}
-			output, err := k.client.Encrypt(cmd.Context(), input)
+			data, err := k.client.Encrypt(cmd.Context(), k.app.config.Global.KMSKeyID, []byte(k.password))
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), output.CiphertextBlob, 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), data, 0o644); err != nil {
 				return err
 			}
 			fmt.Fprintln(os.Stdout, "KMS Key Encrypted")
@@ -123,7 +114,10 @@ func (k *keystoreState) list() *cobra.Command {
 				return err
 			}
 			for _, file := range files {
-				fmt.Fprintln(os.Stdout, strings.TrimSuffix(file.Name(), ".json"))
+				name := file.Name()
+				if strings.HasSuffix(name, ".json") {
+					fmt.Fprintln(os.Stdout, strings.TrimSuffix(name, ".json"))
+				}
 			}
 			return nil
 		},
@@ -138,15 +132,6 @@ func (k *keystoreState) importKey() *cobra.Command {
 		Use:   "import",
 		Short: "import keystore",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input := &kms.DecryptInput{
-				KeyId:          &k.app.config.Global.KMSKeyID,
-				CiphertextBlob: []byte(k.password),
-			}
-			output, err := k.client.Decrypt(cmd.Context(), input)
-			if err != nil {
-				return err
-			}
-			fmt.Println(output)
 			return nil
 		},
 	}
@@ -175,9 +160,10 @@ func (k *keystoreState) use() *cobra.Command {
 			}
 			cf := chain.ChainProvider.ProviderConfig()
 			cf.SetWallet(k.address)
-			if err := k.app.config.Save("."); err != nil {
+			if err := k.app.config.Save(k.app.homePath); err != nil {
 				return err
 			}
+			fmt.Fprintln(os.Stdout, "Wallet configured")
 			return nil
 		},
 	}
@@ -211,16 +197,8 @@ func (k *keystoreState) addressFlag(cmd *cobra.Command) {
 }
 
 func (k *keystoreState) keystorePathFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&k.path, "key-path", "", "", "keystore path")
-	if err := cmd.MarkFlagRequired("key-path"); err != nil {
+	cmd.Flags().StringVarP(&k.path, "path", "k", "", "keystore path")
+	if err := cmd.MarkFlagRequired("path"); err != nil {
 		panic(err)
 	}
 }
-
-// Subcommand for keystore
-// init Keystore
-// new --chain=0x3 --password=1234
-// use: --chain=0x3 --address=0x1234
-// list --chain=0x3
-// delete --chain=0x3 --address=0x1234
-// import --chain=0x3 --keystore-path --password=1234

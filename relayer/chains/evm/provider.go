@@ -96,8 +96,12 @@ func (p *EVMProviderConfig) Validate() error {
 	return nil
 }
 
-func (p *EVMProviderConfig) SetWallet(wallet string) {
-	p.Keystore = wallet
+func (p *EVMProviderConfig) SetWallet(addr string) {
+	p.Keystore = addr
+}
+
+func (p *EVMProviderConfig) GetWallet() string {
+	return p.Keystore
 }
 
 func (p *EVMProvider) Init(context.Context) error {

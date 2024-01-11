@@ -3,6 +3,7 @@ package icon
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -25,6 +26,16 @@ func (cp *IconProvider) RestoreKeyStore(keystorePath string, auth string) error 
 
 type OnlyAddr struct {
 	Address string `json:"address"`
+}
+
+// Decrypt the keystore file
+func (p *IconProvider) DecryptKeyStore() (string, error) {
+	addr := p.PCfg.GetWallet()
+	if addr == "" {
+		return "", fmt.Errorf("no wallet address")
+	}
+	// TODO: get homepath from config
+	return "", nil
 }
 
 func (p *IconProvider) AddressFromKeyStore(keystorePath, auth string) (string, error) {
@@ -53,7 +64,8 @@ func (p *IconProvider) NewKeyStore(dir, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(fmt.Sprintf("%s/%s.json", dir, addr), data, 0o644); err != nil {
+	keystorePath := path.Join(dir, fmt.Sprintf("%s.json", addr))
+	if err := os.WriteFile(keystorePath, data, 0o644); err != nil {
 		return "", err
 	}
 	return addr, os.Remove(tempKey)

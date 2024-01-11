@@ -11,7 +11,8 @@ var messageMaxRetry = 5
 
 type ProviderConfig interface {
 	NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (ChainProvider, error)
-	SetWallet(wallet string)
+	SetWallet(string)
+	GetWallet() string
 	Validate() error
 }
 
