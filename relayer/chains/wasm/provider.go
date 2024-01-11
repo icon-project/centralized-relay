@@ -66,23 +66,28 @@ func (p *Provider) ProviderConfig() provider.ProviderConfig {
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan relayTypes.BlockInfo) error {
-	startHeight, err := p.getStartHeight(ctx, lastSavedHeight)
+	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
+		p.logger.Error("failed to get latest block height: ", zap.Error(err))
 		return err
 	}
 
-	latestHeight, err := p.QueryLatestHeight(ctx)
+	startHeight, err := p.getStartHeight(ctx, latestHeight, lastSavedHeight)
 	if err != nil {
+		p.logger.Error("failed to determine start height: ", zap.Error(err))
 		return err
 	}
 
 	blockInterval, err := time.ParseDuration(p.config.BlockInterval)
 	if err != nil {
+		p.logger.Error("failed to parse block interval: ", zap.Error(err))
 		return err
 	}
 
 	blockIntervalTicker := time.NewTicker(blockInterval)
 	defer blockIntervalTicker.Stop()
+
+	p.logger.Info("start querying from height", zap.Uint64("start-height", startHeight))
 
 	for {
 		select {
@@ -103,15 +108,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 				for bn := range concurrency.FanIn(done, pipelines...) {
 					block, ok := bn.(relayTypes.BlockInfo)
-					if !ok {
-						// Todo handle this
-					}
-					if !block.HasError() {
-						blockInfo <- relayTypes.BlockInfo{
-							Height: block.Height, Messages: block.Messages,
+					if !ok || block.HasError() {
+						if !block.HasError() {
+							block.Error = fmt.Errorf("received invalid block type -> required: %T, got: %T", relayTypes.BlockInfo{}, bn)
 						}
+						p.logger.Error("error receiving block: ", zap.Error(block.Error))
+						continue
 					}
-					//Todo Handle Error
+					blockInfo <- relayTypes.BlockInfo{
+						Height: block.Height, Messages: block.Messages,
+					}
 				}
 			}()
 		}
@@ -130,6 +136,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		if err == nil {
 			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
 		}
+		p.logger.Error("failed to route message: ", zap.Error(err))
 		callback(message.MessageKey(), relayTypes.TxResponse{}, err)
 		return err
 	}
@@ -148,6 +155,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKey) (bool, error) {
 	_, err := p.client.QuerySmartContract(ctx, p.config.ContractAddress, []byte("hello"))
 	if err != nil {
+		p.logger.Error("failed to check if message is received: ", zap.Error(err))
 		return false, err
 	}
 
@@ -157,6 +165,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKe
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
 	coin, err := p.client.GetBalance(ctx, addr, "denomination")
 	if err != nil {
+		p.logger.Error("failed to query balance: ", zap.Error(err))
 		return nil, err
 	}
 	return &relayTypes.Coin{
@@ -181,12 +190,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) getStartHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
-	latestHeight, err := p.client.GetLatestBlockHeight(ctx)
-	if err != nil {
-		return 0, err
-	}
-
+func (p *Provider) getStartHeight(ctx context.Context, latestHeight, lastSavedHeight uint64) (uint64, error) {
 	if lastSavedHeight > latestHeight {
 		return 0, fmt.Errorf("last saved height cannot be greater than latest height")
 	}

@@ -52,7 +52,7 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 	}
 
 	cp := &Provider{
-		logger: logger,
+		logger: logger.With(zap.String("module", "wasm")),
 		config: pc,
 		client: client.New(clientContext),
 	}
