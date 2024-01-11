@@ -1,0 +1,44 @@
+chains:
+  - name: foundry
+    version: "3"
+    environment: local
+    chain_config:
+      type: evm
+      name: foundry
+      chain_id: emv.local
+      image:
+        repository: ghcr.io/foundry-rs/foundry
+        version: latest
+        uid_gid: ""
+      bin: cast
+      bech32_prefix: 0x
+      denom: arch
+      coin_type: 118
+      gas_prices: 0.001arch
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/evm/CallService"
+      connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
+      dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
+  - name: icon
+    version: "3"
+    environment: local
+    chain_config:
+      type: icon
+      name: icon
+      chain_id: icon.local
+      bech32_prefix: hx
+      bin: "/goloop/bin/goloop"
+      image:
+        repository: goloop/gochain-icon
+        version: latest
+        uid_gid: ""
+    contracts:
+      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
+      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
+      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
+relayer:
+    image: centralized-rly
+    tag: latest
