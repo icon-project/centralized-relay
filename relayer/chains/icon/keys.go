@@ -1,39 +1,60 @@
 package icon
 
 import (
-	"context"
+	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/icon-project/goloop/common/crypto"
 	"github.com/icon-project/goloop/common/wallet"
-	"github.com/icon-project/goloop/module"
 )
 
-func (cp *IconProvider) RestoreKeyStore() (module.Wallet, error) {
-	ksByte, err := os.ReadFile(cp.PCfg.KeyStore)
+func (cp *IconProvider) RestoreKeyStore(keystorePath string, auth string) error {
+	ksByte, err := os.ReadFile(keystorePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return wallet.NewFromKeyStore(ksByte, []byte(cp.PCfg.Password))
+	wallet, err := wallet.NewFromKeyStore(ksByte, []byte(auth))
+	if err != nil {
+		return err
+	}
+	cp.wallet = wallet
+	return nil
 }
 
 type OnlyAddr struct {
 	Address string `json:"address"`
 }
 
-func (p *IconProvider) AddressFromKeyStore(keystorePath string) (string, error) {
+func (p *IconProvider) AddressFromKeyStore(keystorePath, auth string) (string, error) {
 	ksByte, err := os.ReadFile(keystorePath)
 	if err != nil {
 		return "", err
 	}
-	a, err := wallet.ReadAddressFromKeyStore(ksByte)
+	wallet, err := wallet.NewFromKeyStore(ksByte, []byte(auth))
 	if err != nil {
 		return "", err
 	}
-	return string(a.Bytes()), nil
+	return wallet.Address().String(), nil
 }
 
-func (p *IconProvider) NewKeyStore(ctx context.Context, dir, password string) ([]byte, error) {
+func (p *IconProvider) NewKeyStore(dir, password string) (string, error) {
 	priv, _ := crypto.GenerateKeyPair()
-	return wallet.EncryptKeyAsKeyStore(priv, []byte(password))
+	data, err := wallet.EncryptKeyAsKeyStore(priv, []byte(password))
+	if err != nil {
+		return "", err
+	}
+	tempKey := filepath.Join(os.TempDir(), time.Now().Format("20060102150405"))
+	if err := os.WriteFile(tempKey, data, 0o644); err != nil {
+		return "", err
+	}
+	addr, err := p.AddressFromKeyStore(tempKey, password)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(fmt.Sprintf("%s/%s.json", dir, addr), data, 0o644); err != nil {
+		return "", err
+	}
+	return addr, os.Remove(tempKey)
 }

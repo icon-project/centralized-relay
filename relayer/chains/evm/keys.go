@@ -1,39 +1,49 @@
 package evm
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 )
 
-func (p *EVMProvider) RestoreKeyStore(ctx context.Context, path string, secret string) (*keystore.Key, error) {
+func (p *EVMProvider) RestoreKeyStore(path string, secret string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return keystore.DecryptKey(data, secret)
+	key, err := keystore.DecryptKey(data, secret)
+	if err != nil {
+		return err
+	}
+	p.wallet = key
+	return nil
 }
 
 // AddressFromKeyStore returns the address of the key stored in the given keystore file.
-func (p *EVMProvider) AddressFromKeyStore(keystoreFile string) (string, error) {
-	key, err := p.RestoreKeyStore(context.TODO(), keystoreFile, p.cfg.Password)
+func (p *EVMProvider) AddressFromKeyStore(keystoreFile, auth string) (string, error) {
+	data, err := os.ReadFile(keystoreFile)
+	if err != nil {
+		return "", err
+	}
+	key, err := keystore.DecryptKey(data, auth)
 	if err != nil {
 		return "", err
 	}
 	return key.Address.Hex(), nil
 }
 
-func (p *EVMProvider) NewKeyStore(ctx context.Context, dir, password string) ([]byte, error) {
-	key, err := keystore.StoreKey(dir, password, keystore.StandardScryptN, keystore.StandardScryptP)
+func (p *EVMProvider) NewKeyStore(dir, password string) (string, error) {
+	key, err := keystore.StoreKey(os.TempDir(), password, keystore.StandardScryptN, keystore.StandardScryptP)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	path := fmt.Sprintf("%s/%s", dir, key.URL.Path)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(key.URL.Path)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return data, os.Remove(path)
+	if err := os.WriteFile(fmt.Sprintf("%s/%s.json", dir, key.Address.Hex()), data, 0o644); err != nil {
+		return "", err
+	}
+	return key.Address.Hex(), os.Remove(key.URL.Path)
 }

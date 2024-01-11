@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -12,16 +13,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var TempDir = os.TempDir()
+
 type keystoreState struct {
 	chain    string
 	password string
 	address  string
+	path     string
 	client   *kms.Client
 	app      *appState
 }
 
 func newKeyStoreState(ctx context.Context, app *appState) (*keystoreState, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile("default"))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile("iconosphere"))
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +45,7 @@ func keystoreCmd(a *appState) *cobra.Command {
 		panic(err)
 	}
 
-	ks.AddCommand(state.init(), state.new())
+	ks.AddCommand(state.init(), state.new(), state.list(), state.importKey(), state.use())
 
 	return ks
 }
@@ -58,7 +62,12 @@ func (k *keystoreState) init() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println(output)
+			k.app.config.Global.KMSKeyID = *output.KeyMetadata.KeyId
+			if err := k.app.config.Save(k.app.homePath); err != nil {
+				return err
+			}
+			fmt.Fprintln(os.Stdout, "KMS Key Created")
+			fmt.Fprintln(os.Stdout, k.app.config.Global.KMSKeyID)
 			return nil
 		},
 	}
@@ -74,16 +83,12 @@ func (k *keystoreState) new() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("chain not found")
 			}
-			kestorePath := fmt.Sprintf("%s/keystore/%s", k.app.homePath, k.chain)
-			data, err := chain.ChainProvider.NewKeyStore(cmd.Context(), kestorePath, k.password)
-			if err != nil {
+			kestorePath := filepath.Join(k.app.homePath, "keystore", k.chain)
+			if err := os.MkdirAll(kestorePath, 0o755); err != nil {
 				return err
 			}
-			address, err := chain.ChainProvider.AddressFromKeyStore(kestorePath)
+			addr, err := chain.ChainProvider.NewKeyStore(kestorePath, k.password)
 			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(fmt.Sprintf("%s/%s.json", kestorePath, address), data, 0o644); err != nil {
 				return err
 			}
 			input := &kms.EncryptInput{
@@ -94,13 +99,37 @@ func (k *keystoreState) new() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, output.CiphertextBlob)
+			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), output.CiphertextBlob, 0o644); err != nil {
+				return err
+			}
+			fmt.Fprintln(os.Stdout, "KMS Key Encrypted")
 			return nil
 		},
 	}
 	k.chainFlag(new)
 	k.passwordFlag(new)
 	return new
+}
+
+// List keystore
+func (k *keystoreState) list() *cobra.Command {
+	list := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "list keystore",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			files, err := os.ReadDir(filepath.Join(k.app.homePath, "keystore", k.chain))
+			if err != nil {
+				return err
+			}
+			for _, file := range files {
+				fmt.Fprintln(os.Stdout, strings.TrimSuffix(file.Name(), ".json"))
+			}
+			return nil
+		},
+	}
+	k.chainFlag(list)
+	return list
 }
 
 // import keystore
@@ -123,7 +152,38 @@ func (k *keystoreState) importKey() *cobra.Command {
 	}
 	k.chainFlag(importCmd)
 	k.passwordFlag(importCmd)
+	k.keystorePathFlag(importCmd)
 	return importCmd
+}
+
+// Use keystore using address
+func (k *keystoreState) use() *cobra.Command {
+	use := &cobra.Command{
+		Use:   "use",
+		Short: "use keystore",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			chain, err := k.app.config.Chains.Get(k.chain)
+			if err != nil {
+				return err
+			}
+			kestorePath := filepath.Join(k.app.homePath, "keystore", k.chain, k.address)
+			if _, err := os.Stat(kestorePath + ".json"); os.IsNotExist(err) {
+				return fmt.Errorf("keystore not found")
+			}
+			if _, err := os.Stat(kestorePath + ".password"); os.IsNotExist(err) {
+				return fmt.Errorf("password not found")
+			}
+			cf := chain.ChainProvider.ProviderConfig()
+			cf.SetWallet(k.address)
+			if err := k.app.config.Save("."); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	k.chainFlag(use)
+	k.addressFlag(use)
+	return use
 }
 
 // chain flag
@@ -146,6 +206,13 @@ func (k *keystoreState) passwordFlag(cmd *cobra.Command) {
 func (k *keystoreState) addressFlag(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&k.address, "address", "a", "", "address")
 	if err := cmd.MarkFlagRequired("address"); err != nil {
+		panic(err)
+	}
+}
+
+func (k *keystoreState) keystorePathFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&k.path, "key-path", "", "", "keystore path")
+	if err := cmd.MarkFlagRequired("key-path"); err != nil {
 		panic(err)
 	}
 }

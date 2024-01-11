@@ -96,15 +96,14 @@ func (p *EVMProviderConfig) Validate() error {
 	return nil
 }
 
+func (p *EVMProviderConfig) SetWallet(wallet string) {
+	p.Keystore = wallet
+}
+
 func (p *EVMProvider) Init(context.Context) error {
-	wallet, err := p.RestoreKey(p.cfg.Keystore, p.cfg.Password)
-	if err != nil {
+	if err := p.RestoreKeyStore(p.cfg.Keystore, p.cfg.Password); err != nil {
 		return fmt.Errorf("failed to restore evm wallet %v", err)
 	}
-	p.wallet = wallet
-
-	//
-
 	return nil
 }
 

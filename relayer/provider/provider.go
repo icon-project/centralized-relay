@@ -11,6 +11,7 @@ var messageMaxRetry = 5
 
 type ProviderConfig interface {
 	NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (ChainProvider, error)
+	SetWallet(wallet string)
 	Validate() error
 }
 
@@ -36,7 +37,7 @@ type ChainProvider interface {
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 
-	RestoreKeyStore(ctx context.Context, keyStorePath string, password string) error
-	NewKeyStore(ctx context.Context, keyStorePath string, password string) ([]byte, error)
-	AddressFromKeyStore(keyStorePath string) (string, error)
+	NewKeyStore(keyStorePath string, password string) (string, error)
+	RestoreKeyStore(keyStorePath string, password string) error
+	AddressFromKeyStore(keyStorePath, auth string) (string, error)
 }
