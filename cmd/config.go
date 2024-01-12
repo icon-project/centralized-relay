@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 	"os"
 	"path"
 	"reflect"
@@ -262,6 +263,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(icon.IconProviderConfig)
 	case "evm":
 		iw.Value = new(evm.EVMProviderConfig)
+	case "wasm":
+		iw.Value = new(wasm.ProviderConfig)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}

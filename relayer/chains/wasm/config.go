@@ -18,8 +18,8 @@ import (
 )
 
 type ProviderConfig struct {
+	ChainName string `json:"-" yaml:"-"`
 	RpcUrl    string `json:"rpc-url" yaml:"rpc-url"`
-	ChainName string `json:"chain_name" yaml:"chain-name"`
 	ChainID   string `json:"chain_id" yaml:"chain-id"`
 	NID       string `json:"nid" yaml:"nid"`
 
@@ -59,7 +59,7 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 	if chainName != "" {
 		pc.ChainName = chainName
 	}
-	if homePath != "" {
+	if pc.HomeDir == "" {
 		pc.HomeDir = homePath
 	}
 
@@ -80,7 +80,7 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 	}
 
 	cp := &Provider{
-		logger: logger.With(zap.String("module", "wasm")),
+		logger: logger,
 		config: pc,
 		client: client.New(clientContext),
 	}
@@ -91,6 +91,14 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 func (pc ProviderConfig) Validate() error {
 	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
 		return fmt.Errorf("invalid block-interval: %w", err)
+	}
+
+	if pc.ChainName == "" {
+		return fmt.Errorf("chain-name cannot be empty")
+	}
+
+	if pc.HomeDir == "" {
+		return fmt.Errorf("home-dir cannot be empty")
 	}
 	return nil
 }
