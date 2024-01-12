@@ -26,6 +26,7 @@ var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
+	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -86,9 +87,10 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 	// RootCmd represents the base command when called without any subcommands
 	rootCmd := &cobra.Command{
-		Use:   appName,
-		Short: "This application makes data relay between two chains!",
-		Long:  strings.TrimSpace(`Use this to relay xcall packet between chains`),
+		Use:     appName,
+		Short:   "This application makes data relay between chains!",
+		Long:    strings.TrimSpace(`Use this to relay xcall packet between chains`),
+		Version: Version,
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -143,13 +145,13 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		panic(err)
 	}
 
-	rootCmd.PersistentFlags().StringVar(&a.configPath, "config-path", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
-	if err := a.viper.BindPFlag("config-path", rootCmd.PersistentFlags().Lookup("config-path")); err != nil {
+	rootCmd.PersistentFlags().StringVar(&a.configPath, "config", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
+	if err := a.viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config")); err != nil {
 		panic(err)
 	}
 
-	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", path.Join(a.homePath, defaultDBName), "db path location")
-	if err := a.viper.BindPFlag("db-path", rootCmd.PersistentFlags().Lookup("db-path")); err != nil {
+	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db", path.Join(a.homePath, defaultDBName), "db path location")
+	if err := a.viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")); err != nil {
 		panic(err)
 	}
 

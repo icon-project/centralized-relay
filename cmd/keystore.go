@@ -66,8 +66,8 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 		Use:   "new",
 		Short: "new keystore",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			chain, ok := a.config.Chains.GetAll()[k.chain]
-			if !ok {
+			chain, err := a.config.Chains.Get(k.chain)
+			if err != nil {
 				return fmt.Errorf("chain not found")
 			}
 			kestorePath := filepath.Join(a.homePath, "keystore", k.chain)
