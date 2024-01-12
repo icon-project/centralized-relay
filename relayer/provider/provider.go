@@ -3,11 +3,10 @@ package provider
 import (
 	"context"
 
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
-
-var messageMaxRetry = 5
 
 type ProviderConfig interface {
 	NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (ChainProvider, error)
@@ -25,7 +24,7 @@ type ChainProvider interface {
 	ChainQuery
 	NID() string
 	ChainName() string
-	Init(ctx context.Context) error
+	Init(context.Context, string, kms.KMS) error
 	Type() string
 	ProviderConfig() ProviderConfig
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
@@ -38,7 +37,7 @@ type ChainProvider interface {
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 
-	NewKeyStore(keyStorePath string, password string) (string, error)
-	RestoreKeyStore(keyStorePath string, password string) error
-	AddressFromKeyStore(keyStorePath, auth string) (string, error)
+	NewKeyStore(string, string) (string, error)
+	RestoreKeyStore(context.Context, string, kms.KMS) error
+	AddressFromKeyStore(string, string) (string, error)
 }

@@ -1,24 +1,38 @@
 package evm
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 )
 
-func (p *EVMProvider) RestoreKeyStore(path string, secret string) error {
-	data, err := os.ReadFile(path)
+func (p *EVMProvider) RestoreKeyStore(ctx context.Context, homepath string, client kms.KMS) error {
+	path := path.Join(homepath, "keystore", p.NID(), p.cfg.Keystore)
+	keystoreJson, err := os.ReadFile(fmt.Sprintf("%s.json", path))
 	if err != nil {
 		return err
 	}
-	key, err := keystore.DecryptKey(data, secret)
+	authCipher, err := os.ReadFile(fmt.Sprintf("%s.password", path))
+	if err != nil {
+		return err
+	}
+	secret, err := client.Decrypt(ctx, authCipher)
+	if err != nil {
+		return err
+	}
+	key, err := keystore.DecryptKey(keystoreJson, string(secret))
 	if err != nil {
 		return err
 	}
 	p.wallet = key
 	return nil
 }
+
+//
 
 // AddressFromKeyStore returns the address of the key stored in the given keystore file.
 func (p *EVMProvider) AddressFromKeyStore(keystoreFile, auth string) (string, error) {

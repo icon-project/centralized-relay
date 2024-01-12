@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
@@ -56,17 +57,21 @@ func (p *IconProviderConfig) GetWallet() string {
 }
 
 type IconProvider struct {
-	log    *zap.Logger
-	PCfg   *IconProviderConfig
-	wallet module.Wallet
-	client *Client
+	log      *zap.Logger
+	PCfg     *IconProviderConfig
+	wallet   module.Wallet
+	client   *Client
+	kms      kms.KMS
+	homePath string
 }
 
 func (p *IconProvider) NID() string {
 	return p.PCfg.NID
 }
 
-func (p *IconProvider) Init(ctx context.Context) error {
+func (p *IconProvider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
+	p.kms = kms
+	p.homePath = homepath
 	return nil
 }
 
@@ -83,11 +88,12 @@ func (p *IconProvider) ChainName() string {
 }
 
 func (p *IconProvider) Wallet() (module.Wallet, error) {
+	if p.wallet == nil {
+		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+			return nil, err
+		}
+	}
 	return p.wallet, nil
-}
-
-func (p *IconProvider) GetWalletAddress() (address string, err error) {
-	return p.AddressFromKeyStore(p.PCfg.KeyStore, p.PCfg.Password)
 }
 
 func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {

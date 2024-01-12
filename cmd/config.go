@@ -12,6 +12,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -208,11 +209,14 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
-
-		if err := prov.Init(ctx); err != nil {
+		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID, "iconosphere")
+		if err != nil {
+			return nil, err
+		}
+		a.kms = kmsProvider
+		if err := prov.Init(ctx, a.homePath, kmsProvider); err != nil {
 			return nil, fmt.Errorf("failed to initialize provider: %w", err)
 		}
-
 		chain := relayer.NewChain(a.log, prov, a.debug)
 		chains[chain.ChainProvider.NID()] = chain
 	}

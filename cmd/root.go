@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -147,7 +148,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		panic(err)
 	}
 
-	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", fmt.Sprintf("%s/%s", a.homePath, defaultDBName), "db path location")
+	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", path.Join(a.homePath, defaultDBName), "db path location")
 	if err := a.viper.BindPFlag("db-path", rootCmd.PersistentFlags().Lookup("db-path")); err != nil {
 		panic(err)
 	}

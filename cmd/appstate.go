@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/gofrs/flock"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -27,6 +28,7 @@ type appState struct {
 	debug      bool
 	config     *Config
 	db         *lvldb.LVLDB
+	kms        kms.KMS
 }
 
 // loadConfigFile reads config file into a.Config if file is present.
@@ -106,7 +108,7 @@ func (a *appState) performConfigLockingOperation(ctx context.Context, operation 
 	cfgPath := a.configPath
 
 	// Overwrite the config file.
-	if err := os.WriteFile(cfgPath, out, 0600); err != nil {
+	if err := os.WriteFile(cfgPath, out, 0o600); err != nil {
 		return fmt.Errorf("failed to write config file at %s: %w", cfgPath, err)
 	}
 
