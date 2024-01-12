@@ -1,13 +1,44 @@
 package types
 
-import "io"
+import (
+	"fmt"
+	"github.com/cosmos/cosmos-sdk/types"
+	"io"
+)
 
 type TxSearchParam struct {
-	Query   string
-	Prove   bool
-	Page    *int
-	PerPage *int
-	OrderBy string
+	BlockHeight uint64
+	Events      []types.Event
+	Prove       bool
+	Page        *int
+	PerPage     *int
+	OrderBy     string
+}
+
+func (param TxSearchParam) BuildQuery() string {
+	heightQuery := Query{
+		Field: "tx", Value: param.BlockHeight,
+	}
+
+	var attribQueries []QueryExpression
+
+	for _, event := range param.Events {
+		for _, attrib := range event.Attributes {
+			field := fmt.Sprintf("%s.%s", event.Type, attrib.Key)
+			attribQueries = append(attribQueries, Query{Field: field, Value: attrib.Value})
+		}
+	}
+
+	eventQuery := CompositeQuery{
+		Or: false, Queries: attribQueries,
+	}
+
+	finalQuery := CompositeQuery{
+		Or:      false,
+		Queries: []QueryExpression{heightQuery, eventQuery},
+	}
+
+	return finalQuery.GetQuery()
 }
 
 type KeyringPassword string

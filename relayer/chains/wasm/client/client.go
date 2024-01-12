@@ -19,11 +19,13 @@ type IClient interface {
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
+
 	GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error)
 
 	GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error)
 
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
+	
 	SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
 }
 
@@ -76,7 +78,7 @@ func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (*authT
 }
 
 func (cl Client) GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error) {
-	result, err := cl.context.Client.TxSearch(ctx, param.Query, param.Prove, param.Page, param.PerPage, param.OrderBy)
+	result, err := cl.context.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 	if err != nil {
 		return nil, err
 	}

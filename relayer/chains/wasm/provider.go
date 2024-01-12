@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/client/tx"
@@ -9,6 +10,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
@@ -68,7 +70,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	startHeight, err := p.getStartHeight(ctx, latestHeight, lastSavedHeight)
+	startHeight, err := p.getStartHeight(latestHeight, lastSavedHeight)
 	if err != nil {
 		p.logger.Error("failed to determine start height: ", zap.Error(err))
 		return err
@@ -123,9 +125,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
+	rawMsg, err := p.getRawContractMessage(message)
+	if err != nil {
+		return err
+	}
+	msg := wasmTypes.MsgExecuteContract{
+		Sender:   p.client.Context().FromAddress.String(),
+		Contract: p.config.ContractAddress,
+		Msg:      rawMsg,
+	}
 
-	//Build message
-	msg := p.getMsgExecuteContract(message)
 	msgs := []sdkTypes.Msg{&msg}
 
 	txf, err := p.buildTxFactory()
@@ -175,13 +184,34 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKey) (bool, error) {
-	_, err := p.client.QuerySmartContract(ctx, p.config.ContractAddress, []byte("hello"))
+	queryMsg := types.QueryReceiptMsg{
+		GetReceipt: types.GetReceiptMsg{
+			SrcNetwork: key.Src,
+			ConnSn:     key.Sn,
+		},
+	}
+
+	rawQueryMsg, err := json.Marshal(queryMsg)
+	if err != nil {
+		return false, err
+	}
+
+	res, err := p.client.QuerySmartContract(ctx, p.config.ContractAddress, rawQueryMsg)
 	if err != nil {
 		p.logger.Error("failed to check if message is received: ", zap.Error(err))
 		return false, err
 	}
 
-	return true, nil
+	receiptMsgRes := types.QueryReceiptMsgResponse{}
+	if err := json.Unmarshal(res.Data, &receiptMsgRes); err != nil {
+		return false, err
+	}
+
+	if receiptMsgRes.Status == 1 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
@@ -212,7 +242,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) getStartHeight(ctx context.Context, latestHeight, lastSavedHeight uint64) (uint64, error) {
+func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	if lastSavedHeight > latestHeight {
 		return 0, fmt.Errorf("last saved height cannot be greater than latest height")
 	}
@@ -279,10 +309,22 @@ func (p *Provider) buildTxFactory() (tx.Factory, error) {
 	return txf, nil
 }
 
-func (p *Provider) getMsgExecuteContract(message *relayTypes.Message) wasmTypes.MsgExecuteContract {
-	return wasmTypes.MsgExecuteContract{
-		Sender:   p.client.Context().FromAddress.String(),
-		Contract: p.config.ContractAddress,
-		Msg:      []byte("msg here"),
+func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
+	switch message.EventType {
+	case events.EmitMessage:
+		rcvMsg := types.ExecRecvMsg{
+			RecvMessage: types.ReceiveMessage{
+				SrcNetwork: message.Src,
+				ConnSn:     message.Sn,
+				Msg:        message.Data,
+			},
+		}
+		rcvMsgByte, err := json.Marshal(rcvMsg)
+		if err != nil {
+			return nil, err
+		}
+		return rcvMsgByte, nil
+	default:
+		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
 }
