@@ -7,7 +7,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -21,10 +21,10 @@ type IClient interface {
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 	GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error)
 
-	GetAccountInfo(ctx context.Context, accountAddr string) (*authtypes.QueryAccountInfoResponse, error)
+	GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error)
 
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
-	SendTx(ctx context.Context, tf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
+	SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
 }
 
 type Client struct {
@@ -67,11 +67,11 @@ func (cl Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
-func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (*authtypes.QueryAccountInfoResponse, error) {
-	qc := authtypes.NewQueryClient(cl.context.GRPCClient)
+func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error) {
+	qc := authTypes.NewQueryClient(cl.context.GRPCClient)
 	return qc.AccountInfo(
 		ctx,
-		&authtypes.QueryAccountInfoRequest{Address: accountAddr},
+		&authTypes.QueryAccountInfoRequest{Address: accountAddr},
 	)
 }
 
@@ -96,7 +96,7 @@ func (cl Client) QuerySmartContract(ctx context.Context, contractAddress string,
 	})
 }
 
-func (cl Client) SendTx(ctx context.Context, tf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+func (cl Client) SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	cl.txMutex.Lock()
 	defer cl.txMutex.Unlock()
 
@@ -105,14 +105,19 @@ func (cl Client) SendTx(ctx context.Context, tf tx.Factory, messages []sdkTypes.
 		return nil, err
 	}
 
-	tf = tf.WithAccountNumber(senderAccount.Info.AccountNumber).WithSequence(senderAccount.Info.Sequence)
+	txf = txf.WithAccountNumber(senderAccount.Info.AccountNumber).WithSequence(senderAccount.Info.Sequence)
 
-	txBuilder, err := tf.BuildUnsignedTx(messages...)
+	txf, err = txf.Prepare(cl.context)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := tx.Sign(ctx, tf, cl.context.GetFromName(), txBuilder, true); err != nil {
+	txBuilder, err := txf.BuildUnsignedTx(messages...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Sign(ctx, txf, cl.context.FromName, txBuilder, true); err != nil {
 		return nil, err
 	}
 

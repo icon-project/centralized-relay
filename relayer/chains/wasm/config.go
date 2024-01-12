@@ -7,44 +7,72 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
+	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"io"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 type ProviderConfig struct {
-	ChainName       string `json:"-" yaml:"-"`
-	ChainID         string `json:"chain_id" yaml:"chain-id"`
-	NID             string `json:"nid" yaml:"nid"`
-	KeyringBackend  string `json:"keyring_backend" yaml:"keyring-backend"`
-	KeyringDir      string `json:"keyring_dir" yaml:"keyring-dir"`
-	KeyName         string `json:"key_name" yaml:"key-name"`
-	Codec           codec.Codec
-	NodeURI         string  `json:"node_uri" yaml:"node-uri"`
-	ContractAddress string  `json:"contract-address" yaml:"contract-address"`
-	AccountPrefix   string  `json:"account-prefix" yaml:"account-prefix"`
-	GasAdjustment   float64 `json:"gas-adjustment" yaml:"gas-adjustment"`
-	GasPrices       string  `json:"gas-prices" yaml:"gas-prices"`
-	MinGasAmount    uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
-	MaxGasAmount    uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
-	BlockInterval   string  `json:"block_interval" yaml:"block-interval"`
-	BroadcastMode   string  `json:"broadcast_mode" json:"broadcast-mode"`
-	SignModeStr     string  `json:"sign-mode" yaml:"sign-mode"`
-	SkipConfirm     bool    `json:"skip_confirm" yaml:"skip-confirm"`
-	Simulate        bool    `json:"simulate" yaml:"simulate"`
-	Debug           bool    `json:"debug"`
-	HomePath        string  `json:"home_path"`
+	RpcUrl    string `json:"rpc-url" yaml:"rpc-url"`
+	ChainName string `json:"chain_name" yaml:"chain-name"`
+	ChainID   string `json:"chain_id" yaml:"chain-id"`
+	NID       string `json:"nid" yaml:"nid"`
+
+	HomeDir string `json:"home_dir" yaml:"home-dir"`
+
+	KeyringBackend string                `json:"keyring_backend" yaml:"keyring-backend"`
+	KeyringDir     string                `json:"-" yaml:"-"`
+	KeyName        string                `json:"key_name" yaml:"key-name"`
+	KeyPassword    types.KeyringPassword `json:"key_password" yaml:"key-password"`
+
+	OutputFormat string `json:"output_format" yaml:"output-format"`
+	Output       io.Writer
+	Input        io.Reader
+
+	AccountPrefix string `json:"account-prefix" yaml:"account-prefix"`
+
+	ContractAddress string `json:"contract-address" yaml:"contract-address"`
+
+	Denomination string `json:"denomination" yaml:"denomination"`
+
+	GasPrices     string  `json:"gas-prices" yaml:"gas-prices"`
+	GasAdjustment float64 `json:"gas-adjustment" yaml:"gas-adjustment"`
+	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
+	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
+
+	BlockInterval string `json:"block_interval" yaml:"block-interval"`
+
+	BroadcastMode string `json:"broadcast_mode" yaml:"broadcast-mode"` //sync or async
+	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
+
+	Simulate bool `json:"simulate" yaml:"simulate"`
+
+	Debug bool `json:"-" yaml:"-"`
 }
 
 func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
+	if chainName != "" {
+		pc.ChainName = chainName
+	}
+	if homePath != "" {
+		pc.HomeDir = homePath
+	}
+
+	pc.Debug = debug
+
+	pc.Input = os.Stdin
+	pc.Output = os.Stdout
+
+	pc.KeyringDir = filepath.Join(pc.HomeDir, ".config", pc.ChainName, "keys")
+
 	if err := pc.Validate(); err != nil {
 		return nil, err
 	}
-
-	pc.ChainName = chainName
-	pc.HomePath = homePath
-	pc.Debug = debug
 
 	clientContext, err := newClientContext(pc)
 	if err != nil {
@@ -70,7 +98,10 @@ func (pc ProviderConfig) Validate() error {
 func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 	clientContext := sdkClient.Context{}
 
-	keyRing, err := keyring.New("myApp", pc.KeyringBackend, pc.KeyringDir, nil, pc.Codec)
+	ifr := getInterfaceRegistry()
+	protoCodec := codec.NewProtoCodec(ifr)
+
+	keyRing, err := keyring.New(pc.ChainName, pc.KeyringBackend, pc.KeyringDir, pc.KeyPassword, protoCodec)
 	if err != nil {
 		return clientContext, err
 	}
@@ -84,37 +115,37 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 		return clientContext, err
 	}
 
-	cometRPCClient, err := http.New(pc.NodeURI, "/websocket")
+	cometRPCClient, err := http.New(pc.RpcUrl, "/websocket")
 	if err != nil {
 		return clientContext, err
 	}
 
-	grpcClient, err := grpc.Dial(pc.NodeURI) //Todo use secured rpc channel for production
+	grpcClient, err := grpc.Dial(pc.RpcUrl) //Todo use secured rpc channel for production
 	if err != nil {
 		return clientContext, err
 	}
 
-	clientContext.FromAddress = fromAddress
-	clientContext.From = keyRecord.Name
-	clientContext.FromName = keyRecord.Name
-	clientContext.Keyring = keyRing
-
-	clientContext.Client = cometRPCClient
-	clientContext.GRPCClient = grpcClient
-
-	clientContext.KeyringDir = pc.KeyringDir
-	clientContext.NodeURI = pc.NodeURI
-	clientContext.ChainID = pc.ChainID
-
-	clientContext.HomeDir = pc.HomePath
-
-	clientContext.BroadcastMode = pc.BroadcastMode
-	clientContext.SignModeStr = pc.SignModeStr
-	clientContext.SkipConfirm = pc.SkipConfirm
-	clientContext.Simulate = pc.Simulate
-
-	clientContext.FeePayer = fromAddress
-	clientContext.FeeGranter = fromAddress
+	clientContext.
+		WithInterfaceRegistry(ifr).
+		WithCodec(protoCodec).
+		WithFromAddress(fromAddress).
+		WithFrom(keyRecord.Name).
+		WithFromName(keyRecord.Name).
+		WithKeyring(keyRing).
+		WithKeyringDir(pc.KeyringDir).
+		WithNodeURI(pc.RpcUrl).
+		WithChainID(pc.ChainID).
+		WithHomeDir(pc.HomeDir).
+		WithBroadcastMode(pc.BroadcastMode).
+		WithSignModeStr(pc.SignModeStr).
+		WithSimulation(pc.Simulate).
+		WithFeePayerAddress(fromAddress).
+		WithFeeGranterAddress(fromAddress).
+		WithClient(cometRPCClient).
+		WithGRPCClient(grpcClient).
+		WithOutputFormat(pc.OutputFormat).
+		WithOutput(pc.Output).
+		WithInput(pc.Input)
 
 	return clientContext, nil
 }

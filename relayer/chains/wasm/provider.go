@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	abiTypes "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -16,10 +16,6 @@ import (
 	"runtime"
 	"sync"
 	"time"
-)
-
-const (
-	ChainType string = "wasm"
 )
 
 type Provider struct {
@@ -41,7 +37,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	return &relayTypes.Receipt{
 		TxHash: txHash,
 		Height: uint64(res.TxResponse.Height),
-		Status: abiTypes.CodeTypeOK == res.TxResponse.Code,
+		Status: types.CodeTypeOK == res.TxResponse.Code,
 	}, nil
 }
 
@@ -58,7 +54,7 @@ func (p *Provider) Init(ctx context.Context) error {
 }
 
 func (p *Provider) Type() string {
-	return ChainType
+	return types.ChainType
 }
 
 func (p *Provider) ProviderConfig() provider.ProviderConfig {
@@ -130,9 +126,35 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	//Build message
 	msg := p.getMsgExecuteContract(message)
+	msgs := []sdkTypes.Msg{&msg}
 
-	res, err := p.client.SendTx(ctx, p.buildTxFactory(), []sdkTypes.Msg{&msg})
-	if err != nil || res.Code != abiTypes.CodeTypeOK {
+	txf, err := p.buildTxFactory()
+	if err != nil {
+		return err
+	}
+
+	if txf.SimulateAndExecute() {
+		_, adjusted, err := tx.CalculateGas(p.client.Context(), txf, msgs...)
+		if err != nil {
+			return err
+		}
+		txf = txf.WithGas(adjusted)
+	}
+
+	if txf.Gas() == 0 {
+		return fmt.Errorf("gas amount cannot be zero")
+	}
+
+	if p.config.MinGasAmount > 0 && txf.Gas() < p.config.MinGasAmount {
+		return fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.config.MinGasAmount)
+	}
+
+	if p.config.MaxGasAmount > 0 && txf.Gas() > p.config.MaxGasAmount {
+		return fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.config.MaxGasAmount)
+	}
+
+	res, err := p.client.SendTx(ctx, txf, msgs)
+	if err != nil || res.Code != types.CodeTypeOK {
 		if err == nil {
 			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
 		}
@@ -163,7 +185,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKe
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
-	coin, err := p.client.GetBalance(ctx, addr, "denomination")
+	coin, err := p.client.GetBalance(ctx, addr, p.config.Denomination)
 	if err != nil {
 		p.logger.Error("failed to query balance: ", zap.Error(err))
 		return nil, err
@@ -239,12 +261,22 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 	return blockInfoStream
 }
 
-func (p *Provider) buildTxFactory() tx.Factory {
-	return tx.Factory{}.
+func (p *Provider) buildTxFactory() (tx.Factory, error) {
+	signMode, ok := signing.SignMode_value[p.client.Context().SignModeStr]
+	if !ok {
+		return tx.Factory{}, fmt.Errorf("invalid value for sign-mode-str")
+	}
+
+	txf := tx.Factory{}.
 		WithKeybase(p.client.Context().Keyring).
 		WithFeePayer(p.client.Context().FeePayer).
-		WithChainID(p.config.ChainID).
-		WithGasAdjustment(p.config.GasAdjustment)
+		WithChainID(p.client.Context().ChainID).
+		WithSimulateAndExecute(p.client.Context().Simulate).
+		WithGasPrices(p.config.GasPrices).
+		WithGasAdjustment(p.config.GasAdjustment).
+		WithSignMode(signing.SignMode(signMode))
+
+	return txf, nil
 }
 
 func (p *Provider) getMsgExecuteContract(message *relayTypes.Message) wasmTypes.MsgExecuteContract {
