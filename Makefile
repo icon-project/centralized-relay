@@ -29,6 +29,9 @@ else
 	@go build  $(BUILD_FLAGS) -o build/centralized-rly main.go
 endif
 
+build-docker:
+	@echo "building centralized docker image..."
+	docker build . -t centralized-relay
 
 install: go.sum
 	@echo "installing centralized rly binary..."
