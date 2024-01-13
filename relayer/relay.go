@@ -265,12 +265,32 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
 	srcChainRuntime.LastBlockHeight = blockInfo.Height
-	err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages))
-	if err != nil {
-		r.log.Error("unable to save height", zap.Error(err))
+
+	if len(blockInfo.Messages) > 0 {
+		for msg := range r.getMessageStreamAfterSavingToDB(blockInfo.Messages) {
+			srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
+		}
 	}
 
-	go srcChainRuntime.mergeMessages(ctx, blockInfo.Messages)
+	if err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages)); err != nil {
+		r.log.Error("unable to save height", zap.Error(err))
+	}
+}
+
+func (r *Relayer) getMessageStreamAfterSavingToDB(messages []*types.Message) <-chan *types.Message {
+	msgStream := make(chan *types.Message)
+
+	go func(msgList []*types.Message) {
+		defer close(msgStream)
+		for _, msg := range msgList {
+			if err := r.messageStore.StoreMessage(types.NewRouteMessage(msg)); err != nil {
+				r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
+			}
+			msgStream <- msg
+		}
+	}(messages)
+
+	return msgStream
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
