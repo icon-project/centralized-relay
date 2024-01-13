@@ -14,12 +14,14 @@ const (
 	EventRelayMessage   Event = "RelayMessage"
 	EventMessageRemove  Event = "MessageRemove"
 	EventPruneDB        Event = "PruneDB"
+	EventError          Event = "Error"
 )
 
 var (
 	ErrUnknownEvent    = fmt.Errorf("unknown event")
 	ErrSocketClosed    = fmt.Errorf("socket closed")
 	ErrInvalidResponse = fmt.Errorf("invalid response")
+	ErrUnknown         = fmt.Errorf("unknown error")
 )
 
 type Client struct {
@@ -98,6 +100,8 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 			return nil, err
 		}
 		return res, nil
+	case EventError:
+		return nil, ErrUnknown
 	default:
 		return nil, ErrUnknownEvent
 	}

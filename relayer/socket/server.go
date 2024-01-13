@@ -45,7 +45,7 @@ func (s *Server) server(c net.Conn) {
 		}
 		message, err := s.parse(buf[:nr])
 		if err != nil {
-			return
+			message = makeError(err)
 		}
 		if err := s.send(c, message); err != nil {
 			return
@@ -64,6 +64,16 @@ func (s *Server) parse(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(payload)
+}
+
+// makeError for the client to write to socket
+func makeError(err error) []byte {
+	message := &Message{EventError, []byte(fmt.Sprintf(`{"message": "%s"}`, err.Error()))}
+	data, err := json.Marshal(message)
+	if err != nil {
+		return []byte(fmt.Sprintf(`{"error": "%s"}`, err.Error()))
+	}
+	return data
 }
 
 // Send message to socket
@@ -158,7 +168,8 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		if req.Height != 0 {
-			// TODO: Find message by height
+			// TODO: Find message by height and sn
+			return nil, fmt.Errorf("not implemented")
 		}
 
 		store := s.rly.GetMessageStore()

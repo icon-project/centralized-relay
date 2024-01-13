@@ -70,3 +70,7 @@ type ReqPruneDB struct {
 type ResPruneDB struct {
 	Status string
 }
+
+type ErrResponse struct {
+	Error string
+}
