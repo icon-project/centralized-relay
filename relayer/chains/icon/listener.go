@@ -192,7 +192,7 @@ loop:
 					}
 				}
 
-				// sort and forward notifications
+				// sorter and forward notifications
 				if len(brs) > 0 {
 					sort.SliceStable(brs, func(i, j int) bool {
 						return brs[i].Height < brs[j].Height

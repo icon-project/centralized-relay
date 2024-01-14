@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"github.com/CosmWasm/wasmd/x/wasm"
+	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/std"
 	"github.com/cosmos/cosmos-sdk/types/module"
@@ -15,7 +16,12 @@ var moduleBasics = []module.AppModuleBasic{
 	bank.AppModuleBasic{},
 }
 
-func getInterfaceRegistry() types.InterfaceRegistry {
+type CodecConfig struct {
+	InterfaceRegistry types.InterfaceRegistry
+	Codec             codec.Codec
+}
+
+func GetCodecConfig() CodecConfig {
 	ifr := types.NewInterfaceRegistry()
 
 	std.RegisterInterfaces(ifr)
@@ -23,5 +29,8 @@ func getInterfaceRegistry() types.InterfaceRegistry {
 	basicManager := module.NewBasicManager(moduleBasics...)
 	basicManager.RegisterInterfaces(ifr)
 
-	return ifr
+	return CodecConfig{
+		InterfaceRegistry: ifr,
+		Codec:             codec.NewProtoCodec(ifr),
+	}
 }

@@ -25,7 +25,7 @@ type IClient interface {
 	GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error)
 
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
-	
+
 	SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
 }
 

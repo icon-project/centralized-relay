@@ -17,7 +17,7 @@ type TxSearchParam struct {
 
 func (param TxSearchParam) BuildQuery() string {
 	heightQuery := Query{
-		Field: "tx", Value: param.BlockHeight,
+		Field: "tx.height", Value: param.BlockHeight,
 	}
 
 	var attribQueries []QueryExpression

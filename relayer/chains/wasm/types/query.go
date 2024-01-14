@@ -27,7 +27,11 @@ type Query struct {
 }
 
 func (q Query) GetQuery() string {
-	return fmt.Sprintf("%s%s%v", q.Field, q.Operator, q.Value)
+	operator := QueryOperator.Eq
+	if q.Operator != "" {
+		operator = q.Operator
+	}
+	return fmt.Sprintf("%s%s%v", q.Field, operator, q.Value)
 }
 
 type CompositeQuery struct {
@@ -42,11 +46,11 @@ func (cq CompositeQuery) GetQuery() string {
 	}
 
 	resultQuery := ""
-	for i, q := range cq.Queries {
-		if i == 0 {
-			resultQuery = q.GetQuery()
-		} else {
+	for _, q := range cq.Queries {
+		if q.GetQuery() != "" && resultQuery != "" {
 			resultQuery = fmt.Sprintf("%s %s %s", resultQuery, merger, q.GetQuery())
+		} else if q.GetQuery() != "" {
+			resultQuery = q.GetQuery()
 		}
 	}
 

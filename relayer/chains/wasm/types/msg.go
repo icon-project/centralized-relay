@@ -1,5 +1,7 @@
 package types
 
+import relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+
 type SendMessage struct {
 	To  string `json:"to"`
 	Svc uint8  `json:"svc"`
@@ -24,6 +26,16 @@ type ExecSendMsg struct {
 
 type ExecRecvMsg struct {
 	RecvMessage ReceiveMessage `json:"recv_message"`
+}
+
+func NewExecRecvMsg(message *relayTypes.Message) ExecRecvMsg {
+	return ExecRecvMsg{
+		RecvMessage: ReceiveMessage{
+			SrcNetwork: message.Src,
+			ConnSn:     message.Sn,
+			Msg:        message.Data,
+		},
+	}
 }
 
 type QueryReceiptMsg struct {

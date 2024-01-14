@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"github.com/cometbft/cometbft/rpc/client/http"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,7 +69,7 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 	pc.Input = os.Stdin
 	pc.Output = os.Stdout
 
-	pc.KeyringDir = filepath.Join(pc.HomeDir, ".config", pc.ChainName, "keys")
+	pc.KeyringDir = filepath.Join(pc.HomeDir, fmt.Sprintf(".%s", pc.ChainName))
 
 	if err := pc.Validate(); err != nil {
 		return nil, err
@@ -79,13 +80,11 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 		return nil, err
 	}
 
-	cp := &Provider{
+	return &Provider{
 		logger: logger,
 		config: pc,
 		client: client.New(clientContext),
-	}
-
-	return cp, nil
+	}, nil
 }
 
 func (pc ProviderConfig) Validate() error {
@@ -106,10 +105,21 @@ func (pc ProviderConfig) Validate() error {
 func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 	clientContext := sdkClient.Context{}
 
-	ifr := getInterfaceRegistry()
-	protoCodec := codec.NewProtoCodec(ifr)
+	codecCfg := GetCodecConfig()
 
-	keyRing, err := keyring.New(pc.ChainName, pc.KeyringBackend, pc.KeyringDir, pc.KeyPassword, protoCodec)
+	fmt.Println("key ring service name: ", sdkTypes.KeyringServiceName())
+
+	keyRing, err := keyring.New(
+		sdkTypes.KeyringServiceName(),
+		pc.KeyringBackend,
+		pc.KeyringDir,
+		pc.KeyPassword,
+		codecCfg.Codec,
+		func(options *keyring.Options) {
+			options.SupportedAlgos = types.SupportedAlgorithms
+			options.SupportedAlgosLedger = types.SupportedAlgorithmsLedger
+		},
+	)
 	if err != nil {
 		return clientContext, err
 	}
@@ -128,14 +138,14 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 		return clientContext, err
 	}
 
-	grpcClient, err := grpc.Dial(pc.RpcUrl) //Todo use secured rpc channel for production
+	grpcClient, err := grpc.Dial(pc.RpcUrl, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return clientContext, err
 	}
 
-	clientContext.
-		WithInterfaceRegistry(ifr).
-		WithCodec(protoCodec).
+	clientContext = clientContext.
+		WithInterfaceRegistry(codecCfg.InterfaceRegistry).
+		WithCodec(codecCfg.Codec).
 		WithFromAddress(fromAddress).
 		WithFrom(keyRecord.Name).
 		WithFromName(keyRecord.Name).

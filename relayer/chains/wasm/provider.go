@@ -63,7 +63,7 @@ func (p *Provider) ProviderConfig() provider.ProviderConfig {
 	return p.config
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan relayTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan relayTypes.BlockInfo) error {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		p.logger.Error("failed to get latest block height: ", zap.Error(err))
@@ -87,37 +87,28 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	p.logger.Info("start querying from height", zap.Uint64("start-height", startHeight))
 
+	runningLatestHeight := latestHeight
+
 	for {
 		select {
 		case <-blockIntervalTicker.C:
-			func() {
-				done := make(chan interface{})
-				defer close(done)
-
-				heightStream := p.getHeightStream(done, startHeight, latestHeight)
-
-				numOfPipelines := runtime.NumCPU() //Todo tune or configure this
-
-				pipelines := make([]<-chan interface{}, numOfPipelines)
-
-				for i := 0; i < numOfPipelines; i++ {
-					pipelines[i] = p.getBlockInfoStream(done, heightStream)
-				}
-
-				for bn := range concurrency.FanIn(done, pipelines...) {
-					block, ok := bn.(relayTypes.BlockInfo)
-					if !ok || block.HasError() {
-						if !block.HasError() {
-							block.Error = fmt.Errorf("received invalid block type -> required: %T, got: %T", relayTypes.BlockInfo{}, bn)
-						}
-						p.logger.Error("error receiving block: ", zap.Error(block.Error))
-						continue
+			for {
+				newLatestHeight, err := p.QueryLatestHeight(ctx)
+				if err == nil {
+					if newLatestHeight > runningLatestHeight {
+						runningLatestHeight = newLatestHeight
 					}
-					blockInfo <- relayTypes.BlockInfo{
-						Height: block.Height, Messages: block.Messages,
-					}
+					break
 				}
-			}()
+				p.logger.Error("failed to query latest height", zap.Error(err))
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+
+		if runningLatestHeight > latestHeight {
+			latestHeight = runningLatestHeight
+			p.RunBlockQuery(blockInfoChan, startHeight, latestHeight)
+			startHeight = latestHeight + 1
 		}
 	}
 
@@ -278,12 +269,21 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 			case <-done:
 				return
 			case height := <-heightStream:
-				searchParam := types.TxSearchParam{}
-				messages, err := p.client.GetMessages(context.Background(), searchParam)
-				blockInfoStream <- relayTypes.BlockInfo{
-					Height:   height,
-					Messages: messages,
-					Error:    err,
+				searchParam := types.TxSearchParam{
+					BlockHeight: height,
+				}
+				for {
+					messages, err := p.client.GetMessages(context.Background(), searchParam)
+					if err != nil {
+						p.logger.Error("failed to query messages", zap.Uint64("block-height", height), zap.Error(err))
+						time.Sleep(500 * time.Millisecond)
+					} else {
+						blockInfoStream <- relayTypes.BlockInfo{
+							Height:   height,
+							Messages: messages,
+						}
+						break
+					}
 				}
 			}
 		}
@@ -312,19 +312,38 @@ func (p *Provider) buildTxFactory() (tx.Factory, error) {
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		rcvMsg := types.ExecRecvMsg{
-			RecvMessage: types.ReceiveMessage{
-				SrcNetwork: message.Src,
-				ConnSn:     message.Sn,
-				Msg:        message.Data,
-			},
-		}
-		rcvMsgByte, err := json.Marshal(rcvMsg)
-		if err != nil {
-			return nil, err
-		}
-		return rcvMsgByte, nil
+		rcvMsg := types.NewExecRecvMsg(message)
+		return json.Marshal(rcvMsg)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
+	}
+}
+
+func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
+	diff := latestHeight - startHeight + 1 //since both heights are inclusive
+	if int(diff) < runtime.NumCPU() {
+		return int(diff)
+	}
+	return runtime.NumCPU()
+}
+
+func (p *Provider) RunBlockQuery(blockInfoChan chan relayTypes.BlockInfo, fromHeight, toHeight uint64) {
+	done := make(chan interface{})
+	defer close(done)
+
+	heightStream := p.getHeightStream(done, fromHeight, toHeight)
+
+	numOfPipelines := p.getNumOfPipelines(fromHeight, toHeight)
+	pipelines := make([]<-chan interface{}, numOfPipelines)
+
+	for i := 0; i < numOfPipelines; i++ {
+		pipelines[i] = p.getBlockInfoStream(done, heightStream)
+	}
+
+	for bn := range concurrency.FanIn(done, pipelines...) {
+		block := bn.(relayTypes.BlockInfo)
+		blockInfoChan <- relayTypes.BlockInfo{
+			Height: block.Height, Messages: block.Messages,
+		}
 	}
 }
