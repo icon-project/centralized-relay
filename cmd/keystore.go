@@ -14,10 +14,11 @@ import (
 var TempDir = os.TempDir()
 
 type keystoreState struct {
-	chain    string
-	password string
-	address  string
-	path     string
+	chain           string
+	password        string
+	confirmPassword string
+	address         string
+	path            string
 }
 
 func newKeyStoreState(ctx context.Context) (*keystoreState, error) {
@@ -90,7 +91,7 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 		},
 	}
 	k.chainFlag(new)
-	k.passwordFlag(new)
+	k.passwordFlag(new, false)
 	return new
 }
 
@@ -164,7 +165,7 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 		},
 	}
 	k.chainFlag(importCmd)
-	k.passwordFlag(importCmd)
+	k.passwordFlag(importCmd, false)
 	k.keystorePathFlag(importCmd)
 	return importCmd
 }
@@ -191,6 +192,10 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
 			}
+			// TODO: set admin
+			// if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
+			// 	return err
+			// }
 			fmt.Fprintln(os.Stdout, "Wallet configured")
 			return nil
 		},
@@ -198,6 +203,22 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 	k.chainFlag(use)
 	k.addressFlag(use)
 	return use
+}
+
+// change password
+func (k *keystoreState) changePassword(a *appState) *cobra.Command {
+	changePassword := &cobra.Command{
+		Use:   "change-password",
+		Short: "change password",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// TODO: implement change password
+			return fmt.Errorf("not implemented")
+		},
+	}
+	k.chainFlag(changePassword)
+	k.addressFlag(changePassword)
+	k.passwordFlag(changePassword, true)
+	return changePassword
 }
 
 // chain flag
@@ -209,10 +230,16 @@ func (k *keystoreState) chainFlag(cmd *cobra.Command) {
 }
 
 // password flag
-func (k *keystoreState) passwordFlag(cmd *cobra.Command) {
+func (k *keystoreState) passwordFlag(cmd *cobra.Command, isConfirmRequired bool) {
 	cmd.Flags().StringVarP(&k.password, "password", "p", "", "password for keystore")
 	if err := cmd.MarkFlagRequired("password"); err != nil {
 		panic(err)
+	}
+	if isConfirmRequired {
+		cmd.Flags().StringVarP(&k.password, "confirm", "c", "", "confirm password for keystore")
+		if err := cmd.MarkFlagRequired("confirm"); err != nil {
+			panic(err)
+		}
 	}
 }
 
