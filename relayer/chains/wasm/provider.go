@@ -14,6 +14,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"go.uber.org/zap"
 	"runtime"
 	"sync"
@@ -340,10 +341,19 @@ func (p *Provider) RunBlockQuery(blockInfoChan chan relayTypes.BlockInfo, fromHe
 		pipelines[i] = p.getBlockInfoStream(done, heightStream)
 	}
 
+	var blockInfoList []relayTypes.BlockInfo
 	for bn := range concurrency.FanIn(done, pipelines...) {
 		block := bn.(relayTypes.BlockInfo)
+		blockInfoList = append(blockInfoList, block)
+
+	}
+	sorter.Sort(blockInfoList, func(p1, p2 relayTypes.BlockInfo) bool {
+		return p1.Height < p2.Height //ascending order
+	})
+
+	for _, blockInfo := range blockInfoList {
 		blockInfoChan <- relayTypes.BlockInfo{
-			Height: block.Height, Messages: block.Messages,
+			Height: blockInfo.Height, Messages: blockInfo.Messages,
 		}
 	}
 }
