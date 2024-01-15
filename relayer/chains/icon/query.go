@@ -182,10 +182,9 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 
 // SetAdmin sets the admin address of the bridge contract
 func (ip *IconProvider) SetAdmin(ctx context.Context, admin string) error {
-	callParam := ip.prepareCallParams("", map[string]interface{}{
-		"address": types.Address(admin),
-	})
-
+	callParam := map[string]interface{}{
+		"_relayer": admin,
+	}
 	message := ip.NewIconMessage(callParam, "setAdmin")
 
 	data, err := ip.SendTransaction(ctx, message)

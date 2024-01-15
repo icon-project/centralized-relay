@@ -243,3 +243,23 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 
 	return txOpts, nil
 }
+
+// SetAdmin sets the admin address of the bridge contract
+func (p *EVMProvider) SetAdmin(ctx context.Context, admin string) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := p.client.SetAdmin(opts, common.HexToAddress(admin))
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to set admin: %s", err)
+	}
+	return nil
+}

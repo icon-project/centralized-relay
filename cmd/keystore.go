@@ -192,10 +192,9 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
 			}
-			// TODO: set admin
-			// if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
-			// 	return err
-			// }
+			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
+				return err
+			}
 			fmt.Fprintln(os.Stdout, "Wallet configured")
 			return nil
 		},
