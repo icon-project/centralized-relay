@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -35,4 +36,5 @@ type ChainProvider interface {
 	FinalityBlock(ctx context.Context) uint64
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
+	RevertMessage(ctx context.Context, sn *big.Int) error
 }

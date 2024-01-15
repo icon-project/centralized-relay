@@ -14,6 +14,7 @@ const (
 	EventRelayMessage   Event = "RelayMessage"
 	EventMessageRemove  Event = "MessageRemove"
 	EventPruneDB        Event = "PruneDB"
+	EventRevertMessage  Event = "RevertMessage"
 	EventError          Event = "Error"
 )
 
@@ -190,6 +191,23 @@ func (c *Client) PruneDB() (*ResPruneDB, error) {
 		return nil, err
 	}
 	res, ok := data.(*ResPruneDB)
+	if !ok {
+		return nil, ErrInvalidResponse
+	}
+	return res, nil
+}
+
+// RevertMessage sends RevertMessage event to socket
+func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, error) {
+	req := &ReqRevertMessage{Chain: chain, Sn: sn}
+	if err := c.send(EventRevertMessage, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResRevertMessage)
 	if !ok {
 		return nil, ErrInvalidResponse
 	}

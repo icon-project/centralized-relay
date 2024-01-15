@@ -58,6 +58,16 @@ Flags:
 prune
 ```
 
+### Revert Message
+
+```bash
+message revert [flags]
+
+Flags:
+  -c, --chain string   Chain ID
+  -s, --sn int          Sequence number
+```
+
 ## Examples
 
 1. **List all the messages in the database.**
@@ -84,7 +94,13 @@ centralized-relay db messages relay --chain 0xa869.fuji --sn 1
 centralized-relay db messages remove --chain 0x2.icon --sn 1
 ```
 
-5. **Prune the database.**
+5. **Revert a message.**
+
+```bash
+centralized-relay db message revert --chain 0x2.icon --sn 1
+```
+
+6. **Prune the database.**
 
 ```bash
 centralized-relay db prune
