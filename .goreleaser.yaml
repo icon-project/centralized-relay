@@ -1,8 +1,8 @@
-project_name: ibc-relay
+project_name: centralised-relay
 builds:
   - id: darwin-amd64
     main: ./main.go
-    binary: rly
+    binary: centralized-rly
     goos:
       - darwin
     goarch:
@@ -16,7 +16,7 @@ builds:
       - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
   - id: darwin-arm64
     main: ./main.go
-    binary: rly
+    binary: centralized-rly
     goos:
       - darwin
     goarch:
@@ -30,7 +30,7 @@ builds:
       - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
   - id: linux-amd64
     main: ./main.go
-    binary: rly
+    binary: centralized-rly
     goos:
       - linux
     goarch:
@@ -44,7 +44,7 @@ builds:
       - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
   - id: linux-arm64
     main: ./main.go
-    binary: rly
+    binary: centralized-rly
     goos:
       - linux
     goarch:
