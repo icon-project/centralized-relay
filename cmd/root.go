@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const appName = "centralized-relay"
+const appName = "crly"
 
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
