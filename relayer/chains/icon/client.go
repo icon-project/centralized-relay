@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	DefaultSendTransactionRetryInterval        = 3 * time.Second        //3sec
-	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond //1.5sec
+	DefaultSendTransactionRetryInterval        = 3 * time.Second        // 3sec
+	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond // 1.5sec
 	JsonrpcApiVersion                          = 3
 )
 
@@ -358,7 +358,8 @@ func (c *Client) wsRequest(conn *websocket.Conn, reqPtr interface{}) error {
 	if wsResp.Code != 0 {
 		return wsRequestError{
 			fmt.Errorf("invalid WSResponse code:%d, message:%s", wsResp.Code, wsResp.Message),
-			wsResp}
+			wsResp,
+		}
 	}
 	return nil
 }
@@ -408,7 +409,6 @@ func (c *Client) wsReadJSONLoop(ctx context.Context, conn *websocket.Conn, respP
 				return err
 			}
 		}
-
 	}
 }
 
@@ -547,7 +547,7 @@ func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.
 }
 
 func NewClient(uri string, l *zap.Logger) *Client {
-	//TODO options {MaxRetrySendTx, MaxRetryGetResult, MaxIdleConnsPerHost, Debug, Dump}
+	// TODO options {MaxRetrySendTx, MaxRetryGetResult, MaxIdleConnsPerHost, Debug, Dump}
 	tr := &http.Transport{MaxIdleConnsPerHost: 1000}
 	cl := &http.Client{Transport: tr}
 	apiClient := client.NewJsonRpcClient(cl, uri)

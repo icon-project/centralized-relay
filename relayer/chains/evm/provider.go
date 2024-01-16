@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 
 	"go.uber.org/zap"
@@ -45,6 +46,8 @@ type EVMProvider struct {
 	StartHeight uint64
 	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
+	kms         kms.KMS
+	homePath    string
 }
 
 func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -96,15 +99,17 @@ func (p *EVMProviderConfig) Validate() error {
 	return nil
 }
 
-func (p *EVMProvider) Init(context.Context) error {
-	wallet, err := RestoreKey(p.cfg.Keystore, p.cfg.Password)
-	if err != nil {
-		return fmt.Errorf("failed to restore evm wallet %v", err)
-	}
-	p.wallet = wallet
+func (p *EVMProviderConfig) SetWallet(addr string) {
+	p.Keystore = addr
+}
 
-	//
+func (p *EVMProviderConfig) GetWallet() string {
+	return p.Keystore
+}
 
+func (p *EVMProvider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
+	p.kms = kms
+	p.homePath = homePath
 	return nil
 }
 
@@ -120,8 +125,13 @@ func (p *EVMProvider) ChainName() string {
 	return p.cfg.ChainName
 }
 
-func (p *EVMProvider) Wallet() *keystore.Key {
-	return p.wallet
+func (p *EVMProvider) Wallet() (*keystore.Key, error) {
+	if p.wallet == nil {
+		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+			return nil, err
+		}
+	}
+	return p.wallet, nil
 }
 
 func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
@@ -130,7 +140,7 @@ func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
 
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
 	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond // 1.5sec
-	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Nanosecond)
 	retryLimit := 10
 	retryCounter := 0
 	for {
@@ -205,7 +215,12 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		return nil, err
 	}
 
-	non, err := p.client.NonceAt(ctx, p.wallet.Address, big.NewInt(int64(h)))
+	wallet, err := p.Wallet()
+	if err != nil {
+		return nil, err
+	}
+
+	non, err := p.client.NonceAt(ctx, wallet.Address, big.NewInt(int64(h)))
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +236,26 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	}
 
 	return txOpts, nil
+}
+
+// SetAdmin sets the admin address of the bridge contract
+func (p *EVMProvider) SetAdmin(ctx context.Context, admin string) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := p.client.SetAdmin(opts, common.HexToAddress(admin))
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to set admin: %s", err)
+	}
+	return nil
 }
 
 // RevertMessage
