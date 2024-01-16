@@ -25,7 +25,7 @@ var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	VERSION       = "dev"
+	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -89,7 +89,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		Use:     appName,
 		Short:   "This application makes data relay between chains!",
 		Long:    strings.TrimSpace(`Use this to relay xcall packet between chains`),
-		Version: VERSION,
+		Version: Version,
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
