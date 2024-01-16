@@ -12,6 +12,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -149,7 +150,8 @@ $ %s cfg i`, appName, defaultHome, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	Timeout string `yaml:"timeout" json:"timeout"`
+	Timeout  string `yaml:"timeout" json:"timeout"`
+	KMSKeyID string `yaml:"kms-key-id" json:"kms-key-id"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
@@ -162,6 +164,15 @@ func newDefaultGlobalConfig() *GlobalConfig {
 type Config struct {
 	Global *GlobalConfig  `yaml:"global" json:"global"`
 	Chains relayer.Chains `yaml:"chains" json:"chains"`
+}
+
+func (c *Config) Save(dir string) error {
+	out, err := yaml.Marshal(c.Wrapped())
+	if err != nil {
+		return err
+	}
+	cfgPath := path.Join(dir, "config.yaml")
+	return os.WriteFile(cfgPath, out, 0o600)
 }
 
 // validateConfig is used to validate the GlobalConfig values
@@ -194,11 +205,14 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
-
-		if err := prov.Init(ctx); err != nil {
+		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID, "iconosphere")
+		if err != nil {
+			return nil, err
+		}
+		a.kms = kmsProvider
+		if err := prov.Init(ctx, a.homePath, kmsProvider); err != nil {
 			return nil, fmt.Errorf("failed to initialize provider: %w", err)
 		}
-
 		chain := relayer.NewChain(a.log, prov, a.debug)
 		chains[chain.ChainProvider.NID()] = chain
 	}
