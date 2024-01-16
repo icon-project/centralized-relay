@@ -1,17 +1,17 @@
 package wasm
 
 import (
+	"crypto/tls"
 	"fmt"
 	"github.com/cometbft/cometbft/rpc/client/http"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,6 +21,7 @@ import (
 type ProviderConfig struct {
 	ChainName string `json:"-" yaml:"-"`
 	RpcUrl    string `json:"rpc-url" yaml:"rpc-url"`
+	GrpcUrl   string `json:"grpc_url" yaml:"grpc-url"`
 	ChainID   string `json:"chain_id" yaml:"chain-id"`
 	NID       string `json:"nid" yaml:"nid"`
 
@@ -52,6 +53,8 @@ type ProviderConfig struct {
 	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
 
 	Simulate bool `json:"simulate" yaml:"simulate"`
+
+	StartHeight uint64 `json:"start_height" yaml:"start-height"`
 
 	Debug bool `json:"-" yaml:"-"`
 }
@@ -105,15 +108,13 @@ func (pc ProviderConfig) Validate() error {
 func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 	clientContext := sdkClient.Context{}
 
-	codecCfg := GetCodecConfig()
-
-	fmt.Println("key ring service name: ", sdkTypes.KeyringServiceName())
+	codecCfg := GetCodecConfig(pc)
 
 	keyRing, err := keyring.New(
-		sdkTypes.KeyringServiceName(),
+		pc.ChainName,
 		pc.KeyringBackend,
 		pc.KeyringDir,
-		pc.KeyPassword,
+		pc.Input,
 		codecCfg.Codec,
 		func(options *keyring.Options) {
 			options.SupportedAlgos = types.SupportedAlgorithms
@@ -128,6 +129,7 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 	if err != nil {
 		return clientContext, err
 	}
+
 	fromAddress, err := keyRecord.GetAddress()
 	if err != nil {
 		return clientContext, err
@@ -138,12 +140,13 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 		return clientContext, err
 	}
 
-	grpcClient, err := grpc.Dial(pc.RpcUrl, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcClient, err := grpc.Dial(pc.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
 		return clientContext, err
 	}
 
 	clientContext = clientContext.
+		WithTxConfig(codecCfg.TxConfig).
 		WithInterfaceRegistry(codecCfg.InterfaceRegistry).
 		WithCodec(codecCfg.Codec).
 		WithFromAddress(fromAddress).

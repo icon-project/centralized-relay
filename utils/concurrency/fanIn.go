@@ -29,3 +29,18 @@ func FanIn(done <-chan interface{}, channels ...<-chan interface{}) <-chan inter
 
 	return multiplexedStream
 }
+
+func Take(done <-chan interface{}, valueStream <-chan interface{}, freq int) <-chan interface{} {
+	takeStream := make(chan interface{})
+	go func() {
+		defer close(takeStream)
+		for i := 0; i < freq; i++ {
+			select {
+			case <-done:
+				return
+			case takeStream <- <-valueStream:
+			}
+		}
+	}()
+	return takeStream
+}

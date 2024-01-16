@@ -5,18 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	abiTypes "github.com/cometbft/cometbft/abci/types"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
-	"github.com/icon-project/centralized-relay/relayer/events"
+	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
+	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -90,6 +93,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	runningLatestHeight := latestHeight
 
+	isFirstIter := true
+
 	for {
 		select {
 		case <-blockIntervalTicker.C:
@@ -104,15 +109,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				p.logger.Error("failed to query latest height", zap.Error(err))
 				time.Sleep(500 * time.Millisecond)
 			}
-		}
-
-		if runningLatestHeight > latestHeight {
-			latestHeight = runningLatestHeight
-			p.RunBlockQuery(blockInfoChan, startHeight, latestHeight)
-			startHeight = latestHeight + 1
+		default:
+			if isFirstIter || runningLatestHeight > latestHeight {
+				isFirstIter = false
+				latestHeight = runningLatestHeight
+				p.logger.Debug("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				p.RunBlockQuery(blockInfoChan, startHeight, latestHeight)
+				startHeight = latestHeight + 1
+			}
 		}
 	}
-
 	return nil
 }
 
@@ -159,8 +165,20 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		if err == nil {
 			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
 		}
-		p.logger.Error("failed to route message: ", zap.Error(err))
-		callback(message.MessageKey(), relayTypes.TxResponse{}, err)
+		p.logger.Error("transaction failed: ",
+			zap.Error(err),
+			zap.Uint64("block-height", uint64(res.Height)),
+			zap.String("chain-id", p.config.ChainID),
+			zap.String("tx-hash", res.TxHash),
+			zap.Int64("gas-used", res.GasUsed),
+		)
+		callback(message.MessageKey(), relayTypes.TxResponse{
+			Height:    res.Height,
+			TxHash:    res.TxHash,
+			Codespace: res.Codespace,
+			Code:      relayTypes.ResponseCode(res.Code),
+			Data:      res.Data,
+		}, err)
 		return err
 	}
 
@@ -172,6 +190,13 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		Data:      res.Data,
 	}, nil)
 
+	p.logger.Info("transaction successful: ",
+		zap.Uint64("block-height", uint64(res.Height)),
+		zap.String("chain-id", p.config.ChainID),
+		zap.String("tx-hash", res.TxHash),
+		zap.Int64("gas-used", res.GasUsed),
+	)
+
 	return nil
 }
 
@@ -179,7 +204,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKe
 	queryMsg := types.QueryReceiptMsg{
 		GetReceipt: types.GetReceiptMsg{
 			SrcNetwork: key.Src,
-			ConnSn:     key.Sn,
+			ConnSn:     strconv.Itoa(int(key.Sn)),
 		},
 	}
 
@@ -195,11 +220,11 @@ func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKe
 	}
 
 	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	if err := json.Unmarshal(res.Data, &receiptMsgRes); err != nil {
+	if err := json.Unmarshal(res.Data, &receiptMsgRes.Status); err != nil {
 		return false, err
 	}
 
-	if receiptMsgRes.Status == 1 {
+	if receiptMsgRes.Status {
 		return true, nil
 	}
 
@@ -235,12 +260,17 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
-	if lastSavedHeight > latestHeight {
+	startHeight := lastSavedHeight
+	if p.config.StartHeight > 0 {
+		startHeight = p.config.StartHeight
+	}
+
+	if startHeight > latestHeight {
 		return 0, fmt.Errorf("last saved height cannot be greater than latest height")
 	}
 
-	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		return lastSavedHeight, nil
+	if startHeight != 0 && startHeight < latestHeight {
+		return startHeight, nil
 	}
 
 	return latestHeight, nil
@@ -269,21 +299,20 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 			select {
 			case <-done:
 				return
-			case height := <-heightStream:
-				searchParam := types.TxSearchParam{
-					BlockHeight: height,
-				}
-				for {
-					messages, err := p.client.GetMessages(context.Background(), searchParam)
-					if err != nil {
-						p.logger.Error("failed to query messages", zap.Uint64("block-height", height), zap.Error(err))
-						time.Sleep(500 * time.Millisecond)
-					} else {
-						blockInfoStream <- relayTypes.BlockInfo{
-							Height:   height,
-							Messages: messages,
+			case height, ok := <-heightStream:
+				if ok {
+					for {
+						messages, err := p.fetchBlockMessages(height)
+						if err != nil {
+							p.logger.Error("failed to fetch block messages: ", zap.Error(err), zap.Uint64("block-height", height))
+							time.Sleep(500 * time.Millisecond)
+						} else {
+							blockInfoStream <- relayTypes.BlockInfo{
+								Height:   height,
+								Messages: messages,
+							}
+							break
 						}
-						break
 					}
 				}
 			}
@@ -292,27 +321,85 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 	return blockInfoStream
 }
 
-func (p *Provider) buildTxFactory() (tx.Factory, error) {
-	signMode, ok := signing.SignMode_value[p.client.Context().SignModeStr]
-	if !ok {
-		return tx.Factory{}, fmt.Errorf("invalid value for sign-mode-str")
+func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, error) {
+	eventFilters := sdkTypes.Events{
+		{
+			Type: EventTypeWasmMessage,
+			Attributes: []abiTypes.EventAttribute{
+				{Key: EventAttrKeyContractAddress, Value: fmt.Sprintf("'%s'", p.config.ContractAddress)},
+			},
+		},
+		//Todo add custom event type in contract for specific events and filter here
 	}
 
-	txf := tx.Factory{}.
+	searchParam := types.TxSearchParam{
+		BlockHeight: height,
+		Events:      eventFilters,
+	}
+
+	res, err := p.client.TxSearch(context.Background(), searchParam)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.getMessagesFromTxList(res.Txs)
+}
+
+func (p *Provider) getMessagesFromTxList(resultTx []*coretypes.ResultTx) ([]*relayTypes.Message, error) {
+	var messages []*relayTypes.Message
+	for _, tx := range resultTx {
+		var eventsList []EventsList
+		err := json.Unmarshal([]byte(tx.TxResult.Log), &eventsList)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(eventsList) > 0 {
+			for _, events := range eventsList {
+				message, err := ParseMessageFromEvents(events.Events)
+				if err != nil {
+					return nil, err
+				}
+				message.MessageHeight = uint64(tx.Height)
+				message.Src = p.NID()
+				message.EventType = relayerEvents.EmitMessage
+
+				if message.Dst != "" {
+					messages = append(messages, &message)
+				}
+			}
+		}
+	}
+	return messages, nil
+}
+
+func (p *Provider) buildTxFactory() (tx.Factory, error) {
+	txf, err := tx.NewFactoryCLI(p.client.Context(), &pflag.FlagSet{})
+	if err != nil {
+		return tx.Factory{}, err
+	}
+
+	senderAccount, err := p.client.GetAccountInfo(context.Background(), p.client.Context().FromAddress.String())
+	if err != nil {
+		return tx.Factory{}, err
+	}
+
+	txf = txf.
+		WithAccountNumber(senderAccount.GetAccountNumber()).WithSequence(senderAccount.GetSequence()).
+		WithTxConfig(p.client.Context().TxConfig).
 		WithKeybase(p.client.Context().Keyring).
 		WithFeePayer(p.client.Context().FeePayer).
 		WithChainID(p.client.Context().ChainID).
 		WithSimulateAndExecute(p.client.Context().Simulate).
 		WithGasPrices(p.config.GasPrices).
-		WithGasAdjustment(p.config.GasAdjustment).
-		WithSignMode(signing.SignMode(signMode))
+		WithGasAdjustment(p.config.GasAdjustment)
 
 	return txf, nil
 }
 
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
 	switch message.EventType {
-	case events.EmitMessage:
+	case relayerEvents.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
 		return json.Marshal(rcvMsg)
 	default:
@@ -342,11 +429,11 @@ func (p *Provider) RunBlockQuery(blockInfoChan chan relayTypes.BlockInfo, fromHe
 	}
 
 	var blockInfoList []relayTypes.BlockInfo
-	for bn := range concurrency.FanIn(done, pipelines...) {
+	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight+1)) {
 		block := bn.(relayTypes.BlockInfo)
 		blockInfoList = append(blockInfoList, block)
-
 	}
+
 	sorter.Sort(blockInfoList, func(p1, p2 relayTypes.BlockInfo) bool {
 		return p1.Height < p2.Height //ascending order
 	})

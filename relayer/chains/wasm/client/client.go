@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
@@ -10,7 +11,6 @@ import (
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
-	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"sync"
 )
 
@@ -20,9 +20,9 @@ type IClient interface {
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 
-	GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error)
+	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
 
-	GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error)
+	GetAccountInfo(ctx context.Context, accountAddr string) (sdkTypes.AccountI, error)
 
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 
@@ -69,25 +69,28 @@ func (cl Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
-func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (*authTypes.QueryAccountInfoResponse, error) {
+func (cl Client) GetAccountInfo(ctx context.Context, accountAddr string) (sdkTypes.AccountI, error) {
 	qc := authTypes.NewQueryClient(cl.context.GRPCClient)
-	return qc.AccountInfo(
-		ctx,
-		&authTypes.QueryAccountInfoRequest{Address: accountAddr},
-	)
-}
 
-func (cl Client) GetMessages(ctx context.Context, param types.TxSearchParam) ([]*relayTypes.Message, error) {
-	result, err := cl.context.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
+	res, err := qc.Account(
+		ctx,
+		&authTypes.QueryAccountRequest{Address: accountAddr},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	messages := make([]*relayTypes.Message, len(result.Txs))
+	var account sdkTypes.AccountI
 
-	//Todo message parse from tx
+	if err := cl.context.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
+		return nil, err
+	}
 
-	return messages, nil
+	return account, nil
+}
+
+func (cl Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
+	return cl.context.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
 func (cl Client) QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error) {
@@ -107,12 +110,7 @@ func (cl Client) SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes
 		return nil, err
 	}
 
-	txf = txf.WithAccountNumber(senderAccount.Info.AccountNumber).WithSequence(senderAccount.Info.Sequence)
-
-	txf, err = txf.Prepare(cl.context)
-	if err != nil {
-		return nil, err
-	}
+	txf = txf.WithAccountNumber(senderAccount.GetAccountNumber()).WithSequence(senderAccount.GetSequence())
 
 	txBuilder, err := txf.BuildUnsignedTx(messages...)
 	if err != nil {
