@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	DefaultTxRetry = 3
+	DefaultTxRetry uint8 = 3
 	// message is stale after TotalMaxRetryTx
-	TotalMaxRetryTx = DefaultTxRetry * 5
+	TotalMaxRetryTx uint8 = DefaultTxRetry * 5
 )
 
 type BlockInfo struct {
@@ -23,7 +23,6 @@ type Message struct {
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
-	// key           *MessageKey
 }
 
 func (m *Message) MessageKey() MessageKey {
@@ -118,7 +117,6 @@ func NewMessageCache() *MessageCache {
 }
 
 func (m *MessageCache) Add(r *RouteMessage) {
-
 	m.Lock()
 	defer m.Unlock()
 	m.Messages[r.MessageKey()] = r
