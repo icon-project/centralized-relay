@@ -19,13 +19,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const appName = "centralized-relay"
+const appName = "crly"
 
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "dev"
+	VERSION       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -89,7 +89,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		Use:     appName,
 		Short:   "This application makes data relay between chains!",
 		Long:    strings.TrimSpace(`Use this to relay xcall packet between chains`),
-		Version: Version,
+		Version: VERSION,
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {

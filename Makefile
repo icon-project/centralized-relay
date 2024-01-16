@@ -35,7 +35,7 @@ build-docker:
 
 install: go.sum
 	@echo "installing centralized rly binary..."
-	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-rly main.go
+	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/rly main.go
 
 PACKAGE_NAME          := github.com/cosmos/relayer
 GOLANG_CROSS_VERSION  ?= v1.19.4
