@@ -5,3 +5,4 @@
 .xcall-multi
 artifacts
 vendor
+.release-env
