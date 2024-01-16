@@ -205,7 +205,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
-		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID, "iconosphere")
+		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID, os.Getenv("AWS_PROFILE"))
 		if err != nil {
 			return nil, err
 		}
