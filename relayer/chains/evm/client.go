@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	RPCCallRetry = 5
+	RPCCallRetry             = 5
+	MaxGasPriceInceremtRetry = 5
+	GasPriceRatio            = 10.0
 )
 
 func newClient(url string, contractAddress string, l *zap.Logger) (IClient, error) {

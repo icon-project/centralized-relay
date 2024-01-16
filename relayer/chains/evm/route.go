@@ -4,12 +4,20 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
+)
+
+const (
+	ErrorLessGas          = "transaction underpriced"
+	ErrorLimitLessThanGas = "err: max fee per gas less than block base fee"
+	ErrUnKnown            = "unknown"
+	ErrMaxTried           = "max tried"
 )
 
 // this will be executed in go route
@@ -23,7 +31,7 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message)
+	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
@@ -31,13 +39,40 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 	return nil
 }
 
-func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
+func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
 	switch message.EventType {
-	// TODO: estimate and throw error if failed
+	// check estimated gas and gas price
 	case events.EmitMessage:
 		tx, err := p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
 		if err != nil {
-			return nil, err
+			switch p.parseErr(err, maxRetry > 0) {
+			case ErrorLessGas:
+				p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
+				gas := big.NewFloat(gasRatio)
+				gasPrice, _ := gas.Int(nil)
+				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
+				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			case ErrorLimitLessThanGas:
+				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				// get gas price parsing error message
+				startIndex := strings.Index(err.Error(), "baseFee: ")
+				endIndex := strings.Index(err.Error(), "(supplied gas")
+				baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
+				gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 10)
+				if !ok {
+					gasPrice, err = p.client.SuggestGasPrice(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get gas price: %w", err)
+					}
+				}
+				opts.GasPrice = gasPrice
+				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			default:
+				return nil, err
+			}
 		}
 		return tx, nil
 	}
@@ -96,4 +131,18 @@ func (p *EVMProvider) LogFailedTx(messageKey providerTypes.MessageKey, result *t
 		zap.Int64("height", result.BlockNumber.Int64()),
 		zap.Error(err),
 	)
+}
+
+func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
+	msg := err.Error()
+	switch {
+	case !shouldParse:
+		return ErrMaxTried
+	case strings.HasPrefix(msg, ErrorLimitLessThanGas):
+		return ErrorLimitLessThanGas
+	case strings.HasPrefix(msg, ErrorLessGas):
+		return ErrorLessGas
+	default:
+		return ErrUnKnown
+	}
 }

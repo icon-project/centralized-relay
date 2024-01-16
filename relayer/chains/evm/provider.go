@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ provider.ProviderConfig = &EVMProviderConfig{}
+var _ provider.ProviderConfig = (*EVMProviderConfig)(nil)
 
 type EVMProviderConfig struct {
 	ChainName       string `json:"-" yaml:"-"`
@@ -151,7 +151,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 			return
 		case <-ticker.C:
 			if retryCounter >= retryLimit {
-				err = errors.New("Retry Limit Exceeded while waiting for results of transaction")
+				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
 				return
 			}
 			retryCounter++
@@ -160,6 +160,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 				err = nil
 				continue
 			}
+
 			return
 		}
 	}
@@ -206,9 +207,6 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		if err != nil {
 			return nil, err
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
-		defer cancel()
-		txo.GasPrice, err = p.client.SuggestGasPrice(ctx)
 		return txo, nil
 	}
 
@@ -235,10 +233,6 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	txOpts.Context = ctx
 	if p.cfg.GasPrice > 0 {
 		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
-	}
-
-	if p.cfg.GasLimit > 0 {
-		txOpts.GasLimit = p.cfg.GasLimit
 	}
 
 	return txOpts, nil
