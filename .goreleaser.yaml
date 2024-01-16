@@ -13,7 +13,7 @@ builds:
     flags:
       - -mod=readonly
     ldflags:
-      - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.Version={{ .Tag }}
   - id: darwin-arm64
     main: ./main.go
     binary: centralized-rly
@@ -27,7 +27,7 @@ builds:
     flags:
       - -mod=readonly
     ldflags:
-      - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.Version={{ .Tag }}
   - id: linux-amd64
     main: ./main.go
     binary: centralized-rly
@@ -41,7 +41,7 @@ builds:
     flags:
       - -mod=readonly
     ldflags:
-      - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.Version={{ .Tag }}
   - id: linux-arm64
     main: ./main.go
     binary: centralized-rly
@@ -55,7 +55,7 @@ builds:
     flags:
       - -mod=readonly
     ldflags:
-      - -s -w -X github.com/cosmos/relayer/v2/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.Version={{ .Tag }}
 
 archives:
   - id: golang-cross
