@@ -222,3 +222,20 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 
 	return txOpts, nil
 }
+
+// RevertMessage
+func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := p.client.RevertMessage(opts, sn)
+	if err != nil {
+		return err
+	}
+	res, err := p.WaitForResults(ctx, tx.Hash())
+	if res.Status != 1 {
+		return fmt.Errorf("failed to revert message: %s", err)
+	}
+	return err
+}
