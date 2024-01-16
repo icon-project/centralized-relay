@@ -150,18 +150,14 @@ $ %s cfg i`, appName, defaultHome, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	APIListenPort  string `yaml:"api-listen-addr" json:"api-listen-addr"`
-	Timeout        string `yaml:"timeout" json:"timeout"`
-	LightCacheSize int    `yaml:"light-cache-size" json:"light-cache-size"`
-	KMSKeyID       string `yaml:"kms-key-id" json:"kms-key-id"`
+	Timeout  string `yaml:"timeout" json:"timeout"`
+	KMSKeyID string `yaml:"kms-key-id" json:"kms-key-id"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		APIListenPort:  ":5183",
-		Timeout:        "10s",
-		LightCacheSize: 20,
+		Timeout: "10s",
 	}
 }
 
@@ -303,11 +299,7 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 		return nil, err
 	}
 
-	if err = json.Unmarshal(valueBytes, &provCfg); err != nil {
-		return nil, err
-	}
-
-	return provCfg, nil
+	return provCfg, json.Unmarshal(valueBytes, &provCfg)
 }
 
 // Note: chainId and chainName is basically the same

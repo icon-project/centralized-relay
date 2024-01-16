@@ -89,7 +89,8 @@ type IClient interface {
 	SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error)
 	ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error)
 	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
-	SetAdmin(opts *bind.TransactOpts, addr common.Address) (*ethTypes.Transaction, error)
+	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
+	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
@@ -282,6 +283,10 @@ func (c *Client) MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn
 	return c.bridgeContract.GetReceipt(opts, srcNetwork, _connSn)
 }
 
-func (c *Client) SetAdmin(opts *bind.TransactOpts, addr common.Address) (*ethTypes.Transaction, error) {
-	return c.bridgeContract.SetAdmin(opts, addr)
+func (c *Client) SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error) {
+	return c.bridgeContract.SetAdmin(opts, newAdmin)
+}
+
+func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
+	return c.bridgeContract.RevertMessage(opts, sn)
 }

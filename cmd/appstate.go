@@ -114,7 +114,3 @@ func (a *appState) performConfigLockingOperation(ctx context.Context, operation 
 
 	return nil
 }
-
-// func (a *appState) configPath() string {
-// 	return path.Join(a.homePath, "config.yaml")
-// }

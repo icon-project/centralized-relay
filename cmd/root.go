@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -94,38 +93,19 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		// Inside persistent pre-run because this takes effect after flags are parsed.
-		if log == nil {
-			log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
-			if err != nil {
-				return err
-			}
-
-			a.log = log
-		}
-
-		if a.db == nil {
-			db, err := lvldb.NewLvlDB(a.dbPath, false)
-			if err != nil {
-				return fmt.Errorf("error while creating db %v", err)
-			}
-			a.db = db
-		}
-
-		// reads `homeDir/config/config.yaml` into `a.Config`
-		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
+		log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
+		if err != nil {
 			return err
 		}
-		return nil
+		a.log = log
+
+		// reads `homeDir/config/config.yaml` into `a.Config`
+		return a.loadConfigFile(rootCmd.Context())
 	}
 
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
 		// Force syncing the logs before exit, if anything is buffered.
 		_ = a.log.Sync()
-
-		if a.db != nil {
-			a.db.Close()
-		}
 	}
 
 	// Register --home flag

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/types"
@@ -41,4 +42,5 @@ type ChainProvider interface {
 	NewKeyStore(string, string) (string, error)
 	RestoreKeyStore(context.Context, string, kms.KMS) error
 	AddressFromKeyStore(string, string) (string, error)
+	RevertMessage(ctx context.Context, sn *big.Int) error
 }
