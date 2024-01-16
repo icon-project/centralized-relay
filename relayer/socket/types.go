@@ -74,3 +74,12 @@ type ResPruneDB struct {
 type ErrResponse struct {
 	Error string
 }
+
+type ReqRevertMessage struct {
+	Chain string
+	Sn    uint64
+}
+
+type ResRevertMessage struct {
+	Sn uint64
+}

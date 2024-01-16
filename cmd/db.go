@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -61,7 +62,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Short:   "Get messages stored in the database",
 		Aliases: []string{"m"},
 	}
-	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRm(a))
+	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRm(a), db.revertMessage(a))
 
 	blockCmd := &cobra.Command{
 		Use:     "block",
@@ -230,6 +231,33 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 	}
 	d.messageChainFlag(block, false)
 	return block
+}
+
+func (d *dbState) revertMessage(app *appState) *cobra.Command {
+	revert := &cobra.Command{
+		Use:     "revert",
+		Aliases: []string{"rv"},
+		Short:   "Revert message",
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return d.closeSocket()
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("Reverting messages stored in the database...")
+			client, err := d.getSocket(app)
+			if err != nil {
+				return err
+			}
+			result, err := client.RevertMessage(d.chain, d.sn)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(os.Stdout, result)
+			return nil
+		},
+	}
+	d.messageMsgIDFlag(revert, true)
+	d.messageChainFlag(revert, true)
+	return revert
 }
 
 // getRelayer returns the relayer instance

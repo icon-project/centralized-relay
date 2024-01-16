@@ -1,8 +1,10 @@
 package socket
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"path"
@@ -193,6 +195,23 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventPruneDB, data}, nil
+	case EventRevertMessage:
+		req := new(ReqRevertMessage)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		if err := chain.Provider.RevertMessage(context.Background(), big.NewInt(0).SetUint64(req.Sn)); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResRevertMessage{req.Sn})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventRevertMessage, data}, nil
 	default:
 		return nil, fmt.Errorf("invalid request")
 	}

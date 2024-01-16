@@ -3,7 +3,9 @@ package icon
 import (
 	"context"
 	"fmt"
+	"math/big"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
@@ -83,4 +85,21 @@ func (cp *IconProvider) GetWalletAddress() (address string, err error) {
 
 func (icp *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
+}
+
+func (icp *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	params := map[string]interface{}{"sn": sn}
+	message := icp.NewIconMessage(params, "revertMessage")
+	txHash, err := icp.SendTransaction(ctx, message)
+	if err != nil {
+		return err
+	}
+	_, txr, err := icp.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return err
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("failed: %s", txr.TxHash)
+	}
+	return nil
 }
