@@ -2,8 +2,8 @@ package wasm
 
 import (
 	"fmt"
-	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/hexstr"
 	"strconv"
 )
 
@@ -39,7 +39,7 @@ func ParseMessageFromEvents(events []Event) (relayertypes.Message, error) {
 		case EventTypeWasmMessage:
 			for _, attr := range ev.Attributes {
 				if attr.Key == EventAttrKeyMsg {
-					data, err := types.NewHexFromString(attr.Value).Value()
+					data, err := hexstr.NewFromString(attr.Value).ToByte()
 					if err != nil {
 						return message, fmt.Errorf("failed to parse msg data from event: %v", err)
 					}
