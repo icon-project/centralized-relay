@@ -39,7 +39,7 @@ func ParseMessageFromEvents(events []Event) (relayertypes.Message, error) {
 		case EventTypeWasmMessage:
 			for _, attr := range ev.Attributes {
 				if attr.Key == EventAttrKeyMsg {
-					data, err := types.HexBytes(attr.Value).Value()
+					data, err := types.NewHexFromString(attr.Value).Value()
 					if err != nil {
 						return message, fmt.Errorf("failed to parse msg data from event: %v", err)
 					}

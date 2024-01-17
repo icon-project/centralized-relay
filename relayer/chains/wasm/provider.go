@@ -115,7 +115,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				isFirstIter = false
 				latestHeight = runningLatestHeight
 				p.logger.Debug("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				p.RunBlockQuery(blockInfoChan, startHeight, latestHeight)
+				p.runBlockQuery(blockInfoChan, startHeight, latestHeight)
 				startHeight = latestHeight + 1
 			}
 		}
@@ -431,6 +431,11 @@ func (p *Provider) getMessagesFromTxList(resultTx []*coretypes.ResultTx) ([]*rel
 				message.EventType = relayerEvents.EmitMessage
 
 				if message.Dst != "" {
+					p.logger.Info("detected event log ", zap.Uint64("height", message.MessageHeight),
+						zap.String("target-network", message.Dst),
+						zap.Uint64("sn", message.Sn),
+						zap.String("event-type", message.EventType),
+					)
 					messages = append(messages, &message)
 				}
 			}
@@ -481,7 +486,7 @@ func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
 	return runtime.NumCPU()
 }
 
-func (p *Provider) RunBlockQuery(blockInfoChan chan relayTypes.BlockInfo, fromHeight, toHeight uint64) {
+func (p *Provider) runBlockQuery(blockInfoChan chan relayTypes.BlockInfo, fromHeight, toHeight uint64) {
 	done := make(chan interface{})
 	defer close(done)
 
