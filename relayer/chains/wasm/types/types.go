@@ -71,3 +71,12 @@ func (bs Base64Str) Decode() ([]byte, error) {
 	}
 	return base64.StdEncoding.DecodeString(string(bs))
 }
+
+type TxResultWaitResponse struct {
+	Height int64 `json:"height"`
+	Result struct {
+		Code      int    `json:"code"`
+		Codespace string `json:"codespace"`
+		Data      []byte `json:"data"`
+	} `json:"result"`
+}

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	"github.com/cometbft/cometbft/rpc/client/http"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
@@ -16,6 +17,7 @@ import (
 
 type IClient interface {
 	Context() sdkClient.Context
+	HTTP(rpcUrl string) (http.HTTP, error)
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
@@ -40,6 +42,11 @@ func New(clientCtx sdkClient.Context) Client {
 
 func (cl Client) Context() sdkClient.Context {
 	return cl.context
+}
+
+func (cl Client) HTTP(rpcUrl string) (http.HTTP, error) {
+	httpClient, err := http.New(rpcUrl, "/websocket")
+	return *httpClient, err
 }
 
 func (cl Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {

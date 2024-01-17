@@ -3,6 +3,7 @@ package wasm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	abiTypes "github.com/cometbft/cometbft/abci/types"
@@ -165,39 +166,104 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		if err == nil {
 			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
 		}
-		p.logger.Error("transaction failed: ",
-			zap.Error(err),
-			zap.Uint64("block-height", uint64(res.Height)),
-			zap.String("chain-id", p.config.ChainID),
-			zap.String("tx-hash", res.TxHash),
-			zap.Int64("gas-used", res.GasUsed),
-		)
-		callback(message.MessageKey(), relayTypes.TxResponse{
-			Height:    res.Height,
-			TxHash:    res.TxHash,
-			Codespace: res.Codespace,
-			Code:      relayTypes.ResponseCode(res.Code),
-			Data:      res.Data,
-		}, err)
+		callback(message.MessageKey(), relayTypes.TxResponse{}, err)
 		return err
 	}
 
-	callback(message.MessageKey(), relayTypes.TxResponse{
-		Height:    res.Height,
-		TxHash:    res.TxHash,
-		Codespace: res.Codespace,
-		Code:      relayTypes.ResponseCode(res.Code),
-		Data:      res.Data,
-	}, nil)
-
-	p.logger.Info("transaction successful: ",
-		zap.Uint64("block-height", uint64(res.Height)),
-		zap.String("chain-id", p.config.ChainID),
-		zap.String("tx-hash", res.TxHash),
-		zap.Int64("gas-used", res.GasUsed),
-	)
+	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 
 	return nil
+}
+
+func (p *Provider) logTxFailed(err error, txHash string) {
+	p.logger.Error("transaction failed: ",
+		zap.Error(err),
+		zap.String("chain-id", p.config.ChainID),
+		zap.String("tx-hash", txHash),
+	)
+}
+
+func (p *Provider) logTxSuccess(height uint64, txHash string) {
+	p.logger.Error("transaction success: ",
+		zap.Uint64("block-height", height),
+		zap.String("chain-id", p.config.ChainID),
+		zap.String("tx-hash", txHash),
+	)
+}
+
+func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
+	client, err := p.client.HTTP(p.config.RpcUrl)
+	if err != nil {
+		p.logTxFailed(err, txHash)
+		callback(mk, relayTypes.TxResponse{}, err)
+		return
+	}
+	if err := client.Start(); err != nil {
+		p.logTxFailed(err, txHash)
+		callback(mk, relayTypes.TxResponse{}, err)
+		return
+	}
+	defer client.Stop()
+
+	timeOutInterval := types.TxConfirmationIntervalDefault
+	if p.config.TxConfirmationInterval != "" {
+		timeOutInterval, err = time.ParseDuration(p.config.TxConfirmationInterval)
+		if err != nil {
+			p.logTxFailed(err, txHash)
+			callback(mk, relayTypes.TxResponse{}, err)
+			return
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeOutInterval)
+	defer cancel()
+
+	query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
+	resultEventChan, err := client.Subscribe(ctx, "tx-result-waiter", query)
+	if err != nil {
+		p.logTxFailed(err, txHash)
+		callback(mk, relayTypes.TxResponse{}, err)
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.logTxFailed(err, txHash)
+			callback(mk, relayTypes.TxResponse{}, ctx.Err())
+			return
+		case e := <-resultEventChan:
+			eventDataJSON, err := json.Marshal(e.Data)
+			if err != nil {
+				p.logTxFailed(err, txHash)
+				callback(mk, relayTypes.TxResponse{}, ctx.Err())
+				return
+			}
+
+			var txWaitRes types.TxResultWaitResponse
+			err = json.Unmarshal(eventDataJSON, &txWaitRes)
+			if err != nil {
+				p.logTxFailed(err, txHash)
+				callback(mk, relayTypes.TxResponse{}, ctx.Err())
+				return
+			}
+
+			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+				p.logTxFailed(err, txHash)
+				callback(mk, relayTypes.TxResponse{}, errors.New("something went wrong"))
+				return
+			}
+
+			p.logTxSuccess(uint64(txWaitRes.Height), txHash)
+			callback(mk, relayTypes.TxResponse{
+				Height:    txWaitRes.Height,
+				TxHash:    txHash,
+				Codespace: txWaitRes.Result.Codespace,
+				Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+				Data:      string(txWaitRes.Result.Data), //Todo this need to be confirmed.
+			}, nil)
+			return
+		}
+	}
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKey) (bool, error) {
