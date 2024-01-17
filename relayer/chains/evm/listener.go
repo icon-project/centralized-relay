@@ -184,7 +184,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 					bns = append(bns, v)
 				}
 			}
-			// sorter and forward notifications
+			// sort and forward notifications
 			if len(bns) > 0 {
 				sort.SliceStable(bns, func(i, j int) bool {
 					return bns[i].Height.Uint64() < bns[j].Height.Uint64()

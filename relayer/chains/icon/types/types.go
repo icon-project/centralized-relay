@@ -207,14 +207,6 @@ func NewHexBytes(b []byte) HexBytes {
 	return HexBytes("0x" + hex.EncodeToString(b))
 }
 
-func NewHexFromString(val string) HexBytes {
-	if strings.HasPrefix(val, "0x") {
-		return HexBytes(val)
-	} else {
-		return HexBytes("0x" + val)
-	}
-}
-
 // T_INT
 type HexInt string
 

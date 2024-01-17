@@ -56,24 +56,24 @@ func (icp *IconProvider) SendTransaction(
 		return nil, err
 	}
 
-	//txParamEst := &types.TransactionParamForEstimate{
-	//	Version:     types.NewHexInt(JsonrpcApiVersion),
-	//	FromAddress: types.Address(wallet.Address().String()),
-	//	ToAddress:   types.Address(icp.PCfg.ContractAddress),
-	//	NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
-	//	DataType:    "call",
-	//	Data: types.CallData{
-	//		Method: msg.Method,
-	//		Params: msg.Params,
-	//	},
-	//}
+	txParamEst := &types.TransactionParamForEstimate{
+		Version:     types.NewHexInt(JsonrpcApiVersion),
+		FromAddress: types.Address(wallet.Address().String()),
+		ToAddress:   types.Address(icp.PCfg.ContractAddress),
+		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
+		DataType:    "call",
+		Data: types.CallData{
+			Method: msg.Method,
+			Params: msg.Params,
+		},
+	}
 
-	//step, err := icp.client.EstimateStep(txParamEst)
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed estimating step: %w", err)
-	//}
+	step, err := icp.client.EstimateStep(txParamEst)
+	if err != nil {
+		return nil, fmt.Errorf("failed estimating step: %w", err)
+	}
 
-	stepVal := 25000000000
+	stepVal, err := step.Int()
 	if err != nil {
 		return nil, err
 	}
