@@ -6,3 +6,4 @@
 artifacts
 vendor
 .release-env
+.DS_Store

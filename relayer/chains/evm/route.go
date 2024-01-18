@@ -18,6 +18,7 @@ const (
 	ErrorLimitLessThanGas = "err: max fee per gas less than block base fee"
 	ErrUnKnown            = "unknown"
 	ErrMaxTried           = "max tried"
+	ErrNonceTooLow        = "nonce too low"
 )
 
 // this will be executed in go route
@@ -69,6 +70,14 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				}
 				opts.GasPrice = gasPrice
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+			case ErrNonceTooLow:
+				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
+				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+				if err != nil {
+					return nil, err
+				}
+				opts.Nonce = big.NewInt(int64(nonce))
+				p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			default:
 				return nil, err

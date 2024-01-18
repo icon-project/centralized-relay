@@ -32,8 +32,6 @@ func (p *EVMProvider) RestoreKeyStore(ctx context.Context, homepath string, clie
 	return nil
 }
 
-//
-
 // AddressFromKeyStore returns the address of the key stored in the given keystore file.
 func (p *EVMProvider) AddressFromKeyStore(keystoreFile, auth string) (string, error) {
 	data, err := os.ReadFile(keystoreFile)
@@ -56,7 +54,8 @@ func (p *EVMProvider) NewKeyStore(dir, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(fmt.Sprintf("%s/%s.json", dir, key.Address.Hex()), data, 0o644); err != nil {
+	path := path.Join(dir, fmt.Sprintf("%s.json", key.Address.Hex()))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", err
 	}
 	return key.Address.Hex(), os.Remove(key.URL.Path)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
 )
 
@@ -48,14 +49,15 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 		Use:   "init",
 		Short: "init keystore",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.kms.Init(cmd.Context()); err != nil {
+			keyID, err := a.kms.Init(cmd.Context())
+			if err != nil {
 				return err
 			}
+			a.config.Global.KMSKeyID = *keyID
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, "KMS Key Created")
-			fmt.Fprintln(os.Stdout, a.config.Global.KMSKeyID)
+			fmt.Fprintln(os.Stdout, fmt.Sprintf("KMS key created: %s", a.config.Global.KMSKeyID))
 			return nil
 		},
 	}
@@ -86,7 +88,7 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), data, 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, "KMS Key Encrypted")
+			fmt.Fprintln(os.Stdout, fmt.Sprintf("Created and encrypted: %s", addr))
 			return nil
 		},
 	}
@@ -106,11 +108,25 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			chain, err := a.config.Chains.Get(k.chain)
+			if err != nil {
+				return err
+			}
+			wallets := make(map[string]*types.Coin, len(files))
 			for _, file := range files {
 				name := file.Name()
 				if strings.HasSuffix(name, ".json") {
-					fmt.Fprintln(os.Stdout, strings.TrimSuffix(name, ".json"))
+					wallet := strings.TrimSuffix(name, ".json")
+					balance, err := chain.ChainProvider.QueryBalance(cmd.Context(), wallet)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "failed to query balance for %s: %v\n", wallet, err)
+					}
+					wallets[wallet] = balance
 				}
+			}
+			printLabels("Wallet", "Balance")
+			for wallet, balance := range wallets {
+				printValues(wallet, balance.Calculate())
 			}
 			return nil
 		},
@@ -195,7 +211,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, "Wallet configured")
+			fmt.Fprintln(os.Stdout, fmt.Sprintf("Wallet configured: %s", k.address))
 			return nil
 		},
 	}

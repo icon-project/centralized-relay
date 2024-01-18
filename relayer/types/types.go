@@ -2,6 +2,8 @@ package types
 
 import (
 	"fmt"
+	"math/big"
+	"strings"
 	"sync"
 )
 
@@ -143,6 +145,20 @@ func NewCoin(denom string, amount uint64) Coin {
 
 func (c *Coin) String() string {
 	return fmt.Sprintf("%d%s", c.Amount, c.Denom)
+}
+
+func (c *Coin) Calculate() string {
+	coin := strings.ToLower(c.Denom)
+	balance := new(big.Float).SetUint64(c.Amount)
+	amount := new(big.Float)
+	switch coin {
+	case "icx":
+		amount = amount.Quo(balance, big.NewFloat(1e18))
+	case "eth":
+		amount = new(big.Float).Quo(balance, big.NewFloat(1e18))
+	}
+	value, _ := amount.Float64()
+	return fmt.Sprintf("%f%s", value, coin)
 }
 
 type TransactionObject struct {

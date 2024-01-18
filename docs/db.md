@@ -14,7 +14,7 @@ The database stores the following information:
 ## Usage
 
 ```bash
-centralized-relay db [command] [flags]
+crly db [command] [flags]
 ```
 
 ## Commands
@@ -73,35 +73,35 @@ Flags:
 1. **List all the messages in the database.**
 
 ```bash
-centralized-relay db messages list --chain 0x2.icon
+crly db messages list --chain 0x2.icon
 ```
 
 2. **Relay a message from the database manually on chain.**
 
 ```bash
-centralized-relay db messages relay --chain 0x2.icon --sn 1 --height 100
+crly db messages relay --chain 0x2.icon --sn 1 --height 100
 ```
 
 3. **Relay a message from the database manually from database.**
 
 ```bash
-centralized-relay db messages relay --chain 0xa869.fuji --sn 1
+crly db messages relay --chain 0xa869.fuji --sn 1
 ```
 
 4. **Remove a message from the database.**
 
 ```bash
-centralized-relay db messages remove --chain 0x2.icon --sn 1
+crly db messages remove --chain 0x2.icon --sn 1
 ```
 
 5. **Revert a message.**
 
 ```bash
-centralized-relay db message revert --chain 0x2.icon --sn 1
+crly db message revert --chain 0x2.icon --sn 1
 ```
 
 6. **Prune the database.**
 
 ```bash
-centralized-relay db prune
+crly db prune
 ```
