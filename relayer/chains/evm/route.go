@@ -146,11 +146,11 @@ func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
 	switch {
 	case !shouldParse:
 		return ErrMaxTried
-	case strings.HasPrefix(msg, ErrorLimitLessThanGas):
+	case strings.Contains(msg, ErrorLimitLessThanGas):
 		return ErrorLimitLessThanGas
-	case strings.HasPrefix(msg, ErrorLessGas):
+	case strings.Contains(msg, ErrorLessGas):
 		return ErrorLessGas
-	case strings.HasPrefix(msg, ErrNonceTooLow):
+	case strings.Contains(msg, ErrNonceTooLow):
 		return ErrNonceTooLow
 	default:
 		return ErrUnKnown
