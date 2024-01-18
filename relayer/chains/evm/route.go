@@ -70,6 +70,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				}
 				opts.GasPrice = gasPrice
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			case ErrNonceTooLow:
 				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
 				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
