@@ -170,7 +170,6 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		if req.Height != 0 {
-			// TODO: Find message by height and sn
 			return nil, fmt.Errorf("not implemented")
 		}
 
