@@ -52,6 +52,11 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
 				gas := big.NewFloat(gasRatio)
 				gasPrice, _ := gas.Int(nil)
+				nounce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+				if err != nil {
+					return nil, err
+				}
+				opts.Nonce = big.NewInt(0).SetUint64(nounce)
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
@@ -68,6 +73,12 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 						return nil, fmt.Errorf("failed to get gas price: %w", err)
 					}
 				}
+
+				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+				if err != nil {
+					return nil, err
+				}
+				opts.Nonce = big.NewInt(0).SetUint64(nonce)
 				opts.GasPrice = gasPrice
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
@@ -77,7 +88,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				if err != nil {
 					return nil, err
 				}
-				opts.Nonce = big.NewInt(int64(nonce))
+				opts.Nonce = big.NewInt(0).SetUint64(nonce)
 				p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()))
 				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			default:
