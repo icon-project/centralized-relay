@@ -71,7 +71,6 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 			case ErrNonceTooLow:
 				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
-				p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()))
 			default:
 				return nil, err
 			}
@@ -80,6 +79,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				return nil, err
 			}
 			opts.Nonce = big.NewInt(0).SetUint64(nonce)
+			p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("gas_limit", opts.GasLimit))
 			return p.SendTransaction(ctx, opts, message, maxRetry-1)
 		}
 		return tx, nil
