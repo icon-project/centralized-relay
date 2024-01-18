@@ -22,7 +22,7 @@ import (
 
 const (
 	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 5
+	MaxGasPriceInceremtRetry = 10
 	GasPriceRatio            = 10.0
 )
 
