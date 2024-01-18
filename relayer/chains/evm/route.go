@@ -15,7 +15,7 @@ import (
 
 const (
 	ErrorLessGas          = "transaction underpriced"
-	ErrorLimitLessThanGas = "err: max fee per gas less than block base fee"
+	ErrorLimitLessThanGas = "max fee per gas less than block base fee"
 	ErrUnKnown            = "unknown"
 	ErrMaxTried           = "max tried"
 	ErrNonceTooLow        = "nonce too low"
@@ -52,14 +52,8 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
 				gas := big.NewFloat(gasRatio)
 				gasPrice, _ := gas.Int(nil)
-				nounce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-				if err != nil {
-					return nil, err
-				}
-				opts.Nonce = big.NewInt(0).SetUint64(nounce)
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			case ErrorLimitLessThanGas:
 				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				// get gas price parsing error message
@@ -73,27 +67,20 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 						return nil, fmt.Errorf("failed to get gas price: %w", err)
 					}
 				}
-
-				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-				if err != nil {
-					return nil, err
-				}
-				opts.Nonce = big.NewInt(0).SetUint64(nonce)
 				opts.GasPrice = gasPrice
 				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			case ErrNonceTooLow:
 				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
-				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-				if err != nil {
-					return nil, err
-				}
-				opts.Nonce = big.NewInt(0).SetUint64(nonce)
 				p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()))
-				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			default:
 				return nil, err
 			}
+			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+			if err != nil {
+				return nil, err
+			}
+			opts.Nonce = big.NewInt(0).SetUint64(nonce)
+			return p.SendTransaction(ctx, opts, message, maxRetry-1)
 		}
 		return tx, nil
 	}
@@ -163,6 +150,8 @@ func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
 		return ErrorLimitLessThanGas
 	case strings.HasPrefix(msg, ErrorLessGas):
 		return ErrorLessGas
+	case strings.HasPrefix(msg, ErrNonceTooLow):
+		return ErrNonceTooLow
 	default:
 		return ErrUnKnown
 	}
