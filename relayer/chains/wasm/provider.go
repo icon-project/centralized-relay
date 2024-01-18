@@ -3,7 +3,6 @@ package wasm
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	abiTypes "github.com/cometbft/cometbft/abci/types"
@@ -21,15 +20,15 @@ import (
 	"go.uber.org/zap"
 	"runtime"
 	"strconv"
-	"sync"
 	"time"
 )
 
 type Provider struct {
-	logger  *zap.Logger
-	config  ProviderConfig
-	client  client.IClient
-	txMutex sync.Mutex
+	logger         *zap.Logger
+	config         ProviderConfig
+	client         client.IClient
+	seqTracker     *SequenceTracker
+	memPoolTracker *MemPoolInfo
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -136,43 +135,103 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	msgs := []sdkTypes.Msg{&msg}
 
-	txf, err := p.buildTxFactory()
+	res, err := p.SendMessages(ctx, msgs)
 	if err != nil {
-		return err
-	}
-
-	if txf.SimulateAndExecute() {
-		_, adjusted, err := tx.CalculateGas(p.client.Context(), txf, msgs...)
-		if err != nil {
-			return err
-		}
-		txf = txf.WithGas(adjusted)
-	}
-
-	if txf.Gas() == 0 {
-		return fmt.Errorf("gas amount cannot be zero")
-	}
-
-	if p.config.MinGasAmount > 0 && txf.Gas() < p.config.MinGasAmount {
-		return fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.config.MinGasAmount)
-	}
-
-	if p.config.MaxGasAmount > 0 && txf.Gas() > p.config.MaxGasAmount {
-		return fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.config.MaxGasAmount)
-	}
-
-	res, err := p.client.SendTx(ctx, txf, msgs)
-	if err != nil || res.Code != types.CodeTypeOK {
-		if err == nil {
-			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
-		}
-		callback(message.MessageKey(), relayTypes.TxResponse{}, err)
 		return err
 	}
 
 	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 
 	return nil
+}
+
+func (p *Provider) SendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	p.seqTracker.Lock()
+	p.memPoolTracker.Lock()
+	defer p.seqTracker.Unlock()
+	defer p.memPoolTracker.Unlock()
+
+	var accountNumber, sequence uint64
+
+	if p.memPoolTracker.IsBlocked() {
+		senderAccount, err := p.client.GetAccountInfo(ctx, p.client.Context().FromAddress.String())
+		if err != nil {
+			return nil, err
+		}
+		accountNumber, sequence = senderAccount.GetAccountNumber(), senderAccount.GetSequence()
+	} else {
+		senderAccount, err := p.seqTracker.Get(p.client.Context().FromAddress.String())
+		if err != nil {
+			return nil, err
+		}
+		accountNumber, sequence = senderAccount.AccountNumber, senderAccount.Sequence
+	}
+
+	res, err := p.PrepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.memPoolTracker.IsBlocked() {
+		p.memPoolTracker.SetBlockedStatus(false)
+	} else if err := p.seqTracker.IncrementSequence(p.client.Context().FromAddress.String()); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (p *Provider) PrepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	txf, err := p.buildTxFactory()
+	if err != nil {
+		return nil, err
+	}
+
+	txf = txf.WithAccountNumber(accountNumber).WithSequence(sequence)
+
+	if txf.SimulateAndExecute() {
+		_, adjusted, err := tx.CalculateGas(p.client.Context(), txf, msgs...)
+		if err != nil {
+			return nil, err
+		}
+		txf = txf.WithGas(adjusted)
+	}
+
+	if txf.Gas() == 0 {
+		return nil, fmt.Errorf("gas amount cannot be zero")
+	}
+
+	if p.config.MinGasAmount > 0 && txf.Gas() < p.config.MinGasAmount {
+		return nil, fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.config.MinGasAmount)
+	}
+
+	if p.config.MaxGasAmount > 0 && txf.Gas() > p.config.MaxGasAmount {
+		return nil, fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.config.MaxGasAmount)
+	}
+
+	txBuilder, err := txf.BuildUnsignedTx(msgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Sign(ctx, txf, p.client.Context().FromName, txBuilder, true); err != nil {
+		return nil, err
+	}
+
+	txBytes, err := p.client.Context().TxConfig.TxEncoder()(txBuilder.GetTx())
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.client.Context().BroadcastTx(txBytes)
+	if err != nil || res.Code != types.CodeTypeOK {
+		if err == nil {
+			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
+		}
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (p *Provider) logTxFailed(err error, txHash string) {
@@ -184,7 +243,7 @@ func (p *Provider) logTxFailed(err error, txHash string) {
 }
 
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
-	p.logger.Error("transaction success: ",
+	p.logger.Info("transaction success: ",
 		zap.Uint64("block-height", height),
 		zap.String("chain-id", p.config.ChainID),
 		zap.String("tx-hash", txHash),
@@ -192,78 +251,135 @@ func (p *Provider) logTxSuccess(height uint64, txHash string) {
 }
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
-	client, err := p.client.HTTP(p.config.RpcUrl)
-	if err != nil {
-		p.logTxFailed(err, txHash)
-		callback(mk, relayTypes.TxResponse{}, err)
-		return
-	}
-	if err := client.Start(); err != nil {
-		p.logTxFailed(err, txHash)
-		callback(mk, relayTypes.TxResponse{}, err)
-		return
-	}
-	defer client.Stop()
-
-	timeOutInterval := types.TxConfirmationIntervalDefault
-	if p.config.TxConfirmationInterval != "" {
-		timeOutInterval, err = time.ParseDuration(p.config.TxConfirmationInterval)
-		if err != nil {
-			p.logTxFailed(err, txHash)
-			callback(mk, relayTypes.TxResponse{}, err)
+	for txWaitRes := range p.getTxResultStreamWithPolling(ctx, txHash, types.TxConfirmationIntervalDefault) {
+		if txWaitRes.Error != nil {
+			p.logTxFailed(txWaitRes.Error, txHash)
+			p.memPoolTracker.SetBlockedStatusWithLock(true)
+			callback(mk, relayTypes.TxResponse{}, txWaitRes.Error)
 			return
 		}
+		p.logTxSuccess(uint64(txWaitRes.TxResult.Height), txHash)
+		callback(mk, *txWaitRes.TxResult, nil)
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeOutInterval)
-	defer cancel()
+}
 
-	query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
-	resultEventChan, err := client.Subscribe(ctx, "tx-result-waiter", query)
-	if err != nil {
-		p.logTxFailed(err, txHash)
-		callback(mk, relayTypes.TxResponse{}, err)
-		return
-	}
+func (p *Provider) getTxResultStreamWithPolling(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
+	txResChan := make(chan types.TxResultChan)
+	startTime := time.Now()
+	go func() {
+		defer close(txResChan)
+		for {
+			select {
+			case <-time.NewTicker(1 * time.Second).C:
+				res, err := p.client.GetTransactionReceipt(ctx, txHash)
+				if err == nil {
+					txResChan <- types.TxResultChan{
+						TxResult: &relayTypes.TxResponse{
+							Height:    res.TxResponse.Height,
+							TxHash:    res.TxResponse.TxHash,
+							Codespace: res.TxResponse.Codespace,
+							Code:      relayTypes.ResponseCode(res.TxResponse.Code),
+							Data:      res.TxResponse.Data,
+						},
+					}
+					return
+				} else if time.Since(startTime) > maxWaitInterval {
+					txResChan <- types.TxResultChan{
+						Error: err,
+					}
+					return
+				}
+			}
+		}
+	}()
+	return txResChan
+}
 
-	for {
+func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string) <-chan types.TxResultChan {
+	txResChan := make(chan types.TxResultChan)
+	go func() {
+		defer close(txResChan)
+		client, err := p.client.HTTP(p.config.RpcUrl)
+		if err != nil {
+			txResChan <- types.TxResultChan{
+				TxResult: nil, Error: err,
+			}
+			return
+		}
+		if err := client.Start(); err != nil {
+			txResChan <- types.TxResultChan{
+				TxResult: nil, Error: err,
+			}
+			return
+		}
+		defer client.Stop()
+
+		timeOutInterval := types.TxConfirmationIntervalDefault
+		if p.config.TxConfirmationInterval != "" {
+			timeOutInterval, err = time.ParseDuration(p.config.TxConfirmationInterval)
+			if err != nil {
+				txResChan <- types.TxResultChan{
+					TxResult: nil, Error: err,
+				}
+				return
+			}
+		}
+
+		newCtx, cancel := context.WithTimeout(ctx, timeOutInterval)
+		defer cancel()
+
+		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
+		resultEventChan, err := client.Subscribe(newCtx, "tx-result-waiter", query)
+		if err != nil {
+			txResChan <- types.TxResultChan{
+				TxResult: nil, Error: err,
+			}
+			return
+		}
+
 		select {
 		case <-ctx.Done():
-			p.logTxFailed(err, txHash)
-			callback(mk, relayTypes.TxResponse{}, ctx.Err())
+			txResChan <- types.TxResultChan{
+				TxResult: nil, Error: err,
+			}
 			return
 		case e := <-resultEventChan:
 			eventDataJSON, err := json.Marshal(e.Data)
 			if err != nil {
-				p.logTxFailed(err, txHash)
-				callback(mk, relayTypes.TxResponse{}, ctx.Err())
+				txResChan <- types.TxResultChan{
+					TxResult: nil, Error: err,
+				}
 				return
 			}
 
 			var txWaitRes types.TxResultWaitResponse
 			err = json.Unmarshal(eventDataJSON, &txWaitRes)
 			if err != nil {
-				p.logTxFailed(err, txHash)
-				callback(mk, relayTypes.TxResponse{}, ctx.Err())
+				txResChan <- types.TxResultChan{
+					TxResult: nil, Error: err,
+				}
 				return
 			}
 
 			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
-				p.logTxFailed(err, txHash)
-				callback(mk, relayTypes.TxResponse{}, errors.New("something went wrong"))
+				txResChan <- types.TxResultChan{
+					TxResult: nil, Error: err,
+				}
 				return
 			}
 
-			p.logTxSuccess(uint64(txWaitRes.Height), txHash)
-			callback(mk, relayTypes.TxResponse{
-				Height:    txWaitRes.Height,
-				TxHash:    txHash,
-				Codespace: txWaitRes.Result.Codespace,
-				Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-				Data:      string(txWaitRes.Result.Data), //Todo this need to be confirmed.
-			}, nil)
-			return
+			txResChan <- types.TxResultChan{
+				TxResult: &relayTypes.TxResponse{
+					Height:    txWaitRes.Height,
+					TxHash:    txHash,
+					Codespace: txWaitRes.Result.Codespace,
+					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+					Data:      string(txWaitRes.Result.Data),
+				},
+			}
 		}
-	}
+	}()
+	return txResChan
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKey) (bool, error) {
@@ -450,13 +566,7 @@ func (p *Provider) buildTxFactory() (tx.Factory, error) {
 		return tx.Factory{}, err
 	}
 
-	senderAccount, err := p.client.GetAccountInfo(context.Background(), p.client.Context().FromAddress.String())
-	if err != nil {
-		return tx.Factory{}, err
-	}
-
 	txf = txf.
-		WithAccountNumber(senderAccount.GetAccountNumber()).WithSequence(senderAccount.GetSequence()).
 		WithTxConfig(p.client.Context().TxConfig).
 		WithKeybase(p.client.Context().Keyring).
 		WithFeePayer(p.client.Context().FeePayer).

@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/types"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"io"
 )
 
@@ -55,4 +56,9 @@ type TxResultWaitResponse struct {
 		Codespace string `json:"codespace"`
 		Data      []byte `json:"data"`
 	} `json:"result"`
+}
+
+type TxResultChan struct {
+	TxResult *relayerTypes.TxResponse
+	Error    error
 }

@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -84,10 +85,25 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 		return nil, err
 	}
 
+	client := client.New(clientContext)
+	senderInfo, err := client.GetAccountInfo(context.Background(), clientContext.FromAddress.String())
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := map[string]AccountInfo{
+		senderInfo.GetAddress().String(): AccountInfo{
+			AccountNumber: senderInfo.GetAccountNumber(),
+			Sequence:      senderInfo.GetSequence(),
+		},
+	}
+
 	return &Provider{
-		logger: logger,
-		config: pc,
-		client: client.New(clientContext),
+		logger:         logger,
+		config:         pc,
+		client:         client,
+		seqTracker:     NewSeqTracker(accounts),
+		memPoolTracker: &MemPoolInfo{isBlocked: false},
 	}, nil
 }
 

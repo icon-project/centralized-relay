@@ -109,16 +109,6 @@ func (cl Client) QuerySmartContract(ctx context.Context, contractAddress string,
 }
 
 func (cl Client) SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	cl.txMutex.Lock()
-	defer cl.txMutex.Unlock()
-
-	senderAccount, err := cl.GetAccountInfo(ctx, cl.context.FromAddress.String())
-	if err != nil {
-		return nil, err
-	}
-
-	txf = txf.WithAccountNumber(senderAccount.GetAccountNumber()).WithSequence(senderAccount.GetSequence())
-
 	txBuilder, err := txf.BuildUnsignedTx(messages...)
 	if err != nil {
 		return nil, err
