@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
-	"runtime/pprof"
 	"strings"
 	"time"
 
