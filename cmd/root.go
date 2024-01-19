@@ -67,7 +67,6 @@ func Execute() {
 			panic(fmt.Errorf("received signal %v; forcing quit", sig))
 		}
 	}()
-
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
@@ -132,6 +131,11 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db", path.Join(a.homePath, defaultDBName), "db path location")
 	if err := a.viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")); err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().Bool("profile", false, "profile relayer")
+	if err := a.viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile")); err != nil {
 		panic(err)
 	}
 

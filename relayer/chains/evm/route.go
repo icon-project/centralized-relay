@@ -15,9 +15,10 @@ import (
 
 const (
 	ErrorLessGas          = "transaction underpriced"
-	ErrorLimitLessThanGas = "err: max fee per gas less than block base fee"
+	ErrorLimitLessThanGas = "max fee per gas less than block base fee"
 	ErrUnKnown            = "unknown"
 	ErrMaxTried           = "max tried"
+	ErrNonceTooLow        = "nonce too low"
 )
 
 // this will be executed in go route
@@ -52,8 +53,6 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 				gas := big.NewFloat(gasRatio)
 				gasPrice, _ := gas.Int(nil)
 				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
-				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				return p.SendTransaction(ctx, opts, message, maxRetry-1)
 			case ErrorLimitLessThanGas:
 				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 				// get gas price parsing error message
@@ -68,11 +67,18 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 					}
 				}
 				opts.GasPrice = gasPrice
-				p.log.Info("adjusted", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			case ErrNonceTooLow:
+				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
+				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+				if err != nil {
+					return nil, err
+				}
+				opts.Nonce = big.NewInt(0).SetUint64(nonce)
 			default:
 				return nil, err
 			}
+			p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
+			return p.SendTransaction(ctx, opts, message, maxRetry-1)
 		}
 		return tx, nil
 	}
@@ -138,10 +144,12 @@ func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
 	switch {
 	case !shouldParse:
 		return ErrMaxTried
-	case strings.HasPrefix(msg, ErrorLimitLessThanGas):
+	case strings.Contains(msg, ErrorLimitLessThanGas):
 		return ErrorLimitLessThanGas
-	case strings.HasPrefix(msg, ErrorLessGas):
+	case strings.Contains(msg, ErrorLessGas):
 		return ErrorLessGas
+	case strings.Contains(msg, ErrNonceTooLow):
+		return ErrNonceTooLow
 	default:
 		return ErrUnKnown
 	}

@@ -12,7 +12,7 @@ import (
 var ErrKeyAlreadyExists = fmt.Errorf("kms key already exists")
 
 type KMS interface {
-	Init(context.Context) error
+	Init(context.Context) (*string, error)
 	Encrypt(context.Context, []byte) ([]byte, error)
 	Decrypt(context.Context, []byte) ([]byte, error)
 }
@@ -31,19 +31,18 @@ func NewKMSConfig(ctx context.Context, key *string, profile string) (KMS, error)
 }
 
 // Init creates a kms key for decryptying and encrypting data
-func (k *KMSConfig) Init(ctx context.Context) error {
-	if *k.key != "" {
-		return ErrKeyAlreadyExists
+func (k *KMSConfig) Init(ctx context.Context) (*string, error) {
+	if len(*k.key) > 1 {
+		return nil, ErrKeyAlreadyExists
 	}
 	input := &kms.CreateKeyInput{
 		Description: aws.String("centralized-relay"),
 	}
 	output, err := k.client.CreateKey(ctx, input)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	k.key = output.KeyMetadata.KeyId
-	return nil
+	return output.KeyMetadata.KeyId, nil
 }
 
 // Encrypt

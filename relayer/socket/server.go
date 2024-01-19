@@ -40,7 +40,7 @@ func (s *Server) Listen() {
 // Send sends message to socket
 func (s *Server) server(c net.Conn) {
 	for {
-		buf := make([]byte, 1024*2)
+		buf := make([]byte, 1024*10)
 		nr, err := c.Read(buf)
 		if err != nil {
 			return
@@ -170,7 +170,6 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		if req.Height != 0 {
-			// TODO: Find message by height and sn
 			return nil, fmt.Errorf("not implemented")
 		}
 

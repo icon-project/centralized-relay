@@ -56,7 +56,7 @@ func (c *Client) send(event Event, req interface{}) error {
 
 // read and parse message from socket
 func (c *Client) read() (interface{}, error) {
-	buf := make([]byte, 1024*2)
+	buf := make([]byte, 1024*10)
 	nr, err := c.conn.Read(buf)
 	if err != nil {
 		return nil, err

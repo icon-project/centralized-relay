@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -21,7 +22,7 @@ import (
 
 const (
 	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 5
+	MaxGasPriceInceremtRetry = 10
 	GasPriceRatio            = 10.0
 )
 
@@ -96,6 +97,9 @@ type IClient interface {
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	mu := new(sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
 	return cl.eth.NonceAt(ctx, account, blockNumber)
 }
 
