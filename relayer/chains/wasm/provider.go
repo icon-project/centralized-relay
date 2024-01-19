@@ -6,12 +6,13 @@ import (
 	"fmt"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	abiTypes "github.com/cometbft/cometbft/abci/types"
-	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
-	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
+	relayEvents "github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
@@ -20,6 +21,7 @@ import (
 	"go.uber.org/zap"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -80,13 +82,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	blockInterval, err := time.ParseDuration(p.config.BlockInterval)
-	if err != nil {
-		p.logger.Error("failed to parse block interval: ", zap.Error(err))
-		return err
-	}
-
-	blockIntervalTicker := time.NewTicker(blockInterval)
+	blockIntervalTicker := time.NewTicker(p.config.BlockIntervalTime)
 	defer blockIntervalTicker.Stop()
 
 	p.logger.Info("start querying from height", zap.Uint64("start-height", startHeight))
@@ -119,7 +115,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		}
 	}
-	return nil
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
@@ -135,8 +130,13 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	msgs := []sdkTypes.Msg{&msg}
 
-	res, err := p.SendMessages(ctx, msgs)
+	res, err := p.sendMessages(ctx, msgs)
 	if err != nil {
+		if strings.Contains(err.Error(), sdkErrors.ErrWrongSequence.Error()) {
+			if mmErr := p.handleAccountSequenceMismatchError(ctx, err); mmErr != nil {
+				return fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
+			}
+		}
 		return err
 	}
 
@@ -145,7 +145,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	return nil
 }
 
-func (p *Provider) SendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	p.seqTracker.Lock()
 	p.memPoolTracker.Lock()
 	defer p.seqTracker.Unlock()
@@ -167,7 +167,7 @@ func (p *Provider) SendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 		accountNumber, sequence = senderAccount.AccountNumber, senderAccount.Sequence
 	}
 
-	res, err := p.PrepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs)
+	res, err := p.prepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,20 @@ func (p *Provider) SendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 	return res, nil
 }
 
-func (p *Provider) PrepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context, err error) error {
+	senderAccount, err := p.client.GetAccountInfo(ctx, p.client.Context().FromAddress.String())
+	if err != nil {
+		return err
+	}
+	if err := p.seqTracker.Set(p.client.Context().FromAddress.String(), AccountInfo{
+		AccountNumber: senderAccount.GetAccountNumber(), Sequence: senderAccount.GetSequence(),
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	txf, err := p.buildTxFactory()
 	if err != nil {
 		return nil, err
@@ -251,7 +264,7 @@ func (p *Provider) logTxSuccess(height uint64, txHash string) {
 }
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
-	for txWaitRes := range p.getTxResultStreamWithPolling(ctx, txHash, types.TxConfirmationIntervalDefault) {
+	for txWaitRes := range p.getTxResultStreamWithPolling(ctx, txHash, p.config.TxConfirmationIntervalTime) {
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			p.memPoolTracker.SetBlockedStatusWithLock(true)
@@ -299,37 +312,26 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash st
 	txResChan := make(chan types.TxResultChan)
 	go func() {
 		defer close(txResChan)
-		client, err := p.client.HTTP(p.config.RpcUrl)
+		httpClient, err := p.client.HTTP(p.config.RpcUrl)
 		if err != nil {
 			txResChan <- types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		}
-		if err := client.Start(); err != nil {
+		if err := httpClient.Start(); err != nil {
 			txResChan <- types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		}
-		defer client.Stop()
+		defer httpClient.Stop()
 
-		timeOutInterval := types.TxConfirmationIntervalDefault
-		if p.config.TxConfirmationInterval != "" {
-			timeOutInterval, err = time.ParseDuration(p.config.TxConfirmationInterval)
-			if err != nil {
-				txResChan <- types.TxResultChan{
-					TxResult: nil, Error: err,
-				}
-				return
-			}
-		}
-
-		newCtx, cancel := context.WithTimeout(ctx, timeOutInterval)
+		newCtx, cancel := context.WithTimeout(ctx, p.config.BlockIntervalTime)
 		defer cancel()
 
 		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
-		resultEventChan, err := client.Subscribe(newCtx, "tx-result-waiter", query)
+		resultEventChan, err := httpClient.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
 			txResChan <- types.TxResultChan{
 				TxResult: nil, Error: err,
@@ -527,11 +529,11 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 	return p.getMessagesFromTxList(res.Txs)
 }
 
-func (p *Provider) getMessagesFromTxList(resultTx []*coretypes.ResultTx) ([]*relayTypes.Message, error) {
+func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
 	var messages []*relayTypes.Message
-	for _, tx := range resultTx {
+	for _, resultTx := range resultTxList {
 		var eventsList []EventsList
-		err := json.Unmarshal([]byte(tx.TxResult.Log), &eventsList)
+		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList)
 		if err != nil {
 			return nil, err
 		}
@@ -542,9 +544,9 @@ func (p *Provider) getMessagesFromTxList(resultTx []*coretypes.ResultTx) ([]*rel
 				if err != nil {
 					return nil, err
 				}
-				message.MessageHeight = uint64(tx.Height)
+				message.MessageHeight = uint64(resultTx.Height)
 				message.Src = p.NID()
-				message.EventType = relayerEvents.EmitMessage
+				message.EventType = relayEvents.EmitMessage
 
 				if message.Dst != "" {
 					p.logger.Info("detected event log ", zap.Uint64("height", message.MessageHeight),
@@ -580,7 +582,7 @@ func (p *Provider) buildTxFactory() (tx.Factory, error) {
 
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
 	switch message.EventType {
-	case relayerEvents.EmitMessage:
+	case relayEvents.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
 		return json.Marshal(rcvMsg)
 	default:

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/types"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"io"
 )
 
 type TxSearchParam struct {
@@ -40,13 +39,6 @@ func (param TxSearchParam) BuildQuery() string {
 	}
 
 	return finalQuery.GetQuery()
-}
-
-type KeyringPassword string
-
-func (kp KeyringPassword) Read(p []byte) (n int, err error) {
-	copy(p, kp)
-	return len(kp), io.EOF
 }
 
 type TxResultWaitResponse struct {

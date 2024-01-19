@@ -13,8 +13,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"io"
-	"os"
 	"path/filepath"
 	"time"
 )
@@ -22,20 +20,15 @@ import (
 type ProviderConfig struct {
 	ChainName string `json:"-" yaml:"-"`
 	RpcUrl    string `json:"rpc-url" yaml:"rpc-url"`
-	GrpcUrl   string `json:"grpc_url" yaml:"grpc-url"`
-	ChainID   string `json:"chain_id" yaml:"chain-id"`
+	GrpcUrl   string `json:"grpc-url" yaml:"grpc-url"`
+	ChainID   string `json:"chain-id" yaml:"chain-id"`
 	NID       string `json:"nid" yaml:"nid"`
 
-	HomeDir string `json:"home_dir" yaml:"home-dir"`
+	HomeDir string `json:"home-dir" yaml:"home-dir"`
 
-	KeyringBackend string                `json:"keyring_backend" yaml:"keyring-backend"`
-	KeyringDir     string                `json:"-" yaml:"-"`
-	KeyName        string                `json:"key_name" yaml:"key-name"`
-	KeyPassword    types.KeyringPassword `json:"key_password" yaml:"key-password"`
-
-	OutputFormat string `json:"output_format" yaml:"output-format"`
-	Output       io.Writer
-	Input        io.Reader
+	KeyringBackend string `json:"keyring-backend" yaml:"keyring-backend"`
+	KeyName        string `json:"key-name" yaml:"key-name"`
+	KeyringDir     string `json:"keyring-dir" yaml:"keyring-dir"`
 
 	AccountPrefix string `json:"account-prefix" yaml:"account-prefix"`
 
@@ -48,35 +41,38 @@ type ProviderConfig struct {
 	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
-	BlockInterval          string `json:"block_interval" yaml:"block-interval"`
-	TxConfirmationInterval string `json:"tx_wait_interval" yaml:"tx-wait-interval"`
+	BlockInterval              string        `json:"block-interval" yaml:"block-interval"`
+	TxConfirmationInterval     string        `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
+	BlockIntervalTime          time.Duration `json:"-" yaml:"-"`
+	TxConfirmationIntervalTime time.Duration `json:"-" yaml:"-"`
 
-	BroadcastMode string `json:"broadcast_mode" yaml:"broadcast-mode"` //sync or async
+	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` //sync, async and block. Recommended: sync
 	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
 
 	Simulate bool `json:"simulate" yaml:"simulate"`
 
-	StartHeight uint64 `json:"start_height" yaml:"start-height"`
-
-	Debug bool `json:"-" yaml:"-"`
+	StartHeight uint64 `json:"start-height" yaml:"start-height"`
 }
 
-func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
+func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
 	if chainName != "" {
 		pc.ChainName = chainName
 	}
+
 	if pc.HomeDir == "" {
 		pc.HomeDir = homePath
 	}
 
-	pc.Debug = debug
-
-	pc.Input = os.Stdin
-	pc.Output = os.Stdout
-
-	pc.KeyringDir = filepath.Join(pc.HomeDir, fmt.Sprintf(".%s", pc.ChainName))
+	if pc.KeyringDir == "" {
+		pc.KeyringDir = filepath.Join(pc.HomeDir, fmt.Sprintf(".%s", pc.ChainName))
+	}
 
 	if err := pc.Validate(); err != nil {
+		return nil, err
+	}
+
+	pc, err := pc.sanitize()
+	if err != nil {
 		return nil, err
 	}
 
@@ -85,14 +81,14 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 		return nil, err
 	}
 
-	client := client.New(clientContext)
-	senderInfo, err := client.GetAccountInfo(context.Background(), clientContext.FromAddress.String())
+	wClient := client.New(clientContext)
+	senderInfo, err := wClient.GetAccountInfo(context.Background(), clientContext.FromAddress.String())
 	if err != nil {
 		return nil, err
 	}
 
 	accounts := map[string]AccountInfo{
-		senderInfo.GetAddress().String(): AccountInfo{
+		senderInfo.GetAddress().String(): {
 			AccountNumber: senderInfo.GetAccountNumber(),
 			Sequence:      senderInfo.GetSequence(),
 		},
@@ -101,7 +97,7 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 	return &Provider{
 		logger:         logger,
 		config:         pc,
-		client:         client,
+		client:         wClient,
 		seqTracker:     NewSeqTracker(accounts),
 		memPoolTracker: &MemPoolInfo{isBlocked: false},
 	}, nil
@@ -110,6 +106,10 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, debug 
 func (pc ProviderConfig) Validate() error {
 	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
 		return fmt.Errorf("invalid block-interval: %w", err)
+	}
+
+	if _, err := time.ParseDuration(pc.TxConfirmationInterval); err != nil {
+		return fmt.Errorf("invalid tx-confirmation-interval: %w", err)
 	}
 
 	if pc.ChainName == "" {
@@ -122,6 +122,22 @@ func (pc ProviderConfig) Validate() error {
 	return nil
 }
 
+func (pc ProviderConfig) sanitize() (ProviderConfig, error) {
+	blockIntervalTime, err := time.ParseDuration(pc.BlockInterval)
+	if err != nil {
+		return pc, fmt.Errorf("invalid block-interval: %w", err)
+	}
+	pc.BlockIntervalTime = blockIntervalTime
+
+	txConfirmationIntervalTime, err := time.ParseDuration(pc.TxConfirmationInterval)
+	if err != nil {
+		return pc, fmt.Errorf("invalid tx-confirmation-interval: %w", err)
+	}
+	pc.TxConfirmationIntervalTime = txConfirmationIntervalTime
+
+	return pc, nil
+}
+
 func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 	clientContext := sdkClient.Context{}
 
@@ -131,7 +147,7 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 		pc.ChainName,
 		pc.KeyringBackend,
 		pc.KeyringDir,
-		pc.Input,
+		nil,
 		codecCfg.Codec,
 		func(options *keyring.Options) {
 			options.SupportedAlgos = types.SupportedAlgorithms
@@ -180,10 +196,7 @@ func newClientContext(pc ProviderConfig) (sdkClient.Context, error) {
 		WithFeePayerAddress(fromAddress).
 		WithFeeGranterAddress(fromAddress).
 		WithClient(cometRPCClient).
-		WithGRPCClient(grpcClient).
-		WithOutputFormat(pc.OutputFormat).
-		WithOutput(pc.Output).
-		WithInput(pc.Input)
+		WithGRPCClient(grpcClient)
 
 	return clientContext, nil
 }
