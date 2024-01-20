@@ -7,7 +7,6 @@ import (
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
-	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
@@ -17,7 +16,6 @@ import (
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
-	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"runtime"
 	"strconv"
@@ -123,7 +121,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return err
 	}
 	msg := wasmTypes.MsgExecuteContract{
-		Sender:   p.client.Context().FromAddress.String(),
+		Sender:   p.config.FromAddress,
 		Contract: p.config.ContractAddress,
 		Msg:      rawMsg,
 	}
@@ -154,13 +152,13 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 	var accountNumber, sequence uint64
 
 	if p.memPoolTracker.IsBlocked() {
-		senderAccount, err := p.client.GetAccountInfo(ctx, p.client.Context().FromAddress.String())
+		senderAccount, err := p.client.GetAccountInfo(ctx, p.config.FromAddress)
 		if err != nil {
 			return nil, err
 		}
 		accountNumber, sequence = senderAccount.GetAccountNumber(), senderAccount.GetSequence()
 	} else {
-		senderAccount, err := p.seqTracker.Get(p.client.Context().FromAddress.String())
+		senderAccount, err := p.seqTracker.Get(p.config.FromAddress)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +172,7 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 
 	if p.memPoolTracker.IsBlocked() {
 		p.memPoolTracker.SetBlockedStatus(false)
-	} else if err := p.seqTracker.IncrementSequence(p.client.Context().FromAddress.String()); err != nil {
+	} else if err := p.seqTracker.IncrementSequence(p.config.FromAddress); err != nil {
 		return nil, err
 	}
 
@@ -182,69 +180,16 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 }
 
 func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context, err error) error {
-	senderAccount, err := p.client.GetAccountInfo(ctx, p.client.Context().FromAddress.String())
+	senderAccount, err := p.client.GetAccountInfo(ctx, p.config.FromAddress)
 	if err != nil {
 		return err
 	}
-	if err := p.seqTracker.Set(p.client.Context().FromAddress.String(), AccountInfo{
+	if err := p.seqTracker.Set(p.config.FromAddress, AccountInfo{
 		AccountNumber: senderAccount.GetAccountNumber(), Sequence: senderAccount.GetSequence(),
 	}); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	txf, err := p.buildTxFactory()
-	if err != nil {
-		return nil, err
-	}
-
-	txf = txf.WithAccountNumber(accountNumber).WithSequence(sequence)
-
-	if txf.SimulateAndExecute() {
-		_, adjusted, err := tx.CalculateGas(p.client.Context(), txf, msgs...)
-		if err != nil {
-			return nil, err
-		}
-		txf = txf.WithGas(adjusted)
-	}
-
-	if txf.Gas() == 0 {
-		return nil, fmt.Errorf("gas amount cannot be zero")
-	}
-
-	if p.config.MinGasAmount > 0 && txf.Gas() < p.config.MinGasAmount {
-		return nil, fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.config.MinGasAmount)
-	}
-
-	if p.config.MaxGasAmount > 0 && txf.Gas() > p.config.MaxGasAmount {
-		return nil, fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.config.MaxGasAmount)
-	}
-
-	txBuilder, err := txf.BuildUnsignedTx(msgs...)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = tx.Sign(ctx, txf, p.client.Context().FromName, txBuilder, true); err != nil {
-		return nil, err
-	}
-
-	txBytes, err := p.client.Context().TxConfig.TxEncoder()(txBuilder.GetTx())
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := p.client.Context().BroadcastTx(txBytes)
-	if err != nil || res.Code != types.CodeTypeOK {
-		if err == nil {
-			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
-		}
-		return nil, err
-	}
-
-	return res, nil
 }
 
 func (p *Provider) logTxFailed(err error, txHash string) {
@@ -263,8 +208,56 @@ func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	)
 }
 
+func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	txf, err := p.client.BuildTxFactory()
+	if err != nil {
+		return nil, err
+	}
+
+	txf = txf.
+		WithGasPrices(p.config.GasPrices).
+		WithGasAdjustment(p.config.GasAdjustment).
+		WithAccountNumber(accountNumber).
+		WithSequence(sequence)
+
+	if txf.SimulateAndExecute() {
+		_, adjusted, err := p.client.CalculateGas(txf, msgs)
+		if err != nil {
+			return nil, err
+		}
+		txf = txf.WithGas(adjusted)
+	}
+
+	if txf.Gas() == 0 {
+		return nil, fmt.Errorf("gas amount cannot be zero")
+	}
+
+	if p.config.MinGasAmount > 0 && txf.Gas() < p.config.MinGasAmount {
+		return nil, fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.config.MinGasAmount)
+	}
+
+	if p.config.MaxGasAmount > 0 && txf.Gas() > p.config.MaxGasAmount {
+		return nil, fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.config.MaxGasAmount)
+	}
+
+	txBytes, err := p.client.PrepareTx(ctx, txf, msgs)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.client.BroadcastTx(txBytes)
+	if err != nil || res.Code != types.CodeTypeOK {
+		if err == nil {
+			err = fmt.Errorf("failed to send tx: %v", res.RawLog)
+		}
+		return nil, err
+	}
+
+	return res, nil
+}
+
 func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
-	for txWaitRes := range p.getTxResultStreamWithPolling(ctx, txHash, p.config.TxConfirmationIntervalTime) {
+	for txWaitRes := range p.getTxResultStreamWithSubscribe(ctx, txHash, p.config.TxConfirmationIntervalTime) {
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			p.memPoolTracker.SetBlockedStatusWithLock(true)
@@ -308,7 +301,7 @@ func (p *Provider) getTxResultStreamWithPolling(ctx context.Context, txHash stri
 	return txResChan
 }
 
-func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string) <-chan types.TxResultChan {
+func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
 	txResChan := make(chan types.TxResultChan)
 	go func() {
 		defer close(txResChan)
@@ -327,7 +320,7 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash st
 		}
 		defer httpClient.Stop()
 
-		newCtx, cancel := context.WithTimeout(ctx, p.config.BlockIntervalTime)
+		newCtx, cancel := context.WithTimeout(ctx, maxWaitInterval)
 		defer cancel()
 
 		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
@@ -560,24 +553,6 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 		}
 	}
 	return messages, nil
-}
-
-func (p *Provider) buildTxFactory() (tx.Factory, error) {
-	txf, err := tx.NewFactoryCLI(p.client.Context(), &pflag.FlagSet{})
-	if err != nil {
-		return tx.Factory{}, err
-	}
-
-	txf = txf.
-		WithTxConfig(p.client.Context().TxConfig).
-		WithKeybase(p.client.Context().Keyring).
-		WithFeePayer(p.client.Context().FeePayer).
-		WithChainID(p.client.Context().ChainID).
-		WithSimulateAndExecute(p.client.Context().Simulate).
-		WithGasPrices(p.config.GasPrices).
-		WithGasAdjustment(p.config.GasAdjustment)
-
-	return txf, nil
 }
 
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {

@@ -12,23 +12,26 @@ import (
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
+	"github.com/spf13/pflag"
 	"sync"
 )
 
 type IClient interface {
-	Context() sdkClient.Context
 	HTTP(rpcUrl string) (http.HTTP, error)
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
+
+	BuildTxFactory() (tx.Factory, error)
+	CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
+	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
+	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
 
 	GetAccountInfo(ctx context.Context, accountAddr string) (sdkTypes.AccountI, error)
 
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
-
-	SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error)
 }
 
 type Client struct {
@@ -40,8 +43,41 @@ func New(clientCtx sdkClient.Context) Client {
 	return Client{clientCtx, &sync.Mutex{}}
 }
 
-func (cl Client) Context() sdkClient.Context {
-	return cl.context
+func (cl Client) BuildTxFactory() (tx.Factory, error) {
+	txf, err := tx.NewFactoryCLI(cl.context, &pflag.FlagSet{})
+	if err != nil {
+		return tx.Factory{}, err
+	}
+
+	txf = txf.
+		WithTxConfig(cl.context.TxConfig).
+		WithKeybase(cl.context.Keyring).
+		WithFeePayer(cl.context.FeePayer).
+		WithChainID(cl.context.ChainID).
+		WithSimulateAndExecute(cl.context.Simulate)
+
+	return txf, nil
+}
+
+func (cl Client) CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
+	return tx.CalculateGas(cl.context, txf, msgs...)
+}
+
+func (cl Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error) {
+	txBuilder, err := txf.BuildUnsignedTx(msgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Sign(ctx, txf, cl.context.FromName, txBuilder, true); err != nil {
+		return nil, err
+	}
+
+	return cl.context.TxConfig.TxEncoder()(txBuilder.GetTx())
+}
+
+func (cl Client) BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error) {
+	return cl.context.BroadcastTx(txBytes)
 }
 
 func (cl Client) HTTP(rpcUrl string) (http.HTTP, error) {
@@ -106,22 +142,4 @@ func (cl Client) QuerySmartContract(ctx context.Context, contractAddress string,
 		Address:   contractAddress,
 		QueryData: queryData,
 	})
-}
-
-func (cl Client) SendTx(ctx context.Context, txf tx.Factory, messages []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	txBuilder, err := txf.BuildUnsignedTx(messages...)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = tx.Sign(ctx, txf, cl.context.FromName, txBuilder, true); err != nil {
-		return nil, err
-	}
-
-	txBytes, err := cl.context.TxConfig.TxEncoder()(txBuilder.GetTx())
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.context.BroadcastTx(txBytes)
 }

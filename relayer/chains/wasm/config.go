@@ -18,11 +18,10 @@ import (
 )
 
 type ProviderConfig struct {
-	ChainName string `json:"-" yaml:"-"`
-	RpcUrl    string `json:"rpc-url" yaml:"rpc-url"`
-	GrpcUrl   string `json:"grpc-url" yaml:"grpc-url"`
-	ChainID   string `json:"chain-id" yaml:"chain-id"`
-	NID       string `json:"nid" yaml:"nid"`
+	RpcUrl  string `json:"rpc-url" yaml:"rpc-url"`
+	GrpcUrl string `json:"grpc-url" yaml:"grpc-url"`
+	ChainID string `json:"chain-id" yaml:"chain-id"`
+	NID     string `json:"nid" yaml:"nid"`
 
 	HomeDir string `json:"home-dir" yaml:"home-dir"`
 
@@ -41,10 +40,8 @@ type ProviderConfig struct {
 	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
-	BlockInterval              string        `json:"block-interval" yaml:"block-interval"`
-	TxConfirmationInterval     string        `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
-	BlockIntervalTime          time.Duration `json:"-" yaml:"-"`
-	TxConfirmationIntervalTime time.Duration `json:"-" yaml:"-"`
+	BlockInterval          string `json:"block-interval" yaml:"block-interval"`
+	TxConfirmationInterval string `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
 
 	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` //sync, async and block. Recommended: sync
 	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
@@ -52,6 +49,11 @@ type ProviderConfig struct {
 	Simulate bool `json:"simulate" yaml:"simulate"`
 
 	StartHeight uint64 `json:"start-height" yaml:"start-height"`
+
+	ChainName                  string
+	FromAddress                string
+	BlockIntervalTime          time.Duration
+	TxConfirmationIntervalTime time.Duration
 }
 
 func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -86,6 +88,8 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, _ bool
 	if err != nil {
 		return nil, err
 	}
+
+	pc.FromAddress = clientContext.FromAddress.String()
 
 	accounts := map[string]AccountInfo{
 		senderInfo.GetAddress().String(): {
