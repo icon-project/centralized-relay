@@ -107,6 +107,14 @@ func (pc ProviderConfig) NewProvider(logger *zap.Logger, homePath string, _ bool
 	}, nil
 }
 
+func (pc ProviderConfig) GetWallet() string {
+	return ""
+}
+
+func (pc ProviderConfig) SetWallet(addr string) {
+	//Todo set wallet
+}
+
 func (pc ProviderConfig) Validate() error {
 	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
 		return fmt.Errorf("invalid block-interval: %w", err)

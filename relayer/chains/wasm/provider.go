@@ -12,11 +12,13 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	relayEvents "github.com/icon-project/centralized-relay/relayer/events"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
 	"go.uber.org/zap"
+	"math/big"
 	"runtime"
 	"strconv"
 	"strings"
@@ -55,7 +57,7 @@ func (p *Provider) ChainName() string {
 	return p.config.ChainName
 }
 
-func (p *Provider) Init(ctx context.Context) error {
+func (p *Provider) Init(context.Context, string, kms.KMS) error {
 	return nil
 }
 
@@ -434,6 +436,26 @@ func (p *Provider) GenerateMessage(ctx context.Context, messageKey *relayTypes.M
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
+}
+
+func (p *Provider) NewKeyStore(string, string) (string, error) {
+	return "", nil
+}
+
+func (p *Provider) RestoreKeyStore(context.Context, string, kms.KMS) error {
+	return nil
+}
+
+func (p *Provider) AddressFromKeyStore(string, string) (string, error) {
+	return "", nil
+}
+
+func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	return nil
+}
+
+func (p *Provider) SetAdmin(context.Context, string) error {
+	return nil
 }
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
