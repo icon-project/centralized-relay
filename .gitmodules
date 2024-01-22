@@ -1,0 +1,3 @@
+[submodule "centralized-relay.wiki"]
+	path = centralized-relay.wiki
+	url = ./centralized-relay.wiki

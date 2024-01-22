@@ -9,7 +9,7 @@ import (
 )
 
 func TestMessageStoreSet(t *testing.T) {
-	testdb, err := lvldb.NewLvlDB(testDBName, false)
+	testdb, err := lvldb.NewLvlDB(testDBName)
 	if err != nil {
 		assert.Fail(t, "error while creating test db ", err)
 	}

@@ -3,7 +3,10 @@ package icon
 import (
 	"context"
 	"fmt"
+	"math/big"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
@@ -21,17 +24,17 @@ type IconProviderConfig struct {
 }
 
 // NewProvider returns new Icon provider
-func (pp *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
-	if err := pp.Validate(); err != nil {
+func (c *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 
-	pp.ChainName = chainName
+	c.ChainName = chainName
 
 	return &IconProvider{
-		log:    log.With(zap.String("nid ", pp.NID)),
-		client: NewClient(pp.RPCUrl, log),
-		PCfg:   pp,
+		log:    log.With(zap.String("nid ", c.NID)),
+		client: NewClient(c.RPCUrl, log),
+		PCfg:   c,
 	}, nil
 }
 
@@ -47,17 +50,30 @@ func (pp *IconProviderConfig) Validate() error {
 	return nil
 }
 
+func (p *IconProviderConfig) SetWallet(addr string) {
+	p.KeyStore = addr
+}
+
+func (p *IconProviderConfig) GetWallet() string {
+	return p.KeyStore
+}
+
 type IconProvider struct {
-	log    *zap.Logger
-	PCfg   *IconProviderConfig
-	client *Client
+	log      *zap.Logger
+	PCfg     *IconProviderConfig
+	wallet   module.Wallet
+	client   *Client
+	kms      kms.KMS
+	homePath string
 }
 
-func (ip *IconProvider) NID() string {
-	return ip.PCfg.NID
+func (p *IconProvider) NID() string {
+	return p.PCfg.NID
 }
 
-func (ip *IconProvider) Init(ctx context.Context) error {
+func (p *IconProvider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
+	p.kms = kms
+	p.homePath = homepath
 	return nil
 }
 
@@ -73,14 +89,32 @@ func (p *IconProvider) ChainName() string {
 	return p.PCfg.ChainName
 }
 
-func (cp *IconProvider) Wallet() (module.Wallet, error) {
-	return cp.RestoreIconKeyStore()
+func (p *IconProvider) Wallet() (module.Wallet, error) {
+	if p.wallet == nil {
+		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+			return nil, err
+		}
+	}
+	return p.wallet, nil
 }
 
-func (cp *IconProvider) GetWalletAddress() (address string, err error) {
-	return getAddrFromKeystore(cp.PCfg.KeyStore)
-}
-
-func (icp *IconProvider) FinalityBlock(ctx context.Context) uint64 {
+func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
+}
+
+func (icp *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	params := map[string]interface{}{"sn": sn}
+	message := icp.NewIconMessage(params, "revertMessage")
+	txHash, err := icp.SendTransaction(ctx, message)
+	if err != nil {
+		return err
+	}
+	_, txr, err := icp.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return err
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("failed: %s", txr.TxHash)
+	}
+	return nil
 }

@@ -22,7 +22,6 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 }
 
 func (ip *IconProvider) prepareCallParams(methodName string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
-
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
@@ -40,7 +39,6 @@ func (ip *IconProvider) prepareCallParams(methodName string, param map[string]in
 	}
 
 	return callParam
-
 }
 
 func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -53,15 +51,13 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 
 func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey providerTypes.Message) (bool, error) {
 	return true, nil
-
 }
+
 func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey providerTypes.Message) (bool, error) {
 	return true, nil
-
 }
 
 func (ip *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
-
 	callParam := ip.prepareCallParams(MethodGetReceipts, map[string]interface{}{
 		"srcNetwork": messageKey.Src,
 		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
@@ -98,7 +94,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
 
-	var eventName = ""
+	eventName := ""
 	switch key.EventType {
 	case events.EmitMessage:
 		eventName = EmitMessage
@@ -151,8 +147,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		}
 	}
 
-	return nil, fmt.Errorf(
-		"error generating message: %v", key)
+	return nil, fmt.Errorf("error generating message: %v", key)
 }
 
 // QueryTransactionReceipt ->
@@ -173,7 +168,6 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 	status, err := res.Status.Int()
 	if err != nil {
 		return nil, fmt.Errorf("QueryTransactionReceipt: bigIntConversion %v", err)
-
 	}
 
 	receipt := providerTypes.Receipt{
@@ -184,5 +178,19 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 		receipt.Status = true
 	}
 	return &receipt, nil
+}
 
+// SetAdmin sets the admin address of the bridge contract
+func (ip *IconProvider) SetAdmin(ctx context.Context, admin string) error {
+	callParam := map[string]interface{}{
+		"_relayer": admin,
+	}
+	message := ip.NewIconMessage(callParam, "setAdmin")
+
+	data, err := ip.SendTransaction(ctx, message)
+	if err != nil {
+		return fmt.Errorf("SetAdmin: %v", err)
+	}
+	ip.log.Info("SetAdmin: tx sent", zap.String("txHash", string(data)))
+	return nil
 }

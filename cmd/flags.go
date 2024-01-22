@@ -60,12 +60,3 @@ func fileFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 	}
 	return cmd
 }
-
-// WIP: config file location path
-func configFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
-	cmd.Flags().Bool(flagConfig, false, "config file location path")
-	if err := v.BindPFlag(flagFresh, cmd.Flags().Lookup(flagConfig)); err != nil {
-		panic(err)
-	}
-	return cmd
-}

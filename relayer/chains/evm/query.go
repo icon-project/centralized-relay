@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/types"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
 func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
@@ -16,11 +15,6 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 		return 0, err
 	}
 	return
-}
-
-func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
-	//TODO:
-	return nil, nil
 }
 
 func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
@@ -35,16 +29,16 @@ func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.Mess
 	return p.client.MessageReceived(nil, messageKey.Src, big.NewInt(int64(messageKey.Sn)))
 }
 
-// func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-// 	balance, err := p.client.GetBalance(ctx, addr)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
-// }
+func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+	balance, err := p.client.GetBalance(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
+}
 
 // TODO: may not be need anytime soon so its ok to implement later on
-func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
+func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *types.MessageKeyWithMessageHeight) (*types.Message, error) {
 	return nil, nil
 }
 

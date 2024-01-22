@@ -2,13 +2,15 @@ package types
 
 import (
 	"fmt"
+	"math/big"
+	"strings"
 	"sync"
 )
 
 var (
-	DefaultTxRetry = 3
+	DefaultTxRetry uint8 = 3
 	// message is stale after TotalMaxRetryTx
-	TotalMaxRetryTx = DefaultTxRetry * 5
+	TotalMaxRetryTx uint8 = DefaultTxRetry * 5
 )
 
 type BlockInfo struct {
@@ -23,7 +25,6 @@ type Message struct {
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
-	// key           *MessageKey
 }
 
 func (m *Message) MessageKey() MessageKey {
@@ -118,7 +119,6 @@ func NewMessageCache() *MessageCache {
 }
 
 func (m *MessageCache) Add(r *RouteMessage) {
-
 	m.Lock()
 	defer m.Unlock()
 	m.Messages[r.MessageKey()] = r
@@ -145,6 +145,20 @@ func NewCoin(denom string, amount uint64) Coin {
 
 func (c *Coin) String() string {
 	return fmt.Sprintf("%d%s", c.Amount, c.Denom)
+}
+
+func (c *Coin) Calculate() string {
+	coin := strings.ToLower(c.Denom)
+	balance := new(big.Float).SetUint64(c.Amount)
+	amount := new(big.Float)
+	switch coin {
+	case "icx":
+		amount = amount.Quo(balance, big.NewFloat(1e18))
+	case "eth":
+		amount = new(big.Float).Quo(balance, big.NewFloat(1e18))
+	}
+	value, _ := amount.Float64()
+	return fmt.Sprintf("%f%s", value, coin)
 }
 
 type TransactionObject struct {

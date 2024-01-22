@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,12 +19,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const appName = "centralized-relay"
+const appName = "crly"
 
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
+	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -66,7 +67,6 @@ func Execute() {
 			panic(fmt.Errorf("received signal %v; forcing quit", sig))
 		}
 	}()
-
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
@@ -85,44 +85,26 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 
 	// RootCmd represents the base command when called without any subcommands
 	rootCmd := &cobra.Command{
-		Use:   appName,
-		Short: "This application makes data relay between two chains!",
-		Long:  strings.TrimSpace(`Use this to relay xcall packet between chains`),
+		Use:     appName,
+		Short:   "This application makes data relay between chains!",
+		Long:    strings.TrimSpace(`Use this to relay xcall packet between chains`),
+		Version: Version,
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		// Inside persistent pre-run because this takes effect after flags are parsed.
-		if log == nil {
-			log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
-			if err != nil {
-				return err
-			}
-
-			a.log = log
-		}
-
-		if a.db == nil {
-			db, err := lvldb.NewLvlDB(a.dbPath, false)
-			if err != nil {
-				return fmt.Errorf("error while creating db %v", err)
-			}
-			a.db = db
-		}
-
-		// reads `homeDir/config/config.yaml` into `a.Config`
-		if err := a.loadConfigFile(rootCmd.Context()); err != nil {
+		log, err := newRootLogger(a.viper.GetString("log-format"), a.viper.GetBool("debug"))
+		if err != nil {
 			return err
 		}
-		return nil
+		a.log = log
+
+		// reads `homeDir/config/config.yaml` into `a.Config`
+		return a.loadConfigFile(rootCmd.Context())
 	}
 
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
 		// Force syncing the logs before exit, if anything is buffered.
 		_ = a.log.Sync()
-
-		if a.db != nil {
-			a.db.Close()
-		}
 	}
 
 	// Register --home flag
@@ -142,13 +124,18 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		panic(err)
 	}
 
-	rootCmd.PersistentFlags().StringVar(&a.configPath, "config-path", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
-	if err := a.viper.BindPFlag("config-path", rootCmd.PersistentFlags().Lookup("config-path")); err != nil {
+	rootCmd.PersistentFlags().StringVar(&a.configPath, "config", fmt.Sprintf("%s/%s", a.homePath, defaultConfig), "config path location")
+	if err := a.viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config")); err != nil {
 		panic(err)
 	}
 
-	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db-path", fmt.Sprintf("%s/%s", a.homePath, defaultDBName), "db path location")
-	if err := a.viper.BindPFlag("db-path", rootCmd.PersistentFlags().Lookup("db-path")); err != nil {
+	rootCmd.PersistentFlags().StringVar(&a.dbPath, "db", path.Join(a.homePath, defaultDBName), "db path location")
+	if err := a.viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")); err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().Bool("profile", false, "profile relayer")
+	if err := a.viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile")); err != nil {
 		panic(err)
 	}
 
@@ -158,6 +145,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		configCmd(a),
 		chainsCmd(a),
 		dbCmd(a),
+		keystoreCmd(a),
 	)
 	return rootCmd
 }
