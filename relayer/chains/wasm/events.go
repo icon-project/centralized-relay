@@ -8,12 +8,11 @@ import (
 )
 
 const (
-	EventTypeWasmMessage         string = "wasm-Message"
-	EventTypeWasmCallMessageSent string = "wasm-CallMessageSent"
+	EventTypeWasmMessage string = "wasm-Message"
 
 	EventAttrKeyMsg           string = "msg"
 	EventAttrKeyTargetNetwork string = "targetNetwork"
-	EventAttrKeySn            string = "sn"
+	EventAttrKeyConnSn        string = "connSn"
 
 	EventAttrKeyContractAddress string = "_contract_address"
 )
@@ -38,24 +37,21 @@ func ParseMessageFromEvents(events []Event) (relayertypes.Message, error) {
 		switch ev.Type {
 		case EventTypeWasmMessage:
 			for _, attr := range ev.Attributes {
-				if attr.Key == EventAttrKeyMsg {
+				switch attr.Key {
+				case EventAttrKeyMsg:
 					data, err := hexstr.NewFromString(attr.Value).ToByte()
 					if err != nil {
 						return message, fmt.Errorf("failed to parse msg data from event: %v", err)
 					}
 					message.Data = data
-				} else if attr.Key == EventAttrKeyTargetNetwork {
-					message.Dst = attr.Value
-				}
-			}
-		case EventTypeWasmCallMessageSent:
-			for _, attr := range ev.Attributes {
-				if attr.Key == EventAttrKeySn {
-					sn, err := strconv.Atoi(attr.Value)
+				case EventAttrKeyConnSn:
+					connSn, err := strconv.Atoi(attr.Value)
 					if err != nil {
-						return message, fmt.Errorf("failed to parse sn from event")
+						return message, fmt.Errorf("failed to parse connSn from event")
 					}
-					message.Sn = uint64(sn)
+					message.Sn = uint64(connSn)
+				case EventAttrKeyTargetNetwork:
+					message.Dst = attr.Value
 				}
 			}
 		}
