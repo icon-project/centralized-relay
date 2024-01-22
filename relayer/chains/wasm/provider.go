@@ -506,7 +506,6 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 				{Key: EventAttrKeyContractAddress, Value: fmt.Sprintf("'%s'", p.config.ContractAddress)},
 			},
 		},
-		//Todo add custom event type in contract for specific events and filter here
 	}
 
 	searchParam := types.TxSearchParam{
