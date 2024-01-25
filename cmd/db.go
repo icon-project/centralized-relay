@@ -124,7 +124,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.sn)
+			result, err := client.RelayMessage(d.chain, d.height, d.sn)
 			if err != nil {
 				return err
 			}

@@ -59,7 +59,7 @@ func (icp *IconProvider) SendTransaction(
 	txParamEst := &types.TransactionParamForEstimate{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.PCfg.ContractAddress),
+		ToAddress:   types.Address(icp.PCfg.Contracts[providerTypes.ConnectionContract]),
 		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{
@@ -82,7 +82,7 @@ func (icp *IconProvider) SendTransaction(
 	txParam := &types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.PCfg.ContractAddress),
+		ToAddress:   types.Address(icp.PCfg.Contracts[providerTypes.ConnectionContract]),
 		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",

@@ -8,19 +8,19 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
 )
 
 type IconProviderConfig struct {
-	ChainName       string `json:"-" yaml:"-"`
-	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
-	KeyStore        string `json:"keystore" yaml:"keystore"`
-	Password        string `json:"password" yaml:"password"`
-	StartHeight     uint64 `json:"start-height" yaml:"start-height"` // would be of highest priority
-	ContractAddress string `json:"contract-address" yaml:"contract-address"`
-	NetworkID       uint   `json:"network-id" yaml:"network-id"`
-	NID             string `json:"nid" yaml:"nid"`
+	ChainName   string                         `json:"-" yaml:"-"`
+	RPCUrl      string                         `json:"rpc-url" yaml:"rpc-url"`
+	KeyStore    string                         `json:"keystore" yaml:"keystore"`
+	StartHeight uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	Contracts   relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	NetworkID   uint                           `json:"network-id" yaml:"network-id"`
+	NID         string                         `json:"nid" yaml:"nid"`
 }
 
 // NewProvider returns new Icon provider
@@ -41,6 +41,10 @@ func (c *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug
 func (pp *IconProviderConfig) Validate() error {
 	if pp.RPCUrl == "" {
 		return fmt.Errorf("icon provider rpc endpoint is empty")
+	}
+
+	if err := pp.Contracts.Validate(); err != nil {
+		return fmt.Errorf("contracts are not valid: %s", err)
 	}
 
 	// TODO: validation for keystore

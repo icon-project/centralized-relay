@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	rlyTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 )
@@ -24,18 +25,17 @@ import (
 var _ provider.ProviderConfig = (*EVMProviderConfig)(nil)
 
 type EVMProviderConfig struct {
-	ChainName       string `json:"-" yaml:"-"`
-	RPCUrl          string `json:"rpc-url" yaml:"rpc-url"`
-	VerifierRPCUrl  string `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
-	StartHeight     uint64 `json:"start-height" yaml:"start-height"`
-	Keystore        string `json:"keystore" yaml:"keystore"`
-	Password        string `json:"password" yaml:"password"`
-	GasPrice        int64  `json:"gas-price" yaml:"gas-price"`
-	GasLimit        uint64 `json:"gas-limit" yaml:"gas-limit"`
-	ContractAddress string `json:"contract-address" yaml:"contract-address"`
-	Concurrency     uint64 `json:"concurrency" yaml:"concurrency"`
-	FinalityBlock   uint64 `json:"finality-block" yaml:"finality-block"`
-	NID             string `json:"nid" yaml:"nid"`
+	ChainName      string                     `json:"-" yaml:"-"`
+	RPCUrl         string                     `json:"rpc-url" yaml:"rpc-url"`
+	VerifierRPCUrl string                     `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
+	StartHeight    uint64                     `json:"start-height" yaml:"start-height"`
+	Keystore       string                     `json:"keystore" yaml:"keystore"`
+	GasPrice       int64                      `json:"gas-price" yaml:"gas-price"`
+	GasLimit       uint64                     `json:"gas-limit" yaml:"gas-limit"`
+	Contracts      rlyTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	Concurrency    uint64                     `json:"concurrency" yaml:"concurrency"`
+	FinalityBlock  uint64                     `json:"finality-block" yaml:"finality-block"`
+	NID            string                     `json:"nid" yaml:"nid"`
 }
 
 type EVMProvider struct {
@@ -54,7 +54,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
-	client, err := newClient(p.RPCUrl, p.ContractAddress, log)
+	client, err := newClient(p.RPCUrl, p.Contracts[rlyTypes.ConnectionContract], log)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
@@ -63,7 +63,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 
 	if p.VerifierRPCUrl != "" {
 		var err error
-		verifierClient, err = newClient(p.VerifierRPCUrl, p.ContractAddress, log)
+		verifierClient, err = newClient(p.VerifierRPCUrl, p.Contracts[rlyTypes.ConnectionContract], log)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 		cfg:      p,
 		log:      log.With(zap.String("nid", p.NID)),
 		client:   client,
-		blockReq: getEventFilterQuery(p.ContractAddress),
+		blockReq: getEventFilterQuery(p.Contracts[rlyTypes.ConnectionContract]),
 		verifier: verifierClient,
 	}, nil
 }
@@ -91,6 +91,9 @@ func (p *EVMProvider) NID() string {
 }
 
 func (p *EVMProviderConfig) Validate() error {
+	if err := p.Contracts.Validate(); err != nil {
+		return fmt.Errorf("contracts are not valid: %s", err)
+	}
 	// TODO:
 	// add right validation
 	// Contract address check
@@ -141,8 +144,7 @@ func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
 	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond // 1.5sec
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Nanosecond)
-	retryLimit := 10
-	retryCounter := 0
+	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
@@ -150,7 +152,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 			err = errors.New("Context Cancelled. ResultWait Exiting ")
 			return
 		case <-ticker.C:
-			if retryCounter >= retryLimit {
+			if retryCounter >= rlyTypes.MaxTxRetry {
 				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
 				return
 			}

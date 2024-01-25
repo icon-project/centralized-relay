@@ -29,7 +29,7 @@ func (ip *IconProvider) prepareCallParams(methodName string, param map[string]in
 
 	callParam := &types.CallParam{
 		FromAddress: types.Address(fmt.Sprintf("hx%s", strings.Repeat("0", 40))),
-		ToAddress:   types.Address(ip.PCfg.ContractAddress),
+		ToAddress:   types.Address(ip.PCfg.Contracts[providerTypes.ConnectionContract]),
 		DataType:    "call",
 		Data:        callData,
 	}
@@ -116,7 +116,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		}
 
 		for _, el := range txResult.EventLogs {
-			if el.Addr != types.Address(ip.PCfg.ContractAddress) &&
+			if el.Addr != types.Address(ip.PCfg.Contracts[providerTypes.ConnectionContract]) &&
 				len(el.Indexed) != 3 && len(el.Data) != 1 &&
 				el.Indexed[0] != eventName {
 				continue

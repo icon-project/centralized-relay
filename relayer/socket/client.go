@@ -30,7 +30,7 @@ type Client struct {
 }
 
 func NewClient() (*Client, error) {
-	conn, err := net.Dial(network, addr)
+	conn, err := net.Dial(network, SocketPath)
 	if err != nil {
 		return nil, ErrSocketClosed
 	}
@@ -147,8 +147,8 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, sn uint64) (*ResRelayMessage, error) {
-	req := &ReqRelayMessage{Chain: chain, Sn: sn}
+func (c *Client) RelayMessage(chain string, height, sn uint64) (*ResRelayMessage, error) {
+	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
 	if err := c.send(EventRelayMessage, req); err != nil {
 		return nil, err
 	}

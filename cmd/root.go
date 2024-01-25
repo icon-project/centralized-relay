@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/socket"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -68,8 +69,9 @@ func Execute() {
 		}
 	}()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		os.Exit(1)
+		fmt.Println(err)
 	}
+	cleanup()
 }
 
 // NewRootCmd returns the root command for relayer.
@@ -191,4 +193,12 @@ func withUsage(inner cobra.PositionalArgs) cobra.PositionalArgs {
 
 		return nil
 	}
+}
+
+// Clean up upon shutdown.
+func cleanup() {
+	// Force syncing the logs before exit, if anything is buffered.
+	_ = zap.L().Sync()
+	// remove socket file to make sure it is not left behind
+	_ = os.Remove(socket.SocketPath)
 }

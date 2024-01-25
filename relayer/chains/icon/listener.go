@@ -31,7 +31,7 @@ type btpBlockRequest struct {
 	indexes  [][]types.HexInt
 	events   [][][]types.HexInt
 	err      error
-	retry    int
+	retry    uint8
 	response *btpBlockResponse
 }
 
@@ -68,7 +68,7 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	blockReq := &types.BlockRequest{
 		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: GetMonitorEventFilters(icp.PCfg.ContractAddress, MonitorEventsList),
+		EventFilters: GetMonitorEventFilters(icp.PCfg.Contracts[providerTypes.ConnectionContract], MonitorEventsList),
 	}
 
 loop:
@@ -106,7 +106,7 @@ loop:
 			for ; br != nil; processedheight++ {
 				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
-				//note: because of monitorLoop height should be subtract by 1
+				// note: because of monitorLoop height should be subtract by 1
 				height := br.Height - 1
 
 				messages := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(height))
@@ -150,7 +150,7 @@ loop:
 						hash:    bn.Hash,
 						indexes: bn.Indexes,
 						events:  bn.Events,
-						retry:   maxRetires,
+						retry:   providerTypes.MaxTxRetry,
 					}
 					if bn = nil; len(btpBlockNotifCh) > 0 && len(requestCh) < cap(requestCh) {
 						bn = <-btpBlockNotifCh

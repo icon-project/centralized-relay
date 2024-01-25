@@ -23,7 +23,7 @@ type KMSConfig struct {
 }
 
 func NewKMSConfig(ctx context.Context, key *string, profile string) (KMS, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile), config.WithRegion("us-east-1"))
 	if err != nil {
 		return nil, err
 	}

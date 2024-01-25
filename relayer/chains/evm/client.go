@@ -12,7 +12,8 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
-	types "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -185,11 +186,11 @@ func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) 
 		txh   string
 		v     *ethTypes.Receipt
 		err   error
-		retry int
+		retry uint8
 	}
 	qch := make(chan *rcq, len(txhs))
 	for _, txh := range txhs {
-		qch <- &rcq{txh, nil, nil, RPCCallRetry}
+		qch <- &rcq{txh, nil, nil, providerTypes.MaxTxRetry}
 	}
 	rmap := make(map[string]*ethTypes.Receipt)
 	for q := range qch {

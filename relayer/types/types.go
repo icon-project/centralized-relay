@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	DefaultTxRetry uint8 = 3
-	// message is stale after TotalMaxRetryTx
-	TotalMaxRetryTx uint8 = DefaultTxRetry * 5
+	MaxTxRetry         uint8 = 5
+	XcallContract            = "xcall"
+	ConnectionContract       = "connection"
+	SupportedContracts       = []string{XcallContract, ConnectionContract}
 )
 
 type BlockInfo struct {
@@ -27,13 +28,28 @@ type Message struct {
 	EventType     string `json:"eventType"`
 }
 
+type ContractConfigMap map[string]string
+
+func (c ContractConfigMap) Validate() error {
+	for _, contract := range SupportedContracts {
+		val, ok := (c)[contract]
+		if !ok {
+			return fmt.Errorf("contract %s is not supported", contract)
+		}
+		if val == "" {
+			return fmt.Errorf("contract %s address is empty", contract)
+		}
+	}
+	return nil
+}
+
 func (m *Message) MessageKey() MessageKey {
 	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
 }
 
 type RouteMessage struct {
 	*Message
-	Retry        uint64
+	Retry        uint8
 	IsProcessing bool
 }
 
@@ -53,7 +69,7 @@ func (r *RouteMessage) IncrementRetry() {
 	r.Retry += 1
 }
 
-func (r *RouteMessage) GetRetry() uint64 {
+func (r *RouteMessage) GetRetry() uint8 {
 	return r.Retry
 }
 
@@ -67,7 +83,7 @@ func (r *RouteMessage) GetIsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.Retry >= uint64(TotalMaxRetryTx)
+	return r.Retry >= MaxTxRetry
 }
 
 type TxResponseFunc func(key MessageKey, response TxResponse, err error)

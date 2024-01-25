@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	addr    = path.Join(os.TempDir(), "relayer.sock")
-	network = "unix"
+	SocketPath = path.Join(os.TempDir(), "relayer.sock")
+	network    = "unix"
 )
 
 func NewSocket(rly *relayer.Relayer) (*Server, error) {
-	l, err := net.Listen(network, addr)
+	l, err := net.Listen(network, SocketPath)
 	if err != nil {
 		return nil, err
 	}

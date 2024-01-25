@@ -380,7 +380,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.SetIsProcessing(false)
 
-	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%uint64(types.DefaultTxRetry) == 0 {
+	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%types.MaxTxRetry == 0 {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
@@ -394,7 +394,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 			zap.String("src", routeMessage.Src),
 			zap.String("dst", routeMessage.Dst),
 			zap.Uint64("sn", routeMessage.Sn),
-			zap.Uint64("count", routeMessage.Retry),
+			zap.Uint8("count", routeMessage.Retry),
 		)
 		return
 	}
