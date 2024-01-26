@@ -2,6 +2,8 @@ package chains
 
 import (
 	"context"
+	"math/big"
+
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
@@ -27,7 +29,9 @@ type Chain interface {
 	SetupConnection(ctx context.Context, keyName string, target Chain) error
 	FindTargetXCallMessage(ctx context.Context, target Chain, height uint64, to string) (*XCallResponse, error)
 	SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error)
+	SendNewPacketXCall(ctx context.Context, keyName, _to string, data []byte, messageType *big.Int, rollback []byte) (context.Context, error)
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)
+	NewXCall(ctx context.Context, targetChain Chain, keyName, _to string, data []byte, messageType *big.Int, rollback []byte) (*XCallResponse, error)
 	ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error)
 	ExecuteRollback(ctx context.Context, sn string) (context.Context, error)
 	FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error)

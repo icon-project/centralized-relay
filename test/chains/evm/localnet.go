@@ -6,6 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -16,12 +23,6 @@ import (
 	interchaintest "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
-	"io"
-	"math/big"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
 	volumetypes "github.com/docker/docker/api/types/volume"
@@ -527,6 +528,26 @@ func (c *EVMLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, 
 	return context.WithValue(ctx, "sn", events["_sn"].(*big.Int).String()), nil
 }
 
+func (c *EVMLocalnet) SendNewPacketXCall(ctx context.Context, keyName, _to string, data []byte, messageType *big.Int, rollback []byte) (context.Context, error) {
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
+	if rollback == nil {
+		rollback = make([]byte, 0)
+	}
+	params := []interface{}{_to, data, messageType, rollback}
+	// TODO: send fees
+	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, "sendNewMessage", params...)
+	if err != nil {
+		return nil, err
+	}
+	txn := ctx.Value("txResult").(*eth_types.Receipt)
+	events, err := c.ParseEvent(CallMessageSent, txn.Logs)
+	if err != nil {
+		return nil, err
+	}
+	return context.WithValue(ctx, "sn", events["_sn"].(*big.Int).String()), nil
+}
+
 // FindTargetXCallMessage returns the request id and the data of the message sent to the target chain
 func (c *EVMLocalnet) FindTargetXCallMessage(ctx context.Context, target chains.Chain, height uint64, to string) (*chains.XCallResponse, error) {
 	testcase := ctx.Value("testcase").(string)
@@ -544,6 +565,20 @@ func (c *EVMLocalnet) XCall(ctx context.Context, targetChain chains.Chain, keyNa
 	// TODO: send fees
 
 	ctx, err = c.SendPacketXCall(ctx, keyName, to, data, rollback)
+	if err != nil {
+		return nil, err
+	}
+	return c.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
+}
+
+func (c *EVMLocalnet) NewXCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data []byte, messageType *big.Int, rollback []byte) (*chains.XCallResponse, error) {
+	height, err := targetChain.(ibc.Chain).Height(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: send fees
+
+	ctx, err = c.SendNewPacketXCall(ctx, keyName, to, data, messageType, rollback)
 	if err != nil {
 		return nil, err
 	}
