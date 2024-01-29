@@ -14,42 +14,41 @@ var (
 	CallMessage = "CallMessage(str,str,uint256,uint256,bytes)"
 )
 
-func eventSigToEventType(sigContract map[string]string) map[common.Hash]string {
-	eventMap := make(map[common.Hash]string, len(sigContract))
-	for sig, contract := range sigContract {
-		switch contract {
-		case providerTypes.ConnectionContract:
-			eventMap[crypto.Keccak256Hash([]byte(sig))] = events.EmitMessage
+// EventSigToEventType converts event signature to event type
+func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
+	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
+	for contractName, addr := range p.Contracts {
+		event := providerTypes.EventMap{ContractName: contractName}
+		switch contractName {
 		case providerTypes.XcallContract:
-			eventMap[crypto.Keccak256Hash([]byte(sig))] = events.CallMessage
+			event.SigType = map[string]string{CallMessage: events.CallMessage}
+		case providerTypes.ConnectionContract:
+			event.SigType = map[string]string{EmitMessage: events.EmitMessage}
 		}
+		eventMap[addr] = event
 	}
 	return eventMap
 }
 
-func MonitorEventsList(sigContract map[string]string) []string {
-	eventsList := []string{}
-	for sig, contract := range sigContract {
-		switch contract {
-		case providerTypes.ConnectionContract:
-			eventsList = append(eventsList, EmitMessage)
-		case providerTypes.XcallContract:
-			eventsList = append(eventsList, CallMessage)
+func (p *EVMProviderConfig) GetMonitorEventFilters() *ethereum.FilterQuery {
+	filter := new(ethereum.FilterQuery)
+
+	for addr, contract := range p.eventMap() {
+		for sig := range contract.SigType {
+			filter.Addresses = append(filter.Addresses, common.HexToAddress(addr))
+			filter.Topics = [][]common.Hash{{crypto.Keccak256Hash([]byte(sig))}}
 		}
 	}
-	return eventsList
+	return filter
 }
 
-var MonitorEvents []common.Hash = []common.Hash{
-	// TODO: list all the events to monitor
-	crypto.Keccak256Hash([]byte(EmitMessage)),
-}
-
-func getEventFilterQuery(contractAddress string) ethereum.FilterQuery {
-	return ethereum.FilterQuery{
-		Addresses: []common.Address{common.HexToAddress(contractAddress)},
-		Topics: [][]common.Hash{
-			MonitorEvents,
-		},
+func (p *EVMProviderConfig) GetEventName(sig string) string {
+	for _, contract := range p.eventMap() {
+		for s, name := range contract.SigType {
+			if s == sig {
+				return name
+			}
+		}
 	}
+	return ""
 }

@@ -30,6 +30,11 @@ type Message struct {
 
 type ContractConfigMap map[string]string
 
+type EventMap struct {
+	ContractName string
+	SigType      map[string]string
+}
+
 func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]

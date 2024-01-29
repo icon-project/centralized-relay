@@ -68,7 +68,7 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	blockReq := &types.BlockRequest{
 		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: GetMonitorEventFilters(icp.PCfg.Contracts[providerTypes.ConnectionContract], MonitorEventsList),
+		EventFilters: icp.PCfg.GetMonitorEventFilters(),
 	}
 
 loop:
@@ -287,7 +287,7 @@ func (icp *IconProvider) handleBTPBlockRequest(
 						return
 					}
 					icp.log.Info("Detected eventlog ", zap.Int64("height", request.height),
-						zap.String("eventlog", EventNameToType[string(el.Indexed[0])]))
+						zap.String("eventlog", icp.PCfg.GetEventName(string(el.Indexed[0]))))
 					eventlogs = append(eventlogs, el)
 				}
 

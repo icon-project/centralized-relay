@@ -12,36 +12,43 @@ const (
 	CallMessage = "CallMessage(str,str,int,int,bytes)"
 )
 
-func EventSigToEventType(sigContract map[string]string) map[string]string {
-	eventMap := make(map[string]string, len(sigContract))
-	for sig, contract := range sigContract {
-		switch contract {
-		case providerTypes.ConnectionContract:
-			eventMap[sig] = events.EmitMessage
+// EventSigToEventType converts event signature to event type
+func (p *IconProviderConfig) eventMap() map[string]providerTypes.EventMap {
+	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
+	for contractName, addr := range p.Contracts {
+		event := providerTypes.EventMap{ContractName: contractName}
+		switch contractName {
 		case providerTypes.XcallContract:
-			eventMap[sig] = events.CallMessage
+			event.SigType = map[string]string{CallMessage: events.CallMessage}
+		case providerTypes.ConnectionContract:
+			event.SigType = map[string]string{EmitMessage: events.EmitMessage}
 		}
+		eventMap[addr] = event
 	}
 	return eventMap
 }
 
-var MonitorEventsList []string = []string{
-	// TODO: list all the events to monitor
-	EmitMessage,
-}
+func (p *IconProviderConfig) GetMonitorEventFilters() []*types.EventFilter {
+	var filters []*types.EventFilter
 
-func GetMonitorEventFilters(address string, eventsList []string) []*types.EventFilter {
-	if address == "" {
-		return nil
-	}
-
-	filters := []*types.EventFilter{}
-
-	for _, event := range eventsList {
-		filters = append(filters, &types.EventFilter{
-			Addr:      types.Address(address),
-			Signature: event,
-		})
+	for addr, contract := range p.eventMap() {
+		for sig := range contract.SigType {
+			filters = append(filters, &types.EventFilter{
+				Addr:      types.Address(addr),
+				Signature: sig,
+			})
+		}
 	}
 	return filters
+}
+
+func (p *IconProviderConfig) GetEventName(sig string) string {
+	for _, contract := range p.eventMap() {
+		for s, name := range contract.SigType {
+			if s == sig {
+				return name
+			}
+		}
+	}
+	return ""
 }
