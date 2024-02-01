@@ -54,3 +54,12 @@ func (icp *IconProvider) parseEmitMessage(e *types.EventLog, eventType string, h
 		Src:           icp.NID(),
 	}, nil
 }
+
+func (p *IconProvider) parseCallMessage(e *types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
+	if indexdedLen, dataLen := len(e.Indexed), len(e.Data); indexdedLen != 3 && dataLen != 1 {
+		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexdedLen, dataLen)
+	}
+
+	p.log.Debug("detected eventlog ", zap.Uint64("height", height))
+	return nil, nil
+}

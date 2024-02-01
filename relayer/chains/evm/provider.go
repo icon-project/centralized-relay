@@ -44,7 +44,7 @@ type EVMProvider struct {
 	log         *zap.Logger
 	cfg         *EVMProviderConfig
 	StartHeight uint64
-	blockReq    *ethereum.FilterQuery
+	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
 	kms         kms.KMS
 	homePath    string

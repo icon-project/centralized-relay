@@ -3,7 +3,6 @@ package evm
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
 	"sync"
 
@@ -79,11 +78,10 @@ type IClient interface {
 	GetBlockByHash(hash common.Hash) (*types.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error)
-	GetMedianGasPriceForBlock(ctx context.Context) (gasPrice *big.Int, gasHeight *big.Int, err error)
 	GetChainID() *big.Int
 
 	// ethClient
-	FilterLogs(ctx context.Context, q *ethereum.FilterQuery) ([]ethTypes.Log, error)
+	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
@@ -141,8 +139,8 @@ func (cl *Client) GetBalance(ctx context.Context, hexAddr string) (*big.Int, err
 	return cl.eth.BalanceAt(ctx, common.HexToAddress(hexAddr), nil)
 }
 
-func (cl *Client) FilterLogs(ctx context.Context, q *ethereum.FilterQuery) ([]ethTypes.Log, error) {
-	return cl.eth.FilterLogs(ctx, *q)
+func (cl *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
+	return cl.eth.FilterLogs(ctx, q)
 }
 
 func (cl *Client) GetBlockNumber() (uint64, error) {
@@ -162,12 +160,8 @@ func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 	defer cancel()
-	var hb types.Block
-	err := cl.rpc.CallContext(ctx, &hb, "eth_getBlockByHash", hash, false)
-	if err != nil {
-		return nil, err
-	}
-	return &hb, nil
+	hb := new(types.Block)
+	return hb, cl.rpc.CallContext(ctx, hb, "eth_getBlockByHash", hash, false)
 }
 
 func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {
@@ -235,37 +229,6 @@ func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) 
 		}
 	}
 	return receipts, nil
-}
-
-func (cl *Client) GetMedianGasPriceForBlock(ctx context.Context) (gasPrice *big.Int, gasHeight *big.Int, err error) {
-	c := IClient(cl)
-
-	gasPrice = big.NewInt(0)
-	header, err := c.GetHeaderByHeight(ctx, nil)
-	if err != nil {
-		err = errors.Wrapf(err, "GetHeaderByNumber(height:latest) Err: %v", err)
-		return
-	}
-	height := header.Number
-	txnCount, err := c.TransactionCount(ctx, header.Hash())
-	if err != nil {
-		err = errors.Wrapf(err, "GetTransactionCount(height:%v, headerHash: %v) Err: %v", height, header.Hash(), err)
-		return
-	} else if err == nil && txnCount == 0 {
-		return nil, nil, fmt.Errorf("TransactionCount is zero for height(%v, headerHash %v)", height, header.Hash())
-	}
-	// txnF, err := c.eth.TransactionInBlock(ctx, header.Hash(), 0)
-	// if err != nil {
-	// 	return nil, errors.Wrapf(err, "GetTransactionInBlock(headerHash: %v, height: %v Index: %v) Err: %v", header.Hash(), height, 0, err)
-	// }
-	txnS, err := c.TransactionInBlock(ctx, header.Hash(), uint(math.Floor(float64(txnCount)/2)))
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "GetTransactionInBlock(headerHash: %v, height: %v Index: %v) Err: %v", header.Hash(), height, txnCount-1, err)
-	}
-
-	gasPrice = txnS.GasPrice()
-	gasHeight = header.Number
-	return
 }
 
 func (c *Client) GetChainID() *big.Int {

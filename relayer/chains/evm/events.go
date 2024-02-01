@@ -30,24 +30,27 @@ func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
 	return eventMap
 }
 
-func (p *EVMProviderConfig) GetMonitorEventFilters() *ethereum.FilterQuery {
-	filter := new(ethereum.FilterQuery)
-
+func (p *EVMProviderConfig) GetMonitorEventFilters() ethereum.FilterQuery {
+	var (
+		addresses []common.Address
+		topics    []common.Hash
+	)
 	for addr, contract := range p.eventMap() {
 		for sig := range contract.SigType {
-			filter.Addresses = append(filter.Addresses, common.HexToAddress(addr))
-			filter.Topics = [][]common.Hash{{crypto.Keccak256Hash([]byte(sig))}}
+			addresses = append(addresses, common.HexToAddress(addr))
+			topics = append(topics, crypto.Keccak256Hash([]byte(sig)))
 		}
 	}
-	return filter
+	return ethereum.FilterQuery{
+		Addresses: addresses,
+		Topics:    [][]common.Hash{topics},
+	}
 }
 
 func (p *EVMProviderConfig) GetEventName(sig string) string {
 	for _, contract := range p.eventMap() {
-		for s, name := range contract.SigType {
-			if s == sig {
-				return name
-			}
+		if eventName, ok := contract.SigType[sig]; ok {
+			return eventName
 		}
 	}
 	return ""

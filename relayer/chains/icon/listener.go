@@ -209,9 +209,7 @@ loop:
 	}
 }
 
-func (icp *IconProvider) handleBTPBlockRequest(
-	request *btpBlockRequest, requestCh chan *btpBlockRequest,
-) {
+func (icp *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
 	defer func() {
 		time.Sleep(500 * time.Millisecond)
 		requestCh <- request
@@ -290,7 +288,6 @@ func (icp *IconProvider) handleBTPBlockRequest(
 						zap.String("eventlog", icp.PCfg.GetEventName(string(el.Indexed[0]))))
 					eventlogs = append(eventlogs, el)
 				}
-
 			}
 		}
 		request.response.EventLogs = eventlogs
