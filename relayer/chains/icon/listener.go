@@ -68,7 +68,7 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 
 	blockReq := &types.BlockRequest{
 		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: icp.PCfg.GetMonitorEventFilters(),
+		EventFilters: icp.cfg.GetMonitorEventFilters(),
 	}
 
 loop:
@@ -181,7 +181,6 @@ loop:
 						}
 					default:
 						go icp.handleBTPBlockRequest(request, requestCh)
-
 					}
 				}
 				// filter nil
@@ -285,7 +284,7 @@ func (icp *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, request
 						return
 					}
 					icp.log.Info("Detected eventlog ", zap.Int64("height", request.height),
-						zap.String("eventlog", icp.PCfg.GetEventName(string(el.Indexed[0]))))
+						zap.String("eventlog", icp.cfg.GetEventName(string(el.Indexed[0]))))
 					eventlogs = append(eventlogs, el)
 				}
 			}
@@ -300,9 +299,9 @@ func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight ui
 		return 0, err
 	}
 
-	if icp.PCfg.StartHeight > latestHeight {
+	if icp.cfg.StartHeight > latestHeight {
 		icp.log.Error("start height provided on config cannot be greater than latest height",
-			zap.Uint64("start-height", icp.PCfg.StartHeight),
+			zap.Uint64("start-height", icp.cfg.StartHeight),
 			zap.Int64("latest-height", int64(latestHeight)),
 		)
 	}
@@ -313,8 +312,8 @@ func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight ui
 	}
 
 	// priority1: startHeight from config
-	if icp.PCfg.StartHeight != 0 && icp.PCfg.StartHeight < latestHeight {
-		return int64(icp.PCfg.StartHeight), nil
+	if icp.cfg.StartHeight != 0 && icp.cfg.StartHeight < latestHeight {
+		return int64(icp.cfg.StartHeight), nil
 	}
 
 	// priority3: latest height

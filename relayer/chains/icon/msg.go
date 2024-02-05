@@ -11,17 +11,14 @@ type IconMessage struct {
 	Method string
 }
 
-func (im *IconMessage) Type() string {
-	return im.Method
+func (m *IconMessage) Type() string {
+	return m.Method
 }
 
-func (im *IconMessage) MsgBytes() ([]byte, error) {
-	return json.Marshal(im.Params)
+func (m *IconMessage) MsgBytes() ([]byte, error) {
+	return json.Marshal(m.Params)
 }
 
-func (icp *IconProvider) NewIconMessage(msg interface{}, method string) IconMessage {
-	return IconMessage{
-		Params: msg,
-		Method: method,
-	}
+func (p *IconProvider) NewIconMessage(msg interface{}, method string) *IconMessage {
+	return &IconMessage{Params: msg, Method: method}
 }

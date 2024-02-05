@@ -22,7 +22,7 @@ func (icp *IconProvider) parseMessagesFromEventlogs(log *zap.Logger, eventlogs [
 
 func (icp *IconProvider) parseMessageFromEvent(log *zap.Logger, event *types.EventLog, height uint64) (*providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
-	eventType := icp.PCfg.GetEventName(eventName)
+	eventType := icp.cfg.GetEventName(eventName)
 
 	switch eventName {
 	case EmitMessage:

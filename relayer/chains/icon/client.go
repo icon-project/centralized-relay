@@ -61,6 +61,8 @@ type IClient interface {
 	GetLastBlock() (*types.Block, error)
 	GetBlockHeaderByHeight(height int64) (*types.BlockHeader, error)
 	GetValidatorsByHash(hash common.HexHash) ([]common.Address, error)
+
+	ExecuteXcall(ctx context.Context, p *types.CallParam) ([]byte, error)
 }
 
 type Client struct {
@@ -227,7 +229,6 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 		switch t := v.(type) {
 		case *types.BlockNotification:
 			if err := cb(conn, t); err != nil {
-				// c.log.Debugf("MonitorBlock callback return err:%+v", err)
 				return err
 			}
 		case types.WSEvent:

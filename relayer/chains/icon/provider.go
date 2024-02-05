@@ -34,16 +34,16 @@ func (c *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug
 	return &IconProvider{
 		log:    log.With(zap.String("nid ", c.NID)),
 		client: NewClient(c.RPCUrl, log),
-		PCfg:   c,
+		cfg:    c,
 	}, nil
 }
 
-func (pp *IconProviderConfig) Validate() error {
-	if pp.RPCUrl == "" {
+func (c *IconProviderConfig) Validate() error {
+	if c.RPCUrl == "" {
 		return fmt.Errorf("icon provider rpc endpoint is empty")
 	}
 
-	if err := pp.Contracts.Validate(); err != nil {
+	if err := c.Contracts.Validate(); err != nil {
 		return fmt.Errorf("contracts are not valid: %s", err)
 	}
 
@@ -64,7 +64,7 @@ func (p *IconProviderConfig) GetWallet() string {
 
 type IconProvider struct {
 	log      *zap.Logger
-	PCfg     *IconProviderConfig
+	cfg      *IconProviderConfig
 	wallet   module.Wallet
 	client   *Client
 	kms      kms.KMS
@@ -72,7 +72,7 @@ type IconProvider struct {
 }
 
 func (p *IconProvider) NID() string {
-	return p.PCfg.NID
+	return p.cfg.NID
 }
 
 func (p *IconProvider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
@@ -86,11 +86,11 @@ func (p *IconProvider) Type() string {
 }
 
 func (p *IconProvider) ProviderConfig() provider.ProviderConfig {
-	return p.PCfg
+	return p.cfg
 }
 
 func (p *IconProvider) ChainName() string {
-	return p.PCfg.ChainName
+	return p.cfg.ChainName
 }
 
 func (p *IconProvider) Wallet() (module.Wallet, error) {
@@ -106,14 +106,33 @@ func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (icp *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
+// ReverseMessage reverts a message
+func (p *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	params := map[string]interface{}{"sn": sn}
-	message := icp.NewIconMessage(params, "revertMessage")
-	txHash, err := icp.SendTransaction(ctx, message)
+	message := p.NewIconMessage(params, "revertMessage")
+	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return err
 	}
-	_, txr, err := icp.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return err
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("failed: %s", txr.TxHash)
+	}
+	return nil
+}
+
+// ExecuteCall executes a call to the bridge contract
+func (p *IconProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) error {
+	params := map[string]interface{}{"reqID": reqID, "data": data}
+	message := p.NewIconMessage(params, "executeCall")
+	txHash, err := p.SendTransaction(ctx, message)
+	if err != nil {
+		return err
+	}
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		return err
 	}

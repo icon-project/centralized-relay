@@ -14,7 +14,7 @@ import (
 )
 
 func (p *IconProvider) RestoreKeyStore(ctx context.Context, homePath string, client kms.KMS) error {
-	path := path.Join(homePath, "keystore", p.NID(), p.PCfg.KeyStore)
+	path := path.Join(homePath, "keystore", p.NID(), p.cfg.KeyStore)
 	keystoreJson, err := os.ReadFile(fmt.Sprintf("%s.json", path))
 	if err != nil {
 		return err

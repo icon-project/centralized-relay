@@ -33,8 +33,7 @@ func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.Messa
 	return nil
 }
 
-func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (IconMessage, error) {
-	// TODO: as we have more eventType
+func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
 		msg := types.RecvMessage{
@@ -49,13 +48,10 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (IconMe
 		fmt.Println(message)
 
 	}
-	return IconMessage{}, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
+	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
 
-func (icp *IconProvider) SendTransaction(
-	ctx context.Context,
-	msg IconMessage,
-) ([]byte, error) {
+func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byte, error) {
 	wallet, err := icp.Wallet()
 	if err != nil {
 		return nil, err
@@ -64,8 +60,8 @@ func (icp *IconProvider) SendTransaction(
 	txParamEst := &types.TransactionParamForEstimate{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.PCfg.Contracts[providerTypes.ConnectionContract]),
-		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
+		ToAddress:   types.Address(icp.cfg.Contracts[providerTypes.ConnectionContract]),
+		NetworkID:   types.NewHexInt(int64(icp.cfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -87,8 +83,8 @@ func (icp *IconProvider) SendTransaction(
 	txParam := &types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.PCfg.Contracts[providerTypes.ConnectionContract]),
-		NetworkID:   types.NewHexInt(int64(icp.PCfg.NetworkID)),
+		ToAddress:   types.Address(icp.cfg.Contracts[providerTypes.ConnectionContract]),
+		NetworkID:   types.NewHexInt(int64(icp.cfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",
 		Data: types.CallData{

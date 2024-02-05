@@ -103,6 +103,7 @@ type IClient interface {
 
 	// abiContract for xcall
 	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 }
 
 func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
@@ -273,4 +274,8 @@ func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.
 
 func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
 	panic("implement me")
+}
+
+func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteCall(opts, reqID, data)
 }
