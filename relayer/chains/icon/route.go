@@ -41,12 +41,15 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconM
 			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
-		fmt.Println("EmitMessage")
 		return icp.NewIconMessage(msg, MethodRecvMessage), nil
 	case events.CallMessage:
-		fmt.Println("CallMessage")
-		fmt.Println(message)
-
+		msg := types.SendMessage{
+			TargetNetwork: message.Dst,
+			Msg:           types.NewHexBytes(message.Data),
+			Sn:            message.Sn,
+			Svc:           message.Src,
+		}
+		return icp.NewIconMessage(msg, MethodSendMessage), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }

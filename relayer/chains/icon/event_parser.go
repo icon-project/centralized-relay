@@ -23,10 +23,16 @@ func (icp *IconProvider) parseMessagesFromEventlogs(log *zap.Logger, eventlogs [
 func (icp *IconProvider) parseMessageFromEvent(log *zap.Logger, event *types.EventLog, height uint64) (*providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
 	eventType := icp.cfg.GetEventName(eventName)
-
 	switch eventName {
 	case EmitMessage:
 		m, err := icp.parseEmitMessage(event, eventType, height)
+		if err != nil {
+			log.Error("invalid event", zap.Error(err))
+			return nil, false
+		}
+		return m, true
+	case CallMessage:
+		m, err := icp.parseCallMessage(event, eventType, height)
 		if err != nil {
 			log.Error("invalid event", zap.Error(err))
 			return nil, false
@@ -60,6 +66,17 @@ func (p *IconProvider) parseCallMessage(e *types.EventLog, eventType string, hei
 		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexdedLen, dataLen)
 	}
 
-	p.log.Debug("detected eventlog ", zap.Uint64("height", height))
-	return nil, nil
+	p.log.Info("Detected eventlog", zap.Uint64("height", height), zap.String("event-type", eventType))
+
+	dst := string(e.Indexed[1][:])
+	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
+
+	return &providerTypes.Message{
+		MessageHeight: height,
+		EventType:     eventType,
+		Dst:           dst,
+		Data:          e.Data[0],
+		Sn:            sn,
+		Src:           p.NID(),
+	}, nil
 }

@@ -94,11 +94,6 @@ func (p *EVMProviderConfig) Validate() error {
 	if err := p.Contracts.Validate(); err != nil {
 		return fmt.Errorf("contracts are not valid: %s", err)
 	}
-	// TODO:
-	// add right validation
-	// Contract address check
-	// gas limit mandatory
-	// keystore
 	return nil
 }
 

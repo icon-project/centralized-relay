@@ -210,7 +210,6 @@ loop:
 
 func (icp *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
 	defer func() {
-		time.Sleep(500 * time.Millisecond)
 		requestCh <- request
 	}()
 

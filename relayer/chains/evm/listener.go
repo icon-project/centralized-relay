@@ -151,7 +151,6 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 				default:
 					go func(q *bnq) {
 						defer func() {
-							time.Sleep(500 * time.Millisecond)
 							qch <- q
 						}()
 						if q.v == nil {
@@ -168,7 +167,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 						if q.v.Header.GasUsed > 0 {
 							r.blockReq.FromBlock = ht
 							r.blockReq.ToBlock = ht
-							q.v.Logs, q.err = r.client.FilterLogs(context.TODO(), r.blockReq)
+							q.v.Logs, q.err = r.client.FilterLogs(context.Background(), r.blockReq)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return

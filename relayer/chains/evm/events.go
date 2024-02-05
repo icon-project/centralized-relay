@@ -11,7 +11,7 @@ import (
 // All the events
 var (
 	EmitMessage = "Message(string,uint256,bytes)"
-	CallMessage = "CallMessage(str,str,uint256,uint256,bytes)"
+	CallMessage = "CallMessage(string,string,uint256,uint256,bytes)"
 )
 
 // EventSigToEventType converts event signature to event type

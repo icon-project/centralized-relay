@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
-	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -94,12 +93,6 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
 
-	eventName := ""
-	switch key.EventType {
-	case events.EmitMessage:
-		eventName = EmitMessage
-	}
-
 	block, err := ip.client.GetBlockByHeight(&types.BlockHeightParam{
 		Height: types.NewHexInt(int64(key.MsgHeight)),
 	})
@@ -116,10 +109,17 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 		}
 
 		for _, el := range txResult.EventLogs {
-			if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]) &&
-				len(el.Indexed) != 3 && len(el.Data) != 1 &&
-				el.Indexed[0] != eventName {
-				continue
+			switch el.Indexed[0] {
+			case EmitMessage:
+				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]) &&
+					len(el.Indexed) != 3 && len(el.Data) != 1 {
+					continue
+				}
+			case CallMessage:
+				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.XcallContract]) &&
+					len(el.Indexed) != 3 && len(el.Data) != 1 {
+					continue
+				}
 			}
 
 			dst := el.Indexed[1]
