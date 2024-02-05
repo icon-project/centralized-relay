@@ -3,6 +3,10 @@ package interchaintest
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/docker/docker/client"
 	setup "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/chains"
@@ -11,9 +15,6 @@ import (
 	"github.com/icon-project/centralized-relay/test/interchaintest/testreporter"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 // Interchain represents a full IBC network, encompassing a collection of
@@ -45,7 +46,7 @@ type Interchain struct {
 }
 
 type interchainLink struct {
-	chains [2]chains.Chain
+	chains []chains.Chain
 }
 
 // NewInterchain returns a new Interchain.
@@ -126,12 +127,12 @@ func (ic *Interchain) AddRelayer(relayer ibc.Relayer, name string) *Interchain {
 	return ic
 }
 
-// InterchainLink describes a link between two chains,
+// InterchainLink describes a link between chains,
 // by specifying the chain names, the relayer name,
 // and the name of the path to create.
 type InterchainLink struct {
 	// Chains involved.
-	Chain1, Chain2 chains.Chain
+	Chains map[string]chains.Chain
 
 	// Relayer to use for link.
 	Relayer ibc.Relayer
@@ -140,20 +141,10 @@ type InterchainLink struct {
 // AddLink adds the given link to the Interchain.
 // If any validation fails, AddLink panics.
 func (ic *Interchain) AddLink(link InterchainLink) *Interchain {
-	if _, exists := ic.chains[link.Chain1]; !exists {
-		cfg := link.Chain1.Config()
-		panic(fmt.Errorf("chain with name=%s and id=%s was never added to Interchain", cfg.Name, cfg.ChainID))
-	}
-	if _, exists := ic.chains[link.Chain2]; !exists {
-		cfg := link.Chain2.Config()
-		panic(fmt.Errorf("chain with name=%s and id=%s was never added to Interchain", cfg.Name, cfg.ChainID))
-	}
-	if _, exists := ic.relayers[link.Relayer]; !exists {
-		panic(fmt.Errorf("relayer %v was never added to Interchain", link.Relayer))
-	}
-
-	if link.Chain1 == link.Chain2 {
-		panic(fmt.Errorf("chains must be different (both were %v)", link.Chain1))
+	for name, chain := range link.Chains {
+		if ic.chains[chain] != name {
+			panic(fmt.Errorf("chain %v was never added to Interchain", chain))
+		}
 	}
 
 	key := relayerPath{
@@ -165,7 +156,7 @@ func (ic *Interchain) AddLink(link InterchainLink) *Interchain {
 	}
 
 	ic.links[key] = interchainLink{
-		chains: [2]chains.Chain{link.Chain1, link.Chain2},
+		chains: make([]chains.Chain, 0, len(link.Chains)),
 	}
 	return ic
 }
@@ -266,7 +257,7 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 		}
 	}
 	content, _ := yaml.Marshal(config)
-	for r, _ := range ic.relayerChains() {
+	for r := range ic.relayerChains() {
 		if err := r.CreateConfig(ctx, content); err != nil {
 			return fmt.Errorf("failed to restore config to relayer %s : %w", ic.relayers[r], err)
 		}
@@ -389,7 +380,7 @@ func CreateLogFile(name string) (*os.File, error) {
 		return nil, fmt.Errorf("user home dir: %w", err)
 	}
 	fpath := filepath.Join(home, ".interchaintest", "logs")
-	err = os.MkdirAll(fpath, 0755)
+	err = os.MkdirAll(fpath, 0o755)
 	if err != nil {
 		return nil, fmt.Errorf("mkdirall: %w", err)
 	}

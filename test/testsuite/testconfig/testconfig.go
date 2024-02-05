@@ -3,11 +3,12 @@ package testconfig
 import (
 	"bytes"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest"
 
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/spf13/viper"
@@ -41,12 +42,11 @@ type TestConfig struct {
 	// RelayerConfig holds configuration for the relayer to be used.
 	RelayerConfig interchaintest.Config `mapstructure:"relayer"`
 	// DebugConfig holds configuration for miscellaneous options.
-	//DebugConfig DebugConfig `yaml:"debug"`
+	// DebugConfig DebugConfig `yaml:"debug"`
 }
 
 type ChainOptions struct {
-	ChainAConfig *Chain
-	ChainBConfig *Chain
+	Config map[string]Chain
 }
 
 // ChainOptionConfiguration enables arbitrary configuration of ChainOptions.
@@ -59,10 +59,15 @@ func DefaultChainOptions() (*ChainOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ChainOptions{
-		ChainAConfig: &tc.ChainConfigs[0],
-		ChainBConfig: &tc.ChainConfigs[1],
-	}, nil
+
+	chainOptions := &ChainOptions{
+		Config: make(map[string]Chain),
+	}
+
+	for _, chain := range tc.ChainConfigs {
+		chainOptions.Config[chain.Name] = chain
+	}
+	return chainOptions, nil
 }
 
 func New() (*TestConfig, error) {
@@ -70,7 +75,6 @@ func New() (*TestConfig, error) {
 }
 
 func fromFile() (*TestConfig, error) {
-
 	cwd, _ := os.Getwd()
 	basePath := filepath.Dir(fmt.Sprintf("%s/..%c..%c", cwd, os.PathSeparator, os.PathSeparator))
 
@@ -89,7 +93,7 @@ func fromFile() (*TestConfig, error) {
 	if err := viper.ReadConfig(reader); err != nil {
 		return nil, err
 	}
-	var tc = new(TestConfig)
+	tc := new(TestConfig)
 	return tc, viper.Unmarshal(tc)
 }
 

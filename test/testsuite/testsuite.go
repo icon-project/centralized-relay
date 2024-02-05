@@ -3,16 +3,16 @@ package testsuite
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	setup "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"github.com/icon-project/centralized-relay/test/interchaintest/testutil"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
-	"strconv"
-	"time"
-
-	"strings"
 
 	"github.com/icon-project/centralized-relay/test/chains"
 
@@ -29,7 +29,7 @@ type E2ETestSuite struct {
 	suite.Suite
 
 	cfg *testconfig.TestConfig
-	//grpcClients    map[string]GRPCClients
+	// grpcClients    map[string]GRPCClients
 	paths           map[string]path
 	Relayers        map[string]ibc.Relayer
 	RelayersWallets ibc.RelayerMap
@@ -71,7 +71,7 @@ func newPath(chainA, chainB chains.Chain) path {
 func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relayer, error) {
 	chainA, chainB := s.GetChains()
 	r := interchaintest.New(s.T(), s.cfg.RelayerConfig, s.logger, s.DockerClient, s.network)
-	//pathName := s.GeneratePathName()
+	// pathName := s.GeneratePathName()
 	ic := interchaintest.NewInterchain().
 		AddChain(chainA).
 		AddChain(chainB).
@@ -148,7 +148,7 @@ func (s *E2ETestSuite) buildWallets(ctx context.Context, chainA chains.Chain, ch
 }
 
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
-	//testcase := ctx.Value("testcase").(string)
+	// testcase := ctx.Value("testcase").(string)
 
 	chainA, chainB := s.GetChains()
 	if err := chainA.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
@@ -233,6 +233,8 @@ func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) (chai
 
 	logger := zaptest.NewLogger(t)
 
+	chains := make([]chains.Chain, 0)
+
 	chainA, _ := buildChain(logger, t.Name(), chainOptions.ChainAConfig)
 
 	chainB, _ := buildChain(logger, t.Name(), chainOptions.ChainBConfig)
@@ -248,9 +250,7 @@ func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) (chai
 }
 
 func buildChain(log *zap.Logger, testName string, cfg *testconfig.Chain) (chains.Chain, error) {
-	var (
-		chain chains.Chain
-	)
+	var chain chains.Chain
 	ibcChainConfig := cfg.ChainConfig.GetIBCChainConfig(&chain)
 	switch cfg.ChainConfig.Type {
 	case "icon":
