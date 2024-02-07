@@ -1,5 +1,37 @@
 # Config
 
+## Command Line Options
+
+The `config` command is used to manage the configuration file for the centralized relay.
+
+## Usage
+
+```bash
+centralized-relay config [command] [flags]
+```
+
+## Flags
+
+- `--config`: The config file to use.
+
+## Commands
+
+### Initialize the config file
+
+```bash
+init
+```
+
+This command will create the config file if it does not exist.
+
+### Show the config file
+
+```bash
+show
+```
+
+This command will show the config file contents.
+
 ## Introduction
 
 The config file should be either a JSON or YAML file.
@@ -9,7 +41,7 @@ The example below is a JSON file.
 ```yaml
 global:
     timeout: 10s
-    kms-key-id: f5c550ca-a6f2-4597-895c-4846ab8e4ad2
+    kms-key-id: aa3b3e3e-3e3e-3e3e-3e3e-3e3e3e3e3e3e
 chains:
     avalanche:
         type: evm
@@ -46,11 +78,13 @@ chains:
   - `kms-key-id`: The KMS key ID used for keystore encryption.
 
 - `chains`: The chains that will be used.
-  - `evm`: The configuration for the Avalanche chain.
+  - `evm`: The configuration for the evm compataible chains.
     - `type`: The type of the chain.
     - `value`: The configuration for the chain.
       - `rpc-url`: The RPC URL for the chain.
       - `verifier-rpc-url`: The verifier RPC URL for the chain.
+        Used for the chains that have a verifier RPC URL.
+
       - `start-height`: The past start height for the chain when starting the relayer.
 
       This is the past chain height for the chain when starting the relayer.
@@ -63,8 +97,10 @@ chains:
 
       - `keystore`: The keystore for the chain currently being used.
       - `gas-price`: The gas price set for the transcation.
-      - `gas-limit`: The gas limit for the chain.
+      - `gas-limit`: The gas limit for the transcation.
       - `contracts`: The contracts for the chain.
+        - `xcall`: The xcall contract for the chain.
+        - `connection`: The connection contract for the chain.
       - `concurrency`: The concurrency for the chain.
 
       This is the number of concurrent transactions that can be sent when it is started.
@@ -81,7 +117,7 @@ chains:
     - `type`: The type of the chain.
     - `value`: The configuration for the chain.
       - `rpc-url`: The RPC URL for the chain.
-      - `keystore`: The keystore for the chain.
+      - `keystore`: The keystore for the chain in use.
       - `start-height`: The past start height for the chain when starting the relayer.
 
       This is the past chain height for the chain when starting the relayer.
@@ -92,6 +128,8 @@ chains:
 
       If the future block height is set, then the relayer will refuse to start.
       - `contracts`: The contracts for the chain.
+        - `xcall`: The xcall contract for the chain.
+        - `connection`: The connection contract for the chain.
       - `network-id`: The network ID for the chain.
 
       This is the network ID for the chain when deploying the connection contract.

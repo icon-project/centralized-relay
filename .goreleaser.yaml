@@ -2,7 +2,7 @@ project_name: centralised-relay
 builds:
   - id: darwin-amd64
     main: ./main.go
-    binary: crly
+    binary: centralized-relay
     goos:
       - darwin
     goarch:
