@@ -167,7 +167,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 						if q.v.Header.GasUsed > 0 {
 							r.blockReq.FromBlock = ht
 							r.blockReq.ToBlock = ht
-							q.v.Logs, q.err = r.client.FilterLogs(context.Background(), r.blockReq)
+							q.v.Logs, q.err = r.client.FilterLogs(ctx, r.blockReq)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return

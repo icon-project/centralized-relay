@@ -237,7 +237,6 @@ func (icp *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, request
 		if err != nil {
 			request.err = errors.Wrapf(err, "BlockHeaderResult.UnmarshalFromBytes: %v", err)
 			return
-
 		}
 
 		var eventlogs []*types.EventLog

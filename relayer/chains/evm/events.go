@@ -19,12 +19,14 @@ func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
 	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
 		event := providerTypes.EventMap{ContractName: contractName}
+		sig := make(map[string]string)
 		switch contractName {
 		case providerTypes.XcallContract:
-			event.SigType = map[string]string{CallMessage: events.CallMessage}
+			sig[CallMessage] = events.CallMessage
 		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{EmitMessage: events.EmitMessage}
+			sig[EmitMessage] = events.EmitMessage
 		}
+		event.SigType = sig
 		eventMap[addr] = event
 	}
 	return eventMap

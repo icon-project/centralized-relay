@@ -273,7 +273,7 @@ func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.
 }
 
 func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
-	panic("implement me")
+	return c.xcall.ParseCallMessage(log)
 }
 
 func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {

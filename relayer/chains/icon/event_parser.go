@@ -62,20 +62,24 @@ func (icp *IconProvider) parseEmitMessage(e *types.EventLog, eventType string, h
 }
 
 func (p *IconProvider) parseCallMessage(e *types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
-	if indexdedLen, dataLen := len(e.Indexed), len(e.Data); indexdedLen != 3 && dataLen != 1 {
+	if indexdedLen, dataLen := len(e.Indexed), len(e.Data); indexdedLen != 4 && dataLen != 2 {
 		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexdedLen, dataLen)
 	}
 
 	p.log.Info("Detected eventlog", zap.Uint64("height", height), zap.String("event-type", eventType))
 
+	fmt.Println(e)
+
 	dst := string(e.Indexed[1][:])
 	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
+	fmt.Println(string(e.Data[0]))
 
 	return &providerTypes.Message{
 		MessageHeight: height,
+		ReqID:         0,
 		EventType:     eventType,
 		Dst:           dst,
-		Data:          e.Data[0],
+		Data:          e.Data[1],
 		Sn:            sn,
 		Src:           p.NID(),
 	}, nil
