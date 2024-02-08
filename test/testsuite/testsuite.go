@@ -55,30 +55,33 @@ func (s *E2ETestSuite) SetCfg() error {
 
 // path is a pairing of two chains which will be used in a test.
 type path struct {
-	chainA, chainB chains.Chain
+	chains map[string]chains.Chain
 }
 
 // newPath returns a path built from the given chains.
-func newPath(chainA, chainB chains.Chain) path {
-	return path{
-		chainA: chainA,
-		chainB: chainB,
+func newPath(chains ...chains.Chain) path {
+	chainMaps := make([]chains.Chain)
+	if len(chains) < 2 {
+		panic("expected atleast two chains")
 	}
+	for _, chain := range chains {
+		chainMaps[chain.Config().ChainID] = chain
+	}
+	return path{chains: chainMaps.(map[string]chains.Chain)}
 }
 
 // SetupRelayer sets up the relayer, creates interchain networks, builds chains, and starts the relayer.
 // It returns a Relayer interface and an error if any.
 func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relayer, error) {
-	chainA, chainB := s.GetChains()
+	chains := s.GetChains()
 	r := interchaintest.New(s.T(), s.cfg.RelayerConfig, s.logger, s.DockerClient, s.network)
-	// pathName := s.GeneratePathName()
+	// pathName := s.GeneratePathName()z
 	ic := interchaintest.NewInterchain().
 		AddChain(chainA).
 		AddChain(chainB).
 		AddRelayer(r, "r").
 		AddLink(interchaintest.InterchainLink{
-			Chain1:  chainA,
-			Chain2:  chainB,
+			Chains:  chains,
 			Relayer: r,
 		})
 
@@ -150,7 +153,7 @@ func (s *E2ETestSuite) buildWallets(ctx context.Context, chainA chains.Chain, ch
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
 	// testcase := ctx.Value("testcase").(string)
 
-	chainA, chainB := s.GetChains()
+	chains := s.GetChains()
 	if err := chainA.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
 		Nid:         chainB.(ibc.Chain).Config().ChainID,
 		Destination: chainB.GetContractAddress("connection"),
@@ -170,7 +173,7 @@ func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) erro
 
 // GetChains returns two chains that can be used in a test. The pair returned
 // is unique to the current test being run. Note: this function does not create containers.
-func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguration) (chains.Chain, chains.Chain) {
+func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguration) []chains.Chain {
 	if s.paths == nil {
 		s.paths = map[string]path{}
 	}
