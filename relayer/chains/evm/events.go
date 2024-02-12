@@ -18,7 +18,7 @@ var (
 func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
 	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := providerTypes.EventMap{ContractName: contractName}
+		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
 		sig := make(map[string]string)
 		switch contractName {
 		case providerTypes.XcallContract:

@@ -36,7 +36,7 @@ func (r *EVMProvider) latestHeight() uint64 {
 	return height
 }
 
-func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan relayertypes.BlockInfo) error {
+func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
 	startHeight, err := r.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 					if err != nil {
 						return errors.Wrapf(err, "receiveLoop: callback: %v", err)
 					}
-					blockInfoChan <- relayertypes.BlockInfo{
+					blockInfoChan <- &relayertypes.BlockInfo{
 						Height:   lbn.Height.Uint64(),
 						Messages: messages,
 					}
@@ -202,16 +202,18 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
 	}
-	messages := make([]*relayertypes.Message, 0)
+	var messages []*relayertypes.Message
 	for _, log := range lbn.Logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("detected eventlog ", zap.Uint64("height", lbn.Height.Uint64()),
+		p.log.Info("Detected eventlog",
+			zap.Uint64("height", lbn.Height.Uint64()),
 			zap.String("target-network", message.Dst),
 			zap.Uint64("sn", message.Sn),
 			zap.String("event-type", message.EventType),
+			zap.Uint64("request-id", message.ReqID),
 		)
 		messages = append(messages, message)
 	}

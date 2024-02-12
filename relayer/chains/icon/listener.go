@@ -37,7 +37,7 @@ type btpBlockRequest struct {
 
 // TODO: check for balance and if the balance is low show info balance is low
 // starting listener
-func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan providerTypes.BlockInfo) error {
+func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
 	errCh := make(chan error)                                            // error channel
 	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
 	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
@@ -112,7 +112,7 @@ loop:
 				messages := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(height))
 
 				// TODO: check for the concurrency
-				incoming <- providerTypes.BlockInfo{
+				incoming <- &providerTypes.BlockInfo{
 					Messages: messages,
 					Height:   uint64(height),
 				}
@@ -281,8 +281,10 @@ func (icp *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, request
 						request.err = errors.Wrapf(err, "event.UnmarshalFromBytes: %v", err)
 						return
 					}
-					icp.log.Info("Detected eventlog ", zap.Int64("height", request.height),
-						zap.String("eventlog", icp.cfg.GetEventName(string(el.Indexed[0]))))
+					icp.log.Info("Detected eventlog",
+						zap.Int64("height", request.height),
+						zap.String("event-Type", icp.cfg.GetEventName(string(el.Indexed[0]))),
+					)
 					eventlogs = append(eventlogs, el)
 				}
 			}

@@ -113,10 +113,7 @@ func (r *Relayer) GetMessageStore() *store.MessageStore {
 	return r.messageStore
 }
 
-func (r *Relayer) StartChainListeners(
-	ctx context.Context,
-	errCh chan error,
-) {
+func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
@@ -263,7 +260,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // processBlockInfo->
 // save block height to database
 // & merge message to src cache
-func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo types.BlockInfo) {
+func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo *types.BlockInfo) {
 	srcChainRuntime.LastBlockHeight = blockInfo.Height
 
 	if len(blockInfo.Messages) > 0 {

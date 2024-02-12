@@ -33,7 +33,7 @@ func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.Messa
 	return nil
 }
 
-func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
+func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
 		msg := types.RecvMessage{
@@ -41,7 +41,7 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconM
 			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
-		return icp.NewIconMessage(msg, MethodRecvMessage), nil
+		return p.NewIconMessage(p.cfg.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
 		msg := types.SendMessage{
 			TargetNetwork: message.Dst,
@@ -49,7 +49,7 @@ func (icp *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconM
 			Sn:            message.Sn,
 			Svc:           message.Src,
 		}
-		return icp.NewIconMessage(msg, MethodSendMessage), nil
+		return p.NewIconMessage(p.cfg.GetAddressByEventType(message.EventType), msg, MethodSendMessage), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
@@ -63,7 +63,7 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 	txParamEst := &types.TransactionParamForEstimate{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.cfg.Contracts[providerTypes.ConnectionContract]),
+		ToAddress:   msg.Address,
 		NetworkID:   types.NewHexInt(int64(icp.cfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{

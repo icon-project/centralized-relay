@@ -41,48 +41,54 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 }
 
 func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
+	var (
+		tx  *types.Transaction
+		err error
+	)
+
 	switch message.EventType {
 	// check estimated gas and gas price
 	case events.EmitMessage:
-		tx, err := p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
-		if err != nil {
-			switch p.parseErr(err, maxRetry > 0) {
-			case ErrorLessGas:
-				p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
-				gas := big.NewFloat(gasRatio)
-				gasPrice, _ := gas.Int(nil)
-				opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
-			case ErrorLimitLessThanGas:
-				p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-				// get gas price parsing error message
-				startIndex := strings.Index(err.Error(), "baseFee: ")
-				endIndex := strings.Index(err.Error(), "(supplied gas")
-				baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
-				gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 10)
-				if !ok {
-					gasPrice, err = p.client.SuggestGasPrice(ctx)
-					if err != nil {
-						return nil, fmt.Errorf("failed to get gas price: %w", err)
-					}
-				}
-				opts.GasPrice = gasPrice
-			case ErrNonceTooLow:
-				p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
-				nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+		tx, err = p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
+	case events.CallMessage:
+		tx, err = p.client.ExecuteCall(opts, big.NewInt(0).SetUint64(message.ReqID), message.Data)
+	}
+	if err != nil {
+		switch p.parseErr(err, maxRetry > 0) {
+		case ErrorLessGas:
+			p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+			gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasPrice) // 10% of gas price
+			gas := big.NewFloat(gasRatio)
+			gasPrice, _ := gas.Int(nil)
+			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
+		case ErrorLimitLessThanGas:
+			p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+			// get gas price parsing error message
+			startIndex := strings.Index(err.Error(), "baseFee: ")
+			endIndex := strings.Index(err.Error(), "(supplied gas")
+			baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
+			gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 10)
+			if !ok {
+				gasPrice, err = p.client.SuggestGasPrice(ctx)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to get gas price: %w", err)
 				}
-				opts.Nonce = big.NewInt(0).SetUint64(nonce)
-			default:
+			}
+			opts.GasPrice = gasPrice
+		case ErrNonceTooLow:
+			p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
+			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+			if err != nil {
 				return nil, err
 			}
-			p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
-			return p.SendTransaction(ctx, opts, message, maxRetry-1)
+			opts.Nonce = nonce
+		default:
+			return nil, err
 		}
-		return tx, nil
+		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
+		return p.SendTransaction(ctx, opts, message, maxRetry-1)
 	}
-	return nil, fmt.Errorf("contract method missing for eventtype: %s", message.EventType)
+	return tx, nil
 }
 
 func (p *EVMProvider) WaitForTxResult(

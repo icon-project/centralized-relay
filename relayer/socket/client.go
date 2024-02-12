@@ -21,8 +21,10 @@ const (
 var (
 	ErrUnknownEvent    = fmt.Errorf("unknown event")
 	ErrSocketClosed    = fmt.Errorf("socket closed")
-	ErrInvalidResponse = fmt.Errorf("invalid response")
-	ErrUnknown         = fmt.Errorf("unknown error")
+	ErrInvalidResponse = func(err error) error {
+		return fmt.Errorf("invalid response: %v", err)
+	}
+	ErrUnknown = fmt.Errorf("unknown error")
 )
 
 type Client struct {
@@ -124,7 +126,7 @@ func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
 	}
 	res, ok := data.([]*ResGetBlock)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }
@@ -141,7 +143,7 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 	}
 	res, ok := data.(*ResMessageList)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }
@@ -158,7 +160,7 @@ func (c *Client) RelayMessage(chain string, height, sn uint64) (*ResRelayMessage
 	}
 	res, ok := data.(*ResRelayMessage)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }
@@ -175,7 +177,7 @@ func (c *Client) MessageRemove(chain string, sn uint64) (*ResMessageRemove, erro
 	}
 	res, ok := data.(*ResMessageRemove)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }
@@ -192,7 +194,7 @@ func (c *Client) PruneDB() (*ResPruneDB, error) {
 	}
 	res, ok := data.(*ResPruneDB)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }
@@ -209,7 +211,7 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 	}
 	res, ok := data.(*ResRevertMessage)
 	if !ok {
-		return nil, ErrInvalidResponse
+		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
 }

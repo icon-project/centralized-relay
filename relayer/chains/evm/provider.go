@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
-	rlyTypes "github.com/icon-project/centralized-relay/relayer/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 )
@@ -25,17 +25,17 @@ import (
 var _ provider.ProviderConfig = (*EVMProviderConfig)(nil)
 
 type EVMProviderConfig struct {
-	ChainName      string                     `json:"-" yaml:"-"`
-	RPCUrl         string                     `json:"rpc-url" yaml:"rpc-url"`
-	VerifierRPCUrl string                     `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
-	StartHeight    uint64                     `json:"start-height" yaml:"start-height"`
-	Keystore       string                     `json:"keystore" yaml:"keystore"`
-	GasPrice       int64                      `json:"gas-price" yaml:"gas-price"`
-	GasLimit       uint64                     `json:"gas-limit" yaml:"gas-limit"`
-	Contracts      rlyTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	Concurrency    uint64                     `json:"concurrency" yaml:"concurrency"`
-	FinalityBlock  uint64                     `json:"finality-block" yaml:"finality-block"`
-	NID            string                     `json:"nid" yaml:"nid"`
+	ChainName      string                          `json:"-" yaml:"-"`
+	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
+	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
+	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
+	Keystore       string                          `json:"keystore" yaml:"keystore"`
+	GasPrice       int64                           `json:"gas-price" yaml:"gas-price"`
+	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
+	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
+	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
+	NID            string                          `json:"nid" yaml:"nid"`
 }
 
 type EVMProvider struct {
@@ -50,11 +50,15 @@ type EVMProvider struct {
 	homePath    string
 }
 
-func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
-	client, err := newClient(p.RPCUrl, p.Contracts[rlyTypes.ConnectionContract], log)
+
+	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
+	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
+
+	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
@@ -63,7 +67,7 @@ func (p *EVMProviderConfig) NewProvider(log *zap.Logger, homepath string, debug 
 
 	if p.VerifierRPCUrl != "" {
 		var err error
-		verifierClient, err = newClient(p.VerifierRPCUrl, p.Contracts[rlyTypes.ConnectionContract], log)
+		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
 		if err != nil {
 			return nil, err
 		}
@@ -147,12 +151,12 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (t
 			err = errors.New("Context Cancelled. ResultWait Exiting ")
 			return
 		case <-ticker.C:
-			if retryCounter >= rlyTypes.MaxTxRetry {
+			if retryCounter >= providerTypes.MaxTxRetry {
 				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
 				return
 			}
 			retryCounter++
-			txr, err = p.client.TransactionReceipt(context.Background(), txHash)
+			txr, err = p.client.TransactionReceipt(ctx, txHash)
 			if err != nil && err == ethereum.NotFound {
 				err = nil
 				continue
@@ -182,15 +186,14 @@ func (r *EVMProvider) transferBalance(senderKey, recepientAddress string, amount
 		return common.Hash{}, err
 	}
 	chainID := r.client.GetChainID()
-
-	tx := types.NewTransaction(nonce, common.HexToAddress(recepientAddress), amount, 30000000, gasPrice, []byte{})
+	tx := types.NewTransaction(nonce.Uint64(), common.HexToAddress(recepientAddress), amount, 30000000, gasPrice, []byte{})
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), from)
 	if err != nil {
 		err = errors.Wrap(err, "SignTx ")
 		return common.Hash{}, err
 	}
 
-	if err = r.client.SendTransaction(context.TODO(), signedTx); err != nil {
+	if err = r.client.SendTransaction(context.Background(), signedTx); err != nil {
 		err = errors.Wrap(err, "SendTransaction ")
 		return
 	}
@@ -226,7 +229,7 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	if err != nil {
 		return nil, err
 	}
-	txOpts.Nonce = big.NewInt(int64(non))
+	txOpts.Nonce = non
 	txOpts.Context = ctx
 	if p.cfg.GasPrice > 0 {
 		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)

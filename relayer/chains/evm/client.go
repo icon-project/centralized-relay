@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"sync"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -26,25 +25,25 @@ const (
 	GasPriceRatio            = 10.0
 )
 
-func newClient(url string, contractAddress string, l *zap.Logger) (IClient, error) {
+func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {
 	clrpc, err := rpc.Dial(url)
 	if err != nil {
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
 
-	connection, err := bridgeContract.NewConnection(common.HexToAddress(contractAddress), cleth)
+	connection, err := bridgeContract.NewConnection(connectionContract, cleth)
 	if err != nil {
-		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
+		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
 
-	xcall, err := bridgeContract.NewXcall(common.HexToAddress(contractAddress), cleth)
+	xcall, err := bridgeContract.NewXcall(XcallContract, cleth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
 
 	// getting the chain id
-	evmChainId, err := cleth.ChainID(context.TODO())
+	evmChainId, err := cleth.ChainID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,7 @@ type IClient interface {
 	// ethClient
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
-	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
@@ -106,11 +105,12 @@ type IClient interface {
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 }
 
-func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
-	mu := new(sync.Mutex)
-	mu.Lock()
-	defer mu.Unlock()
-	return cl.eth.NonceAt(ctx, account, blockNumber)
+func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+	nonce, err := cl.eth.NonceAt(ctx, account, blockNumber)
+	if nil != err {
+		return nil, err
+	}
+	return new(big.Int).SetUint64(nonce), nil
 }
 
 func (cl *Client) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {

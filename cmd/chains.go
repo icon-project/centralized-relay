@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,7 +151,7 @@ func addChainFromFile(a *appState, chainName string, file string) error {
 		return err
 	}
 
-	prov, err := pcw.Value.NewProvider(
+	prov, err := pcw.Value.NewProvider(context.Background(),
 		a.log.With(zap.String("provider_type", pcw.Type)),
 		a.homePath, a.debug, chainName,
 	)

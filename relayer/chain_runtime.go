@@ -11,7 +11,7 @@ import (
 
 type ChainRuntime struct {
 	Provider        provider.ChainProvider
-	listenerChan    chan types.BlockInfo
+	listenerChan    chan *types.BlockInfo
 	log             *zap.Logger
 	LastBlockHeight uint64
 	LastSavedHeight uint64
@@ -25,7 +25,7 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 	return &ChainRuntime{
 		log:          log.With(zap.String("nid ", chain.NID())),
 		Provider:     chain.ChainProvider,
-		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
+		listenerChan: make(chan *types.BlockInfo, listenerChannelBufferSize),
 		MessageCache: types.NewMessageCache(),
 	}, nil
 }

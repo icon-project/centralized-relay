@@ -181,16 +181,18 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 }
 
 // SetAdmin sets the admin address of the bridge contract
-func (ip *IconProvider) SetAdmin(ctx context.Context, admin string) error {
+func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
 	callParam := map[string]interface{}{
 		"_relayer": admin,
 	}
-	message := ip.NewIconMessage(callParam, "setAdmin")
+	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, "setAdmin")
 
-	data, err := ip.SendTransaction(ctx, message)
+	data, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return fmt.Errorf("SetAdmin: %v", err)
 	}
-	ip.log.Info("SetAdmin: tx sent", zap.String("txHash", string(data)))
+	txHash := types.HexBytes(data)
+	p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txHash})
+	p.log.Info("SetAdmin: waiting for tx result", zap.ByteString("txHash", data))
 	return nil
 }

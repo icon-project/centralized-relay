@@ -198,7 +198,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	// build providers for each chain
 	chains := make(relayer.Chains)
 	for chainName, pcfg := range c.ProviderConfigs {
-		prov, err := pcfg.Value.(provider.ProviderConfig).NewProvider(
+		prov, err := pcfg.Value.(provider.ProviderConfig).NewProvider(ctx,
 			a.log.With(zap.String("provider_type", pcfg.Type)),
 			a.homePath, a.debug, chainName,
 		)

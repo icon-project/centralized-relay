@@ -10,7 +10,7 @@ import (
 )
 
 type ProviderConfig interface {
-	NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (ChainProvider, error)
+	NewProvider(context.Context, *zap.Logger, string, bool, string) (ChainProvider, error)
 	SetWallet(string)
 	GetWallet() string
 	Validate() error
@@ -28,7 +28,7 @@ type ChainProvider interface {
 	Init(context.Context, string, kms.KMS) error
 	Type() string
 	ProviderConfig() ProviderConfig
-	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan types.BlockInfo) error
+	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	ShouldReceiveMessage(ctx context.Context, message types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, message types.Message) (bool, error)

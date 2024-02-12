@@ -547,19 +547,19 @@ func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.
 	return &result, nil
 }
 
-func NewClient(uri string, l *zap.Logger) *Client {
+func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {
 	// TODO options {MaxRetrySendTx, MaxRetryGetResult, MaxIdleConnsPerHost, Debug, Dump}
+	opts := IconOptions{
+		IconOptionsTimeout: "10s",
+		IconOptionsDebug:   "true",
+	}
 	tr := &http.Transport{MaxIdleConnsPerHost: 1000}
-	cl := &http.Client{Transport: tr}
-	apiClient := client.NewJsonRpcClient(cl, uri)
 	c := &Client{
-		JsonRpcClient: apiClient,
+		JsonRpcClient: client.NewJsonRpcClient(&http.Client{Transport: tr}, uri),
 		DebugEndPoint: guessDebugEndpoint(uri),
 		conns:         make(map[string]*websocket.Conn),
 		log:           l,
 	}
-	opts := IconOptions{}
-	opts.SetBool(IconOptionsDebug, true)
 	c.CustomHeader[HeaderKeyIconOptions] = opts.ToHeaderValue()
 	return c
 }

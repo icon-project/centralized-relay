@@ -26,12 +26,13 @@ type Message struct {
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
-	ReqID         uint64 `json:"requestID,omitempty"`
+	ReqID         uint64 `json:"requestID"`
 }
 
 type ContractConfigMap map[string]string
 
 type EventMap struct {
+	Address      string
 	ContractName string
 	SigType      map[string]string
 }

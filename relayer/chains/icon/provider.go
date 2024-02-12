@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
@@ -24,7 +25,7 @@ type IconProviderConfig struct {
 }
 
 // NewProvider returns new Icon provider
-func (c *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+func (c *IconProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -33,7 +34,7 @@ func (c *IconProviderConfig) NewProvider(log *zap.Logger, homepath string, debug
 
 	return &IconProvider{
 		log:    log.With(zap.String("nid ", c.NID)),
-		client: NewClient(c.RPCUrl, log),
+		client: NewClient(ctx, c.RPCUrl, log),
 		cfg:    c,
 	}, nil
 }
@@ -109,7 +110,7 @@ func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 // ReverseMessage reverts a message
 func (p *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	params := map[string]interface{}{"sn": sn}
-	message := p.NewIconMessage(params, "revertMessage")
+	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), params, "revertMessage")
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return err
@@ -127,7 +128,7 @@ func (p *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 // ExecuteCall executes a call to the bridge contract
 func (p *IconProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) error {
 	params := map[string]interface{}{"reqID": reqID, "data": data}
-	message := p.NewIconMessage(params, "executeCall")
+	message := p.NewIconMessage(types.Address(p.cfg.Contracts[relayerTypes.XcallContract]), params, "executeCall")
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return err

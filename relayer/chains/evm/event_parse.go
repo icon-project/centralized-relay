@@ -34,7 +34,7 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Mess
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
 		return &providerTypes.Message{
-			Dst:           msg.To.Hex(),
+			Dst:           p.NID(),
 			Src:           msg.From.Hex(),
 			Sn:            msg.Sn.Uint64(),
 			MessageHeight: log.BlockNumber,
