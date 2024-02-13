@@ -1,7 +1,13 @@
 package icon
 
 var (
-	MethodSendMessage = "sendMessage"
-	MethodRecvMessage = "recvMessage"
-	MethodGetReceipts = "getReceipts"
+	// Connection Methods
+	MethodSendMessage   = "sendMessage"
+	MethodRecvMessage   = "recvMessage"
+	MethodGetReceipts   = "getReceipts"
+	MethodSetAdmin      = "setAdmin"
+	MethodRevertMessage = "revertMessage"
+
+	// XCALL Methods
+	MethodExecuteCall = "executeCall"
 )

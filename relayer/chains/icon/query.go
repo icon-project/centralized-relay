@@ -20,7 +20,7 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 	}
 }
 
-func (ip *IconProvider) prepareCallParams(methodName string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
+func (ip *IconProvider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
@@ -28,7 +28,7 @@ func (ip *IconProvider) prepareCallParams(methodName string, param map[string]in
 
 	callParam := &types.CallParam{
 		FromAddress: types.Address(fmt.Sprintf("hx%s", strings.Repeat("0", 40))),
-		ToAddress:   types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]),
+		ToAddress:   types.Address(address),
 		DataType:    "call",
 		Data:        callData,
 	}
@@ -48,23 +48,22 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return uint64(block.Height), nil
 }
 
-func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey providerTypes.Message) (bool, error) {
+func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey providerTypes.Message) (bool, error) {
+func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
-	callParam := ip.prepareCallParams(MethodGetReceipts, map[string]interface{}{
+func (p *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
+	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
 		"srcNetwork": messageKey.Src,
 		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
 	})
 
 	var status types.HexInt
-	err := ip.client.Call(callParam, &status)
-	if err != nil {
+	if err := p.client.Call(callParam, &status); err != nil {
 		return false, fmt.Errorf("MessageReceived: %v", err)
 	}
 
@@ -83,8 +82,7 @@ func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*provide
 	if err != nil {
 		return nil, err
 	}
-	coin := providerTypes.NewCoin("ICX", balance.Uint64())
-	return &coin, nil
+	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
 func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
@@ -117,7 +115,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 				}
 			case CallMessage:
 				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.XcallContract]) &&
-					len(el.Indexed) != 3 && len(el.Data) != 1 {
+					len(el.Indexed) != 4 && len(el.Data) != 1 {
 					continue
 				}
 			}
@@ -152,8 +150,8 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 
 // QueryTransactionReceipt ->
 // TxHash should be in hex string
-func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
-	res, err := icp.client.GetTransactionResult(&types.TransactionHashParam{
+func (p *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
+	res, err := p.client.GetTransactionResult(&types.TransactionHashParam{
 		Hash: types.HexBytes(txHash),
 	})
 	if err != nil {
@@ -178,21 +176,4 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 		receipt.Status = true
 	}
 	return &receipt, nil
-}
-
-// SetAdmin sets the admin address of the bridge contract
-func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
-	callParam := map[string]interface{}{
-		"_relayer": admin,
-	}
-	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, "setAdmin")
-
-	data, err := p.SendTransaction(ctx, message)
-	if err != nil {
-		return fmt.Errorf("SetAdmin: %v", err)
-	}
-	txHash := types.HexBytes(data)
-	p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txHash})
-	p.log.Info("SetAdmin: waiting for tx result", zap.ByteString("txHash", data))
-	return nil
 }

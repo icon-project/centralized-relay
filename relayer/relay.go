@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -23,6 +24,7 @@ var (
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
 	prefixFinalityStore = "finality"
+	prefixXcallStore    = "xcall"
 )
 
 // main start loop
@@ -228,31 +230,38 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, srcChainRuntime := range r.chains {
 		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
-			dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
-			if err != nil {
-				r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
-				// remove message if src runtime if dst not found
-				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
-				continue
-			}
+			switch routeMessage.EventType {
+			case events.EmitMessage:
+				dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
+				if err != nil {
+					r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
+					// remove message if src runtime if dst not found
+					r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					continue
+				}
 
-			if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
-				continue
-			}
+				if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
+					continue
+				}
 
-			// if message reached delete the message
-			messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
-			if err != nil {
-				r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
-				continue
-			}
+				// if message reached delete the message
+				messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
+				if err != nil {
+					r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
+					continue
+				}
 
-			// if message is received we can remove the message from db
-			if messageReceived {
-				r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
-				continue
+				fmt.Println("messageReceived", messageReceived, "messageKey", routeMessage.MessageKey())
+
+				// if message is received we can remove the message from db
+				if messageReceived {
+					r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					continue
+				}
+				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
+			case events.CallMessage:
+				go r.SubmitMessage(ctx, routeMessage, srcChainRuntime)
 			}
-			go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
 		}
 	}
 }
@@ -260,34 +269,19 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // processBlockInfo->
 // save block height to database
 // & merge message to src cache
-func (r *Relayer) processBlockInfo(ctx context.Context, srcChainRuntime *ChainRuntime, blockInfo *types.BlockInfo) {
-	srcChainRuntime.LastBlockHeight = blockInfo.Height
+func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, blockInfo *types.BlockInfo) {
+	src.LastBlockHeight = blockInfo.Height
 
-	if len(blockInfo.Messages) > 0 {
-		for msg := range r.getMessageStreamAfterSavingToDB(blockInfo.Messages) {
-			srcChainRuntime.MessageCache.Add(types.NewRouteMessage(msg))
+	for _, msg := range blockInfo.Messages {
+		msg := types.NewRouteMessage(msg)
+		src.MessageCache.Add(msg)
+		if err := r.messageStore.StoreMessage(msg); err != nil {
+			r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
 		}
 	}
-
-	if err := r.SaveBlockHeight(ctx, srcChainRuntime, blockInfo.Height, len(blockInfo.Messages)); err != nil {
+	if err := r.SaveBlockHeight(ctx, src, blockInfo.Height, len(blockInfo.Messages)); err != nil {
 		r.log.Error("unable to save height", zap.Error(err))
 	}
-}
-
-func (r *Relayer) getMessageStreamAfterSavingToDB(messages []*types.Message) <-chan *types.Message {
-	msgStream := make(chan *types.Message)
-
-	go func(msgList []*types.Message) {
-		defer close(msgStream)
-		for _, msg := range msgList {
-			if err := r.messageStore.StoreMessage(types.NewRouteMessage(msg)); err != nil {
-				r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
-			}
-			msgStream <- msg
-		}
-	}(messages)
-
-	return msgStream
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
@@ -303,8 +297,8 @@ func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntim
 }
 
 func (r *Relayer) FindChainRuntime(nId string) (*ChainRuntime, error) {
-	if chainRuntime, ok := r.chains[nId]; ok {
-		return chainRuntime, nil
+	if chain, ok := r.chains[nId]; ok {
+		return chain, nil
 	}
 	return nil, fmt.Errorf("chain runtime not found, nId:%s ", nId)
 }
@@ -367,11 +361,43 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	m.SetIsProcessing(true)
 	m.IncrementRetry()
 
-	err := dst.Provider.Route(ctx, m.Message, callback)
-	if err != nil {
-		dst.log.Error("error occured during message route", zap.Error(err))
+	if err := dst.Provider.Route(ctx, m.Message, callback); err != nil {
+		dst.log.Error("message routing", zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
 	}
+}
+
+// SubmitMessage
+func (r *Relayer) SubmitMessage(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
+	callback := func(key types.MessageKey, response types.TxResponse, err error) {
+		if response.Code == types.Success {
+			dst.log.Info("message relayed successfully",
+				zap.String("dst", dst.Provider.NID()),
+				zap.String("tx_hash", response.TxHash),
+				zap.Uint64("sn", key.Sn),
+				zap.String("event_type", msg.EventType),
+				zap.Uint64("request_id", msg.ReqID),
+				zap.Int64("height", response.Height),
+			)
+			if err := r.ClearMessages(ctx, []types.MessageKey{key}, dst); err != nil {
+				r.log.Error("error occured when clearing successful message", zap.Error(err))
+			}
+			return
+		}
+		routeMessage, ok := dst.MessageCache.Messages[key]
+		if !ok {
+			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			return
+		}
+		r.HandleMessageFailed(routeMessage, dst, dst)
+	}
+	msg.SetIsProcessing(true)
+	msg.IncrementRetry()
+	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
+		dst.log.Error("error occured during message route", zap.Error(err))
+		r.HandleMessageFailed(msg, dst, dst)
+	}
+	return nil
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
@@ -391,6 +417,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 			zap.String("src", routeMessage.Src),
 			zap.String("dst", routeMessage.Dst),
 			zap.Uint64("sn", routeMessage.Sn),
+			zap.String("event_type", routeMessage.EventType),
 			zap.Uint8("count", routeMessage.Retry),
 		)
 		return
@@ -443,12 +470,12 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 			}
 
 			for _, txObject := range txObjects {
-				r.log.Debug("checking finality for tx object", zap.Any("txobj", txObjects), zap.Int64("latest height", int64(latestHeight)))
+				r.log.Debug("checking finality for tx object", zap.Any("txobj", txObjects), zap.Uint64("latest height", latestHeight))
 				if txObject == nil {
 					continue
 				}
 				if txObject.TxHeight == 0 {
-					r.log.Warn(" stored  transaction height of txObject cannot be 0 ",
+					r.log.Warn("stored  transaction height of txObject cannot be 0 ",
 						zap.String("nid", c.Provider.NID()),
 						zap.Any("message key", txObject.MessageKey))
 					continue

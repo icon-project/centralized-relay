@@ -48,6 +48,7 @@ type EVMProvider struct {
 	wallet      *keystore.Key
 	kms         kms.KMS
 	homePath    string
+	contracts   map[string]providerTypes.EventMap
 }
 
 func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -82,11 +83,12 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	p.ChainName = chainName
 
 	return &EVMProvider{
-		cfg:      p,
-		log:      log.With(zap.String("nid", p.NID)),
-		client:   client,
-		blockReq: p.GetMonitorEventFilters(),
-		verifier: verifierClient,
+		cfg:       p,
+		log:       log.With(zap.String("nid", p.NID), zap.String("chain", chainName)),
+		client:    client,
+		blockReq:  p.GetMonitorEventFilters(),
+		verifier:  verifierClient,
+		contracts: p.eventMap(),
 	}, nil
 }
 
@@ -273,4 +275,21 @@ func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
 	return err
+}
+
+// ExecuteCall executes a call to the bridge contract
+func (p *EVMProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := p.client.ExecuteCall(opts, reqID, data)
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.WaitForResults(ctx, tx.Hash())
+	if res.Status != 1 {
+		return nil, fmt.Errorf("failed to execute call: %s", err)
+	}
+	return res.TxHash.Bytes(), err
 }

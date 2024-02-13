@@ -88,7 +88,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
 		return p.SendTransaction(ctx, opts, message, maxRetry-1)
 	}
-	return tx, nil
+	return tx, err
 }
 
 func (p *EVMProvider) WaitForTxResult(

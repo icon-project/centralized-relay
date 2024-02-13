@@ -22,7 +22,7 @@ func (p *IconProvider) parseMessagesFromEventlogs(log *zap.Logger, eventlogs []*
 
 func (p *IconProvider) parseMessageFromEvent(log *zap.Logger, event *types.EventLog, height uint64) (*providerTypes.Message, bool) {
 	eventName := string(event.Indexed[0][:])
-	eventType := p.cfg.GetEventName(eventName)
+	eventType := p.GetEventName(eventName)
 	switch eventName {
 	case EmitMessage:
 		m, err := p.parseEmitMessage(event, eventType, height)
@@ -66,20 +66,17 @@ func (p *IconProvider) parseCallMessage(e *types.EventLog, eventType string, hei
 		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexdedLen, dataLen)
 	}
 
-	p.log.Info("Detected eventlog", zap.Uint64("height", height), zap.String("event-type", eventType))
-
 	src := string(e.Indexed[1][:])
-	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
-	reqID := big.NewInt(0).SetBytes(e.Indexed[3]).Uint64()
-	fmt.Println(string(sn), src, eventType, height, reqID)
+	sn := big.NewInt(0).SetBytes(e.Indexed[2])
+	reqID := big.NewInt(0).SetBytes(e.Indexed[3])
 
 	return &providerTypes.Message{
 		MessageHeight: height,
-		ReqID:         reqID,
+		ReqID:         reqID.Uint64(),
 		EventType:     eventType,
 		Dst:           p.NID(),
-		Data:          e.Data[0],
-		Sn:            sn,
+		Data:          e.Data[1],
+		Sn:            sn.Uint64(),
 		Src:           src,
 	}, nil
 }

@@ -147,8 +147,8 @@ func (m *MessageCache) Add(r *RouteMessage) {
 	m.Messages[r.MessageKey()] = r
 }
 
-func (m *MessageCache) Len() uint64 {
-	return uint64(len(m.Messages))
+func (m *MessageCache) Len() int {
+	return len(m.Messages)
 }
 
 func (m *MessageCache) Remove(key MessageKey) {
@@ -162,8 +162,8 @@ type Coin struct {
 	Amount uint64
 }
 
-func NewCoin(denom string, amount uint64) Coin {
-	return Coin{denom, amount}
+func NewCoin(denom string, amount uint64) *Coin {
+	return &Coin{denom, amount}
 }
 
 func (c *Coin) String() string {

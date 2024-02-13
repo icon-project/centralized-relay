@@ -25,7 +25,7 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Mess
 			Src:           p.NID(),
 			Sn:            msg.Sn.Uint64(),
 			MessageHeight: log.BlockNumber,
-			EventType:     p.cfg.GetEventName(EmitMessage),
+			EventType:     p.GetEventName(EmitMessage),
 			Data:          msg.Msg,
 		}, nil
 	case crypto.Keccak256Hash([]byte(CallMessage)):
@@ -35,13 +35,14 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Mess
 		}
 		return &providerTypes.Message{
 			Dst:           p.NID(),
-			Src:           msg.From.Hex(),
+			Src:           p.NID(),
 			Sn:            msg.Sn.Uint64(),
 			MessageHeight: log.BlockNumber,
-			EventType:     p.cfg.GetEventName(CallMessage),
+			EventType:     p.GetEventName(CallMessage),
 			Data:          msg.Data,
 			ReqID:         msg.ReqId.Uint64(),
 		}, nil
+	default:
+		return nil, fmt.Errorf("unknown topic")
 	}
-	return nil, fmt.Errorf("unknown topic")
 }

@@ -337,6 +337,7 @@ type SendMessage struct {
 	Svc           string   `json:"svc"`
 	Sn            uint64   `json:"sn"`
 	Msg           HexBytes `json:"msg"`
+	ReqID         uint64   `json:"reqId"`
 }
 
 type RecvMessage struct {

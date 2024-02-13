@@ -1,11 +1,10 @@
 module github.com/icon-project/centralized-relay
 
-go 1.21
+go 1.22
 
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/avast/retry-go/v4 v4.5.1
-	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum/go-ethereum v1.13.6
 	github.com/gofrs/flock v0.8.1
@@ -153,5 +152,3 @@ require (
 	modernc.org/token v1.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1

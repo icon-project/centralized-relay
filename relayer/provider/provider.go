@@ -30,8 +30,8 @@ type ChainProvider interface {
 	ProviderConfig() ProviderConfig
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
-	ShouldReceiveMessage(ctx context.Context, message types.Message) (bool, error)
-	ShouldSendMessage(ctx context.Context, message types.Message) (bool, error)
+	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
+	ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error)
 	MessageReceived(ctx context.Context, key types.MessageKey) (bool, error)
 	SetAdmin(context.Context, string) error
 
@@ -43,4 +43,5 @@ type ChainProvider interface {
 	RestoreKeyStore(context.Context, string, kms.KMS) error
 	AddressFromKeyStore(string, string) (string, error)
 	RevertMessage(ctx context.Context, sn *big.Int) error
+	ExecuteCall(context.Context, *big.Int, []byte) ([]byte, error)
 }

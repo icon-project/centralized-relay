@@ -43,20 +43,22 @@ type MockProvider struct {
 	Height uint64
 }
 
-func (icp *MockProvider) NID() string {
-	return icp.PCfg.NId
+func (p *MockProvider) NID() string {
+	return p.PCfg.NId
 }
 
-func (icp *MockProvider) Init(ctx context.Context) error {
+func (p *MockProvider) Init(ctx context.Context) error {
 	return nil
 }
 
-func (icp *MockProvider) FinalityBlock(ctx context.Context) uint64 {
+func (p *MockProvider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
+
 func (p *MockProvider) Type() string {
 	return "evm"
 }
+
 func (p *MockProvider) ProviderConfig() provider.ProviderConfig {
 	return p.PCfg
 }
@@ -65,19 +67,19 @@ func (p *MockProvider) ChainName() string {
 	return p.PCfg.chainName
 }
 
-func (icp *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return icp.Height, nil
+func (p *MockProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
+	return p.Height, nil
 }
 
-func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
+func (p *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan types.BlockInfo) error {
 	ticker := time.NewTicker(3 * time.Second)
 
-	if icp.Height == 0 {
+	if p.Height == 0 {
 		if lastSavedHeight != 0 {
-			icp.Height = lastSavedHeight
+			p.Height = lastSavedHeight
 		}
 	}
-	icp.log.Info("listening to mock provider from height", zap.Uint64("Height", icp.Height))
+	p.log.Info("listening to mock provider from height", zap.Uint64("Height", p.Height))
 
 	for {
 		select {
@@ -85,71 +87,72 @@ func (icp *MockProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 			return nil
 		case <-ticker.C:
 
-			height, _ := icp.QueryLatestHeight(ctx)
-			msgs := icp.FindMessages()
+			height, _ := p.QueryLatestHeight(ctx)
+			msgs := p.FindMessages()
 			d := types.BlockInfo{
 				Height:   uint64(height),
 				Messages: msgs,
 			}
 			incoming <- d
-			icp.Height += 1
+			p.Height += 1
 		}
 	}
 }
 
-func (icp *MockProvider) Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error {
-	icp.log.Info("message received", zap.Any("message", message))
+func (p *MockProvider) Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error {
+	p.log.Info("message received", zap.Any("message", message))
 	messageKey := message.MessageKey()
 
-	icp.DeleteMessage(message)
+	p.DeleteMessage(message)
 	callback(messageKey, types.TxResponse{
 		Code: types.Success,
 	}, nil)
 	return nil
 }
 
-func (icp *MockProvider) FindMessages() []*types.Message {
+func (p *MockProvider) FindMessages() []*types.Message {
 	messages := make([]*types.Message, 0)
-	for _, m := range icp.PCfg.SendMessages {
-		if m.MessageHeight == icp.Height {
+	for _, m := range p.PCfg.SendMessages {
+		if m.MessageHeight == p.Height {
 			messages = append(messages, m)
 		}
 	}
 	return messages
 }
 
-func (icp *MockProvider) DeleteMessage(msg *types.Message) {
+func (p *MockProvider) DeleteMessage(msg *types.Message) {
 	var deleteKey types.MessageKey
 
-	for key := range icp.PCfg.ReceiveMessages {
+	for key := range p.PCfg.ReceiveMessages {
 		if msg.MessageKey() == key {
 			deleteKey = key
 			break
 		}
 	}
 
-	delete(icp.PCfg.ReceiveMessages, deleteKey)
+	delete(p.PCfg.ReceiveMessages, deleteKey)
 }
 
-func (icp *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
+func (p *MockProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
 	return true, nil
 }
 
-func (icp *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
+func (p *MockProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
 	return true, nil
 }
 
-func (icp *MockProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
+func (p *MockProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
 	return nil, nil
 }
 
-func (icp *MockProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
+func (p *MockProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
 	return nil, nil
 }
 
 func (ip *MockProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
 	return nil, nil
 }
-func (icp *MockProvider) MessageReceived(ctx context.Context, key types.MessageKey) (bool, error) {
+
+func (p *MockProvider) MessageReceived(ctx context.Context, key types.MessageKey) (bool, error) {
 	return false, nil
 }

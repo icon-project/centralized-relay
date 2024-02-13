@@ -29,8 +29,8 @@ func (p *IconProviderConfig) eventMap() map[string]providerTypes.EventMap {
 }
 
 // GetAddressNyEventType returns the address of the contract by event type
-func (p *IconProviderConfig) GetAddressByEventType(eventType string) types.Address {
-	for _, contract := range p.eventMap() {
+func (p *IconProvider) GetAddressByEventType(eventType string) types.Address {
+	for _, contract := range p.contracts {
 		for _, name := range contract.SigType {
 			if name == eventType {
 				return types.Address(contract.Address)
@@ -40,10 +40,10 @@ func (p *IconProviderConfig) GetAddressByEventType(eventType string) types.Addre
 	return ""
 }
 
-func (p *IconProviderConfig) GetMonitorEventFilters() []*types.EventFilter {
+func (p *IconProvider) GetMonitorEventFilters() []*types.EventFilter {
 	var filters []*types.EventFilter
 
-	for addr, contract := range p.eventMap() {
+	for addr, contract := range p.contracts {
 		for sig := range contract.SigType {
 			filters = append(filters, &types.EventFilter{
 				Addr:      types.Address(addr),
@@ -54,8 +54,8 @@ func (p *IconProviderConfig) GetMonitorEventFilters() []*types.EventFilter {
 	return filters
 }
 
-func (p *IconProviderConfig) GetEventName(sig string) string {
-	for _, contract := range p.eventMap() {
+func (p *IconProvider) GetEventName(sig string) string {
+	for _, contract := range p.contracts {
 		for s, name := range contract.SigType {
 			if s == sig {
 				return name

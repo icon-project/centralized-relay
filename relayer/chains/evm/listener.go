@@ -36,13 +36,13 @@ func (r *EVMProvider) latestHeight() uint64 {
 	return height
 }
 
-func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
-	startHeight, err := r.startFromHeight(ctx, lastSavedHeight)
+func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
+	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
 	}
 
-	r.log.Info("Start query from height ", zap.Uint64("start-height", startHeight), zap.Uint64("finality block", r.FinalityBlock(ctx)))
+	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
@@ -50,8 +50,8 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	heightPoller := time.NewTicker(BlockHeightPollInterval)
 	defer heightPoller.Stop()
 
-	next, latest := startHeight, r.latestHeight()
-	concurrency := r.GetConcurrency(ctx, startHeight, latest)
+	next, latest := startHeight, p.latestHeight()
+	concurrency := p.GetConcurrency(ctx, startHeight, latest)
 	// block notification channel
 	// (buffered: to avoid deadlock)
 	// increase concurrency parameter for faster sync
@@ -62,19 +62,19 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	for {
 		select {
 		case <-ctx.Done():
-			r.log.Debug("evm listener: context done")
+			p.log.Debug("evm listener: context done")
 			return nil
 
 		case <-heightTicker.C:
-			r.log.Debug("receiveLoop: heightTicker", zap.Uint64("latest", latest))
+			p.log.Debug("receiveLoop: heightTicker", zap.Uint64("latest", latest))
 			latest++
 
 		case <-heightPoller.C:
-			if height := r.latestHeight(); height > latest {
+			if height := p.latestHeight(); height > latest {
 				latest = height
 				if next > latest {
 					// TODO:
-					r.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
+					p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 				}
 			}
 
@@ -82,10 +82,10 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					r.log.Debug("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
+					p.log.Debug("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
 						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
 
-					messages, err := r.FindMessages(ctx, lbn)
+					messages, err := p.FindMessages(ctx, lbn)
 					if err != nil {
 						return errors.Wrapf(err, "receiveLoop: callback: %v", err)
 					}
@@ -151,13 +151,14 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 				default:
 					go func(q *bnq) {
 						defer func() {
+							time.Sleep(500 * time.Millisecond)
 							qch <- q
 						}()
 						if q.v == nil {
 							q.v = new(types.BlockNotification)
 						}
 						q.v.Height = new(big.Int).SetUint64(q.h)
-						q.v.Header, q.err = r.client.GetHeaderByHeight(ctx, q.v.Height)
+						q.v.Header, q.err = p.client.GetHeaderByHeight(ctx, q.v.Height)
 						if q.err != nil {
 							q.err = errors.Wrapf(q.err, "GetEvmHeaderByHeight %v", q.err)
 							return
@@ -165,9 +166,9 @@ func (r *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 						ht := big.NewInt(q.v.Height.Int64())
 
 						if q.v.Header.GasUsed > 0 {
-							r.blockReq.FromBlock = ht
-							r.blockReq.ToBlock = ht
-							q.v.Logs, q.err = r.client.FilterLogs(ctx, r.blockReq)
+							p.blockReq.FromBlock = ht
+							p.blockReq.ToBlock = ht
+							q.v.Logs, q.err = p.client.FilterLogs(ctx, p.blockReq)
 							if q.err != nil {
 								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
 								return
@@ -210,10 +211,9 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 		}
 		p.log.Info("Detected eventlog",
 			zap.Uint64("height", lbn.Height.Uint64()),
-			zap.String("target-network", message.Dst),
+			zap.String("target_network", message.Dst),
 			zap.Uint64("sn", message.Sn),
-			zap.String("event-type", message.EventType),
-			zap.Uint64("request-id", message.ReqID),
+			zap.String("event_type", message.EventType),
 		)
 		messages = append(messages, message)
 	}

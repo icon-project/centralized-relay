@@ -49,8 +49,8 @@ func (p *EVMProviderConfig) GetMonitorEventFilters() ethereum.FilterQuery {
 	}
 }
 
-func (p *EVMProviderConfig) GetEventName(sig string) string {
-	for _, contract := range p.eventMap() {
+func (p *EVMProvider) GetEventName(sig string) string {
+	for _, contract := range p.contracts {
 		if eventName, ok := contract.SigType[sig]; ok {
 			return eventName
 		}

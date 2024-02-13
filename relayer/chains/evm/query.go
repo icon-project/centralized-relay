@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
@@ -17,16 +18,17 @@ func (p *EVMProvider) QueryLatestHeight(ctx context.Context) (height uint64, err
 	return
 }
 
-func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey types.Message) (bool, error) {
+func (p *EVMProvider) ShouldReceiveMessage(ctx context.Context, messagekey *types.Message) (bool, error) {
 	return true, nil
 }
 
-func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey types.Message) (bool, error) {
+func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey *types.Message) (bool, error) {
 	return true, nil
 }
 
 func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.MessageKey) (bool, error) {
-	return p.client.MessageReceived(nil, messageKey.Src, big.NewInt(int64(messageKey.Sn)))
+	fmt.Println("MessageReceived", messageKey)
+	return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, big.NewInt(0).SetUint64(messageKey.Sn))
 }
 
 func (p *EVMProvider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
@@ -42,13 +44,13 @@ func (ip *EVMProvider) GenerateMessage(ctx context.Context, key *types.MessageKe
 	return nil, nil
 }
 
-func (icp *EVMProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
-	receipt, err := icp.client.TransactionReceipt(ctx, common.HexToHash(txHash))
+func (p *EVMProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
+	receipt, err := p.client.TransactionReceipt(ctx, common.HexToHash(txHash))
 	if err != nil {
 		return nil, fmt.Errorf("queryTransactionReceipt: %v", err)
 	}
 
-	finalizedReceipt := types.Receipt{
+	finalizedReceipt := &types.Receipt{
 		TxHash: txHash,
 		Height: receipt.BlockNumber.Uint64(),
 	}
@@ -57,5 +59,5 @@ func (icp *EVMProvider) QueryTransactionReceipt(ctx context.Context, txHash stri
 		finalizedReceipt.Status = true
 	}
 
-	return &finalizedReceipt, nil
+	return finalizedReceipt, nil
 }

@@ -3,6 +3,7 @@ package icon
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -16,20 +17,28 @@ const (
 	defaultBroadcastWaitTimeout = 10 * time.Minute
 )
 
-func (icp *IconProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	iconMessage, err := icp.MakeIconMessage(message)
+func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
 		return err
 	}
-
 	messageKey := message.MessageKey()
-	txhash, err := icp.SendTransaction(ctx, iconMessage)
-	if err != nil {
-		return errors.Wrapf(err, "error occured while sending transaction")
+
+	var txhash []byte
+
+	switch message.EventType {
+	case events.EmitMessage:
+		txhash, err = p.SendTransaction(ctx, iconMessage)
+		if err != nil {
+			return errors.Wrapf(err, "error occured while sending transaction")
+		}
+	case events.CallMessage:
+		txhash, err = p.ExecuteCall(ctx, big.NewInt(0).SetUint64(message.ReqID), message.Data)
+		if err != nil {
+			return errors.Wrapf(err, "error occured while executing call")
+		}
 	}
-
-	go icp.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
-
+	go p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 	return nil
 }
 
@@ -41,21 +50,20 @@ func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMes
 			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
-		return p.NewIconMessage(p.cfg.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
 		msg := types.SendMessage{
-			TargetNetwork: message.Dst,
-			Msg:           types.NewHexBytes(message.Data),
-			Sn:            message.Sn,
-			Svc:           message.Src,
+			Msg:   types.NewHexBytes(message.Data),
+			Sn:    message.Sn,
+			ReqID: message.ReqID,
 		}
-		return p.NewIconMessage(p.cfg.GetAddressByEventType(message.EventType), msg, MethodSendMessage), nil
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
 
-func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byte, error) {
-	wallet, err := icp.Wallet()
+func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byte, error) {
+	wallet, err := p.Wallet()
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +72,7 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(int64(icp.cfg.NetworkID)),
+		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -72,7 +80,7 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 		},
 	}
 
-	step, err := icp.client.EstimateStep(txParamEst)
+	step, err := p.client.EstimateStep(txParamEst)
 	if err != nil {
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
@@ -86,8 +94,8 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 	txParam := &types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(icp.cfg.Contracts[providerTypes.ConnectionContract]),
-		NetworkID:   types.NewHexInt(int64(icp.cfg.NetworkID)),
+		ToAddress:   types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]),
+		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",
 		Data: types.CallData{
@@ -96,11 +104,11 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 		},
 	}
 
-	if err := icp.client.SignTransaction(wallet, txParam); err != nil {
+	if err := p.client.SignTransaction(wallet, txParam); err != nil {
 		return nil, err
 	}
 
-	_, err = icp.client.SendTransaction(txParam)
+	_, err = p.client.SendTransaction(txParam)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +116,7 @@ func (icp *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) 
 }
 
 // TODO: review try to remove wait for Tx from packet-transfer and only use this for client and connection creation
-func (icp *IconProvider) WaitForTxResult(
+func (p *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
 	messageKey providerTypes.MessageKey,
@@ -124,9 +132,9 @@ func (icp *IconProvider) WaitForTxResult(
 	res := providerTypes.TxResponse{}
 	res.TxHash = string(txHash)
 
-	_, txRes, err := icp.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
+	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {
-		icp.log.Error("Failed to get txn result", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
+		p.log.Error("Failed to get txn result", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)
 		return
 	}
@@ -142,20 +150,26 @@ func (icp *IconProvider) WaitForTxResult(
 	if status != 1 {
 		err = fmt.Errorf("Transaction Failed to Execute")
 		callback(messageKey, res, err)
-		icp.LogFailedTx(method, txRes, err)
+		p.LogFailedTx(method, txRes, err)
 		return
 	}
 	res.Code = providerTypes.Success
 	callback(messageKey, res, nil)
-	icp.LogSuccessTx(method, txRes)
+	p.LogSuccessTx(method, txRes)
 }
 
-func (icp *IconProvider) LogSuccessTx(method string, result *types.TransactionResult) {
-	stepUsed, _ := result.StepUsed.Value()
-	height, _ := result.BlockHeight.Value()
+func (p *IconProvider) LogSuccessTx(method string, result *types.TransactionResult) {
+	stepUsed, err := result.StepUsed.Value()
+	if err != nil {
+		p.log.Error("Failed to get step used", zap.Error(err))
+	}
+	height, err := result.BlockHeight.Value()
+	if err != nil {
+		p.log.Error("Failed to get block height", zap.Error(err))
+	}
 
-	icp.log.Info("Successful Transaction",
-		zap.String("chain_id", icp.NID()),
+	p.log.Info("Successful Transaction",
+		zap.String("chain_id", p.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
@@ -163,12 +177,12 @@ func (icp *IconProvider) LogSuccessTx(method string, result *types.TransactionRe
 	)
 }
 
-func (icp *IconProvider) LogFailedTx(method string, result *types.TransactionResult, err error) {
+func (p *IconProvider) LogFailedTx(method string, result *types.TransactionResult, err error) {
 	stepUsed, _ := result.StepUsed.Value()
 	height, _ := result.BlockHeight.Value()
 
-	icp.log.Info("Failed Transaction",
-		zap.String("chain_id", icp.NID()),
+	p.log.Info("Failed Transaction",
+		zap.String("chain_id", p.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
