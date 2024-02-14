@@ -1,9 +1,10 @@
 package types
 
 import (
+	"strconv"
+
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
-	"strconv"
 )
 
 type SendMessage struct {
@@ -16,6 +17,12 @@ type SendMessage struct {
 type ReceiveMessage struct {
 	SrcNetwork string           `json:"src_network"`
 	ConnSn     string           `json:"conn_sn"`
+	Msg        hexstr.HexString `json:"msg"`
+}
+
+type ExecMessage struct {
+	SrcNetwork string           `json:"src_network"`
+	ReqID      string           `json:"reqId"`
 	Msg        hexstr.HexString `json:"msg"`
 }
 
@@ -32,11 +39,25 @@ type ExecRecvMsg struct {
 	RecvMessage ReceiveMessage `json:"recv_message"`
 }
 
+type ExecExecMsg struct {
+	ExecMessage ExecMessage `json:"exec_message"`
+}
+
 func NewExecRecvMsg(message *relayTypes.Message) ExecRecvMsg {
 	return ExecRecvMsg{
 		RecvMessage: ReceiveMessage{
 			SrcNetwork: message.Src,
 			ConnSn:     strconv.Itoa(int(message.Sn)),
+			Msg:        hexstr.NewFromByte(message.Data),
+		},
+	}
+}
+
+func NewExecExecMsg(message *relayTypes.Message) ExecExecMsg {
+	return ExecExecMsg{
+		ExecMessage: ExecMessage{
+			SrcNetwork: message.Src,
+			ReqID:      strconv.Itoa(int(message.ReqID)),
 			Msg:        hexstr.NewFromByte(message.Data),
 		},
 	}

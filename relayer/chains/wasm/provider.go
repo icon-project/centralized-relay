@@ -14,7 +14,6 @@ import (
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
-	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	relayEvents "github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -28,7 +27,7 @@ import (
 type Provider struct {
 	logger         *zap.Logger
 	cfg            *ProviderConfig
-	client         client.IClient
+	client         IClient
 	seqTracker     *SequenceTracker
 	memPoolTracker *MemPoolInfo
 	contracts      map[string]relayTypes.EventMap
@@ -124,11 +123,9 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return err
 	}
 
-	var contract string
+	contract := p.cfg.Contracts[relayTypes.ConnectionContract]
 
 	switch message.EventType {
-	case relayEvents.EmitMessage:
-		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	case relayEvents.CallMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
@@ -152,7 +149,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return err
 	}
 
-	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
+	go p.waitForTxResult(ctx, message.MessageKey(), &res.TxHash, callback)
 
 	return nil
 }
@@ -206,19 +203,19 @@ func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context, err e
 	return nil
 }
 
-func (p *Provider) logTxFailed(err error, txHash string) {
+func (p *Provider) logTxFailed(err error, txHash *string) {
 	p.logger.Error("transaction failed: ",
 		zap.Error(err),
-		zap.String("chain-id", p.cfg.ChainID),
-		zap.String("tx-hash", txHash),
+		zap.String("chain_id", p.cfg.ChainID),
+		zap.Stringp("tx_hash", txHash),
 	)
 }
 
-func (p *Provider) logTxSuccess(height uint64, txHash string) {
+func (p *Provider) logTxSuccess(height uint64, txHash *string) {
 	p.logger.Info("transaction success: ",
-		zap.Uint64("block-height", height),
-		zap.String("chain-id", p.cfg.ChainID),
-		zap.String("tx-hash", txHash),
+		zap.Uint64("block_height", height),
+		zap.String("chain_id", p.cfg.ChainID),
+		zap.Stringp("tx_hash", txHash),
 	)
 }
 
@@ -270,7 +267,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber,
 	return res, nil
 }
 
-func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
+func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash *string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.getTxResultStreamWithSubscribe(ctx, txHash, p.cfg.TxConfirmationIntervalTime) {
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
@@ -315,7 +312,7 @@ func (p *Provider) getTxResultStreamWithPolling(ctx context.Context, txHash stri
 	return txResChan
 }
 
-func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
+func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash *string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
 	txResChan := make(chan types.TxResultChan)
 	go func() {
 		defer close(txResChan)
@@ -583,7 +580,8 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 		rcvMsg := types.NewExecRecvMsg(message)
 		return json.Marshal(rcvMsg)
 	case relayEvents.CallMessage:
-		return message.Data, nil
+		execMsg := types.NewExecExecMsg(message)
+		return json.Marshal(execMsg)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
@@ -610,13 +608,13 @@ func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromH
 		pipelines[i] = p.getBlockInfoStream(done, heightStream)
 	}
 
-	var blockInfoList []relayTypes.BlockInfo
+	var blockInfoList []*relayTypes.BlockInfo
 	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight+1)) {
-		block := bn.(relayTypes.BlockInfo)
+		block := bn.(*relayTypes.BlockInfo)
 		blockInfoList = append(blockInfoList, block)
 	}
 
-	sorter.Sort(blockInfoList, func(p1, p2 relayTypes.BlockInfo) bool {
+	sorter.Sort(blockInfoList, func(p1, p2 *relayTypes.BlockInfo) bool {
 		return p1.Height < p2.Height // ascending order
 	})
 

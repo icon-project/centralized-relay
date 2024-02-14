@@ -1,4 +1,4 @@
-package client
+package wasm
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -40,11 +41,11 @@ type Client struct {
 	txMutex *sync.Mutex
 }
 
-func New(clientCtx sdkClient.Context) Client {
-	return Client{clientCtx, &sync.Mutex{}}
+func New(clientCtx sdkClient.Context) *Client {
+	return &Client{clientCtx, &sync.Mutex{}}
 }
 
-func (cl Client) BuildTxFactory() (tx.Factory, error) {
+func (cl *Client) BuildTxFactory() (tx.Factory, error) {
 	txf, err := tx.NewFactoryCLI(cl.context, &pflag.FlagSet{})
 	if err != nil {
 		return tx.Factory{}, err
@@ -77,7 +78,7 @@ func (cl *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes
 	return cl.context.TxConfig.TxEncoder()(txBuilder.GetTx())
 }
 
-func (cl Client) BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error) {
+func (cl *Client) BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error) {
 	return cl.context.BroadcastTx(txBytes)
 }
 
@@ -116,26 +117,22 @@ func (cl *Client) GetBalance(ctx context.Context, addr string, denomination stri
 // Create new AccountI
 func (cl *Client) CreateAccount(ctx context.Context, name string, mnemonic string) (sdkTypes.AccountI, error) {
 	// Create a new key
-	key, err := cl.context.Keyring.NewAccount(name, mnemonic, "", "", sdkClient.DefaultKeyPass, sdkClient.DefaultAlgo)
+	key, err := cl.context.Keyring.NewAccount(name, mnemonic, "", "", keyring.SigningAlgoList{}, sdkClient.DefaultAlgo)
 	if err != nil {
 		return nil, err
 	}
 }
 
-func (cl *Client) GetAccountInfo(ctx context.Context, accountAddr string) (sdkTypes.AccountI, error) {
+func (cl *Client) GetAccountInfo(ctx context.Context, addr string) (*sdkTypes.AccountI, error) {
 	qc := authTypes.NewQueryClient(cl.context.GRPCClient)
-
-	res, err := qc.Account(
-		ctx,
-		&authTypes.QueryAccountRequest{Address: accountAddr},
-	)
+	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
 
-	var account sdkTypes.AccountI
+	account := new(sdkTypes.AccountI)
 
-	if err := cl.context.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
+	if err := cl.context.InterfaceRegistry.UnpackAny(res.Account, account); err != nil {
 		return nil, err
 	}
 

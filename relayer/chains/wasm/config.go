@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/cometbft/cometbft/rpc/client/http"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	"github.com/icon-project/centralized-relay/relayer/chains/wasm/client"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -28,8 +28,9 @@ type ProviderConfig struct {
 
 	HomeDir string `json:"home-dir" yaml:"home-dir"`
 
-	KeyName       string `json:"key-name" yaml:"key-name"`
-	AccountPrefix string `json:"account-prefix" yaml:"account-prefix"`
+	KeyName        string `json:"key-name" yaml:"key-name"`
+	KeyringBackend string `json:"keyring-backend" yaml:"keyring-backend"`
+	AccountPrefix  string `json:"account-prefix" yaml:"account-prefix"`
 
 	Contracts providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 
@@ -80,7 +81,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}
 
 	wClient := client.New(clientContext)
-	senderInfo, err := wClient.GetAccountInfo(context.Background(), clientContext.FromAddress.String())
+	senderInfo, err := wClient.GetAccountInfo(ctx, clientContext.FromAddress.String())
 	if err != nil {
 		return nil, err
 	}
@@ -147,8 +148,8 @@ func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
 	return pc, nil
 }
 
-func newClientContext(pc *ProviderConfig) (sdkClient.Context, error) {
-	clientContext := sdkClient.Context{}
+func newClientContext(pc *ProviderConfig) (*sdkClient.Context, error) {
+	var clientContext sdkClient.Context
 
 	codecCfg := GetCodecConfig(pc)
 
@@ -164,27 +165,27 @@ func newClientContext(pc *ProviderConfig) (sdkClient.Context, error) {
 		},
 	)
 	if err != nil {
-		return clientContext, err
+		return &clientContext, err
 	}
 
 	keyRecord, err := keyRing.Key(pc.KeyName)
 	if err != nil {
-		return clientContext, err
+		return &clientContext, err
 	}
 
 	fromAddress, err := keyRecord.GetAddress()
 	if err != nil {
-		return clientContext, err
+		return &clientContext, err
 	}
 
 	cometRPCClient, err := http.New(pc.RpcUrl, "/websocket")
 	if err != nil {
-		return clientContext, err
+		return &clientContext, err
 	}
 
 	grpcClient, err := grpc.Dial(pc.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
-		return clientContext, err
+		return &clientContext, err
 	}
 
 	clientContext = clientContext.
@@ -207,5 +208,5 @@ func newClientContext(pc *ProviderConfig) (sdkClient.Context, error) {
 		WithClient(cometRPCClient).
 		WithGRPCClient(grpcClient)
 
-	return clientContext, nil
+	return &clientContext, nil
 }
