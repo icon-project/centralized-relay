@@ -21,9 +21,8 @@ type ReceiveMessage struct {
 }
 
 type ExecMessage struct {
-	SrcNetwork string           `json:"src_network"`
-	ReqID      string           `json:"reqId"`
-	Msg        hexstr.HexString `json:"msg"`
+	ReqID uint64           `json:"request_id"`
+	Data  hexstr.HexString `json:"data"`
 }
 
 type GetReceiptMsg struct {
@@ -56,9 +55,8 @@ func NewExecRecvMsg(message *relayTypes.Message) ExecRecvMsg {
 func NewExecExecMsg(message *relayTypes.Message) ExecExecMsg {
 	return ExecExecMsg{
 		ExecMessage: ExecMessage{
-			SrcNetwork: message.Src,
-			ReqID:      strconv.Itoa(int(message.ReqID)),
-			Msg:        hexstr.NewFromByte(message.Data),
+			ReqID: message.ReqID,
+			Data:  hexstr.NewFromByte(message.Data),
 		},
 	}
 }

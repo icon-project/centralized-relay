@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+
 	"github.com/cosmos/cosmos-sdk/types"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
@@ -15,8 +16,8 @@ type TxSearchParam struct {
 	OrderBy     string
 }
 
-func (param TxSearchParam) BuildQuery() string {
-	heightQuery := Query{
+func (param *TxSearchParam) BuildQuery() string {
+	heightQuery := &Query{
 		Field: "tx.height", Value: param.BlockHeight,
 	}
 
@@ -25,13 +26,11 @@ func (param TxSearchParam) BuildQuery() string {
 	for _, event := range param.Events {
 		for _, attrib := range event.Attributes {
 			field := fmt.Sprintf("%s.%s", event.Type, attrib.Key)
-			attribQueries = append(attribQueries, Query{Field: field, Value: attrib.Value})
+			attribQueries = append(attribQueries, &Query{Field: field, Value: attrib.Value})
 		}
 	}
 
-	eventQuery := CompositeQuery{
-		Or: false, Queries: attribQueries,
-	}
+	eventQuery := &CompositeQuery{Or: false, Queries: attribQueries}
 
 	finalQuery := CompositeQuery{
 		Or:      false,

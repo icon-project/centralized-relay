@@ -58,6 +58,9 @@ func (p *Provider) ChainName() string {
 }
 
 func (p *Provider) Init(context.Context, string, kms.KMS) error {
+	if err := p.cfg.Contracts.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -132,7 +135,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
 	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.cfg.FromAddress,
+		Sender:   p.cfg.GetWallet(),
 		Contract: contract,
 		Msg:      rawMsg,
 	}
@@ -523,16 +526,14 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 }
 
 func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, error) {
-	eventFilters := sdkTypes.Events{
-		{
-			Type:       EventTypeWasmMessage,
-			Attributes: p.GetMonitorEventFilters(),
-		},
-	}
-
 	searchParam := types.TxSearchParam{
 		BlockHeight: height,
-		Events:      eventFilters,
+		Events: sdkTypes.Events{
+			{
+				Type:       EventTypeWasmMessage,
+				Attributes: p.GetMonitorEventFilters(),
+			},
+		},
 	}
 
 	res, err := p.client.TxSearch(context.Background(), searchParam)
@@ -546,14 +547,14 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
 	var messages []*relayTypes.Message
 	for _, resultTx := range resultTxList {
-		var eventsList []EventsList
-		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList)
+		var events []*EventsList
+		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &events)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, events := range eventsList {
-			messages, err := p.ParseMessageFromEvents(events.Events)
+		for _, event := range events {
+			messages, err := p.ParseMessageFromEvents(event.Events)
 			if err != nil {
 				return nil, err
 			}
@@ -561,10 +562,10 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 				message.MessageHeight = uint64(resultTx.Height)
 				message.EventType = relayEvents.EmitMessage
 				if message.Dst != "" {
-					p.logger.Info("Detected event log", zap.Uint64("height", message.MessageHeight),
-						zap.String("target-network", message.Dst),
+					p.logger.Info("Detected eventlog", zap.Uint64("height", message.MessageHeight),
+						zap.String("target_network", message.Dst),
 						zap.Uint64("sn", message.Sn),
-						zap.String("event-type", message.EventType),
+						zap.String("event_type", message.EventType),
 					)
 					messages = append(messages, message)
 				}

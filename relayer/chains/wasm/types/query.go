@@ -26,7 +26,7 @@ type Query struct {
 	Value    interface{}
 }
 
-func (q Query) GetQuery() string {
+func (q *Query) GetQuery() string {
 	operator := QueryOperator.Eq
 	if q.Operator != "" {
 		operator = q.Operator
@@ -39,13 +39,13 @@ type CompositeQuery struct {
 	Queries []QueryExpression
 }
 
-func (cq CompositeQuery) GetQuery() string {
+func (cq *CompositeQuery) GetQuery() string {
 	merger := "AND"
 	if cq.Or {
 		merger = "OR"
 	}
 
-	resultQuery := ""
+	var resultQuery string
 	for _, q := range cq.Queries {
 		if q.GetQuery() != "" && resultQuery != "" {
 			resultQuery = fmt.Sprintf("%s %s %s", resultQuery, merger, q.GetQuery())

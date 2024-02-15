@@ -321,7 +321,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
 				zap.Uint64("sn", key.Sn),
-				zap.String("tx_hash", response.TxHash),
+				zap.Stringp("tx_hash", response.TxHash),
 			)
 
 			// cannot clear incase of finality block

@@ -41,7 +41,6 @@ type ChainProvider interface {
 
 	NewKeyStore(string, string) (string, error)
 	RestoreKeyStore(context.Context, string, kms.KMS) error
-	AddressFromKeyStore(string, string) (string, error)
 	RevertMessage(ctx context.Context, sn *big.Int) error
 	ExecuteCall(context.Context, *big.Int, []byte) ([]byte, error)
 }

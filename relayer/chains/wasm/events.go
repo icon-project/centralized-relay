@@ -50,19 +50,19 @@ func (p *Provider) ParseMessageFromEvents(events []Event) ([]*providerTypes.Mess
 					}
 					msg.Data = data
 				case EventAttrKeyConnSn:
-					connSn, err := strconv.Atoi(attr.Value)
+					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.Sn = uint64(connSn)
+					msg.Sn = sn
 				case EventAttrKeyTargetNetwork:
 					msg.Dst = attr.Value
 				case EventAttrKeyReqID:
-					reqID, err := strconv.Atoi(attr.Value)
+					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.ReqID = uint64(reqID)
+					msg.ReqID = reqID
 				}
 			}
 			messages = append(messages, msg)

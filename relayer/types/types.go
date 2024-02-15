@@ -97,7 +97,7 @@ type TxResponseFunc func(key MessageKey, response TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
-	TxHash    *string
+	TxHash    string
 	Codespace string
 	Code      ResponseCode
 	Data      string

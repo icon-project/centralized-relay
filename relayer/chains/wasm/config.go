@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/cometbft/cometbft/rpc/client/http"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -75,12 +74,12 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		return nil, err
 	}
 
-	clientContext, err := newClientContext(pc)
+	clientContext, err := pc.newClientContext()
 	if err != nil {
 		return nil, err
 	}
 
-	wClient := client.New(clientContext)
+	wClient := newClient(clientContext)
 	senderInfo, err := wClient.GetAccountInfo(ctx, clientContext.FromAddress.String())
 	if err != nil {
 		return nil, err
@@ -105,8 +104,8 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}, nil
 }
 
-func (pc ProviderConfig) GetWallet() string {
-	return ""
+func (c *Provider) GetWallet() string {
+	return c.cfg.FromAddress
 }
 
 func (pc ProviderConfig) SetWallet(addr string) {
@@ -148,9 +147,7 @@ func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
 	return pc, nil
 }
 
-func newClientContext(pc *ProviderConfig) (*sdkClient.Context, error) {
-	var clientContext sdkClient.Context
-
+func (pc *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 	codecCfg := GetCodecConfig(pc)
 
 	keyRing, err := keyring.New(
@@ -165,48 +162,47 @@ func newClientContext(pc *ProviderConfig) (*sdkClient.Context, error) {
 		},
 	)
 	if err != nil {
-		return &clientContext, err
+		return nil, err
 	}
 
 	keyRecord, err := keyRing.Key(pc.KeyName)
 	if err != nil {
-		return &clientContext, err
+		return nil, err
 	}
 
 	fromAddress, err := keyRecord.GetAddress()
 	if err != nil {
-		return &clientContext, err
+		return nil, err
 	}
 
 	cometRPCClient, err := http.New(pc.RpcUrl, "/websocket")
 	if err != nil {
-		return &clientContext, err
+		return nil, err
 	}
 
 	grpcClient, err := grpc.Dial(pc.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
-		return &clientContext, err
+		return nil, err
 	}
 
-	clientContext = clientContext.
-		WithTxConfig(codecCfg.TxConfig).
-		WithInterfaceRegistry(codecCfg.InterfaceRegistry).
-		WithCodec(codecCfg.Codec).
-		WithFromAddress(fromAddress).
-		WithFrom(keyRecord.Name).
-		WithFromName(keyRecord.Name).
-		WithKeyring(keyRing).
-		WithKeyringDir(pc.KeyringDir).
-		WithNodeURI(pc.RpcUrl).
-		WithChainID(pc.ChainID).
-		WithHomeDir(pc.HomeDir).
-		WithBroadcastMode(pc.BroadcastMode).
-		WithSignModeStr(pc.SignModeStr).
-		WithSimulation(pc.Simulate).
-		WithFeePayerAddress(fromAddress).
-		WithFeeGranterAddress(fromAddress).
-		WithClient(cometRPCClient).
-		WithGRPCClient(grpcClient)
-
-	return &clientContext, nil
+	return &sdkClient.Context{
+		ChainID:           pc.ChainID,
+		Client:            cometRPCClient,
+		NodeURI:           pc.RpcUrl,
+		Codec:             codecCfg.Codec,
+		From:              keyRecord.Name,
+		FromName:          keyRecord.Name,
+		FromAddress:       fromAddress,
+		Keyring:           keyRing,
+		KeyringDir:        pc.KeyringDir,
+		TxConfig:          codecCfg.TxConfig,
+		HomeDir:           pc.HomeDir,
+		BroadcastMode:     pc.BroadcastMode,
+		SignModeStr:       pc.SignModeStr,
+		Simulate:          pc.Simulate,
+		FeePayer:          fromAddress,
+		FeeGranter:        fromAddress,
+		GRPCClient:        grpcClient,
+		InterfaceRegistry: codecCfg.InterfaceRegistry,
+	}, nil
 }
