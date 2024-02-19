@@ -6,11 +6,9 @@ import (
 )
 
 const (
-	CodeTypeOK uint32 = 0
-
-	ChainType string = "wasm"
-
-	MethodExecuteCall string = "execute_call"
+	CodeTypeOK        uint32 = 0
+	ChainType                = "wasm"
+	MethodExecuteCall        = "execute_call"
 )
 
 var (

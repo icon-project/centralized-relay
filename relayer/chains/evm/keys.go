@@ -2,25 +2,27 @@ package evm
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/icon-project/centralized-relay/relayer/kms"
 )
 
-func (p *EVMProvider) RestoreKeyStore(ctx context.Context, homepath string, client kms.KMS) error {
-	path := path.Join(homepath, "keystore", p.NID(), p.cfg.Keystore)
-	keystoreJson, err := os.ReadFile(fmt.Sprintf("%s.json", path))
+func (p *EVMProvider) RestoreKeystore(ctx context.Context) error {
+	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
+	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	authCipher, err := os.ReadFile(fmt.Sprintf("%s.password", path))
+	keystoreJson, err := p.kms.Decrypt(ctx, keystoreCipher)
 	if err != nil {
 		return err
 	}
-	secret, err := client.Decrypt(ctx, authCipher)
+	authCipher, err := os.ReadFile(path + ".pass")
+	if err != nil {
+		return err
+	}
+	secret, err := p.kms.Decrypt(ctx, authCipher)
 	if err != nil {
 		return err
 	}
@@ -32,20 +34,7 @@ func (p *EVMProvider) RestoreKeyStore(ctx context.Context, homepath string, clie
 	return nil
 }
 
-// AddressFromKeyStore returns the address of the key stored in the given keystore file.
-func (p *EVMProvider) AddressFromKeyStore(keystoreFile, auth string) (string, error) {
-	data, err := os.ReadFile(keystoreFile)
-	if err != nil {
-		return "", err
-	}
-	key, err := keystore.DecryptKey(data, auth)
-	if err != nil {
-		return "", err
-	}
-	return key.Address.Hex(), nil
-}
-
-func (p *EVMProvider) NewKeyStore(dir, password string) (string, error) {
+func (p *EVMProvider) NewKeystore(password string) (string, error) {
 	key, err := keystore.StoreKey(os.TempDir(), password, keystore.StandardScryptN, keystore.StandardScryptP)
 	if err != nil {
 		return "", err
@@ -54,8 +43,19 @@ func (p *EVMProvider) NewKeyStore(dir, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := path.Join(dir, fmt.Sprintf("%s.json", key.Address.Hex()))
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	keystoreEncrypted, err := p.kms.Encrypt(context.Background(), data)
+	if err != nil {
+		return "", err
+	}
+	passwordEncrypted, err := p.kms.Encrypt(context.Background(), []byte(password))
+	if err != nil {
+		return "", err
+	}
+	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), key.Address.Hex())
+	if err := os.WriteFile(path, keystoreEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path+".pass", passwordEncrypted, 0o644); err != nil {
 		return "", err
 	}
 	return key.Address.Hex(), os.Remove(key.URL.Path)

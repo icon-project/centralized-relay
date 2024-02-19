@@ -27,11 +27,12 @@ type ProviderConfig struct {
 
 	HomeDir string `json:"home-dir" yaml:"home-dir"`
 
-	KeyName        string `json:"key-name" yaml:"key-name"`
 	KeyringBackend string `json:"keyring-backend" yaml:"keyring-backend"`
+	KeyringDir     string `json:"keyring-dir" yaml:"keyring-dir"`
 	AccountPrefix  string `json:"account-prefix" yaml:"account-prefix"`
 
 	Contracts providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	Address   string                          `json:"address" yaml:"address"`
 
 	Denomination string `json:"denomination" yaml:"denomination"`
 
@@ -62,7 +63,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}
 
 	if pc.KeyringDir == "" {
-		pc.KeyringDir = filepath.Join(pc.HomeDir, fmt.Sprintf(".%s", pc.ChainName))
+		pc.KeyringDir = filepath.Join(pc.HomeDir, pc.ChainName)
 	}
 
 	if err := pc.Validate(); err != nil {
@@ -79,40 +80,40 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		return nil, err
 	}
 
-	wClient := newClient(clientContext)
-	senderInfo, err := wClient.GetAccountInfo(ctx, clientContext.FromAddress.String())
+	ws := newClient(clientContext)
+	sender, err := ws.GetAccountInfo(ctx, clientContext.FromAddress.String())
 	if err != nil {
 		return nil, err
 	}
 
 	pc.FromAddress = clientContext.FromAddress.String()
 
-	accounts := map[string]AccountInfo{
-		senderInfo.GetAddress().String(): {
-			AccountNumber: senderInfo.GetAccountNumber(),
-			Sequence:      senderInfo.GetSequence(),
+	accounts := map[string]*AccountInfo{
+		sender.GetAddress().String(): {
+			AccountNumber: sender.GetAccountNumber(),
+			Sequence:      sender.GetSequence(),
 		},
 	}
 
 	return &Provider{
 		logger:         log.With(zap.String("nid", pc.NID), zap.String("chain", pc.ChainName)),
 		cfg:            pc,
-		client:         wClient,
+		client:         ws,
 		seqTracker:     NewSeqTracker(accounts),
 		memPoolTracker: &MemPoolInfo{isBlocked: false},
 		contracts:      pc.eventMap(),
 	}, nil
 }
 
-func (c *Provider) GetWallet() string {
-	return c.cfg.FromAddress
+func (pc *ProviderConfig) SetWallet(addr string) {
+	pc.Address = addr
 }
 
-func (pc ProviderConfig) SetWallet(addr string) {
-	// Todo set wallet
+func (pc *ProviderConfig) GetWallet() string {
+	return pc.Address
 }
 
-func (pc ProviderConfig) Validate() error {
+func (pc *ProviderConfig) Validate() error {
 	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
 		return fmt.Errorf("invalid block-interval: %w", err)
 	}
@@ -192,16 +193,16 @@ func (pc *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 		Codec:             codecCfg.Codec,
 		From:              keyRecord.Name,
 		FromName:          keyRecord.Name,
+		FeePayer:          fromAddress,
+		FeeGranter:        fromAddress,
 		FromAddress:       fromAddress,
 		Keyring:           keyRing,
-		KeyringDir:        pc.KeyringDir,
+		KeyringDir:        filepath.Join(pc.HomeDir, pc.ChainName),
 		TxConfig:          codecCfg.TxConfig,
 		HomeDir:           pc.HomeDir,
 		BroadcastMode:     pc.BroadcastMode,
 		SignModeStr:       pc.SignModeStr,
 		Simulate:          pc.Simulate,
-		FeePayer:          fromAddress,
-		FeeGranter:        fromAddress,
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codecCfg.InterfaceRegistry,
 	}, nil

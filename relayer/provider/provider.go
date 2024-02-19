@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type ProviderConfig interface {
+type Config interface {
 	NewProvider(context.Context, *zap.Logger, string, bool, string) (ChainProvider, error)
 	SetWallet(string)
 	GetWallet() string
@@ -27,7 +27,7 @@ type ChainProvider interface {
 	ChainName() string
 	Init(context.Context, string, kms.KMS) error
 	Type() string
-	ProviderConfig() ProviderConfig
+	Config() Config
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
@@ -39,8 +39,8 @@ type ChainProvider interface {
 	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 
-	NewKeyStore(string, string) (string, error)
-	RestoreKeyStore(context.Context, string, kms.KMS) error
+	NewKeystore(string) (string, error)
+	RestoreKeystore(context.Context) error
 	RevertMessage(ctx context.Context, sn *big.Int) error
 	ExecuteCall(context.Context, *big.Int, []byte) ([]byte, error)
 }

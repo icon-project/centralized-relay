@@ -15,7 +15,7 @@ func GetMockIconProvider() (*IconProvider, error) {
 	pc := IconProviderConfig{
 		NID:             "0x2.icon",
 		NetworkID:       2,
-		KeyStore:        testKeyAddr,
+		Address:         testKeyAddr,
 		RPCUrl:          "https://lisbon.net.solidwallet.io/api/v3/",
 		Password:        testKeyPassword,
 		StartHeight:     0,
@@ -78,5 +78,4 @@ func TestGenerateMessage(t *testing.T) {
 	// 42 0x2.icon 0x13881.mumbai emitMessage} 31968628
 
 	// {"Sn":45,"Src":"0x2.icon","Dst":"0x13881.mumbai","EventType":"emitMessage","MsgHeight":31969244}
-
 }

@@ -22,20 +22,21 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ provider.ProviderConfig = (*EVMProviderConfig)(nil)
+var _ provider.Config = (*EVMProviderConfig)(nil)
 
 type EVMProviderConfig struct {
 	ChainName      string                          `json:"-" yaml:"-"`
 	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
-	Keystore       string                          `json:"keystore" yaml:"keystore"`
+	Address        string                          `json:"address" yaml:"address"`
 	GasPrice       int64                           `json:"gas-price" yaml:"gas-price"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
 	NID            string                          `json:"nid" yaml:"nid"`
+	HomeDir        string                          `json:"-" yaml:"-"`
 }
 
 type EVMProvider struct {
@@ -47,7 +48,6 @@ type EVMProvider struct {
 	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
 	kms         kms.KMS
-	homePath    string
 	contracts   map[string]providerTypes.EventMap
 }
 
@@ -55,6 +55,8 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
+
+	p.HomeDir = homepath
 
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
@@ -104,16 +106,15 @@ func (p *EVMProviderConfig) Validate() error {
 }
 
 func (p *EVMProviderConfig) SetWallet(addr string) {
-	p.Keystore = addr
+	p.Address = addr
 }
 
 func (p *EVMProviderConfig) GetWallet() string {
-	return p.Keystore
+	return p.Address
 }
 
 func (p *EVMProvider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
-	p.homePath = homePath
 	return nil
 }
 
@@ -121,7 +122,7 @@ func (p *EVMProvider) Type() string {
 	return "evm"
 }
 
-func (p *EVMProvider) ProviderConfig() provider.ProviderConfig {
+func (p *EVMProvider) Config() provider.Config {
 	return p.cfg
 }
 
@@ -131,7 +132,7 @@ func (p *EVMProvider) ChainName() string {
 
 func (p *EVMProvider) Wallet() (*keystore.Key, error) {
 	if p.wallet == nil {
-		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+		if err := p.RestoreKeystore(context.Background()); err != nil {
 			return nil, err
 		}
 	}

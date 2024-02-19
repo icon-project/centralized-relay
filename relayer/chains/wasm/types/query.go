@@ -2,13 +2,7 @@ package types
 
 import "fmt"
 
-var QueryOperator = struct {
-	Eq  string
-	Gt  string
-	Gte string
-	Lt  string
-	Lte string
-}{
+var QueryOperator = struct{ Eq, Gt, Gte, Lt, Lte string }{
 	"=",
 	">",
 	">=",

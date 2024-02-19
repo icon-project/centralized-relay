@@ -21,7 +21,7 @@ type ReceiveMessage struct {
 }
 
 type ExecMessage struct {
-	ReqID uint64           `json:"request_id"`
+	ReqID string           `json:"request_id"`
 	Data  hexstr.HexString `json:"data"`
 }
 
@@ -31,20 +31,20 @@ type GetReceiptMsg struct {
 }
 
 type ExecSendMsg struct {
-	SendMessage SendMessage `json:"send_message"`
+	SendMessage *SendMessage `json:"send_message"`
 }
 
 type ExecRecvMsg struct {
-	RecvMessage ReceiveMessage `json:"recv_message"`
+	RecvMessage *ReceiveMessage `json:"recv_message"`
 }
 
 type ExecExecMsg struct {
-	ExecMessage ExecMessage `json:"exec_message"`
+	ExecMessage *ExecMessage `json:"exec_message"`
 }
 
-func NewExecRecvMsg(message *relayTypes.Message) ExecRecvMsg {
-	return ExecRecvMsg{
-		RecvMessage: ReceiveMessage{
+func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
+	return &ExecRecvMsg{
+		RecvMessage: &ReceiveMessage{
 			SrcNetwork: message.Src,
 			ConnSn:     strconv.Itoa(int(message.Sn)),
 			Msg:        hexstr.NewFromByte(message.Data),
@@ -54,15 +54,15 @@ func NewExecRecvMsg(message *relayTypes.Message) ExecRecvMsg {
 
 func NewExecExecMsg(message *relayTypes.Message) ExecExecMsg {
 	return ExecExecMsg{
-		ExecMessage: ExecMessage{
-			ReqID: message.ReqID,
+		ExecMessage: &ExecMessage{
+			ReqID: strconv.Itoa(int(message.Sn)),
 			Data:  hexstr.NewFromByte(message.Data),
 		},
 	}
 }
 
 type QueryReceiptMsg struct {
-	GetReceipt GetReceiptMsg `json:"get_receipt"`
+	GetReceipt *GetReceiptMsg `json:"get_receipt"`
 }
 
 type QueryReceiptMsgResponse struct {

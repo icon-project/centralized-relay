@@ -59,7 +59,7 @@ func (p *MockProvider) Type() string {
 	return "evm"
 }
 
-func (p *MockProvider) ProviderConfig() provider.ProviderConfig {
+func (p *MockProvider) ProviderConfig() provider.Config {
 	return p.PCfg
 }
 

@@ -30,6 +30,7 @@ type Provider struct {
 	client         IClient
 	seqTracker     *SequenceTracker
 	memPoolTracker *MemPoolInfo
+	kms            kms.KMS
 	contracts      map[string]relayTypes.EventMap
 }
 
@@ -64,11 +65,20 @@ func (p *Provider) Init(context.Context, string, kms.KMS) error {
 	return nil
 }
 
+// Wallet returns the wallet of the provider
+func (p *Provider) Wallet() sdkTypes.AccAddress {
+	if err := p.RestoreKeystore(context.Background()); err != nil {
+		p.logger.Error("failed to restore keystore: ", zap.Error(err))
+		return nil
+	}
+	return sdkTypes.AccAddress(p.cfg.GetWallet())
+}
+
 func (p *Provider) Type() string {
 	return types.ChainType
 }
 
-func (p *Provider) ProviderConfig() provider.ProviderConfig {
+func (p *Provider) Config() provider.Config {
 	return p.cfg
 }
 
@@ -380,7 +390,7 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash *s
 			txResChan <- types.TxResultChan{
 				TxResult: &relayTypes.TxResponse{
 					Height:    txWaitRes.Height,
-					TxHash:    txHash,
+					TxHash:    *txHash,
 					Codespace: txWaitRes.Result.Codespace,
 					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
 					Data:      string(txWaitRes.Result.Data),
@@ -393,7 +403,7 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash *s
 
 func (p *Provider) MessageReceived(ctx context.Context, key relayTypes.MessageKey) (bool, error) {
 	queryMsg := types.QueryReceiptMsg{
-		GetReceipt: types.GetReceiptMsg{
+		GetReceipt: &types.GetReceiptMsg{
 			SrcNetwork: key.Src,
 			ConnSn:     strconv.Itoa(int(key.Sn)),
 		},

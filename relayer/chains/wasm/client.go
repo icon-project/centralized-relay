@@ -9,10 +9,14 @@ import (
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
+	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	"github.com/cosmos/go-bip39"
+
+	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
+
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/spf13/pflag"
@@ -23,43 +27,36 @@ type IClient interface {
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
-	BuildTxFactory() (*tx.Factory, error)
+	BuildTxFactory() (tx.Factory, error)
 	CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
 	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
-	GetAccountInfo(ctx context.Context, addr string) (*sdkTypes.AccountI, error)
+	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
-	Context() *sdkClient.Context
+	CreateAccount(name, pass string) (string, string, error)
+	LoadArmor(ctx context.Context, uid, armor, passphrase string) error
 }
 
 type Client struct {
-	context *sdkClient.Context
+	ctx     sdkClient.Context
 	txMutex *sync.Mutex
 }
 
 func newClient(ctx *sdkClient.Context) *Client {
-	return &Client{ctx, new(sync.Mutex)}
+	return &Client{*ctx, new(sync.Mutex)}
 }
 
-func (c *Client) BuildTxFactory() (*tx.Factory, error) {
-	txf, err := tx.NewFactoryCLI(*c.context, &pflag.FlagSet{})
+func (c *Client) BuildTxFactory() (tx.Factory, error) {
+	txf, err := tx.NewFactoryCLI(c.ctx, &pflag.FlagSet{})
 	if err != nil {
-		return nil, err
+		return txf, err
 	}
-
-	txf = txf.
-		WithTxConfig(c.context.TxConfig).
-		WithKeybase(c.context.Keyring).
-		WithFeePayer(c.context.FeePayer).
-		WithChainID(c.context.ChainID).
-		WithSimulateAndExecute(c.context.Simulate)
-
-	return &txf, nil
+	return txf, nil
 }
 
 func (c *Client) CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
-	return tx.CalculateGas(c.context, txf, msgs...)
+	return tx.CalculateGas(c.ctx, txf, msgs...)
 }
 
 func (c *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error) {
@@ -68,15 +65,15 @@ func (c *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.
 		return nil, err
 	}
 
-	if err = tx.Sign(ctx, txf, c.context.FromName, txBuilder, true); err != nil {
+	if err = tx.Sign(ctx, txf, c.ctx.FromName, txBuilder, true); err != nil {
 		return nil, err
 	}
 
-	return c.context.TxConfig.TxEncoder()(txBuilder.GetTx())
+	return c.ctx.TxConfig.TxEncoder()(txBuilder.GetTx())
 }
 
 func (c *Client) BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error) {
-	return c.context.BroadcastTx(txBytes)
+	return c.ctx.BroadcastTx(txBytes)
 }
 
 func (c *Client) HTTP(rpcUrl string) (*http.HTTP, error) {
@@ -84,7 +81,7 @@ func (c *Client) HTTP(rpcUrl string) (*http.HTTP, error) {
 }
 
 func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
-	nodeStatus, err := c.context.Client.Status(ctx)
+	nodeStatus, err := c.ctx.Client.Status(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -93,12 +90,12 @@ func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
 }
 
 func (c *Client) GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error) {
-	serviceClient := txTypes.NewServiceClient(c.context.GRPCClient)
+	serviceClient := txTypes.NewServiceClient(c.ctx.GRPCClient)
 	return serviceClient.GetTx(ctx, &txTypes.GetTxRequest{Hash: txHash})
 }
 
 func (c *Client) GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error) {
-	queryClient := bankTypes.NewQueryClient(c.context.GRPCClient)
+	queryClient := bankTypes.NewQueryClient(c.ctx.GRPCClient)
 
 	res, err := queryClient.Balance(ctx, &bankTypes.QueryBalanceRequest{
 		Address: addr,
@@ -110,46 +107,67 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
-// Create new AccountI
-func (c *Client) CreateAccount(ctx context.Context, name string) (*sdkTypes.AccountI, error) {
-	record, t, err := c.context.Keyring.NewMnemonic(uid, language, hdPath, bip39Passphrase, algo)
-	if err != nil {
-		return nil, err
-	}
-	key, err := c.context.Keyring.NewAccount(name, mnemonic, "", "", keyring.SigningAlgoList{}, sdkClient.DefaultAlgo)
-	if err != nil {
-		return nil, err
-	}
-}
-
-func (c *Client) GetAccountInfo(ctx context.Context, addr string) (*sdkTypes.AccountI, error) {
-	qc := authTypes.NewQueryClient(c.context.GRPCClient)
+func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
+	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
 	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
 
-	account := new(sdkTypes.AccountI)
+	var account sdkTypes.AccountI
 
-	if err := c.context.InterfaceRegistry.UnpackAny(res.Account, account); err != nil {
+	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, account); err != nil {
 		return nil, err
 	}
 
 	return account, nil
 }
 
+// Create new AccountI
+func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
+	// create hdpath
+	kb := keyring.NewInMemory(c.ctx.Codec)
+	hdPath := hd.CreateHDPath(sdkTypes.CoinType, 0, 0).String()
+	bip39Seed, err := bip39.NewEntropy(256)
+	if err != nil {
+		return "", "", err
+	}
+	mnemonic, err := bip39.NewMnemonic(bip39Seed)
+	if err != nil {
+		return "", "", err
+	}
+	algos, _ := kb.SupportedAlgorithms()
+	algo, err := keyring.NewSigningAlgoFromString(string(hd.Secp256k1Type), algos)
+	if err != nil {
+		return "", "", err
+	}
+	key, err := kb.NewAccount(uid, mnemonic, passphrase, hdPath, algo)
+	if err != nil {
+		return "", "", err
+	}
+	armor, err := kb.ExportPrivKeyArmor(uid, passphrase)
+	if err != nil {
+		return "", "", err
+	}
+	return armor, key.String(), nil
+}
+
+// Load mnemonic from keyring
+func (c *Client) LoadArmor(ctx context.Context, uid, armor, passphrase string) error {
+	if err := c.ctx.Keyring.ImportPrivKey(uid, armor, passphrase); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
-	return c.context.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
+	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
 func (c *Client) QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error) {
-	queryClient := wasmTypes.NewQueryClient(cl.context)
+	queryClient := wasmTypes.NewQueryClient(c.ctx)
 	return queryClient.SmartContractState(ctx, &wasmTypes.QuerySmartContractStateRequest{
 		Address:   contractAddress,
 		QueryData: queryData,
 	})
-}
-
-func (c *Client) Context() *sdkClient.Context {
-	return c.context
 }
