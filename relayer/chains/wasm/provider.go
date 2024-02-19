@@ -162,7 +162,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return err
 	}
 
-	go p.waitForTxResult(ctx, message.MessageKey(), &res.TxHash, callback)
+	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 
 	return nil
 }
@@ -216,19 +216,19 @@ func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context, err e
 	return nil
 }
 
-func (p *Provider) logTxFailed(err error, txHash *string) {
+func (p *Provider) logTxFailed(err error, txHash string) {
 	p.logger.Error("transaction failed: ",
 		zap.Error(err),
 		zap.String("chain_id", p.cfg.ChainID),
-		zap.Stringp("tx_hash", txHash),
+		zap.String("tx_hash", txHash),
 	)
 }
 
-func (p *Provider) logTxSuccess(height uint64, txHash *string) {
+func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	p.logger.Info("transaction success: ",
 		zap.Uint64("block_height", height),
 		zap.String("chain_id", p.cfg.ChainID),
-		zap.Stringp("tx_hash", txHash),
+		zap.String("tx_hash", txHash),
 	)
 }
 
@@ -280,16 +280,16 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber,
 	return res, nil
 }
 
-func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash *string, callback relayTypes.TxResponseFunc) {
+func (p *Provider) waitForTxResult(ctx context.Context, mk relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.getTxResultStreamWithSubscribe(ctx, txHash, p.cfg.TxConfirmationIntervalTime) {
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			p.memPoolTracker.SetBlockedStatusWithLock(true)
-			callback(mk, relayTypes.TxResponse{}, txWaitRes.Error)
+			callback(mk, nil, txWaitRes.Error)
 			return
 		}
 		p.logTxSuccess(uint64(txWaitRes.TxResult.Height), txHash)
-		callback(mk, *txWaitRes.TxResult, nil)
+		callback(mk, txWaitRes.TxResult, nil)
 	}
 }
 
@@ -325,7 +325,7 @@ func (p *Provider) getTxResultStreamWithPolling(ctx context.Context, txHash stri
 	return txResChan
 }
 
-func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash *string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
+func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan types.TxResultChan {
 	txResChan := make(chan types.TxResultChan)
 	go func() {
 		defer close(txResChan)
@@ -390,7 +390,7 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash *s
 			txResChan <- types.TxResultChan{
 				TxResult: &relayTypes.TxResponse{
 					Height:    txWaitRes.Height,
-					TxHash:    *txHash,
+					TxHash:    txHash,
 					Codespace: txWaitRes.Result.Codespace,
 					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
 					Data:      string(txWaitRes.Result.Data),

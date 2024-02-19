@@ -129,7 +129,7 @@ func (p *IconProvider) WaitForTxResult(
 	}
 
 	txhash := types.NewHexBytes(txHash)
-	res := providerTypes.TxResponse{}
+	res := &providerTypes.TxResponse{}
 	res.TxHash = string(txHash)
 
 	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})

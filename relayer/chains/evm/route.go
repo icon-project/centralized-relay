@@ -102,7 +102,7 @@ func (p *EVMProvider) WaitForTxResult(
 		return
 	}
 
-	res := providerTypes.TxResponse{}
+	res := &providerTypes.TxResponse{}
 	res.TxHash = tx.Hash().String()
 
 	txReceipts, err := p.WaitForResults(ctx, tx.Hash())

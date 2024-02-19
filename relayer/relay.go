@@ -312,7 +312,7 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(key types.MessageKey, response types.TxResponse, err error) {
+	callback := func(key types.MessageKey, response *types.TxResponse, err error) {
 		// note: it is ok if err is not checked
 		dst := dst
 		src := src
@@ -333,7 +333,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 					return
 				}
 
-				txObj := types.NewTransactionObject(*types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
+				txObj := types.NewTransactionObject(types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
 				r.log.Info("storing txhash to check finality later", zap.Any("txObj", txObj))
 				if err := r.finalityStore.StoreTxObject(txObj); err != nil {
 					r.log.Error("error occured: while storing transaction object in db", zap.Error(err))
@@ -369,7 +369,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 // SubmitMessage
 func (r *Relayer) SubmitMessage(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
-	callback := func(key types.MessageKey, response types.TxResponse, err error) {
+	callback := func(key types.MessageKey, response *types.TxResponse, err error) {
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
 				zap.String("dst", dst.Provider.NID()),
@@ -527,7 +527,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// generateMessage
-				message, err := srcChainRuntime.Provider.GenerateMessage(ctx, &txObject.MessageKeyWithMessageHeight)
+				message, err := srcChainRuntime.Provider.GenerateMessage(ctx, txObject.MessageKeyWithMessageHeight)
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),

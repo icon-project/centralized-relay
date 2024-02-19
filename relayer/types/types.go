@@ -93,7 +93,7 @@ func (r *RouteMessage) IsStale() bool {
 	return r.Retry >= MaxTxRetry
 }
 
-type TxResponseFunc func(key MessageKey, response TxResponse, err error)
+type TxResponseFunc func(key MessageKey, response *TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
@@ -185,12 +185,12 @@ func (c *Coin) Calculate() string {
 }
 
 type TransactionObject struct {
-	MessageKeyWithMessageHeight
+	*MessageKeyWithMessageHeight
 	TxHash   string
 	TxHeight uint64
 }
 
-func NewTransactionObject(messageKey MessageKeyWithMessageHeight, txHash string, height uint64) *TransactionObject {
+func NewTransactionObject(messageKey *MessageKeyWithMessageHeight, txHash string, height uint64) *TransactionObject {
 	return &TransactionObject{messageKey, txHash, height}
 }
 

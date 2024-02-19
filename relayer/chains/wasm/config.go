@@ -197,7 +197,7 @@ func (pc *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 		FeeGranter:        fromAddress,
 		FromAddress:       fromAddress,
 		Keyring:           keyRing,
-		KeyringDir:        filepath.Join(pc.HomeDir, pc.ChainName),
+		KeyringDir:        filepath.Join(pc.HomeDir, pc.NID),
 		TxConfig:          codecCfg.TxConfig,
 		HomeDir:           pc.HomeDir,
 		BroadcastMode:     pc.BroadcastMode,
