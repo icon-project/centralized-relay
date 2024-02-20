@@ -77,7 +77,7 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err := os.MkdirAll(kestorePath, 0o755); err != nil {
 				return err
 			}
-			addr, err := chain.ChainProvider.NewKeyStore(kestorePath, k.password)
+			addr, err := chain.ChainProvider.NewKeystore(k.password)
 			if err != nil {
 				return err
 			}
@@ -161,7 +161,7 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 				return err
 			}
 			defer data.Close()
-			keystore, err := os.OpenFile(filepath.Join(kestorePath, fmt.Sprintf("%s.json", addr)), os.O_CREATE|os.O_WRONLY, 0o644)
+			keystore, err := os.OpenFile(kestorePath, os.O_CREATE|os.O_WRONLY, 0o644)
 			if err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if _, err := os.Stat(kestorePath + ".password"); os.IsNotExist(err) {
 				return fmt.Errorf("password not found")
 			}
-			cf := chain.ChainProvider.ProviderConfig()
+			cf := chain.ChainProvider.Config()
 			cf.SetWallet(k.address)
 			if err := a.config.Save(a.homePath); err != nil {
 				return err

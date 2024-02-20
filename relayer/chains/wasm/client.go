@@ -35,7 +35,7 @@ type IClient interface {
 	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	CreateAccount(name, pass string) (string, string, error)
-	LoadArmor(ctx context.Context, uid, armor, passphrase string) error
+	ImportArmor(uid, armor, passphrase string) error
 }
 
 type Client struct {
@@ -152,12 +152,9 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	return armor, key.String(), nil
 }
 
-// Load mnemonic from keyring
-func (c *Client) LoadArmor(ctx context.Context, uid, armor, passphrase string) error {
-	if err := c.ctx.Keyring.ImportPrivKey(uid, armor, passphrase); err != nil {
-		return err
-	}
-	return nil
+// Load private key from keyring
+func (c *Client) ImportArmor(uid, armor, passphrase string) error {
+	return c.ctx.Keyring.ImportPrivKey(uid, armor, passphrase)
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {

@@ -7,7 +7,7 @@ import (
 
 const (
 	CodeTypeOK        uint32 = 0
-	ChainType                = "wasm"
+	ChainType                = "cosmos"
 	MethodExecuteCall        = "execute_call"
 )
 

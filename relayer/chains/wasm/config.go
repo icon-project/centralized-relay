@@ -63,7 +63,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}
 
 	if pc.KeyringDir == "" {
-		pc.KeyringDir = filepath.Join(pc.HomeDir, pc.ChainName)
+		pc.KeyringDir = filepath.Join(pc.HomeDir, pc.NID)
 	}
 
 	if err := pc.Validate(); err != nil {
@@ -148,13 +148,18 @@ func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
 	return pc, nil
 }
 
-func (pc *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
-	codecCfg := GetCodecConfig(pc)
+// GetKeystorePath returns the path to the keystore file
+func (pc *ProviderConfig) GetKeystorePath() string {
+	return filepath.Join(pc.HomeDir, "keystore", pc.NID, pc.Address)
+}
+
+func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
+	codecCfg := GetCodecConfig(c)
 
 	keyRing, err := keyring.New(
-		pc.ChainName,
-		pc.KeyringBackend,
-		pc.KeyringDir,
+		c.ChainName,
+		c.KeyringBackend,
+		c.KeyringDir,
 		nil,
 		codecCfg.Codec,
 		func(options *keyring.Options) {
@@ -166,43 +171,43 @@ func (pc *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 		return nil, err
 	}
 
-	keyRecord, err := keyRing.Key(pc.KeyName)
+	// keyRecord, err := keyRing.Key(c.KeyName)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// fromAddress, err := keyRecord.GetAddress()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	cometRPCClient, err := http.New(c.RpcUrl, "/websocket")
 	if err != nil {
 		return nil, err
 	}
 
-	fromAddress, err := keyRecord.GetAddress()
-	if err != nil {
-		return nil, err
-	}
-
-	cometRPCClient, err := http.New(pc.RpcUrl, "/websocket")
-	if err != nil {
-		return nil, err
-	}
-
-	grpcClient, err := grpc.Dial(pc.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+	grpcClient, err := grpc.Dial(c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
 	if err != nil {
 		return nil, err
 	}
 
 	return &sdkClient.Context{
-		ChainID:           pc.ChainID,
-		Client:            cometRPCClient,
-		NodeURI:           pc.RpcUrl,
-		Codec:             codecCfg.Codec,
-		From:              keyRecord.Name,
-		FromName:          keyRecord.Name,
-		FeePayer:          fromAddress,
-		FeeGranter:        fromAddress,
-		FromAddress:       fromAddress,
+		ChainID: c.ChainID,
+		Client:  cometRPCClient,
+		NodeURI: c.RpcUrl,
+		Codec:   codecCfg.Codec,
+		// From:              keyRecord.Name,
+		// FromName:          keyRecord.Name,
+		// FeePayer:          fromAddress,
+		// FeeGranter:        fromAddress,
+		// FromAddress:       fromAddress,
 		Keyring:           keyRing,
-		KeyringDir:        filepath.Join(pc.HomeDir, pc.NID),
+		KeyringDir:        filepath.Join(c.HomeDir, c.NID),
 		TxConfig:          codecCfg.TxConfig,
-		HomeDir:           pc.HomeDir,
-		BroadcastMode:     pc.BroadcastMode,
-		SignModeStr:       pc.SignModeStr,
-		Simulate:          pc.Simulate,
+		HomeDir:           c.HomeDir,
+		BroadcastMode:     c.BroadcastMode,
+		SignModeStr:       c.SignModeStr,
+		Simulate:          c.Simulate,
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codecCfg.InterfaceRegistry,
 	}, nil

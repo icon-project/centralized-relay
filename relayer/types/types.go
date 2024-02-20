@@ -123,7 +123,7 @@ func NewMessageKey(sn uint64, src string, dst string, eventType string) MessageK
 
 type MessageKeyWithMessageHeight struct {
 	MessageKey
-	MsgHeight uint64
+	Height uint64
 }
 
 func NewMessagekeyWithMessageHeight(key MessageKey, height uint64) *MessageKeyWithMessageHeight {

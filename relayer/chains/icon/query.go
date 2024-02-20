@@ -92,7 +92,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 	}
 
 	block, err := ip.client.GetBlockByHeight(&types.BlockHeightParam{
-		Height: types.NewHexInt(int64(key.MsgHeight)),
+		Height: types.NewHexInt(int64(key.Height)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("GenerateMessage:GetBlockByHeight %v", err)
@@ -135,7 +135,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 			}
 
 			return &providerTypes.Message{
-				MessageHeight: key.MsgHeight,
+				MessageHeight: key.Height,
 				EventType:     key.EventType,
 				Dst:           dst,
 				Src:           key.Src,

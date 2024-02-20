@@ -93,7 +93,7 @@ func (p *IconProvider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *IconProvider) ChainName() string {
+func (p *IconProvider) Name() string {
 	return p.cfg.ChainName
 }
 

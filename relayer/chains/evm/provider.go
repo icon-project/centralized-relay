@@ -126,7 +126,7 @@ func (p *EVMProvider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *EVMProvider) ChainName() string {
+func (p *EVMProvider) Name() string {
 	return p.cfg.ChainName
 }
 

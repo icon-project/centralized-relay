@@ -289,9 +289,9 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 	for _, chain := range c.Chains {
 		pcfgw := &ProviderConfigWrapper{
 			Type:  chain.ChainProvider.Type(),
-			Value: chain.ChainProvider.ProviderConfig(),
+			Value: chain.ChainProvider.Config(),
 		}
-		providers[chain.ChainProvider.ChainName()] = pcfgw
+		providers[chain.ChainProvider.Name()] = pcfgw
 	}
 	return &ConfigOutputWrapper{Global: c.Global, ProviderConfigs: providers}
 }

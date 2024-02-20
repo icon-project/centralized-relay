@@ -24,7 +24,7 @@ type ChainQuery interface {
 type ChainProvider interface {
 	ChainQuery
 	NID() string
-	ChainName() string
+	Name() string
 	Init(context.Context, string, kms.KMS) error
 	Type() string
 	Config() Config

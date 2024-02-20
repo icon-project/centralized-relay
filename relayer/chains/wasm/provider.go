@@ -13,9 +13,9 @@ import (
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
-	relayEvents "github.com/icon-project/centralized-relay/relayer/events"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -54,7 +54,7 @@ func (p *Provider) NID() string {
 	return p.cfg.NID
 }
 
-func (p *Provider) ChainName() string {
+func (p *Provider) Name() string {
 	return p.cfg.ChainName
 }
 
@@ -139,7 +139,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	contract := p.cfg.Contracts[relayTypes.ConnectionContract]
 
 	switch message.EventType {
-	case relayEvents.CallMessage:
+	case events.CallMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
 		return fmt.Errorf("unknown event type: %s ", message.EventType)
@@ -154,7 +154,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	res, err := p.sendMessages(ctx, msgs)
 	if err != nil {
-		if strings.Contains(err.Error(), sdkErrors.ErrWrongSequence.Error()) {
+		if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
 			if mmErr := p.handleAccountSequenceMismatchError(ctx, err); mmErr != nil {
 				return fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
@@ -557,20 +557,20 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
 	var messages []*relayTypes.Message
 	for _, resultTx := range resultTxList {
-		var events []*EventsList
-		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &events)
+		var eventsList []*EventsList
+		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, event := range events {
+		for _, event := range eventsList {
 			messages, err := p.ParseMessageFromEvents(event.Events)
 			if err != nil {
 				return nil, err
 			}
 			for _, message := range messages {
 				message.MessageHeight = uint64(resultTx.Height)
-				message.EventType = relayEvents.EmitMessage
+				message.EventType = events.EmitMessage
 				if message.Dst != "" {
 					p.logger.Info("Detected eventlog", zap.Uint64("height", message.MessageHeight),
 						zap.String("target_network", message.Dst),
@@ -587,10 +587,10 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
 	switch message.EventType {
-	case relayEvents.EmitMessage:
+	case events.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
 		return json.Marshal(rcvMsg)
-	case relayEvents.CallMessage:
+	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
 		return json.Marshal(execMsg)
 	default:

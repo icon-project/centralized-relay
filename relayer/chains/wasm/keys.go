@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path"
+
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
@@ -24,7 +26,7 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := p.client.LoadArmor(ctx, p.NID(), string(priv), string(pass)); err != nil {
+	if err := p.client.LoadArmor(p.NID(), string(priv), string(pass)); err != nil {
 		return err
 	}
 	return nil
@@ -51,4 +53,16 @@ func (p *Provider) NewKeystore(passphrase string) (string, error) {
 		return "", err
 	}
 	return addr, nil
+}
+
+// ImportKeystore imports a keystore from a file
+func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+	privFile, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", err
+	}
+	if err := p.client.ImportArmor(p.NID(), string(privFile), passphrase); err != nil {
+		return "", err
+	}
+	// TODO: encrypt armor and passphrase and save it to keystore
 }
