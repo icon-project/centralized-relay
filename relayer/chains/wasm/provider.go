@@ -98,13 +98,13 @@ func (p *Provider) Config() provider.Config {
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayTypes.BlockInfo) error {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
-		p.logger.Error("failed to get latest block height: ", zap.Error(err))
+		p.logger.Error("failed to get latest block height", zap.Error(err))
 		return err
 	}
 
 	startHeight, err := p.getStartHeight(latestHeight, lastSavedHeight)
 	if err != nil {
-		p.logger.Error("failed to determine start height: ", zap.Error(err))
+		p.logger.Error("failed to determine start height", zap.Error(err))
 		return err
 	}
 

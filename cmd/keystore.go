@@ -22,7 +22,7 @@ type keystoreState struct {
 }
 
 func newKeyStoreState(ctx context.Context) (*keystoreState, error) {
-	return &keystoreState{}, nil
+	return new(keystoreState), nil
 }
 
 func keystoreCmd(a *appState) *cobra.Command {
@@ -56,7 +56,7 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("KMS key created: %s", a.config.Global.KMSKeyID))
+			fmt.Fprintf(os.Stdout, "KMS key created: %s\n", a.config.Global.KMSKeyID)
 			return nil
 		},
 	}
@@ -80,7 +80,7 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("Created and encrypted: %s", addr))
+			fmt.Fprintf(os.Stdout, "Created and encrypted: %s\n", addr)
 			return nil
 		},
 	}
@@ -142,7 +142,7 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 				return err
 			}
 			if _, err := os.Stat(k.path); os.IsNotExist(err) {
-				return fmt.Errorf("keystore not found")
+				return fmt.Errorf("file not found")
 			}
 			addr, err := chain.ChainProvider.ImportKeystore(cmd.Context(), k.path, k.password)
 			if err != nil {
@@ -183,7 +183,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("Wallet configured: %s", k.address))
+			fmt.Fprintf(os.Stdout, "Wallet configured: %s\n", k.address)
 			return nil
 		},
 	}
@@ -198,7 +198,9 @@ func (k *keystoreState) changePassword(a *appState) *cobra.Command {
 		Use:   "change-password",
 		Short: "change password",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: implement change password
+			if k.password != k.confirmPassword {
+				return fmt.Errorf("password and confirm password does not match")
+			}
 			return fmt.Errorf("not implemented")
 		},
 	}
@@ -223,7 +225,7 @@ func (k *keystoreState) passwordFlag(cmd *cobra.Command, isConfirmRequired bool)
 		panic(err)
 	}
 	if isConfirmRequired {
-		cmd.Flags().StringVarP(&k.password, "confirm", "c", "", "confirm password for keystore")
+		cmd.Flags().StringVarP(&k.confirmPassword, "confirm", "c", "", "confirm password for keystore")
 		if err := cmd.MarkFlagRequired("confirm"); err != nil {
 			panic(err)
 		}
