@@ -59,10 +59,11 @@ func (p *Provider) Name() string {
 	return p.cfg.ChainName
 }
 
-func (p *Provider) Init(context.Context, string, kms.KMS) error {
+func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	if err := p.cfg.Contracts.Validate(); err != nil {
 		return err
 	}
+	p.kms = kms
 	return nil
 }
 

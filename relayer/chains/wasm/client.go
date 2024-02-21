@@ -160,7 +160,11 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return armor, key.String(), nil
+	addr, err := key.GetAddress()
+	if err != nil {
+		return "", "", err
+	}
+	return armor, addr.String(), nil
 }
 
 // Load private key from keyring

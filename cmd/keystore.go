@@ -80,13 +80,6 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			data, err := a.kms.Encrypt(cmd.Context(), []byte(k.password))
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), data, 0o644); err != nil {
-				return err
-			}
 			fmt.Fprintln(os.Stdout, fmt.Sprintf("Created and encrypted: %s", addr))
 			return nil
 		},
