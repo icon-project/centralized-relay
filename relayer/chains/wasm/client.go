@@ -32,12 +32,13 @@ type IClient interface {
 	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
-	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
-	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
+	GetAccountInfo(ctx context.Context, uid string) (sdkTypes.AccountI, error)
+	QuerySmartContract(ctx context.Context, address string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	CreateAccount(name, pass string) (string, string, error)
 	ImportArmor(uid string, armor []byte, passphrase string) error
 	GetArmor(uid, passphrase string) (string, error)
-	GetAccount(uid string) (*keyring.Record, error)
+	GetKey(uid string) (*keyring.Record, error)
+	SetAddress(uid string) sdkTypes.AccAddress
 }
 
 type Client struct {
@@ -109,9 +110,17 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
-func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
+func (c *Client) GetAccountInfo(ctx context.Context, uid string) (sdkTypes.AccountI, error) {
+	key, err := c.ctx.Keyring.Key(uid)
+	if err != nil {
+		return nil, err
+	}
+	addr, err := key.GetAddress()
+	if err != nil {
+		return nil, err
+	}
 	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
+	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +174,7 @@ func (c *Client) GetArmor(uid, passphrase string) (string, error) {
 }
 
 // GetAccount returns account from keyring
-func (c *Client) GetAccount(uid string) (*keyring.Record, error) {
+func (c *Client) GetKey(uid string) (*keyring.Record, error) {
 	return c.ctx.Keyring.Key(uid)
 }
 
@@ -173,10 +182,24 @@ func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*core
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
-func (c *Client) QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error) {
+// Set the address
+func (c *Client) SetAddress(uid string) sdkTypes.AccAddress {
+	key, err := c.ctx.Keyring.Key(uid)
+	if err != nil {
+		return nil
+	}
+	addr, err := key.GetAddress()
+	if err != nil {
+		return nil
+	}
+	c.ctx = c.ctx.WithFromAddress(addr).WithFromAddress(addr).WithFeePayerAddress(addr)
+	return addr
+}
+
+func (c *Client) QuerySmartContract(ctx context.Context, address string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error) {
 	queryClient := wasmTypes.NewQueryClient(c.ctx)
 	return queryClient.SmartContractState(ctx, &wasmTypes.QuerySmartContractStateRequest{
-		Address:   contractAddress,
+		Address:   address,
 		QueryData: queryData,
 	})
 }

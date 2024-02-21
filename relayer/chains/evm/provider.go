@@ -35,6 +35,7 @@ type EVMProviderConfig struct {
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
+	BlockInterval  time.Duration                   `json:"block-interval" yaml:"block-interval"`
 	NID            string                          `json:"nid" yaml:"nid"`
 	HomeDir        string                          `json:"-" yaml:"-"`
 }

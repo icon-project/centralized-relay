@@ -211,20 +211,13 @@ func NewHexBytes(b []byte) HexBytes {
 type HexInt string
 
 func (i HexInt) Value() (int64, error) {
-	s := string(i)
-	if strings.HasPrefix(s, "0x") {
-		s = s[2:]
-	}
+	s := strings.TrimPrefix(string(i), "0x")
 	return strconv.ParseInt(s, 16, 64)
 }
 
 func (i HexInt) Int() (int, error) {
-	s := string(i)
-	if strings.HasPrefix(s, "0x") {
-		s = s[2:]
-	}
-	v, err := strconv.ParseInt(s, 16, 32)
-	return int(v), err
+	s := strings.TrimPrefix(string(i), "0x")
+	return strconv.Atoi(s)
 }
 
 func (i HexInt) BigInt() (*big.Int, error) {

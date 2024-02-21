@@ -32,7 +32,7 @@ type ChainProvider interface {
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error)
-	MessageReceived(ctx context.Context, key types.MessageKey) (bool, error)
+	MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error)
 	SetAdmin(context.Context, string) error
 
 	FinalityBlock(ctx context.Context) uint64

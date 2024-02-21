@@ -22,7 +22,7 @@ func NewSeqTracker(accounts map[string]*AccountInfo) *SequenceTracker {
 	}
 }
 
-func (s *SequenceTracker) Set(address string, ac AccountInfo) error {
+func (s *SequenceTracker) Set(address string, ac *AccountInfo) error {
 	s.Lock()
 	defer s.Unlock()
 	acInfo, ok := s.accounts[address]

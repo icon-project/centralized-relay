@@ -50,7 +50,7 @@ func (c ContractConfigMap) Validate() error {
 	return nil
 }
 
-func (m *Message) MessageKey() MessageKey {
+func (m *Message) MessageKey() *MessageKey {
 	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
 }
 
@@ -93,7 +93,7 @@ func (r *RouteMessage) IsStale() bool {
 	return r.Retry >= MaxTxRetry
 }
 
-type TxResponseFunc func(key MessageKey, response *TxResponse, err error)
+type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
@@ -117,16 +117,16 @@ type MessageKey struct {
 	EventType string
 }
 
-func NewMessageKey(sn uint64, src string, dst string, eventType string) MessageKey {
-	return MessageKey{sn, src, dst, eventType}
+func NewMessageKey(sn uint64, src string, dst string, eventType string) *MessageKey {
+	return &MessageKey{sn, src, dst, eventType}
 }
 
 type MessageKeyWithMessageHeight struct {
-	MessageKey
+	*MessageKey
 	Height uint64
 }
 
-func NewMessagekeyWithMessageHeight(key MessageKey, height uint64) *MessageKeyWithMessageHeight {
+func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyWithMessageHeight {
 	return &MessageKeyWithMessageHeight{key, height}
 }
 
@@ -144,17 +144,17 @@ func NewMessageCache() *MessageCache {
 func (m *MessageCache) Add(r *RouteMessage) {
 	m.Lock()
 	defer m.Unlock()
-	m.Messages[r.MessageKey()] = r
+	m.Messages[*r.MessageKey()] = r
 }
 
 func (m *MessageCache) Len() int {
 	return len(m.Messages)
 }
 
-func (m *MessageCache) Remove(key MessageKey) {
+func (m *MessageCache) Remove(key *MessageKey) {
 	m.Lock()
 	defer m.Unlock()
-	delete(m.Messages, key)
+	delete(m.Messages, *key)
 }
 
 type Coin struct {

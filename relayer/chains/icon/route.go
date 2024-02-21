@@ -119,7 +119,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 func (p *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
-	messageKey providerTypes.MessageKey,
+	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
 ) {

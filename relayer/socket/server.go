@@ -145,7 +145,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		store := s.rly.GetMessageStore()
-		key := types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err
@@ -174,7 +174,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		store := s.rly.GetMessageStore()
-		key := types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err

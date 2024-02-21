@@ -41,8 +41,8 @@ type ProviderConfig struct {
 	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
-	BlockInterval          string `json:"block-interval" yaml:"block-interval"`
-	TxConfirmationInterval string `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
+	BlockInterval          time.Duration `json:"block-interval" yaml:"block-interval"`
+	TxConfirmationInterval time.Duration `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
 
 	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
 	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
@@ -51,10 +51,7 @@ type ProviderConfig struct {
 
 	StartHeight uint64 `json:"start-height" yaml:"start-height"`
 
-	ChainName                  string
-	FromAddress                string
-	BlockIntervalTime          time.Duration
-	TxConfirmationIntervalTime time.Duration
+	ChainName string `json:"-" yaml:"-"`
 }
 
 func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -82,25 +79,11 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}
 
 	ws := newClient(clientContext)
-	sender, err := ws.GetAccountInfo(ctx, clientContext.FromAddress.String())
-	if err != nil {
-		return nil, err
-	}
-
-	pc.FromAddress = clientContext.FromAddress.String()
-
-	accounts := map[string]*AccountInfo{
-		sender.GetAddress().String(): {
-			AccountNumber: sender.GetAccountNumber(),
-			Sequence:      sender.GetSequence(),
-		},
-	}
 
 	return &Provider{
 		logger:         log.With(zap.String("nid", pc.NID), zap.String("chain", pc.ChainName)),
 		cfg:            pc,
 		client:         ws,
-		seqTracker:     NewSeqTracker(accounts),
 		memPoolTracker: &MemPoolInfo{isBlocked: false},
 		contracts:      pc.eventMap(),
 	}, nil
@@ -115,14 +98,6 @@ func (pc *ProviderConfig) GetWallet() string {
 }
 
 func (pc *ProviderConfig) Validate() error {
-	if _, err := time.ParseDuration(pc.BlockInterval); err != nil {
-		return fmt.Errorf("invalid block-interval: %w", err)
-	}
-
-	if _, err := time.ParseDuration(pc.TxConfirmationInterval); err != nil {
-		return fmt.Errorf("invalid tx-confirmation-interval: %w", err)
-	}
-
 	if pc.ChainName == "" {
 		return fmt.Errorf("chain-name cannot be empty")
 	}
@@ -134,35 +109,18 @@ func (pc *ProviderConfig) Validate() error {
 }
 
 func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
-	blockIntervalTime, err := time.ParseDuration(pc.BlockInterval)
-	if err != nil {
-		return pc, fmt.Errorf("invalid block-interval: %w", err)
-	}
-	pc.BlockIntervalTime = blockIntervalTime
-
-	txConfirmationIntervalTime, err := time.ParseDuration(pc.TxConfirmationInterval)
-	if err != nil {
-		return pc, fmt.Errorf("invalid tx-confirmation-interval: %w", err)
-	}
-	pc.TxConfirmationIntervalTime = txConfirmationIntervalTime
-
 	return pc, nil
 }
 
-// GetKeystorePath returns the path to the keystore file
-func (pc *ProviderConfig) GetKeystorePath() string {
-	return filepath.Join(pc.HomeDir, "keystore", pc.NID, pc.Address)
-}
-
 func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
-	codecCfg := GetCodecConfig(c)
+	codec := GetCodecConfig(c)
 
 	keyRing, err := keyring.New(
 		c.ChainName,
 		c.KeyringBackend,
 		c.KeyringDir,
 		nil,
-		codecCfg.Codec,
+		codec.Codec,
 		func(options *keyring.Options) {
 			options.SupportedAlgos = types.SupportedAlgorithms
 			options.SupportedAlgosLedger = types.SupportedAlgorithmsLedger
@@ -171,16 +129,6 @@ func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// keyRecord, err := keyRing.Key(c.KeyName)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// fromAddress, err := keyRecord.GetAddress()
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	cometRPCClient, err := http.New(c.RpcUrl, "/websocket")
 	if err != nil {
@@ -193,23 +141,18 @@ func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 	}
 
 	return &sdkClient.Context{
-		ChainID: c.ChainID,
-		Client:  cometRPCClient,
-		NodeURI: c.RpcUrl,
-		Codec:   codecCfg.Codec,
-		// From:              keyRecord.Name,
-		// FromName:          keyRecord.Name,
-		// FeePayer:          fromAddress,
-		// FeeGranter:        fromAddress,
-		// FromAddress:       fromAddress,
+		ChainID:           c.ChainID,
+		Client:            cometRPCClient,
+		NodeURI:           c.RpcUrl,
+		Codec:             codec.Codec,
 		Keyring:           keyRing,
-		KeyringDir:        filepath.Join(c.HomeDir, c.NID),
-		TxConfig:          codecCfg.TxConfig,
+		KeyringDir:        c.KeyringDir,
+		TxConfig:          codec.TxConfig,
 		HomeDir:           c.HomeDir,
 		BroadcastMode:     c.BroadcastMode,
 		SignModeStr:       c.SignModeStr,
 		Simulate:          c.Simulate,
 		GRPCClient:        grpcClient,
-		InterfaceRegistry: codecCfg.InterfaceRegistry,
+		InterfaceRegistry: codec.InterfaceRegistry,
 	}, nil
 }

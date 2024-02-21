@@ -179,7 +179,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if _, err := os.Stat(kestorePath + ".json"); os.IsNotExist(err) {
 				return fmt.Errorf("keystore not found")
 			}
-			if _, err := os.Stat(kestorePath + ".password"); os.IsNotExist(err) {
+			if _, err := os.Stat(kestorePath + ".pass"); os.IsNotExist(err) {
 				return fmt.Errorf("password not found")
 			}
 			cf := chain.ChainProvider.Config()

@@ -19,6 +19,7 @@ type IconProviderConfig struct {
 	RPCUrl        string                         `json:"rpc-url" yaml:"rpc-url"`
 	Address       string                         `json:"address" yaml:"address"`
 	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	BlockInterval string                         `json:"block-interval" yaml:"block-interval"`
 	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	NetworkID     uint                           `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
@@ -108,6 +109,25 @@ func (p *IconProvider) Wallet() (module.Wallet, error) {
 
 func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
+}
+
+// MessageReceived checks if the message is received
+func (p *IconProvider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
+	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
+		"srcNetwork": messageKey.Src,
+		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+	})
+
+	var status types.HexInt
+	if err := p.client.Call(callParam, &status); err != nil {
+		return false, fmt.Errorf("MessageReceived: %v", err)
+	}
+
+	if status == types.NewHexInt(1) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // ReverseMessage reverts a message

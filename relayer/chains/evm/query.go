@@ -26,7 +26,7 @@ func (p *EVMProvider) ShouldSendMessage(ctx context.Context, messageKey *types.M
 	return true, nil
 }
 
-func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey types.MessageKey) (bool, error) {
+func (p *EVMProvider) MessageReceived(ctx context.Context, messageKey *types.MessageKey) (bool, error) {
 	fmt.Println("MessageReceived", messageKey)
 	return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, big.NewInt(0).SetUint64(messageKey.Sn))
 }

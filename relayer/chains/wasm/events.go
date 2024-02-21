@@ -35,9 +35,9 @@ type EventsList struct {
 	Events []Event `json:"events"`
 }
 
-func (p *Provider) ParseMessageFromEvents(events []Event) ([]*providerTypes.Message, error) {
+func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.Message, error) {
 	var messages []*providerTypes.Message
-	for _, ev := range events {
+	for _, ev := range eventsList {
 		switch ev.Type {
 		case EventTypeWasmMessage:
 			msg := new(providerTypes.Message)
@@ -49,6 +49,7 @@ func (p *Provider) ParseMessageFromEvents(events []Event) ([]*providerTypes.Mess
 						return nil, fmt.Errorf("failed to parse msg data from event: %v", err)
 					}
 					msg.Data = data
+					msg.EventType = events.EmitMessage
 				case EventAttrKeyConnSn:
 					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
@@ -63,6 +64,7 @@ func (p *Provider) ParseMessageFromEvents(events []Event) ([]*providerTypes.Mess
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.ReqID = reqID
+					msg.EventType = events.CallMessage
 				}
 			}
 			messages = append(messages, msg)

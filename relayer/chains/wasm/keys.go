@@ -66,7 +66,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	record, err := p.client.GetAccount(p.NID())
+	record, err := p.client.GetKey(p.NID())
 	if err != nil {
 		return "", err
 	}
