@@ -4,8 +4,6 @@ import (
 	"context"
 	"os"
 	"path"
-
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
@@ -26,7 +24,7 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := p.client.LoadArmor(p.NID(), string(priv), string(pass)); err != nil {
+	if err := p.client.ImportArmor(p.NID(), priv, string(pass)); err != nil {
 		return err
 	}
 	return nil
@@ -61,8 +59,35 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	if err := p.client.ImportArmor(p.NID(), string(privFile), passphrase); err != nil {
+	if err := p.client.ImportArmor(p.NID(), privFile, passphrase); err != nil {
 		return "", err
 	}
-	// TODO: encrypt armor and passphrase and save it to keystore
+	armor, err := p.client.GetArmor(p.NID(), passphrase)
+	if err != nil {
+		return "", err
+	}
+	record, err := p.client.GetAccount(p.NID())
+	if err != nil {
+		return "", err
+	}
+	addr, err := record.GetAddress()
+	if err != nil {
+		return "", err
+	}
+	armorCipher, err := p.kms.Encrypt(ctx, []byte((armor)))
+	if err != nil {
+		return "", err
+	}
+	passphraseCipher, err := p.kms.Encrypt(ctx, []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	filePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr.String())
+	if err = os.WriteFile(filePath, armorCipher, 0o644); err != nil {
+		return "", err
+	}
+	if err = os.WriteFile(filePath+".pass", passphraseCipher, 0o644); err != nil {
+		return "", err
+	}
+	return addr.String(), nil
 }

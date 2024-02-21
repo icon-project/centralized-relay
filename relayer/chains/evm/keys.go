@@ -60,3 +60,31 @@ func (p *EVMProvider) NewKeystore(password string) (string, error) {
 	}
 	return key.Address.Hex(), os.Remove(key.URL.Path)
 }
+
+// ImportKeystore imports a keystore from a file
+func (p *EVMProvider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+	keystoreContent, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", err
+	}
+	key, err := keystore.DecryptKey(keystoreContent, passphrase)
+	if err != nil {
+		return "", err
+	}
+	keystoreEncrypted, err := p.kms.Encrypt(context.Background(), keystoreContent)
+	if err != nil {
+		return "", err
+	}
+	passwordEncrypted, err := p.kms.Encrypt(context.Background(), []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), key.Address.Hex())
+	if err := os.WriteFile(path, keystoreEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path+".pass", passwordEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	return key.Address.Hex(), nil
+}

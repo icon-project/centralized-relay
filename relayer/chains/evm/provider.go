@@ -57,6 +57,7 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	}
 
 	p.HomeDir = homepath
+	p.ChainName = chainName
 
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])

@@ -35,7 +35,9 @@ type IClient interface {
 	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
 	QuerySmartContract(ctx context.Context, contractAddress string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	CreateAccount(name, pass string) (string, string, error)
-	ImportArmor(uid, armor, passphrase string) error
+	ImportArmor(uid string, armor []byte, passphrase string) error
+	GetArmor(uid, passphrase string) (string, error)
+	GetAccount(uid string) (*keyring.Record, error)
 }
 
 type Client struct {
@@ -128,11 +130,11 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	// create hdpath
 	kb := keyring.NewInMemory(c.ctx.Codec)
 	hdPath := hd.CreateHDPath(sdkTypes.CoinType, 0, 0).String()
-	bip39Seed, err := bip39.NewEntropy(256)
+	bip39seed, err := bip39.NewEntropy(256)
 	if err != nil {
 		return "", "", err
 	}
-	mnemonic, err := bip39.NewMnemonic(bip39Seed)
+	mnemonic, err := bip39.NewMnemonic(bip39seed)
 	if err != nil {
 		return "", "", err
 	}
@@ -153,8 +155,18 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 }
 
 // Load private key from keyring
-func (c *Client) ImportArmor(uid, armor, passphrase string) error {
-	return c.ctx.Keyring.ImportPrivKey(uid, armor, passphrase)
+func (c *Client) ImportArmor(uid string, armor []byte, passphrase string) error {
+	return c.ctx.Keyring.ImportPrivKey(uid, string(armor), passphrase)
+}
+
+// GetPrivateKey returns private key from keyring
+func (c *Client) GetArmor(uid, passphrase string) (string, error) {
+	return c.ctx.Keyring.ExportPrivKeyArmor(uid, passphrase)
+}
+
+// GetAccount returns account from keyring
+func (c *Client) GetAccount(uid string) (*keyring.Record, error) {
+	return c.ctx.Keyring.Key(uid)
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {

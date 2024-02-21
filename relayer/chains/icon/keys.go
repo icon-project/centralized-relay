@@ -63,3 +63,31 @@ func (p *IconProvider) NewKeystore(password string) (string, error) {
 	}
 	return addr, nil
 }
+
+func (p *IconProvider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+	keystore, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", err
+	}
+	wallet, err := wallet.NewFromKeyStore(keystore, []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	addr := wallet.Address().String()
+	keyStoreEncrypted, err := p.kms.Encrypt(ctx, keystore)
+	if err != nil {
+		return "", err
+	}
+	keystorePath := path.Join(p.cfg.HomeDir, p.NID(), addr)
+	if err := os.WriteFile(keystorePath, keyStoreEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	passwordEncrypted, err := p.kms.Encrypt(ctx, []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(keystorePath+".pass", passwordEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	return addr, nil
+}

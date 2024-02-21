@@ -65,6 +65,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	if pc.KeyringDir == "" {
 		pc.KeyringDir = filepath.Join(pc.HomeDir, pc.NID)
 	}
+	pc.ChainName = chainName
 
 	if err := pc.Validate(); err != nil {
 		return nil, err

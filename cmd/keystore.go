@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -152,31 +151,11 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 			if _, err := os.Stat(k.path); os.IsNotExist(err) {
 				return fmt.Errorf("keystore not found")
 			}
-			addr, err := chain.ChainProvider.AddressFromKeyStore(k.path, k.password)
+			addr, err := chain.ChainProvider.ImportKeystore(cmd.Context(), k.path, k.password)
 			if err != nil {
 				return err
 			}
-			data, err := os.Open(k.path)
-			if err != nil {
-				return err
-			}
-			defer data.Close()
-			keystore, err := os.OpenFile(kestorePath, os.O_CREATE|os.O_WRONLY, 0o644)
-			if err != nil {
-				return err
-			}
-			defer keystore.Close()
-			if _, err := io.Copy(keystore, data); err != nil {
-				return err
-			}
-			secret, err := a.kms.Encrypt(cmd.Context(), []byte(k.password))
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), secret, 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintln(os.Stdout, "KMS Key imported and Encrypted")
+			fmt.Fprintf(os.Stdout, "Key imported and Encrypted: %s\n", addr)
 			return nil
 		},
 	}
