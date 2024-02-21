@@ -77,8 +77,9 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
+		addr := p.client.SetAddress(account)
 		accounts := map[string]*AccountInfo{
-			account.GetAddress().String(): {AccountNumber: account.GetAccountNumber(), Sequence: account.GetSequence()},
+			addr.String(): {AccountNumber: account.GetAccountNumber(), Sequence: account.GetSequence()},
 		}
 		p.seqTracker = NewSeqTracker(accounts)
 	}
