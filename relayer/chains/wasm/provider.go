@@ -78,11 +78,6 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
-		addr := p.client.SetAddress(account)
-		accounts := map[string]*AccountInfo{
-			addr.String(): {AccountNumber: account.GetAccountNumber(), Sequence: account.GetSequence()},
-		}
-		p.seqTracker = NewSeqTracker(accounts)
 	}
 	return p.wallet.GetAddress()
 }
@@ -183,6 +178,13 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 }
 
 func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	if p.seqTracker == nil {
+		addr := p.client.SetAddress(p.wallet)
+		accounts := map[string]*AccountInfo{
+			addr.String(): {AccountNumber: p.wallet.GetAccountNumber(), Sequence: p.wallet.GetSequence()},
+		}
+		p.seqTracker = NewSeqTracker(accounts)
+	}
 	p.seqTracker.Lock()
 	p.memPoolTracker.Lock()
 	defer p.seqTracker.Unlock()

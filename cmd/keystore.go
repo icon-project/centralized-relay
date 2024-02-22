@@ -169,7 +169,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 				return err
 			}
 			kestorePath := filepath.Join(a.homePath, "keystore", k.chain, k.address)
-			if _, err := os.Stat(kestorePath + ".json"); os.IsNotExist(err) {
+			if _, err := os.Stat(kestorePath); os.IsNotExist(err) {
 				return fmt.Errorf("keystore not found")
 			}
 			if _, err := os.Stat(kestorePath + ".pass"); os.IsNotExist(err) {
