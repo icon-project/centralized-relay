@@ -42,6 +42,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 type TxResultWaitResponse struct {
 	Height int64 `json:"height"`
+	Error  error `json:"error_message"`
 	Result struct {
 		Code      int    `json:"code"`
 		Codespace string `json:"codespace"`

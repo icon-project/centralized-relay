@@ -42,7 +42,7 @@ type ProviderConfig struct {
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
 	BlockInterval          time.Duration `json:"block-interval" yaml:"block-interval"`
-	TxConfirmationInterval time.Duration `json:"tx-wait-interval" yaml:"tx-confirmation-interval"`
+	TxConfirmationInterval time.Duration `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
 
 	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
 	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
@@ -81,7 +81,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	ws := newClient(clientContext)
 
 	return &Provider{
-		logger:         log.With(zap.String("nid", pc.NID), zap.String("chain", pc.ChainName)),
+		logger:         log.With(zap.Stringp("nid", &pc.NID), zap.Stringp("chain", &pc.ChainName)),
 		cfg:            pc,
 		client:         ws,
 		memPoolTracker: &MemPoolInfo{isBlocked: false},

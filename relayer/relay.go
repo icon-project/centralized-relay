@@ -250,8 +250,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					continue
 				}
 
-				fmt.Println("messageReceived", messageReceived, "messageKey", routeMessage.MessageKey())
-
 				// if message is received we can remove the message from db
 				if messageReceived {
 					r.ClearMessages(ctx, []*types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)

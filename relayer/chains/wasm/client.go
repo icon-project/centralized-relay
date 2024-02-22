@@ -38,7 +38,7 @@ type IClient interface {
 	ImportArmor(uid string, armor []byte, passphrase string) error
 	GetArmor(uid, passphrase string) (string, error)
 	GetKey(uid string) (*keyring.Record, error)
-	SetAddress(account sdkTypes.AccountI) sdkTypes.AccAddress
+	SetAddress(account sdkTypes.AccAddress) sdkTypes.AccAddress
 }
 
 type Client struct {
@@ -127,7 +127,7 @@ func (c *Client) GetAccountInfo(ctx context.Context, uid string) (sdkTypes.Accou
 
 	var account sdkTypes.AccountI
 
-	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, account); err != nil {
+	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
 		return nil, err
 	}
 
@@ -187,9 +187,12 @@ func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*core
 }
 
 // Set the address
-func (c *Client) SetAddress(account sdkTypes.AccountI) sdkTypes.AccAddress {
-	addr := account.GetAddress()
-	c.ctx = c.ctx.WithFromAddress(addr).WithFromAddress(addr).WithFeePayerAddress(addr)
+func (c *Client) SetAddress(addr sdkTypes.AccAddress) sdkTypes.AccAddress {
+	key, err := c.ctx.Keyring.KeyByAddress(addr)
+	if err != nil {
+		return nil
+	}
+	c.ctx = c.ctx.WithFromAddress(addr).WithFeePayerAddress(addr).WithFrom(addr.String()).WithFromName(key.Name).WithFeeGranterAddress(addr)
 	return addr
 }
 

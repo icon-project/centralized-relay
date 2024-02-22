@@ -71,6 +71,7 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 func (p *Provider) Wallet() sdkTypes.AccAddress {
 	if p.wallet == nil {
 		if err := p.RestoreKeystore(context.Background()); err != nil {
+			p.logger.Error("failed to restore keystore", zap.Error(err))
 			return nil
 		}
 		account, err := p.client.GetAccountInfo(context.Background(), p.NID())
@@ -78,6 +79,7 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
+		return p.client.SetAddress(account.GetAddress())
 	}
 	return p.wallet.GetAddress()
 }
@@ -155,7 +157,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 		return fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
 	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.cfg.GetWallet(),
+		Sender:   p.Wallet().String(),
 		Contract: contract,
 		Msg:      rawMsg,
 	}
@@ -179,7 +181,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	if p.seqTracker == nil {
-		addr := p.client.SetAddress(p.wallet)
+		addr := p.Wallet()
 		accounts := map[string]*AccountInfo{
 			addr.String(): {AccountNumber: p.wallet.GetAccountNumber(), Sequence: p.wallet.GetSequence()},
 		}
@@ -193,11 +195,7 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 	var accountNumber, sequence uint64
 
 	if p.memPoolTracker.IsBlocked() {
-		senderAccount, err := p.client.GetAccountInfo(ctx, p.Wallet().String())
-		if err != nil {
-			return nil, err
-		}
-		accountNumber, sequence = senderAccount.GetAccountNumber(), senderAccount.GetSequence()
+		accountNumber, sequence = p.wallet.GetAccountNumber(), p.wallet.GetSequence()
 	} else {
 		senderAccount, err := p.seqTracker.Get(p.Wallet().String())
 		if err != nil {
@@ -221,12 +219,8 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 }
 
 func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context) error {
-	senderAccount, err := p.client.GetAccountInfo(ctx, p.Wallet().String())
-	if err != nil {
-		return err
-	}
 	if err := p.seqTracker.Set(p.Wallet().String(), &AccountInfo{
-		AccountNumber: senderAccount.GetAccountNumber(), Sequence: senderAccount.GetSequence(),
+		AccountNumber: p.wallet.GetAccountNumber(), Sequence: p.wallet.GetSequence(),
 	}); err != nil {
 		return err
 	}
@@ -234,7 +228,7 @@ func (p *Provider) handleAccountSequenceMismatchError(ctx context.Context) error
 }
 
 func (p *Provider) logTxFailed(err error, txHash string) {
-	p.logger.Error("transaction failed: ",
+	p.logger.Error("transaction failed",
 		zap.Error(err),
 		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
@@ -242,7 +236,7 @@ func (p *Provider) logTxFailed(err error, txHash string) {
 }
 
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
-	p.logger.Info("transaction success: ",
+	p.logger.Info("transaction success",
 		zap.Uint64("block_height", height),
 		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
@@ -302,7 +296,7 @@ func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKe
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			p.memPoolTracker.SetBlockedStatusWithLock(true)
-			callback(mk, nil, txWaitRes.Error)
+			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
 		}
 		p.logTxSuccess(uint64(txWaitRes.TxResult.Height), txHash)
@@ -341,17 +335,17 @@ func (p *Provider) getTxResultStreamWithPolling(ctx context.Context, txHash stri
 
 func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResultChan {
 	txResChan := make(chan *types.TxResultChan)
-	go func(txChan chan *types.TxResultChan) {
-		defer close(txChan)
+	go func(txRes chan *types.TxResultChan) {
+		defer close(txRes)
 		httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
 		if err != nil {
-			txChan <- &types.TxResultChan{
+			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		}
 		if err := httpClient.Start(); err != nil {
-			txChan <- &types.TxResultChan{
+			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
@@ -364,7 +358,7 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash st
 		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
 		resultEventChan, err := httpClient.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
-			txChan <- &types.TxResultChan{
+			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
@@ -372,36 +366,42 @@ func (p *Provider) getTxResultStreamWithSubscribe(ctx context.Context, txHash st
 
 		select {
 		case <-ctx.Done():
-			txChan <- &types.TxResultChan{
+			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		case e := <-resultEventChan:
 			eventDataJSON, err := json.Marshal(e.Data)
 			if err != nil {
-				txChan <- &types.TxResultChan{
+				txRes <- &types.TxResultChan{
 					TxResult: nil, Error: err,
 				}
 				return
 			}
 
-			var txWaitRes types.TxResultWaitResponse
-			err = json.Unmarshal(eventDataJSON, &txWaitRes)
-			if err != nil {
-				txChan <- &types.TxResultChan{
+			txWaitRes := new(types.TxResultWaitResponse)
+			if err := json.Unmarshal(eventDataJSON, txWaitRes); err != nil {
+				txRes <- &types.TxResultChan{
 					TxResult: nil, Error: err,
 				}
 				return
 			}
 
 			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
-				txChan <- &types.TxResultChan{
-					TxResult: nil, Error: err,
+				txRes <- &types.TxResultChan{
+					Error: fmt.Errorf("transaction failed: %d", txWaitRes.Result.Code),
+					TxResult: &relayTypes.TxResponse{
+						Height:    txWaitRes.Height,
+						TxHash:    txHash,
+						Codespace: txWaitRes.Result.Codespace,
+						Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+						Data:      string(txWaitRes.Result.Data),
+					},
 				}
 				return
 			}
 
-			txChan <- &types.TxResultChan{
+			txRes <- &types.TxResultChan{
 				TxResult: &relayTypes.TxResponse{
 					Height:    txWaitRes.Height,
 					TxHash:    txHash,
@@ -584,9 +584,9 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 			}
 			for _, message := range messages {
 				message.MessageHeight = uint64(resultTx.Height)
-				message.EventType = events.EmitMessage
 				if message.Dst != "" {
-					p.logger.Info("Detected eventlog", zap.Uint64("height", message.MessageHeight),
+					p.logger.Info("Detected eventlog",
+						zap.Uint64("height", message.MessageHeight),
 						zap.String("target_network", message.Dst),
 						zap.Uint64("sn", message.Sn),
 						zap.String("event_type", message.EventType),
