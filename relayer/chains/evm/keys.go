@@ -79,7 +79,7 @@ func (p *EVMProvider) ImportKeystore(ctx context.Context, keyPath, passphrase st
 	if err != nil {
 		return "", err
 	}
-	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), key.Address.Hex())
+	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
 	if err := os.WriteFile(path, keystoreEncrypted, 0o644); err != nil {
 		return "", err
 	}

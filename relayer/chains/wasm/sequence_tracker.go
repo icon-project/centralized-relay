@@ -3,6 +3,8 @@ package wasm
 import (
 	"fmt"
 	"sync"
+
+	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 )
 
 type AccountInfo struct {
@@ -15,7 +17,13 @@ type SequenceTracker struct {
 	*sync.Mutex
 }
 
-func NewSeqTracker(accounts map[string]*AccountInfo) *SequenceTracker {
+func (p *Provider) NewSeqTracker(addr sdkTypes.AccAddress) *SequenceTracker {
+	accounts := map[string]*AccountInfo{
+		addr.String(): {
+			AccountNumber: p.wallet.GetAccountNumber(),
+			Sequence:      p.wallet.GetSequence(),
+		},
+	}
 	return &SequenceTracker{
 		accounts: accounts,
 		Mutex:    new(sync.Mutex),
