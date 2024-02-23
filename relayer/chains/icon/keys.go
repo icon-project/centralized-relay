@@ -78,7 +78,7 @@ func (p *IconProvider) ImportKeystore(ctx context.Context, keyPath, passphrase s
 	if err != nil {
 		return "", err
 	}
-	keystorePath := path.Join(p.cfg.HomeDir, p.NID(), addr)
+	keystorePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 	if err := os.WriteFile(keystorePath, keyStoreEncrypted, 0o644); err != nil {
 		return "", err
 	}

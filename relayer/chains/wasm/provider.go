@@ -250,8 +250,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber,
 	}
 
 	txf = txf.
-		WithGasPrices(p.cfg.GasPrices).
-		WithGasAdjustment(p.cfg.GasAdjustment).
+		WithGasPrices(p.cfg.GasPrices).WithGasAdjustment(p.cfg.GasAdjustment).
 		WithAccountNumber(accountNumber).
 		WithSequence(sequence)
 
