@@ -3,7 +3,6 @@ package icon
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -25,18 +24,9 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 	messageKey := message.MessageKey()
 
 	var txhash []byte
-
-	switch message.EventType {
-	case events.EmitMessage:
-		txhash, err = p.SendTransaction(ctx, iconMessage)
-		if err != nil {
-			return errors.Wrapf(err, "error occured while sending transaction")
-		}
-	case events.CallMessage:
-		txhash, err = p.ExecuteCall(ctx, big.NewInt(0).SetUint64(message.ReqID), message.Data)
-		if err != nil {
-			return errors.Wrapf(err, "error occured while executing call")
-		}
+	txhash, err = p.SendTransaction(ctx, iconMessage)
+	if err != nil {
+		return errors.Wrapf(err, "error occured while sending transaction")
 	}
 	go p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 	return nil
@@ -45,17 +35,16 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		msg := types.RecvMessage{
+		msg := &types.RecvMessage{
 			SrcNID: message.Src,
 			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
-		msg := types.SendMessage{
-			Msg:   types.NewHexBytes(message.Data),
-			Sn:    message.Sn,
-			ReqID: message.ReqID,
+		msg := &types.ExecuteCall{
+			Data:  types.NewHexBytes(message.Data),
+			ReqID: types.NewHexInt(int64(message.ReqID)),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
 	}

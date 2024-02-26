@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"sync"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -28,7 +27,7 @@ type IClient interface {
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 	BuildTxFactory() (tx.Factory, error)
-	CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
+	CalculateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
 	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
@@ -42,12 +41,11 @@ type IClient interface {
 }
 
 type Client struct {
-	ctx     sdkClient.Context
-	txMutex *sync.Mutex
+	ctx sdkClient.Context
 }
 
 func newClient(ctx *sdkClient.Context) *Client {
-	return &Client{*ctx, new(sync.Mutex)}
+	return &Client{*ctx}
 }
 
 func (c *Client) BuildTxFactory() (tx.Factory, error) {
@@ -55,10 +53,10 @@ func (c *Client) BuildTxFactory() (tx.Factory, error) {
 	if err != nil {
 		return txf, err
 	}
-	return txf, nil
+	return txf.WithSimulateAndExecute(c.ctx.Simulate), nil
 }
 
-func (c *Client) CalculateGas(txf tx.Factory, msgs []sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
+func (c *Client) CalculateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
 	return tx.CalculateGas(c.ctx, txf, msgs...)
 }
 

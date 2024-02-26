@@ -51,6 +51,8 @@ type ProviderConfig struct {
 
 	StartHeight uint64 `json:"start-height" yaml:"start-height"`
 
+	FinalityBlock uint64 `json:"finality-block" yaml:"finality-block"`
+
 	ChainName string `json:"-" yaml:"-"`
 }
 
@@ -81,7 +83,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	ws := newClient(clientContext)
 
 	return &Provider{
-		logger:         log.With(zap.Stringp("nid", &pc.NID), zap.Stringp("chain", &pc.ChainName)),
+		logger:         log.With(zap.Stringp("nid", &pc.NID), zap.Stringp("name", &pc.ChainName)),
 		cfg:            pc,
 		client:         ws,
 		memPoolTracker: &MemPoolInfo{isBlocked: false},

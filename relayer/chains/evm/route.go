@@ -94,7 +94,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 func (p *EVMProvider) WaitForTxResult(
 	ctx context.Context,
 	tx *types.Transaction,
-	messageKey *providerTypes.MessageKey,
+	message *providerTypes.MessageKey,
 	callback providerTypes.TxResponseFunc,
 ) {
 	if callback == nil {
@@ -107,11 +107,11 @@ func (p *EVMProvider) WaitForTxResult(
 
 	txReceipts, err := p.WaitForResults(ctx, tx.Hash())
 	if err != nil {
-		p.log.Error("failed to get txn result",
-			zap.String("txHash", res.TxHash),
-			zap.Any("messagekey ", messageKey),
+		p.log.Error("failed to get tx result",
+			zap.String("hash", res.TxHash),
+			zap.Any("message", message),
 			zap.Error(err))
-		callback(messageKey, res, err)
+		callback(message, res, err)
 		return
 	}
 
@@ -120,18 +120,18 @@ func (p *EVMProvider) WaitForTxResult(
 	status := txReceipts.Status
 	if status != 1 {
 		err = fmt.Errorf("transaction failed to execute")
-		callback(messageKey, res, err)
-		p.LogFailedTx(messageKey, txReceipts, err)
+		callback(message, res, err)
+		p.LogFailedTx(message, txReceipts, err)
 		return
 	}
 	res.Code = providerTypes.Success
-	callback(messageKey, res, nil)
-	p.LogSuccessTx(messageKey, txReceipts)
+	callback(message, res, nil)
+	p.LogSuccessTx(message, txReceipts)
 }
 
-func (p *EVMProvider) LogSuccessTx(messageKey *providerTypes.MessageKey, receipt *types.Receipt) {
+func (p *EVMProvider) LogSuccessTx(message *providerTypes.MessageKey, receipt *types.Receipt) {
 	p.log.Info("successful transaction",
-		zap.Any("message-key", messageKey),
+		zap.Any("message-key", message),
 		zap.String("tx_hash", receipt.TxHash.String()),
 		zap.Int64("height", receipt.BlockNumber.Int64()),
 	)

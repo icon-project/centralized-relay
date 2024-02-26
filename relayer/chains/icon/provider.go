@@ -37,7 +37,7 @@ func (c *IconProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, h
 	c.HomeDir = homepath
 
 	return &IconProvider{
-		log:       log.With(zap.String("nid ", c.NID), zap.String("chain", chainName)),
+		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
 		client:    NewClient(ctx, c.RPCUrl, log),
 		cfg:       c,
 		contracts: c.eventMap(),
@@ -169,22 +169,4 @@ func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
 		return fmt.Errorf("SetAdmin: failed to set admin: %s", txr.TxHash)
 	}
 	return nil
-}
-
-// ExecuteCall executes a call to the bridge contract
-func (p *IconProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
-	params := map[string]interface{}{"_reqId": reqID.Int64(), "_data": data}
-	message := p.NewIconMessage(types.Address(p.cfg.Contracts[relayerTypes.XcallContract]), params, MethodExecuteCall)
-	txHash, err := p.SendTransaction(ctx, message)
-	if err != nil {
-		return nil, err
-	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
-	if err != nil {
-		return nil, err
-	}
-	if txr.Status != types.NewHexInt(1) {
-		return nil, fmt.Errorf("failed: %s", txr.TxHash)
-	}
-	return txr.TxHash.Value()
 }

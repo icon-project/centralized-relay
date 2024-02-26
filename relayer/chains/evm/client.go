@@ -88,6 +88,7 @@ type IClient interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
+	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 
 	// transaction
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
@@ -278,4 +279,8 @@ func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallM
 
 func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {
 	return c.xcall.ExecuteCall(opts, reqID, data)
+}
+
+func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	return c.eth.EstimateGas(ctx, msg)
 }

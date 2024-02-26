@@ -227,24 +227,23 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
-	for _, srcChainRuntime := range r.chains {
-		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
-			switch routeMessage.EventType {
+	for _, src := range r.chains {
+		for _, message := range src.MessageCache.Messages {
+			switch message.EventType {
 			case events.EmitMessage:
-				dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
+				dst, err := r.FindChainRuntime(message.Dst)
 				if err != nil {
-					r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
-					// remove message if src runtime if dst not found
-					r.ClearMessages(ctx, []*types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 					continue
 				}
 
-				if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
+				if ok := dst.shouldSendMessage(ctx, message, src); !ok {
 					continue
 				}
 
 				// if message reached delete the message
-				messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
+				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 				if err != nil {
 					r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
 					continue
@@ -252,12 +251,15 @@ func (r *Relayer) processMessages(ctx context.Context) {
 
 				// if message is received we can remove the message from db
 				if messageReceived {
-					r.ClearMessages(ctx, []*types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 					continue
 				}
-				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
+				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
-				go r.SubmitMessage(ctx, routeMessage, srcChainRuntime)
+				if ok := src.shouldExecuteCall(ctx, message); !ok {
+					continue
+				}
+				go r.SubmitMessage(ctx, message, src)
 			}
 		}
 	}

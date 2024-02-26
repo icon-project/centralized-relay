@@ -84,11 +84,10 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = uint64(DefaultFinalityBlock)
 	}
-	p.ChainName = chainName
 
 	return &EVMProvider{
 		cfg:       p,
-		log:       log.With(zap.String("nid", p.NID), zap.String("chain", chainName)),
+		log:       log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
 		client:    client,
 		blockReq:  p.GetMonitorEventFilters(),
 		verifier:  verifierClient,
@@ -278,21 +277,4 @@ func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
 	return err
-}
-
-// ExecuteCall executes a call to the bridge contract
-func (p *EVMProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
-	opts, err := p.GetTransationOpts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := p.client.ExecuteCall(opts, reqID, data)
-	if err != nil {
-		return nil, err
-	}
-	res, err := p.WaitForResults(ctx, tx.Hash())
-	if res.Status != 1 {
-		return nil, fmt.Errorf("failed to execute call: %s", err)
-	}
-	return res.TxHash.Bytes(), err
 }

@@ -164,7 +164,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	msgs := []sdkTypes.Msg{msg}
 
-	res, err := p.sendMessages(ctx, msgs)
+	res, err := p.sendMessage(ctx, msgs...)
 	if err != nil {
 		if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
 			if mmErr := p.handleAccountSequenceMismatchError(); mmErr != nil {
@@ -179,7 +179,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	return nil
 }
 
-func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	if p.seqTracker == nil {
 		addr := p.Wallet()
 		p.seqTracker = p.NewSeqTracker(addr)
@@ -194,21 +194,21 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 	if p.memPoolTracker.IsBlocked() {
 		accountNumber, sequence = p.wallet.GetAccountNumber(), p.wallet.GetSequence()
 	} else {
-		senderAccount, err := p.seqTracker.Get(p.Wallet().String())
+		senderAccount, err := p.seqTracker.Get(p.Wallet())
 		if err != nil {
 			return nil, err
 		}
 		accountNumber, sequence = senderAccount.AccountNumber, senderAccount.Sequence
 	}
 
-	res, err := p.prepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs)
+	res, err := p.prepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs...)
 	if err != nil {
 		return nil, err
 	}
 
 	if p.memPoolTracker.IsBlocked() {
 		p.memPoolTracker.SetBlockedStatus(false)
-	} else if err := p.seqTracker.IncrementSequence(p.Wallet().String()); err != nil {
+	} else if err := p.seqTracker.IncrementSequence(p.Wallet()); err != nil {
 		return nil, err
 	}
 
@@ -216,7 +216,7 @@ func (p *Provider) sendMessages(ctx context.Context, msgs []sdkTypes.Msg) (*sdkT
 }
 
 func (p *Provider) handleAccountSequenceMismatchError() error {
-	if err := p.seqTracker.Set(p.Wallet().String(), &AccountInfo{
+	if err := p.seqTracker.Set(p.Wallet(), &AccountInfo{
 		AccountNumber: p.wallet.GetAccountNumber(), Sequence: p.wallet.GetSequence(),
 	}); err != nil {
 		return err
@@ -240,19 +240,20 @@ func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	)
 }
 
-func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs []sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber, sequence uint64, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
 	txf, err := p.client.BuildTxFactory()
 	if err != nil {
 		return nil, err
 	}
 
 	txf = txf.
-		WithGasPrices(p.cfg.GasPrices).WithGasAdjustment(p.cfg.GasAdjustment).
+		WithGasPrices(p.cfg.GasPrices).
+		WithGasAdjustment(p.cfg.GasAdjustment).
 		WithAccountNumber(accountNumber).
 		WithSequence(sequence)
 
 	if txf.SimulateAndExecute() {
-		_, adjusted, err := p.client.CalculateGas(txf, msgs)
+		_, adjusted, err := p.client.CalculateGas(txf, msgs...)
 		if err != nil {
 			return nil, err
 		}
@@ -263,11 +264,11 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber,
 		return nil, fmt.Errorf("gas amount cannot be zero")
 	}
 
-	if p.cfg.MinGasAmount > 0 && txf.Gas() < p.cfg.MinGasAmount {
+	if txf.Gas() < p.cfg.MinGasAmount {
 		return nil, fmt.Errorf("gas amount %d is too low; the minimum allowed gas amount is %d", txf.Gas(), p.cfg.MinGasAmount)
 	}
 
-	if p.cfg.MaxGasAmount > 0 && txf.Gas() > p.cfg.MaxGasAmount {
+	if txf.Gas() > p.cfg.MaxGasAmount {
 		return nil, fmt.Errorf("gas amount %d exceeds the maximum allowed limit of %d", txf.Gas(), p.cfg.MaxGasAmount)
 	}
 
@@ -411,7 +412,7 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-	queryMsg := types.QueryReceiptMsg{
+	queryMsg := &types.QueryReceiptMsg{
 		GetReceipt: &types.GetReceiptMsg{
 			SrcNetwork: key.Src,
 			ConnSn:     strconv.Itoa(int(key.Sn)),
@@ -430,15 +431,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 	}
 
 	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	if err := json.Unmarshal(res.Data, &receiptMsgRes.Status); err != nil {
-		return false, err
-	}
-
-	if receiptMsgRes.Status {
-		return true, nil
-	}
-
-	return false, nil
+	return receiptMsgRes.Status, json.Unmarshal(res.Data, &receiptMsgRes.Status)
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
@@ -466,7 +459,7 @@ func (p *Provider) GenerateMessage(ctx context.Context, messageKey *relayTypes.M
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
-	return 0
+	return p.cfg.FinalityBlock
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
@@ -475,11 +468,6 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 
 func (p *Provider) SetAdmin(context.Context, string) error {
 	return nil
-}
-
-// ExecuteCall executes a call to the bridge contract
-func (p *Provider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
-	return nil, nil
 }
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
@@ -567,8 +555,7 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 	var messages []*relayTypes.Message
 	for _, resultTx := range resultTxList {
 		var eventsList []*EventsList
-		err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList)
-		if err != nil {
+		if err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
 			return nil, err
 		}
 

@@ -104,11 +104,11 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wallets := make(map[string]*types.Coin, len(files))
+			wallets := make(map[string]*types.Coin)
 			for _, file := range files {
 				name := file.Name()
-				if strings.HasSuffix(name, ".json") {
-					wallet := strings.TrimSuffix(name, ".json")
+				if !strings.HasSuffix(name, ".pass") {
+					wallet := strings.TrimSuffix(name, ".pass")
 					balance, err := chain.ChainProvider.QueryBalance(cmd.Context(), wallet)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "failed to query balance for %s: %v\n", wallet, err)

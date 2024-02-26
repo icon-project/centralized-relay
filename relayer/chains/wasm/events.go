@@ -11,12 +11,17 @@ import (
 )
 
 const (
-	EventTypeWasmMessage string = "wasm-Message"
+	EventTypeWasmMessage = "wasm-Message"
 
-	EventAttrKeyMsg           string = "msg"
+	EventAttrKeyMsg                  = "msg"
 	EventAttrKeyTargetNetwork string = "targetNetwork"
 	EventAttrKeyConnSn        string = "connSn"
 	EventAttrKeyReqID         string = "reqId"
+	EventAttrKeyData          string = "data"
+	EventAttrKeyTo            string = "to"
+	EventAttrKeyFrom          string = "from"
+	EventAttrKeyCallMessage   string = "call_message"
+	EventAttrKeySendMessge    string = "send_message"
 
 	EventAttrKeyContractAddress string = "_contract_address"
 )
@@ -43,20 +48,24 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			msg := new(providerTypes.Message)
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
-				case EventAttrKeyMsg:
+				case EventAttrKeySendMessge:
+					msg.EventType = events.EmitMessage
+					msg.Src = p.NID()
+				case EventAttrKeyCallMessage:
+					msg.EventType = events.CallMessage
+				case EventAttrKeyMsg, EventAttrKeyData:
 					data, err := hexstr.NewFromString(attr.Value).ToByte()
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse msg data from event: %v", err)
 					}
 					msg.Data = data
-					msg.EventType = events.EmitMessage
 				case EventAttrKeyConnSn:
 					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
-				case EventAttrKeyTargetNetwork:
+				case EventAttrKeyTargetNetwork, EventAttrKeyTo:
 					msg.Dst = attr.Value
 				case EventAttrKeyReqID:
 					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
@@ -64,7 +73,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.ReqID = reqID
-					msg.EventType = events.CallMessage
+				case EventAttrKeyFrom:
+					msg.Src = attr.Value
 				}
 			}
 			messages = append(messages, msg)
@@ -108,7 +118,7 @@ func (p *Provider) GetMonitorEventFilters() []abiTypes.EventAttribute {
 		for range contract.SigType {
 			filters = append(filters, abiTypes.EventAttribute{
 				Key:   EventAttrKeyContractAddress,
-				Value: "'" + addr + "'",
+				Value: fmt.Sprintf("'%s'", addr),
 			})
 		}
 	}

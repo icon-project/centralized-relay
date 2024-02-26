@@ -330,7 +330,12 @@ type SendMessage struct {
 	Svc           string   `json:"svc"`
 	Sn            uint64   `json:"sn"`
 	Msg           HexBytes `json:"msg"`
-	ReqID         uint64   `json:"reqId"`
+	Data          HexBytes `json:"data"`
+}
+
+type ExecuteCall struct {
+	Data  HexBytes `json:"_data"`
+	ReqID HexInt   `json:"_reqId"`
 }
 
 type RecvMessage struct {

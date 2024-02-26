@@ -68,3 +68,7 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 
 	return true
 }
+
+func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
+	return true
+}

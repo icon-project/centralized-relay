@@ -43,5 +43,4 @@ type ChainProvider interface {
 	RestoreKeystore(context.Context) error
 	ImportKeystore(context.Context, string, string) (string, error)
 	RevertMessage(ctx context.Context, sn *big.Int) error
-	ExecuteCall(context.Context, *big.Int, []byte) ([]byte, error)
 }

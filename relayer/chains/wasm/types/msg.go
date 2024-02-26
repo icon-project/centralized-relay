@@ -21,7 +21,7 @@ type ReceiveMessage struct {
 }
 
 type ExecMessage struct {
-	ReqID string           `json:"request_id"`
+	ReqID string           `json:"reqId"`
 	Data  hexstr.HexString `json:"data"`
 }
 
@@ -39,7 +39,7 @@ type ExecRecvMsg struct {
 }
 
 type ExecExecMsg struct {
-	ExecMessage *ExecMessage `json:"exec_message"`
+	ExecMessage *ExecMessage `json:"execute_call"`
 }
 
 func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
@@ -52,10 +52,10 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 	}
 }
 
-func NewExecExecMsg(message *relayTypes.Message) ExecExecMsg {
-	return ExecExecMsg{
+func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
+	return &ExecExecMsg{
 		ExecMessage: &ExecMessage{
-			ReqID: strconv.Itoa(int(message.Sn)),
+			ReqID: strconv.FormatUint(message.Sn, 16),
 			Data:  hexstr.NewFromByte(message.Data),
 		},
 	}
