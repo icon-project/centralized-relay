@@ -13,15 +13,20 @@ import (
 const (
 	EventTypeWasmMessage = "wasm-Message"
 
+	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"
 	EventAttrKeyTargetNetwork string = "targetNetwork"
 	EventAttrKeyConnSn        string = "connSn"
-	EventAttrKeyReqID         string = "reqId"
-	EventAttrKeyData          string = "data"
-	EventAttrKeyTo            string = "to"
-	EventAttrKeyFrom          string = "from"
-	EventAttrKeyCallMessage   string = "call_message"
-	EventAttrKeySendMessge    string = "send_message"
+
+	// Attr keys for xcall contract events
+	EventAttrKeyReqID string = "reqId"
+	EventAttrKeyData  string = "data"
+	EventAttrKeyTo    string = "to"
+	EventAttrKeyFrom  string = "from"
+
+	// Event types
+	EventAttrKeyCallMessage string = "call_message"
+	EventAttrKeySendMessge  string = "send_message"
 
 	EventAttrKeyContractAddress string = "_contract_address"
 )

@@ -217,7 +217,8 @@ func (i HexInt) Value() (int64, error) {
 
 func (i HexInt) Int() (int, error) {
 	s := strings.TrimPrefix(string(i), "0x")
-	return strconv.Atoi(s)
+	v, err := strconv.ParseInt(s, 16, 32)
+	return int(v), err
 }
 
 func (i HexInt) BigInt() (*big.Int, error) {
@@ -334,8 +335,8 @@ type SendMessage struct {
 }
 
 type ExecuteCall struct {
-	Data  HexBytes `json:"_data"`
 	ReqID HexInt   `json:"_reqId"`
+	Data  HexBytes `json:"_data"`
 }
 
 type RecvMessage struct {

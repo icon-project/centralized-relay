@@ -43,8 +43,8 @@ func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMes
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
 		msg := &types.ExecuteCall{
-			Data:  types.NewHexBytes(message.Data),
 			ReqID: types.NewHexInt(int64(message.ReqID)),
+			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
 	}
@@ -83,7 +83,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 	txParam := &types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]),
+		ToAddress:   msg.Address,
 		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
 		StepLimit:   stepLimit,
 		DataType:    "call",
