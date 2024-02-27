@@ -10,7 +10,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -51,6 +50,7 @@ type IClient interface {
 	GetDataByHash(p *types.DataHashParam) ([]byte, error)
 	GetProofForResult(p *types.ProofResultParam) ([][]byte, error)
 	GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error)
+	EstimateStep(param *types.TransactionParam) (*types.HexInt, error)
 
 	MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error
 	MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error
@@ -470,9 +470,6 @@ func (opts IconOptions) Set(key, value string) {
 }
 
 func (opts IconOptions) Get(key string) string {
-	if opts == nil {
-		return ""
-	}
 	v := opts[key]
 	if len(v) == 0 {
 		return ""
@@ -484,19 +481,19 @@ func (opts IconOptions) Del(key string) {
 	delete(opts, key)
 }
 
-func (opts IconOptions) SetBool(key string, value bool) {
+func (opts *IconOptions) SetBool(key string, value bool) {
 	opts.Set(key, strconv.FormatBool(value))
 }
 
-func (opts IconOptions) GetBool(key string) (bool, error) {
+func (opts *IconOptions) GetBool(key string) (bool, error) {
 	return strconv.ParseBool(opts.Get(key))
 }
 
-func (opts IconOptions) SetInt(key string, v int64) {
+func (opts *IconOptions) SetInt(key string, v int64) {
 	opts.Set(key, strconv.FormatInt(v, 10))
 }
 
-func (opts IconOptions) GetInt(key string) (int64, error) {
+func (opts *IconOptions) GetInt(key string) (int64, error) {
 	return strconv.ParseInt(opts.Get(key), 10, 64)
 }
 
@@ -533,18 +530,18 @@ func NewIconOptionsByHeader(h http.Header) IconOptions {
 	return nil
 }
 
-func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.HexInt, error) {
+func (c *Client) EstimateStep(param types.TransactionParam) (*types.HexInt, error) {
 	if len(c.DebugEndPoint) == 0 {
 		return nil, errors.New("UnavailableDebugEndPoint")
 	}
 	currTime := time.Now().UnixNano() / time.Hour.Microseconds()
 	param.Timestamp = types.NewHexInt(currTime)
-	var result types.HexInt
+	res := new(types.HexInt)
 	if _, err := c.DoURL(c.DebugEndPoint,
-		"debug_estimateStep", param, &result); err != nil {
+		"debug_estimateStep", param, res); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return res, nil
 }
 
 func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {
@@ -565,20 +562,5 @@ func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {
 }
 
 func guessDebugEndpoint(endpoint string) string {
-	uo, err := url.Parse(endpoint)
-	if err != nil {
-		return ""
-	}
-	ps := strings.Split(uo.Path, "/")
-	for i, v := range ps {
-		if v == "api" {
-			if len(ps) > i+1 && ps[i+1] == "v3" {
-				ps[i+1] = "v3d"
-				uo.Path = strings.Join(ps, "/")
-				return uo.String()
-			}
-			break
-		}
-	}
-	return ""
+	return strings.Replace(endpoint, "v3", "v3d", 1)
 }

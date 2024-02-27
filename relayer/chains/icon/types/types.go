@@ -58,27 +58,16 @@ type TransactionResult struct {
 	TxHash       HexBytes `json:"txHash" validate:"required,t_int"`
 }
 
-type TransactionParamForEstimate struct {
-	Version     HexInt   `json:"version" validate:"required,t_int"`
-	FromAddress Address  `json:"from" validate:"required,t_addr_eoa"`
-	ToAddress   Address  `json:"to" validate:"required,t_addr"`
-	Value       HexInt   `json:"value,omitempty" validate:"optional,t_int"`
-	Timestamp   HexInt   `json:"timestamp" validate:"required,t_int"`
-	NetworkID   HexInt   `json:"nid" validate:"required,t_int"`
-	Nonce       HexInt   `json:"nonce,omitempty" validate:"optional,t_int"`
-	DataType    string   `json:"dataType,omitempty" validate:"optional,call|deploy|message|deposit"`
-	Data        CallData `json:"data,omitempty"`
-}
 type TransactionParam struct {
 	Version     HexInt   `json:"version" validate:"required,t_int"`
 	FromAddress Address  `json:"from" validate:"required,t_addr_eoa"`
 	ToAddress   Address  `json:"to" validate:"required,t_addr"`
 	Value       HexInt   `json:"value,omitempty" validate:"optional,t_int"`
-	StepLimit   HexInt   `json:"stepLimit" validate:"required,t_int"`
+	StepLimit   HexInt   `json:"stepLimit,omitempty" validate:"optional,t_int"`
 	Timestamp   HexInt   `json:"timestamp" validate:"required,t_int"`
 	NetworkID   HexInt   `json:"nid" validate:"required,t_int"`
 	Nonce       HexInt   `json:"nonce,omitempty" validate:"optional,t_int"`
-	Signature   string   `json:"signature" validate:"required,t_sig"`
+	Signature   string   `json:"signature,omitempty" validate:"optional,t_sig"`
 	DataType    string   `json:"dataType,omitempty" validate:"optional,call|deploy|message"`
 	Data        CallData `json:"data,omitempty"`
 	TxHash      HexBytes `json:"-"`

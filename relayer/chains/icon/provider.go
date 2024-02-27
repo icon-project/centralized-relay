@@ -24,6 +24,8 @@ type IconProviderConfig struct {
 	NetworkID     uint                           `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
 	NID           string                         `json:"nid" yaml:"nid"`
+	StepMin       int64                          `json:"step-min" yaml:"step-min"`
+	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
 	HomeDir       string                         `json:"-" yaml:"-"`
 }
 
@@ -122,17 +124,12 @@ func (p *IconProvider) MessageReceived(ctx context.Context, messageKey *provider
 	if err := p.client.Call(callParam, &status); err != nil {
 		return false, fmt.Errorf("MessageReceived: %v", err)
 	}
-
-	if status == types.NewHexInt(1) {
-		return true, nil
-	}
-
-	return false, nil
+	return status == types.NewHexInt(1), nil
 }
 
 // ReverseMessage reverts a message
 func (p *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	params := map[string]interface{}{"sn": sn}
+	params := map[string]interface{}{"_sn": types.NewHexInt(sn.Int64())}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), params, MethodRevertMessage)
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
@@ -155,13 +152,11 @@ func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
 	}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetAdmin)
 
-	data, err := p.SendTransaction(ctx, message)
+	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return fmt.Errorf("SetAdmin: %v", err)
 	}
-	txHash := types.HexBytes(data)
-	p.log.Info("SetAdmin: waiting for tx result", zap.ByteString("txHash", data))
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txHash})
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
 	if err != nil {
 		return fmt.Errorf("SetAdmin: WaitForResults: %v", err)
 	}

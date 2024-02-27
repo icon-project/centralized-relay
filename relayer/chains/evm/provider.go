@@ -30,7 +30,7 @@ type EVMProviderConfig struct {
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
-	GasPrice       int64                           `json:"gas-price" yaml:"gas-price"`
+	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
@@ -145,27 +145,24 @@ func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
-	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond // 1.5sec
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Nanosecond)
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Millisecond)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = errors.New("Context Cancelled. ResultWait Exiting ")
+			err = ctx.Err()
 			return
 		case <-ticker.C:
 			if retryCounter >= providerTypes.MaxTxRetry {
-				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
+				err = fmt.Errorf("Max retry reached for tx %s", txHash.String())
 				return
 			}
 			retryCounter++
 			txr, err = p.client.TransactionReceipt(ctx, txHash)
 			if err != nil && err == ethereum.NotFound {
-				err = nil
 				continue
 			}
-
 			return
 		}
 	}
@@ -214,17 +211,12 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		return txo, nil
 	}
 
-	h, err := p.QueryLatestHeight(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	wallet, err := p.Wallet()
 	if err != nil {
 		return nil, err
 	}
 
-	non, err := p.client.NonceAt(ctx, wallet.Address, big.NewInt(int64(h)))
+	non, err := p.client.NonceAt(ctx, wallet.Address, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -235,8 +227,8 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	}
 	txOpts.Nonce = non
 	txOpts.Context = ctx
-	if p.cfg.GasPrice > 0 {
-		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+	if p.cfg.GasLimit > 0 {
+		txOpts.GasPrice = big.NewInt(int64(p.cfg.GasLimit))
 	}
 
 	return txOpts, nil

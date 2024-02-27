@@ -75,7 +75,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 				case EventAttrKeyReqID:
 					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
-						return nil, fmt.Errorf("failed to parse connSn from event")
+						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
 					msg.ReqID = reqID
 				case EventAttrKeyFrom:

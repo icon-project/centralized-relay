@@ -253,7 +253,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, accountNumber,
 		WithSequence(sequence)
 
 	if txf.SimulateAndExecute() {
-		_, adjusted, err := p.client.CalculateGas(txf, msgs...)
+		_, adjusted, err := p.client.EstimateGas(txf, msgs...)
 		if err != nil {
 			return nil, err
 		}

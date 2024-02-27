@@ -27,7 +27,7 @@ type IClient interface {
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 	BuildTxFactory() (tx.Factory, error)
-	CalculateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
+	EstimateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
 	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
@@ -56,7 +56,7 @@ func (c *Client) BuildTxFactory() (tx.Factory, error) {
 	return txf.WithSimulateAndExecute(c.ctx.Simulate), nil
 }
 
-func (c *Client) CalculateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
+func (c *Client) EstimateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error) {
 	return tx.CalculateGas(c.ctx, txf, msgs...)
 }
 
@@ -184,7 +184,7 @@ func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*core
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
-// Set the address
+// Set the address to be used for the transactions
 func (c *Client) SetAddress(addr sdkTypes.AccAddress) sdkTypes.AccAddress {
 	key, err := c.ctx.Keyring.KeyByAddress(addr)
 	if err != nil {

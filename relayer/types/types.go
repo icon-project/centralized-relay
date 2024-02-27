@@ -73,7 +73,7 @@ func (r *RouteMessage) GetMessage() *Message {
 }
 
 func (r *RouteMessage) IncrementRetry() {
-	r.Retry += 1
+	r.Retry++
 }
 
 func (r *RouteMessage) GetRetry() uint8 {

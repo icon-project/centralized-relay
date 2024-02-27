@@ -42,6 +42,7 @@ func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMes
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
+		time.Sleep(10 * time.Second)
 		msg := &types.ExecuteCall{
 			ReqID: types.NewHexInt(int64(message.ReqID)),
 			Data:  types.NewHexBytes(message.Data),
@@ -57,7 +58,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 		return nil, err
 	}
 
-	txParamEst := &types.TransactionParamForEstimate{
+	txParam := types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   msg.Address,
@@ -69,7 +70,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 		},
 	}
 
-	step, err := p.client.EstimateStep(txParamEst)
+	step, err := p.client.EstimateStep(txParam)
 	if err != nil {
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
@@ -78,26 +79,23 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 	if err != nil {
 		return nil, err
 	}
-	stepLimit := types.NewHexInt(int64(stepVal + 200_000))
+	stepValue := int64(stepVal + 200_000)
 
-	txParam := &types.TransactionParam{
-		Version:     types.NewHexInt(JsonrpcApiVersion),
-		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
-		StepLimit:   stepLimit,
-		DataType:    "call",
-		Data: types.CallData{
-			Method: msg.Method,
-			Params: msg.Params,
-		},
+	if stepValue > p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too high: %d", stepValue)
 	}
 
-	if err := p.client.SignTransaction(wallet, txParam); err != nil {
+	if stepValue < p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too low: %d", stepValue)
+	}
+
+	txParam.StepLimit = types.NewHexInt(stepValue)
+
+	if err := p.client.SignTransaction(wallet, &txParam); err != nil {
 		return nil, err
 	}
 
-	_, err = p.client.SendTransaction(txParam)
+	_, err = p.client.SendTransaction(&txParam)
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +155,13 @@ func (p *IconProvider) LogSuccessTx(method string, result *types.TransactionResu
 		p.log.Error("Failed to get block height", zap.Error(err))
 	}
 
-	p.log.Info("Successful Transaction",
+	p.log.Info("transaction success",
 		zap.String("chain_id", p.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
 		zap.Int64("step_used", stepUsed),
+		zap.Int64p("step_limit", &p.cfg.StepLimit),
 	)
 }
 
@@ -176,6 +175,7 @@ func (p *IconProvider) LogFailedTx(method string, result *types.TransactionResul
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
 		zap.Int64("step_used", stepUsed),
+		zap.Int64p("step_limit", &p.cfg.StepLimit),
 		zap.Error(err),
 	)
 }

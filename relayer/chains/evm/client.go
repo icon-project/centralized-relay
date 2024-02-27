@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 10
-	GasPriceRatio            = 10.0
+	RPCCallRetry                               = 5
+	MaxGasPriceInceremtRetry                   = 10
+	GasPriceRatio                              = 10.0
+	DefaultGetTransactionResultPollingInterval = 500
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {
