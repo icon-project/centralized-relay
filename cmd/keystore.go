@@ -118,7 +118,7 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			}
 			printLabels("Wallet", "Balance")
 			for wallet, balance := range wallets {
-				if wallet == chain.ChainProvider.ProviderConfig().GetWallet() {
+				if wallet == chain.ChainProvider.Config().GetWallet() {
 					wallet = "* -> " + wallet
 				}
 				printValues(wallet, balance.Calculate())
