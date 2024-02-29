@@ -30,6 +30,7 @@ type EVMProviderConfig struct {
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
+	GasPrice       uint64                          `json:"gas-price" yaml:"gas-price"`
 	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
@@ -144,26 +145,24 @@ func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
+func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Millisecond)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = ctx.Err()
-			return
+			return nil, ctx.Err()
 		case <-ticker.C:
 			if retryCounter >= providerTypes.MaxTxRetry {
-				err = fmt.Errorf("Max retry reached for tx %s", txHash.String())
-				return
+				return nil, fmt.Errorf("max retry reached for tx %s", txHash.String())
 			}
 			retryCounter++
-			txr, err = p.client.TransactionReceipt(ctx, txHash)
+			txr, err := p.client.TransactionReceipt(ctx, txHash)
 			if err != nil && err == ethereum.NotFound {
 				continue
 			}
-			return
+			return txr, err
 		}
 	}
 }
@@ -227,10 +226,11 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	}
 	txOpts.Nonce = non
 	txOpts.Context = ctx
-	if p.cfg.GasLimit > 0 {
-		txOpts.GasPrice = big.NewInt(int64(p.cfg.GasLimit))
+	gasPrice, err := p.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-
+	txOpts.GasPrice = gasPrice
 	return txOpts, nil
 }
 

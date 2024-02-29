@@ -275,7 +275,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 		msg := types.NewRouteMessage(msg)
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
-			r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
+			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
 	}
 	if err := r.SaveBlockHeight(ctx, src, blockInfo.Height, len(blockInfo.Messages)); err != nil {

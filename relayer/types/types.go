@@ -22,11 +22,11 @@ type BlockInfo struct {
 type Message struct {
 	Dst           string `json:"dst"`
 	Src           string `json:"src"`
-	Sn            uint64 `json:"sn"`
+	Sn            uint64 `json:"sn,omitempty"`
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
-	ReqID         uint64 `json:"reqID"`
+	ReqID         uint64 `json:"reqID,omitempty"`
 }
 
 type ContractConfigMap map[string]string
@@ -41,7 +41,7 @@ func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]
 		if !ok {
-			return fmt.Errorf("contract %s is not supported", contract)
+			return fmt.Errorf("contract %s not configured", contract)
 		}
 		if val == "" {
 			return fmt.Errorf("contract %s address is empty", contract)

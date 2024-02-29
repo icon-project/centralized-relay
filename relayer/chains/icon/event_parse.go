@@ -3,6 +3,7 @@ package icon
 import (
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -38,8 +39,10 @@ func (p *IconProvider) parseMessageFromEvent(log *zap.Logger, event *types.Event
 			return nil, false
 		}
 		return m, true
+	default:
+		log.Error("unknown event", zap.String("event", eventName))
+		return nil, false
 	}
-	return nil, false
 }
 
 func (p *IconProvider) parseEmitMessage(e *types.EventLog, eventType string, height uint64) (*providerTypes.Message, error) {
@@ -48,7 +51,6 @@ func (p *IconProvider) parseEmitMessage(e *types.EventLog, eventType string, hei
 	}
 
 	dst := string(e.Indexed[1][:])
-	// TODO: temporary soln should be something permanent
 	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
 
 	return &providerTypes.Message{
@@ -66,17 +68,17 @@ func (p *IconProvider) parseCallMessage(e *types.EventLog, eventType string, hei
 		return nil, fmt.Errorf("expected indexed: 3 & data: 1, got: %d indexed & %d", indexdedLen, dataLen)
 	}
 
-	src := string(e.Indexed[1][:])
-	sn := big.NewInt(0).SetBytes(e.Indexed[2])
-	reqID := big.NewInt(0).SetBytes(e.Indexed[3])
+	src := strings.SplitN(string(e.Indexed[1][:]), "/", 2)
+	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
+	reqID := big.NewInt(0).SetBytes(e.Indexed[3]).Uint64()
 
 	return &providerTypes.Message{
 		MessageHeight: height,
-		ReqID:         reqID.Uint64(),
+		ReqID:         reqID,
 		EventType:     eventType,
 		Dst:           p.NID(),
 		Data:          e.Data[1],
-		Sn:            sn.Uint64(),
-		Src:           src,
+		Sn:            sn,
+		Src:           src[0],
 	}, nil
 }

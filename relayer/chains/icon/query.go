@@ -88,6 +88,8 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
 		}
 
+		var dst string
+
 		for _, el := range txResult.EventLogs {
 			switch el.Indexed[0] {
 			case EmitMessage:
@@ -95,14 +97,15 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 					len(el.Indexed) != 3 && len(el.Data) != 1 {
 					continue
 				}
+				dst = el.Indexed[1]
 			case CallMessage:
 				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.XcallContract]) &&
 					len(el.Indexed) != 4 && len(el.Data) != 1 {
 					continue
 				}
+				dst = ip.NID()
 			}
 
-			dst := el.Indexed[1]
 			sn, ok := big.NewInt(0).SetString(el.Indexed[2], 0)
 			if !ok {
 				ip.log.Error("GenerateMessage: error decoding int value ")
@@ -150,12 +153,10 @@ func (p *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash strin
 		return nil, fmt.Errorf("QueryTransactionReceipt: bigIntConversion %v", err)
 	}
 
-	receipt := providerTypes.Receipt{
+	receipt := &providerTypes.Receipt{
 		TxHash: txHash,
 		Height: height.Uint64(),
+		Status: status == 1,
 	}
-	if status == 1 {
-		receipt.Status = true
-	}
-	return &receipt, nil
+	return receipt, nil
 }

@@ -79,17 +79,17 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 	if err != nil {
 		return nil, err
 	}
-	stepValue := int64(stepVal + 200_000)
+	steps := int64(stepVal + 100_000)
 
-	if stepValue > p.cfg.StepLimit {
-		return nil, fmt.Errorf("step limit is too high: %d", stepValue)
+	if steps > p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too high: %d", steps)
 	}
 
-	if stepValue < p.cfg.StepLimit {
-		return nil, fmt.Errorf("step limit is too low: %d", stepValue)
+	if steps < p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too low: %d", steps)
 	}
 
-	txParam.StepLimit = types.NewHexInt(stepValue)
+	txParam.StepLimit = types.NewHexInt(steps)
 
 	if err := p.client.SignTransaction(wallet, &txParam); err != nil {
 		return nil, err
@@ -116,8 +116,9 @@ func (p *IconProvider) WaitForTxResult(
 	}
 
 	txhash := types.NewHexBytes(txHash)
-	res := &providerTypes.TxResponse{}
-	res.TxHash = string(txHash)
+	res := &providerTypes.TxResponse{
+		TxHash: string(txhash),
+	}
 
 	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {

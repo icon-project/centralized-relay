@@ -47,6 +47,5 @@ func (cq *CompositeQuery) GetQuery() string {
 			resultQuery = q.GetQuery()
 		}
 	}
-
 	return resultQuery
 }

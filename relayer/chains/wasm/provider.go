@@ -8,9 +8,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	abiTypes "github.com/cometbft/cometbft/abci/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
@@ -105,8 +107,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	blockIntervalTicker := time.NewTicker(p.cfg.BlockInterval)
-	defer blockIntervalTicker.Stop()
+	heightTicker := time.NewTicker(p.cfg.BlockInterval)
+	heightPoller := time.NewTicker(time.Minute)
+	defer heightTicker.Stop()
+	defer heightPoller.Stop()
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight))
 
@@ -116,18 +120,19 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	for {
 		select {
-		case <-blockIntervalTicker.C:
-			for {
-				newLatestHeight, err := p.QueryLatestHeight(ctx)
-				if err == nil {
-					if newLatestHeight > runningLatestHeight {
-						runningLatestHeight = newLatestHeight
-					}
-					continue
-				}
+		case <-heightTicker.C:
+			runningLatestHeight++
+		case <-heightPoller.C:
+			latestHeight, err := p.QueryLatestHeight(ctx)
+			if err != nil {
 				p.logger.Error("failed to query latest height", zap.Error(err))
-				time.Sleep(p.cfg.BlockInterval)
+				heightPoller.Reset(time.Second)
+				time.Sleep(time.Second)
+				heightPoller.Reset(time.Minute)
 			}
+			runningLatestHeight = latestHeight
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 			if isFirstIter || runningLatestHeight > latestHeight {
 				isFirstIter = false
@@ -535,20 +540,44 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, error) {
 	searchParam := types.TxSearchParam{
 		BlockHeight: height,
-		Events: sdkTypes.Events{
-			{
+	}
+
+	var (
+		wg           sync.WaitGroup
+		messages     []*relayTypes.Message
+		messagesChan = make(chan []*relayTypes.Message)
+		errorChan    = make(chan error)
+	)
+
+	for _, event := range p.GetMonitorEventFilters() {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan []*relayTypes.Message, errorChan chan error) {
+			defer wg.Done()
+			searchParam.Events = append(searchParam.Events, sdkTypes.Event{
 				Type:       EventTypeWasmMessage,
-				Attributes: p.GetMonitorEventFilters(),
-			},
-		},
+				Attributes: []abiTypes.EventAttribute{event},
+			})
+			res, err := p.client.TxSearch(context.Background(), searchParam)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			message, err := p.getMessagesFromTxList(res.Txs)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			messagesChan <- message
+		}(&wg, searchParam, messagesChan, errorChan)
+		select {
+		case messages = <-messagesChan:
+			messages = append(messages, messages...)
+		case err := <-errorChan:
+			return nil, err
+		}
 	}
-
-	res, err := p.client.TxSearch(context.Background(), searchParam)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.getMessagesFromTxList(res.Txs)
+	wg.Wait()
+	return messages, nil
 }
 
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
@@ -627,7 +656,50 @@ func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromH
 
 	for _, blockInfo := range blockInfoList {
 		blockInfoChan <- &relayTypes.BlockInfo{
-			Height: blockInfo.Height, Messages: blockInfo.Messages,
+			Height:   blockInfo.Height,
+			Messages: blockInfo.Messages,
+		}
+	}
+}
+
+// SubscribeMessageEvents subscribes to the message events
+func (p *Provider) SubscribeMessageEvents(ctx context.Context, contractAddress string, height uint64) error {
+	httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
+	if err != nil {
+		p.logger.Error("failed to create http client", zap.Error(err))
+		return err
+	}
+	if err := httpClient.Start(); err != nil {
+		p.logger.Error("http client start failed", zap.Error(err))
+		return err
+	}
+	defer httpClient.Stop()
+
+	newCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	query := strings.Join([]string{
+		"tm.event = 'Tx'",
+		fmt.Sprintf("tx.height >= %d ", height),
+		fmt.Sprintf("wasm-Message._contract_address = '%s'", contractAddress),
+	}, " AND ")
+	resultEventChan, err := httpClient.Subscribe(newCtx, "event", query)
+	if err != nil {
+		p.logger.Error("event subscription failed", zap.Error(err))
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info("event subscription stopped")
+			return ctx.Err()
+		case e := <-resultEventChan:
+			eventDataJSON, err := json.Marshal(e.Data)
+			if err != nil {
+				p.logger.Error("failed to marshal event data", zap.Error(err))
+				return err
+			}
+			p.logger.Info("event data", zap.ByteString("data", eventDataJSON))
 		}
 	}
 }

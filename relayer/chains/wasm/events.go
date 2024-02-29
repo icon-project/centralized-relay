@@ -53,11 +53,15 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			msg := new(providerTypes.Message)
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
-				case EventAttrKeySendMessge:
-					msg.EventType = events.EmitMessage
-					msg.Src = p.NID()
-				case EventAttrKeyCallMessage:
-					msg.EventType = events.CallMessage
+				case EventAttrKeyContractAddress:
+					switch attr.Value {
+					case p.cfg.Contracts[providerTypes.XcallContract]:
+						msg.EventType = events.CallMessage
+						msg.Dst = p.NID()
+					case p.cfg.Contracts[providerTypes.ConnectionContract]:
+						msg.EventType = events.EmitMessage
+						msg.Src = p.NID()
+					}
 				case EventAttrKeyMsg, EventAttrKeyData:
 					data, err := hexstr.NewFromString(attr.Value).ToByte()
 					if err != nil {

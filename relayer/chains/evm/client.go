@@ -23,7 +23,7 @@ const (
 	RPCCallRetry                               = 5
 	MaxGasPriceInceremtRetry                   = 10
 	GasPriceRatio                              = 10.0
-	DefaultGetTransactionResultPollingInterval = 500
+	DefaultGetTransactionResultPollingInterval = 1500
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {
@@ -107,9 +107,9 @@ type IClient interface {
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 }
 
-func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
-	nonce, err := cl.eth.NonceAt(ctx, account, blockNumber)
-	if nil != err {
+func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+	nonce, err := c.eth.NonceAt(ctx, account, blockNumber)
+	if err != nil {
 		return nil, err
 	}
 	return new(big.Int).SetUint64(nonce), nil
@@ -283,5 +283,6 @@ func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byt
 }
 
 func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	// pack abi data
 	return c.eth.EstimateGas(ctx, msg)
 }

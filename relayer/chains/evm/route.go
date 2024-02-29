@@ -47,22 +47,22 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 		err error
 	)
 
-	// gasPrice, err := p.client.EstimateGas(ctx, ethereum.CallMsg{
-	// 	From: opts.From,
-	// 	To:   p.GetAddressByEventType(message.EventType),
-	// 	Data: message.Data,
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to estimate gas: %w", err)
-	// }
+	gasLimit, err := p.client.EstimateGas(ctx, ethereum.CallMsg{
+		From: opts.From,
+		To:   p.GetAddressByEventType(message.EventType),
+		Data: message.Data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to estimate gas: %w", err)
+	}
 
-	// if gasPrice > p.cfg.GasLimit {
-	// 	return nil, fmt.Errorf("gas limit exceeded: %d", gasPrice)
-	// }
+	if gasLimit > p.cfg.GasLimit {
+		return nil, fmt.Errorf("gas limit exceeded: %d", gasLimit)
+	}
 
-	// if gasPrice < p.cfg.GasMin {
-	// 	return nil, fmt.Errorf("gas price less than minimum: %d", gasPrice)
-	// }
+	if gasLimit < p.cfg.GasMin {
+		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
+	}
 
 	switch message.EventType {
 	// check estimated gas and gas price
@@ -75,17 +75,15 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 		switch p.parseErr(err, maxRetry > 0) {
 		case ErrorLessGas:
 			p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-			gasRatio := float64(GasPriceRatio) / 100 * float64(p.cfg.GasLimit) // 10% of gas price
-			gas := big.NewFloat(gasRatio)
-			gasPrice, _ := gas.Int(nil)
-			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, gasPrice)
+			// 10 percent increment
+			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, big.NewInt(0).Div(opts.GasPrice, big.NewInt(10)))
 		case ErrorLimitLessThanGas:
 			p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 			// get gas price parsing error message
 			startIndex := strings.Index(err.Error(), "baseFee: ")
 			endIndex := strings.Index(err.Error(), "(supplied gas")
 			baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
-			gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 10)
+			gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 0)
 			if !ok {
 				gasPrice, err = p.client.SuggestGasPrice(ctx)
 				if err != nil {

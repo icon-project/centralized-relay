@@ -32,7 +32,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	eventQuery := &CompositeQuery{Or: false, Queries: attribQueries}
 
-	finalQuery := CompositeQuery{
+	finalQuery := &CompositeQuery{
 		Or:      false,
 		Queries: []QueryExpression{heightQuery, eventQuery},
 	}

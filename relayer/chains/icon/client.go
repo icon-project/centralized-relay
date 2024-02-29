@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	DefaultSendTransactionRetryInterval        = 3 * time.Second        // 3sec
-	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond // 1.5sec
+	DefaultSendTransactionRetryInterval        = 3 * time.Second
+	DefaultGetTransactionResultPollingInterval = 3 * time.Second
 	JsonrpcApiVersion                          = 3
 )
 
@@ -134,24 +134,21 @@ func (c *Client) Call(p *types.CallParam, r interface{}) error {
 	return err
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (txh *types.HexBytes, txr *types.TransactionResult, err error) {
-	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
+func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.HexBytes, *types.TransactionResult, error) {
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
 	retryLimit := 20
 	retryCounter := 0
-	txh = &thp.Hash
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = errors.New("Context Cancelled ReceiptWait Exiting ")
-			return
+			return &thp.Hash, nil, ctx.Err()
 		case <-ticker.C:
 			if retryCounter >= retryLimit {
-				err = errors.New("Retry Limit Exceeded while waiting for results of transaction")
-				return
+				return nil, nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
 			}
 			retryCounter++
-			txr, err = c.GetTransactionResult(thp)
+			txr, err := c.GetTransactionResult(thp)
 			if err != nil {
 				switch re := err.(type) {
 				case *jsonrpc.Error:
@@ -160,8 +157,9 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 						continue
 					}
 				}
+				return &thp.Hash, txr, err
 			}
-			return
+			return &thp.Hash, txr, nil
 		}
 	}
 }

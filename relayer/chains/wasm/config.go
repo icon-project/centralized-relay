@@ -80,6 +80,8 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		return nil, err
 	}
 
+	contracts := pc.eventMap()
+
 	ws := newClient(clientContext)
 
 	return &Provider{
@@ -87,7 +89,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		cfg:            pc,
 		client:         ws,
 		memPoolTracker: &MemPoolInfo{isBlocked: false},
-		contracts:      pc.eventMap(),
+		contracts:      contracts,
 	}, nil
 }
 
