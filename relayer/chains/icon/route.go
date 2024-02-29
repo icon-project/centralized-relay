@@ -3,7 +3,6 @@ package icon
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -25,18 +24,9 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 	messageKey := message.MessageKey()
 
 	var txhash []byte
-
-	switch message.EventType {
-	case events.EmitMessage:
-		txhash, err = p.SendTransaction(ctx, iconMessage)
-		if err != nil {
-			return errors.Wrapf(err, "error occured while sending transaction")
-		}
-	case events.CallMessage:
-		txhash, err = p.ExecuteCall(ctx, big.NewInt(0).SetUint64(message.ReqID), message.Data)
-		if err != nil {
-			return errors.Wrapf(err, "error occured while executing call")
-		}
+	txhash, err = p.SendTransaction(ctx, iconMessage)
+	if err != nil {
+		return errors.Wrapf(err, "error occured while sending transaction")
 	}
 	go p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 	return nil
@@ -45,17 +35,17 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		msg := types.RecvMessage{
+		msg := &types.RecvMessage{
 			SrcNID: message.Src,
 			ConnSn: types.NewHexInt(int64(message.Sn)),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
-		msg := types.SendMessage{
-			Msg:   types.NewHexBytes(message.Data),
-			Sn:    message.Sn,
-			ReqID: message.ReqID,
+		time.Sleep(10 * time.Second)
+		msg := &types.ExecuteCall{
+			ReqID: types.NewHexInt(int64(message.ReqID)),
+			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
 	}
@@ -68,7 +58,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 		return nil, err
 	}
 
-	txParamEst := &types.TransactionParamForEstimate{
+	txParam := types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.Address(wallet.Address().String()),
 		ToAddress:   msg.Address,
@@ -80,7 +70,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 		},
 	}
 
-	step, err := p.client.EstimateStep(txParamEst)
+	step, err := p.client.EstimateStep(txParam)
 	if err != nil {
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
@@ -89,26 +79,23 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 	if err != nil {
 		return nil, err
 	}
-	stepLimit := types.NewHexInt(int64(stepVal + 200_000))
+	steps := int64(stepVal + 100_000)
 
-	txParam := &types.TransactionParam{
-		Version:     types.NewHexInt(JsonrpcApiVersion),
-		FromAddress: types.Address(wallet.Address().String()),
-		ToAddress:   types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]),
-		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
-		StepLimit:   stepLimit,
-		DataType:    "call",
-		Data: types.CallData{
-			Method: msg.Method,
-			Params: msg.Params,
-		},
+	if steps > p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too high: %d", steps)
 	}
 
-	if err := p.client.SignTransaction(wallet, txParam); err != nil {
+	if steps < p.cfg.StepLimit {
+		return nil, fmt.Errorf("step limit is too low: %d", steps)
+	}
+
+	txParam.StepLimit = types.NewHexInt(steps)
+
+	if err := p.client.SignTransaction(wallet, &txParam); err != nil {
 		return nil, err
 	}
 
-	_, err = p.client.SendTransaction(txParam)
+	_, err = p.client.SendTransaction(&txParam)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +106,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 func (p *IconProvider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
-	messageKey providerTypes.MessageKey,
+	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
 ) {
@@ -129,8 +116,9 @@ func (p *IconProvider) WaitForTxResult(
 	}
 
 	txhash := types.NewHexBytes(txHash)
-	res := providerTypes.TxResponse{}
-	res.TxHash = string(txHash)
+	res := &providerTypes.TxResponse{
+		TxHash: string(txhash),
+	}
 
 	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {
@@ -168,12 +156,13 @@ func (p *IconProvider) LogSuccessTx(method string, result *types.TransactionResu
 		p.log.Error("Failed to get block height", zap.Error(err))
 	}
 
-	p.log.Info("Successful Transaction",
+	p.log.Info("transaction success",
 		zap.String("chain_id", p.NID()),
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
 		zap.Int64("step_used", stepUsed),
+		zap.Int64p("step_limit", &p.cfg.StepLimit),
 	)
 }
 
@@ -187,6 +176,7 @@ func (p *IconProvider) LogFailedTx(method string, result *types.TransactionResul
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),
 		zap.Int64("step_used", stepUsed),
+		zap.Int64p("step_limit", &p.cfg.StepLimit),
 		zap.Error(err),
 	)
 }

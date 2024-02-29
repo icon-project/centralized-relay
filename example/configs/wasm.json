@@ -1,0 +1,26 @@
+{
+  "type": "wasm",
+  "value": {
+    "chain-id": "constantine-3",
+    "nid": "archway",
+    "rpc-url": "https://rpc.constantine.archway.io:443",
+    "grpc-url": "grpc.constantine.archway.io:443",
+    "home-dir": "/Users/sherpalden",
+    "keyring-backend": "test",
+    "keyring-dir": "/Users/sherpalden/.archway",
+    "key-name": "sherpalden",
+    "account-prefix": "archway",
+    "contract-address": "archway1s0lw2w40g76ssvjd7at2en35ed9xhfskzgpsuemasn27tskey7wqyxfslm",
+    "denomination": "aconst",
+    "gas-prices": "900000000000aconst",
+    "gas-adjustment": 1.5,
+    "max-gas-amount": 4000000,
+    "min-gas-amount": 20000,
+    "block-interval": "6s",
+    "tx-confirmation-interval": "5s",
+    "broadcast-mode": "sync",
+    "sign-mode": "SIGN_MODE_DIRECT",
+    "simulate": true,
+    "start-height": 0
+  }
+}

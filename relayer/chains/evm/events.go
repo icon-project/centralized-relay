@@ -57,3 +57,15 @@ func (p *EVMProvider) GetEventName(sig string) string {
 	}
 	return ""
 }
+
+func (p *EVMProvider) GetAddressByEventType(eventType string) *common.Address {
+	for _, contract := range p.contracts {
+		for _, eventName := range contract.SigType {
+			if eventName == eventType {
+				addr := common.HexToAddress(contract.Address)
+				return &addr
+			}
+		}
+	}
+	return nil
+}

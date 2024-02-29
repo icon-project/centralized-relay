@@ -17,12 +17,16 @@ import (
 type IconProviderConfig struct {
 	ChainName     string                         `json:"-" yaml:"-"`
 	RPCUrl        string                         `json:"rpc-url" yaml:"rpc-url"`
-	KeyStore      string                         `json:"keystore" yaml:"keystore"`
+	Address       string                         `json:"address" yaml:"address"`
 	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	BlockInterval string                         `json:"block-interval" yaml:"block-interval"`
 	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	NetworkID     uint                           `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
 	NID           string                         `json:"nid" yaml:"nid"`
+	StepMin       int64                          `json:"step-min" yaml:"step-min"`
+	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
+	HomeDir       string                         `json:"-" yaml:"-"`
 }
 
 // NewProvider returns new Icon provider
@@ -32,9 +36,10 @@ func (c *IconProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, h
 	}
 
 	c.ChainName = chainName
+	c.HomeDir = homepath
 
 	return &IconProvider{
-		log:       log.With(zap.String("nid ", c.NID), zap.String("chain", chainName)),
+		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
 		client:    NewClient(ctx, c.RPCUrl, log),
 		cfg:       c,
 		contracts: c.eventMap(),
@@ -58,11 +63,11 @@ func (c *IconProviderConfig) Validate() error {
 }
 
 func (p *IconProviderConfig) SetWallet(addr string) {
-	p.KeyStore = addr
+	p.Address = addr
 }
 
 func (p *IconProviderConfig) GetWallet() string {
-	return p.KeyStore
+	return p.Address
 }
 
 type IconProvider struct {
@@ -71,7 +76,6 @@ type IconProvider struct {
 	wallet    module.Wallet
 	client    *Client
 	kms       kms.KMS
-	homePath  string
 	contracts map[string]providerTypes.EventMap
 }
 
@@ -81,7 +85,6 @@ func (p *IconProvider) NID() string {
 
 func (p *IconProvider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
 	p.kms = kms
-	p.homePath = homepath
 	return nil
 }
 
@@ -89,17 +92,17 @@ func (p *IconProvider) Type() string {
 	return "icon"
 }
 
-func (p *IconProvider) ProviderConfig() provider.ProviderConfig {
+func (p *IconProvider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *IconProvider) ChainName() string {
+func (p *IconProvider) Name() string {
 	return p.cfg.ChainName
 }
 
 func (p *IconProvider) Wallet() (module.Wallet, error) {
 	if p.wallet == nil {
-		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+		if err := p.RestoreKeystore(context.Background()); err != nil {
 			return nil, err
 		}
 	}
@@ -110,9 +113,23 @@ func (p *IconProvider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
+// MessageReceived checks if the message is received
+func (p *IconProvider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
+	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
+		"srcNetwork": messageKey.Src,
+		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+	})
+
+	var status types.HexInt
+	if err := p.client.Call(callParam, &status); err != nil {
+		return false, fmt.Errorf("MessageReceived: %v", err)
+	}
+	return status == types.NewHexInt(1), nil
+}
+
 // ReverseMessage reverts a message
 func (p *IconProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	params := map[string]interface{}{"sn": sn}
+	params := map[string]interface{}{"_sn": types.NewHexInt(sn.Int64())}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), params, MethodRevertMessage)
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
@@ -135,13 +152,11 @@ func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
 	}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetAdmin)
 
-	data, err := p.SendTransaction(ctx, message)
+	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
 		return fmt.Errorf("SetAdmin: %v", err)
 	}
-	txHash := types.HexBytes(data)
-	p.log.Info("SetAdmin: waiting for tx result", zap.ByteString("txHash", data))
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txHash})
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
 	if err != nil {
 		return fmt.Errorf("SetAdmin: WaitForResults: %v", err)
 	}
@@ -149,22 +164,4 @@ func (p *IconProvider) SetAdmin(ctx context.Context, admin string) error {
 		return fmt.Errorf("SetAdmin: failed to set admin: %s", txr.TxHash)
 	}
 	return nil
-}
-
-// ExecuteCall executes a call to the bridge contract
-func (p *IconProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
-	params := map[string]interface{}{"_reqId": reqID.Int64(), "_data": data}
-	message := p.NewIconMessage(types.Address(p.cfg.Contracts[relayerTypes.XcallContract]), params, MethodExecuteCall)
-	txHash, err := p.SendTransaction(ctx, message)
-	if err != nil {
-		return nil, err
-	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
-	if err != nil {
-		return nil, err
-	}
-	if txr.Status != types.NewHexInt(1) {
-		return nil, fmt.Errorf("failed: %s", txr.TxHash)
-	}
-	return txr.TxHash.Value()
 }

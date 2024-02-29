@@ -22,11 +22,11 @@ type BlockInfo struct {
 type Message struct {
 	Dst           string `json:"dst"`
 	Src           string `json:"src"`
-	Sn            uint64 `json:"sn"`
+	Sn            uint64 `json:"sn,omitempty"`
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
-	ReqID         uint64 `json:"requestID"`
+	ReqID         uint64 `json:"reqID,omitempty"`
 }
 
 type ContractConfigMap map[string]string
@@ -41,7 +41,7 @@ func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]
 		if !ok {
-			return fmt.Errorf("contract %s is not supported", contract)
+			return fmt.Errorf("contract %s not configured", contract)
 		}
 		if val == "" {
 			return fmt.Errorf("contract %s address is empty", contract)
@@ -50,7 +50,7 @@ func (c ContractConfigMap) Validate() error {
 	return nil
 }
 
-func (m *Message) MessageKey() MessageKey {
+func (m *Message) MessageKey() *MessageKey {
 	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
 }
 
@@ -73,7 +73,7 @@ func (r *RouteMessage) GetMessage() *Message {
 }
 
 func (r *RouteMessage) IncrementRetry() {
-	r.Retry += 1
+	r.Retry++
 }
 
 func (r *RouteMessage) GetRetry() uint8 {
@@ -93,7 +93,7 @@ func (r *RouteMessage) IsStale() bool {
 	return r.Retry >= MaxTxRetry
 }
 
-type TxResponseFunc func(key MessageKey, response TxResponse, err error)
+type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)
 
 type TxResponse struct {
 	Height    int64
@@ -117,16 +117,16 @@ type MessageKey struct {
 	EventType string
 }
 
-func NewMessageKey(sn uint64, src string, dst string, eventType string) MessageKey {
-	return MessageKey{sn, src, dst, eventType}
+func NewMessageKey(sn uint64, src string, dst string, eventType string) *MessageKey {
+	return &MessageKey{sn, src, dst, eventType}
 }
 
 type MessageKeyWithMessageHeight struct {
-	MessageKey
-	MsgHeight uint64
+	*MessageKey
+	Height uint64
 }
 
-func NewMessagekeyWithMessageHeight(key MessageKey, height uint64) *MessageKeyWithMessageHeight {
+func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyWithMessageHeight {
 	return &MessageKeyWithMessageHeight{key, height}
 }
 
@@ -144,17 +144,17 @@ func NewMessageCache() *MessageCache {
 func (m *MessageCache) Add(r *RouteMessage) {
 	m.Lock()
 	defer m.Unlock()
-	m.Messages[r.MessageKey()] = r
+	m.Messages[*r.MessageKey()] = r
 }
 
 func (m *MessageCache) Len() int {
 	return len(m.Messages)
 }
 
-func (m *MessageCache) Remove(key MessageKey) {
+func (m *MessageCache) Remove(key *MessageKey) {
 	m.Lock()
 	defer m.Unlock()
-	delete(m.Messages, key)
+	delete(m.Messages, *key)
 }
 
 type Coin struct {
@@ -185,12 +185,12 @@ func (c *Coin) Calculate() string {
 }
 
 type TransactionObject struct {
-	MessageKeyWithMessageHeight
+	*MessageKeyWithMessageHeight
 	TxHash   string
 	TxHeight uint64
 }
 
-func NewTransactionObject(messageKey MessageKeyWithMessageHeight, txHash string, height uint64) *TransactionObject {
+func NewTransactionObject(messageKey *MessageKeyWithMessageHeight, txHash string, height uint64) *TransactionObject {
 	return &TransactionObject{messageKey, txHash, height}
 }
 

@@ -22,20 +22,23 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ provider.ProviderConfig = (*EVMProviderConfig)(nil)
+var _ provider.Config = (*EVMProviderConfig)(nil)
 
 type EVMProviderConfig struct {
 	ChainName      string                          `json:"-" yaml:"-"`
 	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
-	Keystore       string                          `json:"keystore" yaml:"keystore"`
-	GasPrice       int64                           `json:"gas-price" yaml:"gas-price"`
+	Address        string                          `json:"address" yaml:"address"`
+	GasPrice       uint64                          `json:"gas-price" yaml:"gas-price"`
+	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
+	BlockInterval  time.Duration                   `json:"block-interval" yaml:"block-interval"`
 	NID            string                          `json:"nid" yaml:"nid"`
+	HomeDir        string                          `json:"-" yaml:"-"`
 }
 
 type EVMProvider struct {
@@ -47,7 +50,6 @@ type EVMProvider struct {
 	blockReq    ethereum.FilterQuery
 	wallet      *keystore.Key
 	kms         kms.KMS
-	homePath    string
 	contracts   map[string]providerTypes.EventMap
 }
 
@@ -55,6 +57,9 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
+
+	p.HomeDir = homepath
+	p.ChainName = chainName
 
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
@@ -80,11 +85,10 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = uint64(DefaultFinalityBlock)
 	}
-	p.ChainName = chainName
 
 	return &EVMProvider{
 		cfg:       p,
-		log:       log.With(zap.String("nid", p.NID), zap.String("chain", chainName)),
+		log:       log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
 		client:    client,
 		blockReq:  p.GetMonitorEventFilters(),
 		verifier:  verifierClient,
@@ -104,16 +108,15 @@ func (p *EVMProviderConfig) Validate() error {
 }
 
 func (p *EVMProviderConfig) SetWallet(addr string) {
-	p.Keystore = addr
+	p.Address = addr
 }
 
 func (p *EVMProviderConfig) GetWallet() string {
-	return p.Keystore
+	return p.Address
 }
 
 func (p *EVMProvider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
-	p.homePath = homePath
 	return nil
 }
 
@@ -121,17 +124,17 @@ func (p *EVMProvider) Type() string {
 	return "evm"
 }
 
-func (p *EVMProvider) ProviderConfig() provider.ProviderConfig {
+func (p *EVMProvider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *EVMProvider) ChainName() string {
+func (p *EVMProvider) Name() string {
 	return p.cfg.ChainName
 }
 
 func (p *EVMProvider) Wallet() (*keystore.Key, error) {
 	if p.wallet == nil {
-		if err := p.RestoreKeyStore(context.Background(), p.homePath, p.kms); err != nil {
+		if err := p.RestoreKeystore(context.Background()); err != nil {
 			return nil, err
 		}
 	}
@@ -142,29 +145,24 @@ func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (txr *ethTypes.Receipt, err error) {
-	const DefaultGetTransactionResultPollingInterval = 1500 * time.Millisecond // 1.5sec
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Nanosecond)
+func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Millisecond)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = errors.New("Context Cancelled. ResultWait Exiting ")
-			return
+			return nil, ctx.Err()
 		case <-ticker.C:
 			if retryCounter >= providerTypes.MaxTxRetry {
-				err = fmt.Errorf("Retry Limit Exceeded while waiting for results of transaction")
-				return
+				return nil, fmt.Errorf("max retry reached for tx %s", txHash.String())
 			}
 			retryCounter++
-			txr, err = p.client.TransactionReceipt(ctx, txHash)
+			txr, err := p.client.TransactionReceipt(ctx, txHash)
 			if err != nil && err == ethereum.NotFound {
-				err = nil
 				continue
 			}
-
-			return
+			return txr, err
 		}
 	}
 }
@@ -212,17 +210,12 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		return txo, nil
 	}
 
-	h, err := p.QueryLatestHeight(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	wallet, err := p.Wallet()
 	if err != nil {
 		return nil, err
 	}
 
-	non, err := p.client.NonceAt(ctx, wallet.Address, big.NewInt(int64(h)))
+	non, err := p.client.NonceAt(ctx, wallet.Address, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -233,10 +226,11 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	}
 	txOpts.Nonce = non
 	txOpts.Context = ctx
-	if p.cfg.GasPrice > 0 {
-		txOpts.GasPrice = big.NewInt(p.cfg.GasPrice)
+	gasPrice, err := p.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-
+	txOpts.GasPrice = gasPrice
 	return txOpts, nil
 }
 
@@ -275,21 +269,4 @@ func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
 	return err
-}
-
-// ExecuteCall executes a call to the bridge contract
-func (p *EVMProvider) ExecuteCall(ctx context.Context, reqID *big.Int, data []byte) ([]byte, error) {
-	opts, err := p.GetTransationOpts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := p.client.ExecuteCall(opts, reqID, data)
-	if err != nil {
-		return nil, err
-	}
-	res, err := p.WaitForResults(ctx, tx.Hash())
-	if res.Status != 1 {
-		return nil, fmt.Errorf("failed to execute call: %s", err)
-	}
-	return res.TxHash.Bytes(), err
 }

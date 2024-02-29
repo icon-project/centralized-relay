@@ -175,8 +175,7 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 }
 
 func (r *Relayer) flushMessages(ctx context.Context) {
-	r.log.Info("starting flush logic by adding messages to the messageCache")
-
+	r.log.Debug("flushing messages from db to cache")
 	count, err := r.messageStore.TotalCount()
 	if err != nil {
 		r.log.Warn("error occured when querying total failed delivery message")
@@ -190,14 +189,14 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 		nId := chain.Provider.NID()
 		messages, err := r.getActiveMessagesFromStore(nId, maxFlushMessage)
 		if err != nil {
-			r.log.Warn("error occured when query messagesFromStore", zap.String("nid", nId), zap.Error(err))
+			chain.log.Warn("error occured when query messagesFromStore", zap.Error(err))
 			continue
 		}
 
 		if len(messages) == 0 {
 			continue
 		}
-		r.log.Debug(" flushing messages ", zap.String("nid", nId), zap.Int("message count", len(messages)))
+		chain.log.Debug("flushing messages", zap.Int("message count", len(messages)))
 		// adding message to messageCache
 		// TODO: message with no txHash
 
@@ -228,39 +227,39 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
-	for _, srcChainRuntime := range r.chains {
-		for _, routeMessage := range srcChainRuntime.MessageCache.Messages {
-			switch routeMessage.EventType {
+	for _, src := range r.chains {
+		for _, message := range src.MessageCache.Messages {
+			switch message.EventType {
 			case events.EmitMessage:
-				dstChainRuntime, err := r.FindChainRuntime(routeMessage.Dst)
+				dst, err := r.FindChainRuntime(message.Dst)
 				if err != nil {
-					r.log.Error("dst chain runtime not found ", zap.String("dst chain", routeMessage.Dst))
-					// remove message if src runtime if dst not found
-					r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 					continue
 				}
 
-				if ok := dstChainRuntime.shouldSendMessage(ctx, routeMessage, srcChainRuntime); !ok {
+				if ok := dst.shouldSendMessage(ctx, message, src); !ok {
 					continue
 				}
 
 				// if message reached delete the message
-				messageReceived, err := dstChainRuntime.Provider.MessageReceived(ctx, routeMessage.MessageKey())
+				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 				if err != nil {
 					r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
 					continue
 				}
 
-				fmt.Println("messageReceived", messageReceived, "messageKey", routeMessage.MessageKey())
-
 				// if message is received we can remove the message from db
 				if messageReceived {
-					r.ClearMessages(ctx, []types.MessageKey{routeMessage.MessageKey()}, srcChainRuntime)
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 					continue
 				}
-				go r.RouteMessage(ctx, routeMessage, dstChainRuntime, srcChainRuntime)
+				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
-				go r.SubmitMessage(ctx, routeMessage, srcChainRuntime)
+				if ok := src.shouldExecuteCall(ctx, message); !ok {
+					continue
+				}
+				go r.ExecuteCall(ctx, message, src)
 			}
 		}
 	}
@@ -276,7 +275,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 		msg := types.NewRouteMessage(msg)
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
-			r.log.Error(fmt.Sprintf("failed to store a message in db: %v", err))
+			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
 	}
 	if err := r.SaveBlockHeight(ctx, src, blockInfo.Height, len(blockInfo.Messages)); err != nil {
@@ -312,10 +311,15 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(key types.MessageKey, response types.TxResponse, err error) {
+	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
 		// note: it is ok if err is not checked
 		dst := dst
 		src := src
+		routeMessage, ok := src.MessageCache.Messages[*key]
+		if !ok {
+			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			return
+		}
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
 				zap.String("src", src.Provider.NID()),
@@ -326,14 +330,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 
 			// cannot clear incase of finality block
 			if dst.Provider.FinalityBlock(ctx) > 0 {
-
-				routeMessage, ok := src.MessageCache.Messages[key]
-				if !ok {
-					r.log.Error("message of key not found in messageCache", zap.Any("message key", key))
-					return
-				}
-
-				txObj := types.NewTransactionObject(*types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
+				txObj := types.NewTransactionObject(types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
 				r.log.Info("storing txhash to check finality later", zap.Any("txObj", txObj))
 				if err := r.finalityStore.StoreTxObject(txObj); err != nil {
 					r.log.Error("error occured: while storing transaction object in db", zap.Error(err))
@@ -342,18 +339,11 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 			}
 
 			// if success remove message from everywhere
-			if err := r.ClearMessages(ctx, []types.MessageKey{key}, src); err != nil {
+			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 			return
 		}
-
-		routeMessage, ok := src.MessageCache.Messages[key]
-		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
-			return
-		}
-
 		r.HandleMessageFailed(routeMessage, dst, src)
 	}
 
@@ -368,8 +358,8 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 }
 
 // SubmitMessage
-func (r *Relayer) SubmitMessage(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
-	callback := func(key types.MessageKey, response types.TxResponse, err error) {
+func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
+	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
 				zap.String("dst", dst.Provider.NID()),
@@ -379,12 +369,12 @@ func (r *Relayer) SubmitMessage(ctx context.Context, msg *types.RouteMessage, ds
 				zap.Uint64("request_id", msg.ReqID),
 				zap.Int64("height", response.Height),
 			)
-			if err := r.ClearMessages(ctx, []types.MessageKey{key}, dst); err != nil {
+			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 			return
 		}
-		routeMessage, ok := dst.MessageCache.Messages[key]
+		routeMessage, ok := dst.MessageCache.Messages[*key]
 		if !ok {
 			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
 			return
@@ -429,7 +419,7 @@ func (r *Relayer) PruneDB() error {
 	return r.db.ClearStore()
 }
 
-func (r *Relayer) ClearMessages(ctx context.Context, msgs []types.MessageKey, srcChain *ChainRuntime) error {
+func (r *Relayer) ClearMessages(ctx context.Context, msgs []*types.MessageKey, srcChain *ChainRuntime) error {
 	// clear from cache
 	srcChain.clearMessageFromCache(msgs)
 
@@ -497,7 +487,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 
 				// Transaction Still exist so can be pruned
 				if receipt.Status {
-					if err := r.finalityStore.DeleteTxObject(&txObject.MessageKey); err != nil {
+					if err := r.finalityStore.DeleteTxObject(txObject.MessageKey); err != nil {
 						r.log.Error("finality processor: deleteTxObject ",
 							zap.Any("message key", txObject.MessageKey),
 							zap.Error(err))
@@ -519,7 +509,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// removing tx object
-				if err := r.finalityStore.DeleteTxObject(&txObject.MessageKey); err != nil {
+				if err := r.finalityStore.DeleteTxObject(txObject.MessageKey); err != nil {
 					r.log.Error("finality processor: deleteTxObject ",
 						zap.Any("message key", txObject.MessageKey),
 						zap.Error(err))
@@ -527,7 +517,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// generateMessage
-				message, err := srcChainRuntime.Provider.GenerateMessage(ctx, &txObject.MessageKeyWithMessageHeight)
+				message, err := srcChainRuntime.Provider.GenerateMessage(ctx, txObject.MessageKeyWithMessageHeight)
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),

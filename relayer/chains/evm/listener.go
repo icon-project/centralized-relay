@@ -47,7 +47,7 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	heightTicker := time.NewTicker(BlockInterval)
 	defer heightTicker.Stop()
 
-	heightPoller := time.NewTicker(BlockHeightPollInterval)
+	heightPoller := time.NewTicker(p.cfg.BlockInterval)
 	defer heightPoller.Stop()
 
 	next, latest := startHeight, p.latestHeight()

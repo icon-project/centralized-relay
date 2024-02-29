@@ -58,27 +58,16 @@ type TransactionResult struct {
 	TxHash       HexBytes `json:"txHash" validate:"required,t_int"`
 }
 
-type TransactionParamForEstimate struct {
-	Version     HexInt   `json:"version" validate:"required,t_int"`
-	FromAddress Address  `json:"from" validate:"required,t_addr_eoa"`
-	ToAddress   Address  `json:"to" validate:"required,t_addr"`
-	Value       HexInt   `json:"value,omitempty" validate:"optional,t_int"`
-	Timestamp   HexInt   `json:"timestamp" validate:"required,t_int"`
-	NetworkID   HexInt   `json:"nid" validate:"required,t_int"`
-	Nonce       HexInt   `json:"nonce,omitempty" validate:"optional,t_int"`
-	DataType    string   `json:"dataType,omitempty" validate:"optional,call|deploy|message|deposit"`
-	Data        CallData `json:"data,omitempty"`
-}
 type TransactionParam struct {
 	Version     HexInt   `json:"version" validate:"required,t_int"`
 	FromAddress Address  `json:"from" validate:"required,t_addr_eoa"`
 	ToAddress   Address  `json:"to" validate:"required,t_addr"`
 	Value       HexInt   `json:"value,omitempty" validate:"optional,t_int"`
-	StepLimit   HexInt   `json:"stepLimit" validate:"required,t_int"`
+	StepLimit   HexInt   `json:"stepLimit,omitempty" validate:"optional,t_int"`
 	Timestamp   HexInt   `json:"timestamp" validate:"required,t_int"`
 	NetworkID   HexInt   `json:"nid" validate:"required,t_int"`
 	Nonce       HexInt   `json:"nonce,omitempty" validate:"optional,t_int"`
-	Signature   string   `json:"signature" validate:"required,t_sig"`
+	Signature   string   `json:"signature,omitempty" validate:"optional,t_sig"`
 	DataType    string   `json:"dataType,omitempty" validate:"optional,call|deploy|message"`
 	Data        CallData `json:"data,omitempty"`
 	TxHash      HexBytes `json:"-"`
@@ -211,18 +200,12 @@ func NewHexBytes(b []byte) HexBytes {
 type HexInt string
 
 func (i HexInt) Value() (int64, error) {
-	s := string(i)
-	if strings.HasPrefix(s, "0x") {
-		s = s[2:]
-	}
+	s := strings.TrimPrefix(string(i), "0x")
 	return strconv.ParseInt(s, 16, 64)
 }
 
 func (i HexInt) Int() (int, error) {
-	s := string(i)
-	if strings.HasPrefix(s, "0x") {
-		s = s[2:]
-	}
+	s := strings.TrimPrefix(string(i), "0x")
 	v, err := strconv.ParseInt(s, 16, 32)
 	return int(v), err
 }
@@ -337,7 +320,12 @@ type SendMessage struct {
 	Svc           string   `json:"svc"`
 	Sn            uint64   `json:"sn"`
 	Msg           HexBytes `json:"msg"`
-	ReqID         uint64   `json:"reqId"`
+	Data          HexBytes `json:"data"`
+}
+
+type ExecuteCall struct {
+	ReqID HexInt   `json:"_reqId"`
+	Data  HexBytes `json:"_data"`
 }
 
 type RecvMessage struct {

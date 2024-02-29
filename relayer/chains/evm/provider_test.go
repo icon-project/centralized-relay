@@ -19,7 +19,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 		ChainName:       "avalanche",
 		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
 		StartHeight:     0,
-		Keystore:        testKeyStore,
+		Address:         testKeyStore,
 		Password:        testKeyPassword,
 		GasPrice:        3000000015,
 		GasLimit:        431877,

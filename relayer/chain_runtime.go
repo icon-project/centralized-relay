@@ -41,7 +41,7 @@ func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Mess
 	}
 }
 
-func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
+func (r *ChainRuntime) clearMessageFromCache(msgs []*types.MessageKey) {
 	for _, m := range msgs {
 		r.MessageCache.Remove(m)
 	}
@@ -66,5 +66,9 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
+	return true
+}
+
+func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
 	return true
 }
