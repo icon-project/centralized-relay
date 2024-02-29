@@ -74,7 +74,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
-				case EventAttrKeyTargetNetwork, EventAttrKeyTo:
+				case EventAttrKeyTargetNetwork:
 					msg.Dst = attr.Value
 				case EventAttrKeyReqID:
 					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)

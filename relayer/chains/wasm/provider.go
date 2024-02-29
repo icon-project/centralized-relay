@@ -22,7 +22,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
-	"github.com/icon-project/centralized-relay/utils/sorter"
 	"go.uber.org/zap"
 )
 
@@ -114,33 +113,25 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight))
 
-	runningLatestHeight := latestHeight
-
-	isFirstIter := true
-
 	for {
 		select {
 		case <-heightTicker.C:
-			runningLatestHeight++
+			latestHeight++
 		case <-heightPoller.C:
-			latestHeight, err := p.QueryLatestHeight(ctx)
+			height, err := p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to query latest height", zap.Error(err))
-				heightPoller.Reset(time.Second)
-				time.Sleep(time.Second)
-				heightPoller.Reset(time.Minute)
+				heightPoller.Reset(time.Second * 3)
 			}
-			runningLatestHeight = latestHeight
+			heightPoller.Reset(time.Minute)
+			latestHeight = height
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			if isFirstIter || runningLatestHeight > latestHeight {
-				isFirstIter = false
-				latestHeight = runningLatestHeight
-				p.logger.Debug("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				p.runBlockQuery(blockInfoChan, startHeight, latestHeight)
-				startHeight = latestHeight + 1
-			}
+			toHeight := latestHeight
+			p.logger.Info("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+			p.runBlockQuery(blockInfoChan, startHeight, toHeight)
+			startHeight = toHeight + 1
 		}
 	}
 }
@@ -423,7 +414,6 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 			ConnSn:     strconv.Itoa(int(key.Sn)),
 		},
 	}
-
 	rawQueryMsg, err := json.Marshal(queryMsg)
 	if err != nil {
 		return false, err
@@ -492,7 +482,7 @@ func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64,
 	return latestHeight, nil
 }
 
-func (p *Provider) getHeightStream(done <-chan interface{}, fromHeight, toHeight uint64) <-chan uint64 {
+func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan uint64 {
 	heightStream := make(chan uint64)
 	go func() {
 		defer close(heightStream)
@@ -507,7 +497,7 @@ func (p *Provider) getHeightStream(done <-chan interface{}, fromHeight, toHeight
 	return heightStream
 }
 
-func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-chan uint64) <-chan interface{} {
+func (p *Provider) getBlockInfoStream(done <-chan bool, heightStream <-chan uint64) <-chan interface{} {
 	blockInfoStream := make(chan interface{})
 	go func(blockInfoChan chan interface{}, heightChan <-chan uint64) {
 		defer close(blockInfoChan)
@@ -521,7 +511,7 @@ func (p *Provider) getBlockInfoStream(done <-chan interface{}, heightStream <-ch
 						messages, err := p.fetchBlockMessages(height)
 						if err != nil {
 							p.logger.Error("failed to fetch block messages: ", zap.Error(err), zap.Uint64("block-height", height))
-							time.Sleep(500 * time.Millisecond)
+							time.Sleep(time.Second)
 						} else {
 							blockInfoChan <- &relayTypes.BlockInfo{
 								Height:   height,
@@ -562,16 +552,16 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 				errorChan <- err
 				return
 			}
-			message, err := p.getMessagesFromTxList(res.Txs)
+			messages, err := p.getMessagesFromTxList(res.Txs)
 			if err != nil {
 				errorChan <- err
 				return
 			}
-			messagesChan <- message
+			messagesChan <- messages
 		}(&wg, searchParam, messagesChan, errorChan)
 		select {
-		case messages = <-messagesChan:
-			messages = append(messages, messages...)
+		case msgs := <-messagesChan:
+			messages = append(messages, msgs...)
 		case err := <-errorChan:
 			return nil, err
 		}
@@ -589,21 +579,19 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 		}
 
 		for _, event := range eventsList {
-			messages, err := p.ParseMessageFromEvents(event.Events)
+			msgs, err := p.ParseMessageFromEvents(event.Events)
 			if err != nil {
 				return nil, err
 			}
-			for _, message := range messages {
-				message.MessageHeight = uint64(resultTx.Height)
-				if message.Dst != "" {
-					p.logger.Info("Detected eventlog",
-						zap.Uint64("height", message.MessageHeight),
-						zap.String("target_network", message.Dst),
-						zap.Uint64("sn", message.Sn),
-						zap.String("event_type", message.EventType),
-					)
-					messages = append(messages, message)
-				}
+			for _, msg := range msgs {
+				msg.MessageHeight = uint64(resultTx.Height)
+				p.logger.Info("Detected eventlog",
+					zap.Uint64("height", msg.MessageHeight),
+					zap.String("target_network", msg.Dst),
+					zap.Uint64("sn", msg.Sn),
+					zap.String("event_type", msg.EventType),
+				)
+				messages = append(messages, msg)
 			}
 		}
 	}
@@ -632,7 +620,7 @@ func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
 }
 
 func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) {
-	done := make(chan interface{})
+	done := make(chan bool)
 	defer close(done)
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
@@ -644,21 +632,9 @@ func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromH
 		pipelines[i] = p.getBlockInfoStream(done, heightStream)
 	}
 
-	var blockInfoList []*relayTypes.BlockInfo
 	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight+1)) {
 		block := bn.(*relayTypes.BlockInfo)
-		blockInfoList = append(blockInfoList, block)
-	}
-
-	sorter.Sort(blockInfoList, func(p1, p2 *relayTypes.BlockInfo) bool {
-		return p1.Height < p2.Height // ascending order
-	})
-
-	for _, blockInfo := range blockInfoList {
-		blockInfoChan <- &relayTypes.BlockInfo{
-			Height:   blockInfo.Height,
-			Messages: blockInfo.Messages,
-		}
+		blockInfoChan <- block
 	}
 }
 
@@ -669,12 +645,11 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, contractAddress s
 		p.logger.Error("failed to create http client", zap.Error(err))
 		return err
 	}
+	defer httpClient.Stop()
 	if err := httpClient.Start(); err != nil {
 		p.logger.Error("http client start failed", zap.Error(err))
 		return err
 	}
-	defer httpClient.Stop()
-
 	newCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

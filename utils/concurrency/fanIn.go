@@ -2,7 +2,7 @@ package concurrency
 
 import "sync"
 
-func FanIn(done <-chan interface{}, channels ...<-chan interface{}) <-chan interface{} {
+func FanIn(done <-chan bool, channels ...<-chan interface{}) <-chan interface{} {
 	multiplex := func(c <-chan interface{}, wg *sync.WaitGroup, mStream chan interface{}) {
 		defer wg.Done()
 		for i := range c {
@@ -30,7 +30,7 @@ func FanIn(done <-chan interface{}, channels ...<-chan interface{}) <-chan inter
 	return multiplexedStream
 }
 
-func Take(done <-chan interface{}, valueStream <-chan interface{}, freq int) <-chan interface{} {
+func Take(done <-chan bool, valueStream <-chan interface{}, freq int) <-chan interface{} {
 	takeStream := make(chan interface{})
 	go func() {
 		defer close(takeStream)
