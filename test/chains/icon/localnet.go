@@ -54,7 +54,7 @@ type IconRemotenet struct {
 const xcall = "xcall"
 const connection = "connection"
 
-func (c *IconRemotenet) CreateKey(ctx context.Context, keyName string) error {
+func (in *IconRemotenet) CreateKey(ctx context.Context, keyName string) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -79,24 +79,24 @@ func NewIconRemotenet(testName string, log *zap.Logger, chainConfig ibc.ChainCon
 }
 
 // Config fetches the chain configuration.
-func (c *IconRemotenet) Config() ibc.ChainConfig {
-	return c.cfg
+func (in *IconRemotenet) Config() ibc.ChainConfig {
+	return in.cfg
 }
 
-func (c *IconRemotenet) OverrideConfig(key string, value any) {
+func (in *IconRemotenet) OverrideConfig(key string, value any) {
 	if value == nil {
 		return
 	}
-	c.cfg.ConfigFileOverrides[key] = value
+	in.cfg.ConfigFileOverrides[key] = value
 }
 
 // Initialize initializes node structs so that things like initializing keys can be done before starting the chain
-func (c *IconRemotenet) Initialize(ctx context.Context, testName string, cli *client.Client, networkID string) error {
+func (in *IconRemotenet) Initialize(ctx context.Context, testName string, cli *client.Client, networkID string) error {
 	return nil
 }
 
 // Start sets up everything needed (validators, gentx, fullnodes, peering, additional accounts) for chain to start from genesis.
-func (c *IconRemotenet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
+func (in *IconRemotenet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
 	return nil
 }
 
@@ -105,9 +105,9 @@ func (c *IconRemotenet) Start(testName string, ctx context.Context, additionalGe
 // is up to the chain implementation.
 //
 // "env" are environment variables in the format "MY_ENV_VAR=value"
-func (c *IconRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
+func (in *IconRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
 	cmd = append([]string{}, cmd...)
-	job := dockerutil.NewImage(c.log, c.Client, c.Network, c.testName, c.cfg.Images[0].Repository, c.cfg.Images[0].Version)
+	job := dockerutil.NewImage(in.log, in.Client, in.Network, in.testName, in.cfg.Images[0].Repository, in.cfg.Images[0].Version)
 	var ContainerEnvs = [9]string{
 		"GOCHAIN_CONFIG=/goloop/data/config.json",
 		"GOCHAIN_GENESIS=/goloop/data/genesis.json",
@@ -120,11 +120,11 @@ func (c *IconRemotenet) Exec(ctx context.Context, cmd []string, env []string) (s
 		"ICON_CONFIG=/goloop/data/icon_config.json",
 	}
 	bindPaths := []string{
-		c.testconfig.ContractsPath + ":/contracts",
-		c.testconfig.ConfigPath + ":/goloop/data",
+		in.testconfig.ContractsPath + ":/contracts",
+		in.testconfig.ConfigPath + ":/goloop/data",
 	}
-	if c.testconfig.CertPath != "" {
-		bindPaths = append(bindPaths, c.testconfig.CertPath+":/etc/ssl/certs/")
+	if in.testconfig.CertPath != "" {
+		bindPaths = append(bindPaths, in.testconfig.CertPath+":/etc/ssl/certs/")
 	}
 	opts := dockerutil.ContainerOptions{
 		Binds: bindPaths,
@@ -135,14 +135,14 @@ func (c *IconRemotenet) Exec(ctx context.Context, cmd []string, env []string) (s
 }
 
 // ExportState exports the chain state at specific height.
-func (c *IconRemotenet) ExportState(ctx context.Context, height int64) (string, error) {
-	block, err := c.GetClientBlockByHeight(ctx, height)
+func (in *IconRemotenet) ExportState(ctx context.Context, height int64) (string, error) {
+	block, err := in.GetClientBlockByHeight(ctx, height)
 	return block, err
 }
 
 // GetRPCAddress retrieves the rpc address that can be reached by other containers in the docker network.
-func (c *IconRemotenet) GetRPCAddress() string {
-	return c.testconfig.RPCUri
+func (in *IconRemotenet) GetRPCAddress() string {
+	return in.testconfig.RPCUri
 }
 
 func (in *IconRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
@@ -169,31 +169,30 @@ func (in *IconRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, key
 
 // GetGRPCAddress retrieves the grpc address that can be reached by other containers in the docker network.
 // Not Applicable for Icon
-func (c *IconRemotenet) GetGRPCAddress() string {
-	return c.testconfig.RPCUri
+func (in *IconRemotenet) GetGRPCAddress() string {
+	return in.testconfig.RPCUri
 }
 
 // GetHostRPCAddress returns the rpc address that can be reached by processes on the host machine.
 // Note that this will not return a valid value until after Start returns.
-func (c *IconRemotenet) GetHostRPCAddress() string {
-	return c.testconfig.RPCUri
+func (in *IconRemotenet) GetHostRPCAddress() string {
+	return in.testconfig.RPCUri
 }
 
 // GetHostGRPCAddress returns the grpc address that can be reached by processes on the host machine.
 // Note that this will not return a valid value until after Start returns.
 // Not applicable for Icon
-func (c *IconRemotenet) GetHostGRPCAddress() string {
-	return c.testconfig.RPCUri
+func (in *IconRemotenet) GetHostGRPCAddress() string {
+	return in.testconfig.RPCUri
 }
 
 // HomeDir is the home directory of a node running in a docker container. Therefore, this maps to
 // the container's filesystem (not the host).
-func (c *IconRemotenet) HomeDir() string {
+func (in *IconRemotenet) HomeDir() string {
 	return ""
 }
 
-func (c *IconRemotenet) createKeystore(ctx context.Context, keyName string) (string, string, error) {
-	fmt.Println("Creating wallet for keyname", keyName)
+func (in *IconRemotenet) createKeystore(ctx context.Context, keyName string) (string, string, error) {
 	w := wallet.New()
 	ks, err := wallet.KeyStoreFromWallet(w, []byte(keyName))
 	if err != nil {
@@ -217,12 +216,12 @@ func (c *IconRemotenet) createKeystore(ctx context.Context, keyName string) (str
 }
 
 // RecoverKey recovers an existing user from a given mnemonic.
-func (c *IconRemotenet) RecoverKey(ctx context.Context, name string, mnemonic string) error {
+func (in *IconRemotenet) RecoverKey(ctx context.Context, name string, mnemonic string) error {
 	panic("not implemented") // TODO: Implement
 }
 
 // GetAddress fetches the bech32 address for a test key on the "user" node (either the first fullnode or the first validator if no fullnodes).
-func (c *IconRemotenet) GetAddress(ctx context.Context, keyName string) ([]byte, error) {
+func (in *IconRemotenet) GetAddress(ctx context.Context, keyName string) ([]byte, error) {
 	addrInByte, err := json.Marshal(keyName)
 	if err != nil {
 		return nil, err
@@ -231,12 +230,12 @@ func (c *IconRemotenet) GetAddress(ctx context.Context, keyName string) ([]byte,
 }
 
 // SendFunds sends funds to a wallet from a user account.
-func (c *IconRemotenet) SendFunds(ctx context.Context, keyName string, amount ibc.WalletAmount) error {
-	c.CheckForKeyStore(ctx, keyName)
+func (in *IconRemotenet) SendFunds(ctx context.Context, keyName string, amount ibc.WalletAmount) error {
+	in.CheckForKeyStore(ctx, keyName)
 
-	cmd := c.NodeCommand("rpc", "sendtx", "transfer", "--key_store", c.keystorePath, "--key_password", keyName,
+	cmd := in.NodeCommand("rpc", "sendtx", "transfer", "--key_store", in.keystorePath, "--key_password", keyName,
 		"--to", amount.Address, "--value", fmt.Sprint(amount.Amount)+"000000000000000000", "--step_limit", "10000000000000")
-	_, _, err := c.Exec(ctx, cmd, nil)
+	_, _, err := in.Exec(ctx, cmd, nil)
 	return err
 }
 
@@ -247,8 +246,8 @@ func (in *IconRemotenet) Height(ctx context.Context) (uint64, error) {
 }
 
 // GetGasFeesInNativeDenom gets the fees in native denom for an amount of spent gas.
-func (c *IconRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
-	gasPrice, _ := strconv.ParseFloat(strings.Replace(c.cfg.GasPrices, c.cfg.Denom, "", 1), 64)
+func (in *IconRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
+	gasPrice, _ := strconv.ParseFloat(strings.Replace(in.cfg.GasPrices, in.cfg.Denom, "", 1), 64)
 	fees := float64(gasPaid) * gasPrice
 	return int64(fees)
 }
@@ -256,23 +255,23 @@ func (c *IconRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
 // BuildRelayerWallet will return a chain-specific wallet populated with the mnemonic so that the wallet can
 // be restored in the relayer node using the mnemonic. After it is built, that address is included in
 // genesis with some funds.
-func (c *IconRemotenet) BuildRelayerWallet(ctx context.Context, keyName string) (ibc.Wallet, error) {
-	return c.BuildWallet(ctx, keyName, "")
+func (in *IconRemotenet) BuildRelayerWallet(ctx context.Context, keyName string) (ibc.Wallet, error) {
+	return in.BuildWallet(ctx, keyName, "")
 }
 
-func (c *IconRemotenet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibc.Wallet, error) {
-	address, privateKey, err := c.createKeystore(ctx, keyName)
+func (in *IconRemotenet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibc.Wallet, error) {
+	address, privateKey, err := in.createKeystore(ctx, keyName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create key with name %q on chain %s: %w", keyName, c.cfg.Name, err)
+		return nil, fmt.Errorf("failed to create key with name %q on chain %s: %w", keyName, in.cfg.Name, err)
 
 	}
 
-	w := NewWallet(keyName, []byte(address), privateKey, c.cfg)
-	c.Wallets[keyName] = w
+	w := NewWallet(keyName, []byte(address), privateKey, in.cfg)
+	in.Wallets[keyName] = w
 	return w, nil
 }
 
-// func (c *IconRemotenet) getFullNode() *IconRemoteNode {
+// func (in *IconRemotenet) getFullNode() *IconRemoteNode {
 // 	panic("not implemented")
 // }
 
@@ -282,7 +281,6 @@ func (in *IconRemotenet) FindTxs(ctx context.Context, height uint64) ([]blockdb.
 		time.Sleep(3 * time.Second)
 		flag = false
 	}
-
 	time.Sleep(2 * time.Second)
 	blockHeight := icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(height))}
 	res, err := in.IconClient.GetBlockByHeight(&blockHeight)
@@ -307,10 +305,10 @@ func (in *IconRemotenet) GetBalance(ctx context.Context, address string, denom s
 	return bal.Int64(), err
 }
 
-func (c *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
-	xcall := c.IBCAddresses["xcall"]
+func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	xcall := in.IBCAddresses["xcall"]
 
-	connection, err := c.DeployContractRemote(ctx, c.scorePaths["connection"], c.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+c.testconfig.RelayWalletAddress+`"}`)
+	connection, err := in.DeployContractRemote(ctx, in.scorePaths["connection"], in.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+in.testconfig.RelayWalletAddress+`"}`)
 	if err != nil {
 		return err
 	}
@@ -320,40 +318,40 @@ func (c *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chain
 	// if err != nil {
 	// 	return err
 	// }
-	c.IBCAddresses["connection"] = connection
+	in.IBCAddresses["connection"] = connection
 	return nil
 }
 
-func (c *IconRemotenet) SetupXCall(ctx context.Context) error {
-	nid := c.cfg.ChainID
-	xcall, err := c.DeployContractRemote(ctx, c.scorePaths["xcall"], c.keystorePath, `{"networkId":"`+nid+`"}`)
+func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
+	nid := in.cfg.ChainID
+	xcall, err := in.DeployContractRemote(ctx, in.scorePaths["xcall"], in.keystorePath, `{"networkId":"`+nid+`"}`)
 	if err != nil {
 		return err
 	}
 
-	c.IBCAddresses["xcall"] = xcall
+	in.IBCAddresses["xcall"] = xcall
 	return nil
 }
 
-func (c *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
+func (in *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
 
-	xCall := c.IBCAddresses["xcall"]
+	xCall := in.IBCAddresses["xcall"]
 	params := `{"_callService":"` + xCall + `"}`
-	dapp, err := c.DeployContractRemote(ctx, c.scorePaths["dapp"], c.keystorePath, params)
+	dapp, err := in.DeployContractRemote(ctx, in.scorePaths["dapp"], in.keystorePath, params)
 	if err != nil {
 		return err
 	}
 
-	c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = dapp
+	in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = dapp
 	for _, connection := range connections {
-		params = `{"nid":"` + connection.Nid + `", "source":"` + c.IBCAddresses[connection.Connection] + `", "destination":"` + connection.Destination + `"}`
-		ctx, err = c.executeContract(context.Background(), dapp, keyName, "addConnection", params)
+		params = `{"nid":"` + connection.Nid + `", "source":"` + in.IBCAddresses[connection.Connection] + `", "destination":"` + connection.Destination + `"}`
+		ctx, err = in.executeContract(context.Background(), dapp, keyName, "addConnection", params)
 		if err != nil {
-			c.log.Error("Unable to add connection",
+			in.log.Error("Unable to add connection",
 				zap.Error(err),
 				zap.String("nid", connection.Nid),
-				zap.String("source", c.IBCAddresses[connection.Connection]),
+				zap.String("source", in.IBCAddresses[connection.Connection]),
 				zap.String("destination", connection.Destination),
 			)
 		}
@@ -362,50 +360,23 @@ func (c *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 	return nil
 }
 
-func (c *IconRemotenet) GetContractAddress(key string) string {
-	value, exist := c.IBCAddresses[key]
+func (in *IconRemotenet) GetContractAddress(key string) string {
+	value, exist := in.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
 	}
 	return value
 }
 
-func (c *IconRemotenet) BackupConfig() ([]byte, error) {
-	wallets := make(map[string]interface{})
-	for key, value := range c.Wallets {
-		wallets[key] = map[string]string{
-			"mnemonic":         value.Mnemonic(),
-			"address":          hex.EncodeToString(value.Address()),
-			"formattedAddress": value.FormattedAddress(),
-		}
-	}
-	backup := map[string]interface{}{
-		"addresses": c.IBCAddresses,
-		"wallets":   wallets,
-	}
-	return json.MarshalIndent(backup, "", "\t")
+func (in *IconRemotenet) BackupConfig() ([]byte, error) {
+	panic("not implemented")
 }
 
-func (c *IconRemotenet) RestoreConfig(backup []byte) error {
-	result := make(map[string]interface{})
-	err := json.Unmarshal(backup, &result)
-	if err != nil {
-		return err
-	}
-	c.IBCAddresses = result["addresses"].(map[string]string)
-	wallets := make(map[string]ibc.Wallet)
-
-	for key, value := range result["wallets"].(map[string]interface{}) {
-		_value := value.(map[string]string)
-		mnemonic := _value["mnemonic"]
-		address, _ := hex.DecodeString(_value["address"])
-		wallets[key] = NewWallet(key, address, mnemonic, c.Config())
-	}
-	c.Wallets = wallets
-	return nil
+func (in *IconRemotenet) RestoreConfig(backup []byte) error {
+	panic("not implemented")
 }
 
-func (c *IconRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
+func (in *IconRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	// TODO: send fees
@@ -413,7 +384,7 @@ func (c *IconRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string
 	if rollback != nil {
 		params = `{"_to":"` + _to + `", "_data":"` + hex.EncodeToString(data) + `", "_rollback":"` + hex.EncodeToString(rollback) + `"}`
 	}
-	ctx, err := c.executeContract(ctx, c.IBCAddresses[dappKey], keyName, "sendMessage", params)
+	ctx, err := in.executeContract(ctx, in.IBCAddresses[dappKey], keyName, "sendMessage", params)
 	if err != nil {
 		return nil, err
 	}
@@ -422,10 +393,10 @@ func (c *IconRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string
 }
 
 // HasPacketReceipt returns the receipt of the packet sent to the target chain
-func (c *IconRemotenet) IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool {
+func (in *IconRemotenet) IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool {
 	if order == ibc.Ordered {
 		sequence := params["sequence"].(uint64) //2
-		ctx, err := c.QueryContract(ctx, c.IBCAddresses["ibc"], chains.GetNextSequenceReceive, params)
+		ctx, err := in.QueryContract(ctx, in.IBCAddresses["ibc"], chains.GetNextSequenceReceive, params)
 		if err != nil {
 			fmt.Printf("Error--%v\n", err)
 			return false
@@ -439,7 +410,7 @@ func (c *IconRemotenet) IsPacketReceived(ctx context.Context, params map[string]
 		fmt.Printf("response[\"data\"]----%v", response)
 		return sequence < response
 	}
-	ctx, _ = c.QueryContract(ctx, c.IBCAddresses["ibc"], chains.HasPacketReceipt, params)
+	ctx, _ = in.QueryContract(ctx, in.IBCAddresses["ibc"], chains.HasPacketReceipt, params)
 
 	response, err := formatHexNumberFromResponse(ctx.Value("query-result").([]byte))
 	if err != nil {
@@ -466,25 +437,25 @@ func formatHexNumberFromResponse(value []byte) (uint64, error) {
 }
 
 // FindTargetXCallMessage returns the request id and the data of the message sent to the target chain
-func (c *IconRemotenet) FindTargetXCallMessage(ctx context.Context, target chains.Chain, height uint64, to string) (*chains.XCallResponse, error) {
+func (in *IconRemotenet) FindTargetXCallMessage(ctx context.Context, target chains.Chain, height uint64, to string) (*chains.XCallResponse, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	reqId, destData, err := target.FindCallMessage(ctx, height, c.cfg.ChainID+"/"+c.IBCAddresses[dappKey], to, sn)
+	reqId, destData, err := target.FindCallMessage(ctx, height, in.cfg.ChainID+"/"+in.IBCAddresses[dappKey], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
-func (c *IconRemotenet) XCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data, rollback []byte) (*chains.XCallResponse, error) {
+func (in *IconRemotenet) XCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data, rollback []byte) (*chains.XCallResponse, error) {
 	height, err := targetChain.(ibc.Chain).Height(ctx)
 	if err != nil {
 		return nil, err
 	}
 	// TODO: send fees
-	ctx, err = c.SendPacketXCall(ctx, keyName, to, data, rollback)
+	ctx, err = in.SendPacketXCall(ctx, keyName, to, data, rollback)
 	if err != nil {
 		return nil, err
 	}
-	return c.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
+	return in.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
 }
 
 func getSn(tx *icontypes.TransactionResult) string {
@@ -497,16 +468,14 @@ func getSn(tx *icontypes.TransactionResult) string {
 	return ""
 }
 
-func (c *IconRemotenet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
-	//testcase := ctx.Value("testcase").(string)
-	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	return c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.UserAccount, "executeCall", `{"_reqId":"`+reqId+`","_data":"`+data+`"}`)
+func (in *IconRemotenet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
+	return in.executeContract(ctx, in.IBCAddresses["xcall"], interchaintest.UserAccount, "executeCall", `{"_reqId":"`+reqId+`","_data":"`+data+`"}`)
 }
 
-func (c *IconRemotenet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
+func (in *IconRemotenet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	ctx, err := c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.UserAccount, "executeRollback", `{"_sn":"`+sn+`"}`)
+	ctx, err := in.executeContract(ctx, in.IBCAddresses["xcall"], interchaintest.UserAccount, "executeRollback", `{"_sn":"`+sn+`"}`)
 	if err != nil {
 		return nil, err
 	}
@@ -516,47 +485,47 @@ func (c *IconRemotenet) ExecuteRollback(ctx context.Context, sn string) (context
 
 }
 
-func (c *IconRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
+func (in *IconRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	index := []*string{&from, &to, &sn}
-	event, err := c.FindEvent(ctx, startHeight, "xcall", "CallMessage(str,str,int,int,bytes)", index)
+	event, err := in.FindEvent(ctx, startHeight, "xcall", "CallMessage(str,str,int,int,bytes)", index)
 	if err != nil {
 		return "", "", err
 	}
 
 	intHeight, _ := event.Height.Int()
-	block, _ := c.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
+	block, _ := in.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
 	i, _ := event.Index.Int()
 	tx := block.NormalTransactions[i]
-	trResult, _ := c.TransactionResult(ctx, string(tx.TxHash))
+	trResult, _ := in.TransactionResult(ctx, string(tx.TxHash))
 	eventIndex, _ := event.Events[0].Int()
 	reqId := trResult.EventLogs[eventIndex].Data[0]
 	data := trResult.EventLogs[eventIndex].Data[1]
 	return reqId, data, nil
 }
 
-func (c *IconRemotenet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
+func (in *IconRemotenet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
 	index := []*string{&sn}
-	event, err := c.FindEvent(ctx, startHeight, "xcall", "ResponseMessage(int,int)", index)
+	event, err := in.FindEvent(ctx, startHeight, "xcall", "ResponseMessage(int,int)", index)
 	if err != nil {
 		return "", err
 	}
 
 	intHeight, _ := event.Height.Int()
-	block, _ := c.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
+	block, _ := in.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
 	i, _ := event.Index.Int()
 	tx := block.NormalTransactions[i]
-	trResult, _ := c.TransactionResult(ctx, string(tx.TxHash))
+	trResult, _ := in.TransactionResult(ctx, string(tx.TxHash))
 	eventIndex, _ := event.Events[0].Int()
 	code, _ := strconv.ParseInt(trResult.EventLogs[eventIndex].Data[0], 0, 64)
 
 	return strconv.FormatInt(code, 10), nil
 }
 
-func (c *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, signature string, index []*string) (*icontypes.EventNotification, error) {
+func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, signature string, index []*string) (*icontypes.EventNotification, error) {
 	filter := icontypes.EventFilter{
-		Addr:      icontypes.Address(c.IBCAddresses["xcall"]),
+		Addr:      icontypes.Address(in.IBCAddresses["xcall"]),
 		Signature: signature,
 		Indexed:   index,
 	}
@@ -582,7 +551,7 @@ func (c *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 				log.Printf("Recovered: %v", err)
 			}
 		}()
-		if err := c.IconClient.MonitorEvent(ctx, req, response, errRespose); err != nil {
+		if err := in.IconClient.MonitorEvent(ctx, req, response, errRespose); err != nil {
 			log.Printf("MonitorEvent error: %v", err)
 		}
 	}(ctx, req, response, errRespose)
@@ -596,7 +565,7 @@ func (c *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 }
 
 // Remote implements chains.Chain
-func (c *IconRemotenet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
+func (in *IconRemotenet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
 	// Get contract Name from context
 	ctxValue := ctx.Value(chains.ContractName{}).(chains.ContractName)
 	contractName := ctxValue.ContractName
@@ -604,12 +573,12 @@ func (c *IconRemotenet) DeployContract(ctx context.Context, keyName string) (con
 	// Get Init Message from context
 	ctxVal := ctx.Value(chains.InitMessageKey("init-msg")).(chains.InitMessage)
 
-	initMessage := c.getInitParams(ctx, contractName, ctxVal.Message)
+	initMessage := in.getInitParams(ctx, contractName, ctxVal.Message)
 
 	var contracts chains.ContractKey
 
 	// Check if keystore is alreadry available for given keyName
-	ownerAddr := c.CheckForKeyStore(ctx, keyName)
+	ownerAddr := in.CheckForKeyStore(ctx, keyName)
 	if ownerAddr != nil {
 		contracts.ContractOwner = map[string]string{
 			keyName: ownerAddr.FormattedAddress(),
@@ -617,7 +586,7 @@ func (c *IconRemotenet) DeployContract(ctx context.Context, keyName string) (con
 	}
 
 	// Get ScoreAddress
-	scoreAddress, err := c.DeployContractRemote(ctx, c.scorePaths[contractName], c.keystorePath, initMessage)
+	scoreAddress, err := in.DeployContractRemote(ctx, in.scorePaths[contractName], in.keystorePath, initMessage)
 
 	contracts.ContractAddress = map[string]string{
 		contractName: scoreAddress,
@@ -625,7 +594,7 @@ func (c *IconRemotenet) DeployContract(ctx context.Context, keyName string) (con
 
 	testcase := ctx.Value("testcase").(string)
 	contract := fmt.Sprintf("%s-%s", contractName, testcase)
-	c.IBCAddresses[contract] = scoreAddress
+	in.IBCAddresses[contract] = scoreAddress
 	return context.WithValue(ctx, chains.Mykey("contract Names"), chains.ContractKey{
 		ContractAddress: contracts.ContractAddress,
 		ContractOwner:   contracts.ContractOwner,
@@ -633,8 +602,8 @@ func (c *IconRemotenet) DeployContract(ctx context.Context, keyName string) (con
 }
 
 // executeContract implements chains.Chain
-func (c *IconRemotenet) executeContract(ctx context.Context, contractAddress, keyName, methodName, params string) (context.Context, error) {
-	hash, err := c.ExecuteRemoteContract(ctx, contractAddress, methodName, c.keystorePath, params)
+func (in *IconRemotenet) executeContract(ctx context.Context, contractAddress, keyName, methodName, params string) (context.Context, error) {
+	hash, err := in.ExecuteRemoteContract(ctx, contractAddress, methodName, in.keystorePath, params)
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +613,7 @@ func (c *IconRemotenet) executeContract(ctx context.Context, contractAddress, ke
 	if err != nil {
 		return nil, fmt.Errorf("error when executing contract %v ", err)
 	}
-	_, res, err := c.IconClient.WaitForResults(ctx, &icontypes.TransactionHashParam{Hash: icontypes.NewHexBytes(txHashByte)})
+	_, res, err := in.IconClient.WaitForResults(ctx, &icontypes.TransactionHashParam{Hash: icontypes.NewHexBytes(txHashByte)})
 	if err != nil {
 		return nil, err
 	}
@@ -652,7 +621,7 @@ func (c *IconRemotenet) executeContract(ctx context.Context, contractAddress, ke
 		return context.WithValue(ctx, "txResult", res), nil
 	}
 	//TODO add debug flag to print trace
-	trace, err := c.GetDebugTrace(ctx, icontypes.NewHexBytes(txHashByte))
+	trace, err := in.GetDebugTrace(ctx, icontypes.NewHexBytes(txHashByte))
 	if err == nil {
 		logs, _ := json.Marshal(trace.Logs)
 		fmt.Printf("---------debug trace start-----------\n%s\n---------debug trace end-----------\n", string(logs))
@@ -660,19 +629,19 @@ func (c *IconRemotenet) executeContract(ctx context.Context, contractAddress, ke
 	return ctx, fmt.Errorf("%s", res.Failure.MessageValue)
 }
 
-func (c *IconRemotenet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
-	execMethodName, execParams := c.getExecuteParam(ctx, methodName, params)
-	return c.executeContract(ctx, contractAddress, keyName, execMethodName, execParams)
+func (in *IconRemotenet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
+	execMethodName, execParams := in.getExecuteParam(ctx, methodName, params)
+	return in.executeContract(ctx, contractAddress, keyName, execMethodName, execParams)
 }
 
-func (c *IconRemotenet) GetBlockByHeight(context.Context) (context.Context, error) {
+func (in *IconRemotenet) GetBlockByHeight(context.Context) (context.Context, error) {
 	panic("not implemented")
 }
 
 // GetBlockByHeight implements chains.Chain
-func (c *IconRemotenet) GetClientBlockByHeight(ctx context.Context, height int64) (string, error) {
-	uri := c.testconfig.RPCUri
-	block, _, err := c.ExecBin(ctx,
+func (in *IconRemotenet) GetClientBlockByHeight(ctx context.Context, height int64) (string, error) {
+	uri := in.testconfig.RPCUri
+	block, _, err := in.ExecBin(ctx,
 		"rpc", "blockbyheight", fmt.Sprint(height),
 		"--uri", uri,
 	)
@@ -680,14 +649,14 @@ func (c *IconRemotenet) GetClientBlockByHeight(ctx context.Context, height int64
 }
 
 // GetLastBlock implements chains.Chain
-func (c *IconRemotenet) GetLastBlock(ctx context.Context) (context.Context, error) {
-	res, err := c.IconClient.GetLastBlock()
+func (in *IconRemotenet) GetLastBlock(ctx context.Context) (context.Context, error) {
+	res, err := in.IconClient.GetLastBlock()
 	h := uint64(res.Height)
 	return context.WithValue(ctx, chains.LastBlock{}, h), err
 }
 
-func (c *IconRemotenet) InitEventListener(ctx context.Context, contract string) chains.EventListener {
-	listener := NewIconEventListener(c, contract)
+func (in *IconRemotenet) InitEventListener(ctx context.Context, contract string) chains.EventListener {
+	listener := NewIconEventListener(in, contract)
 	return listener
 }
 
@@ -718,17 +687,17 @@ func (in *IconRemotenet) QueryContract(ctx context.Context, contractAddress, met
 
 }
 
-func (c *IconRemotenet) BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error) {
+func (in *IconRemotenet) BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error) {
 	panic("not implemented")
 }
 
 // PauseNode pauses the node
-func (c *IconRemotenet) PauseNode(ctx context.Context) error {
+func (in *IconRemotenet) PauseNode(ctx context.Context) error {
 	return nil
 }
 
 // UnpauseNode starts the paused node
-func (c *IconRemotenet) UnpauseNode(ctx context.Context) error {
+func (in *IconRemotenet) UnpauseNode(ctx context.Context) error {
 	return nil
 }
 
@@ -811,7 +780,7 @@ func (in *IconRemotenet) TxCommand(ctx context.Context, initMessage, filePath, k
 
 	command = append([]string{"rpc", "sendtx", "deploy", filePath}, command...)
 	command = append(command,
-		"--key_store", "/goloop/data/godwallet.json",
+		"--key_store", "/goloop/data/"+in.testconfig.KeystoreFile,
 		"--key_password", "gochain",
 		"--step_limit", "5000000000",
 		"--content_type", "application/java",

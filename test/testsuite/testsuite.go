@@ -279,11 +279,11 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 		chain = icon.NewIconRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "evm":
-		chain = evm.NewEVMLocalnet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain = evm.NewEVMRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "wasm", "cosmos":
 		interchainTestConfig := toInterchantestConfig(ibcChainConfig)
-		chain, err := cosmos.NewCosmosLocalnet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
+		chain, err := cosmos.NewCosmosRemotenet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
 		return chain, err
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)

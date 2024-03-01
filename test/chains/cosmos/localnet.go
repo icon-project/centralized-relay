@@ -64,7 +64,7 @@ var contracts = chains.ContractKey{
 	ContractOwner:   make(map[string]string),
 }
 
-func NewCosmosLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, client *dockerClient.Client, network string, testconfig *testconfig.Chain) (chains.Chain, error) {
+func NewCosmosRemotenet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, client *dockerClient.Client, network string, testconfig *testconfig.Chain) (chains.Chain, error) {
 	chain := cosmos.NewCosmosChain(testName, chainConfig, 0, 0, log)
 	httpClient, err := libclient.DefaultHTTPClient(testconfig.RPCUri)
 	if err != nil {
@@ -82,7 +82,7 @@ func NewCosmosLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainCo
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial: %w", err)
 	}
-	return &CosmosLocalnet{
+	return &CosmosRemotenet{
 		CosmosChain:  chain,
 		log:          log,
 		cfg:          toInterchantestConfig(chain.Config()),
@@ -98,7 +98,7 @@ func NewCosmosLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainCo
 	}, nil
 }
 
-func (c *CosmosLocalnet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibcLocal.WalletAmount) error {
+func (c *CosmosRemotenet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibcLocal.WalletAmount) error {
 	wallets := []ibc.WalletAmount{}
 	for index := range additionalGenesisWallets {
 		wallet := ibc.WalletAmount{
@@ -112,17 +112,17 @@ func (c *CosmosLocalnet) Start(testName string, ctx context.Context, additionalG
 	return c.CosmosChain.Start(testName, ctx, wallets...)
 }
 
-func (c *CosmosLocalnet) GetBalance(ctx context.Context, address, denom string) (int64, error) {
+func (c *CosmosRemotenet) GetBalance(ctx context.Context, address, denom string) (int64, error) {
 	balance, err := c.CosmosChain.GetBalance(ctx, address, denom)
 	return balance.Int64(), err
 }
 
-func (c *CosmosLocalnet) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
+func (c *CosmosRemotenet) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
 	// return c.CosmosChain.FindTxs(ctx, height)
 	return nil, nil
 }
 
-func (c *CosmosLocalnet) GetContractAddress(key string) string {
+func (c *CosmosRemotenet) GetContractAddress(key string) string {
 	value, exist := c.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
@@ -130,7 +130,7 @@ func (c *CosmosLocalnet) GetContractAddress(key string) string {
 	return value
 }
 
-func (c *CosmosLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
+func (c *CosmosRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
 	contracts := make(map[string]string)
 	contracts["xcall"] = c.GetContractAddress("xcall")
 	contracts["connection"] = c.GetContractAddress("connection")
@@ -162,7 +162,7 @@ func (c *CosmosLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, key
 	return yaml.Marshal(config)
 }
 
-func (c *CosmosLocalnet) SetupConnection(ctx context.Context, target chains.Chain) error {
+func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
 	xcall := c.IBCAddresses["xcall"]
 	denom := c.Config().Denom
 	connectionCodeId, err := c.StoreContractRemote(ctx, c.filepath["connection"])
@@ -194,19 +194,19 @@ func (c *CosmosLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 	return nil
 }
 
-func (c *CosmosLocalnet) BuildRelayerWallet(ctx context.Context, keyName string) (ibcLocal.Wallet, error) {
+func (c *CosmosRemotenet) BuildRelayerWallet(ctx context.Context, keyName string) (ibcLocal.Wallet, error) {
 	wallet, err := c.CosmosChain.BuildRelayerWallet(ctx, keyName)
 	c.Wallets[keyName] = wallet
 	return wallet, err
 }
 
-func (c *CosmosLocalnet) InitEventListener(ctx context.Context, contract string) chains.EventListener {
+func (c *CosmosRemotenet) InitEventListener(ctx context.Context, contract string) chains.EventListener {
 	// listener := NewIconEventListener(c, contract)
 	// return listener
 	return nil
 }
 
-func (c *CosmosLocalnet) SendFunds(ctx context.Context, keyName string, amount ibcLocal.WalletAmount) error {
+func (c *CosmosRemotenet) SendFunds(ctx context.Context, keyName string, amount ibcLocal.WalletAmount) error {
 	amt := ibc.WalletAmount{
 		Address: amount.Address,
 		Denom:   amount.Denom,
@@ -215,7 +215,7 @@ func (c *CosmosLocalnet) SendFunds(ctx context.Context, keyName string, amount i
 	return c.getFullNode().BankSend(ctx, keyName, amt)
 }
 
-func (c *CosmosLocalnet) SetupIBC(ctx context.Context, keyName string) (context.Context, error) {
+func (c *CosmosRemotenet) SetupIBC(ctx context.Context, keyName string) (context.Context, error) {
 	var contracts chains.ContractKey
 	time.Sleep(4 * time.Second)
 
@@ -265,7 +265,7 @@ func (c *CosmosLocalnet) SetupIBC(ctx context.Context, keyName string) (context.
 	}), nil
 }
 
-func (c *CosmosLocalnet) SetupXCall(ctx context.Context) error {
+func (c *CosmosRemotenet) SetupXCall(ctx context.Context) error {
 	denom := c.Config().Denom
 	xCallCodeId, err := c.StoreContractRemote(ctx, c.filepath["xcall"])
 	if err != nil {
@@ -280,11 +280,11 @@ func (c *CosmosLocalnet) SetupXCall(ctx context.Context) error {
 	return nil
 }
 
-func (c *CosmosLocalnet) ConfigureBaseConnection(ctx context.Context, connection chains.XCallConnection) (context.Context, error) {
+func (c *CosmosRemotenet) ConfigureBaseConnection(ctx context.Context, connection chains.XCallConnection) (context.Context, error) {
 	panic("not implemented")
 }
 
-func (c *CosmosLocalnet) GetIBCAddress(key string) string {
+func (c *CosmosRemotenet) GetIBCAddress(key string) string {
 	value, exist := c.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
@@ -292,7 +292,7 @@ func (c *CosmosLocalnet) GetIBCAddress(key string) string {
 	return value
 }
 
-func (c *CosmosLocalnet) DeployXCallMockApp(ctx context.Context, keyname string, connections []chains.XCallConnection) error {
+func (c *CosmosRemotenet) DeployXCallMockApp(ctx context.Context, keyname string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
 	// connectionKey := fmt.Sprintf("connection-%s", testcase)
 	// xCallKey := fmt.Sprintf("xcall-%s", testcase)
@@ -318,11 +318,11 @@ func (c *CosmosLocalnet) DeployXCallMockApp(ctx context.Context, keyname string,
 	return nil
 }
 
-func (c *CosmosLocalnet) CheckForTimeout(ctx context.Context, target chains.Chain, params map[string]interface{}, listener chains.EventListener) (context.Context, error) {
+func (c *CosmosRemotenet) CheckForTimeout(ctx context.Context, target chains.Chain, params map[string]interface{}, listener chains.EventListener) (context.Context, error) {
 	panic("not implemented")
 }
 
-func (c *CosmosLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
+func (c *CosmosRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 
@@ -337,7 +337,7 @@ func (c *CosmosLocalnet) SendPacketXCall(ctx context.Context, keyName, _to strin
 }
 
 // FindTargetXCallMessage returns the request id and the data of the message sent to the target chain
-func (c *CosmosLocalnet) FindTargetXCallMessage(ctx context.Context, target chains.Chain, height uint64, to string) (*chains.XCallResponse, error) {
+func (c *CosmosRemotenet) FindTargetXCallMessage(ctx context.Context, target chains.Chain, height uint64, to string) (*chains.XCallResponse, error) {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
@@ -345,7 +345,7 @@ func (c *CosmosLocalnet) FindTargetXCallMessage(ctx context.Context, target chai
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
-func (c *CosmosLocalnet) XCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data, rollback []byte) (*chains.XCallResponse, error) {
+func (c *CosmosRemotenet) XCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data, rollback []byte) (*chains.XCallResponse, error) {
 	height, err := targetChain.(ibcLocal.Chain).Height(ctx)
 	if err != nil {
 		return nil, err
@@ -357,7 +357,7 @@ func (c *CosmosLocalnet) XCall(ctx context.Context, targetChain chains.Chain, ke
 	return c.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
 }
 
-func (c *CosmosLocalnet) EOAXCall(ctx context.Context, targetChain chains.Chain, keyName, _to string, data []byte, sources, destinations []string) (string, string, string, error) {
+func (c *CosmosRemotenet) EOAXCall(ctx context.Context, targetChain chains.Chain, keyName, _to string, data []byte, sources, destinations []string) (string, string, string, error) {
 	dataArray := strings.Join(strings.Fields(fmt.Sprintf("%d", data)), ",")
 	params := fmt.Sprintf(`{"to":"%s", "data":%s}`, _to, dataArray)
 	height, _ := targetChain.(ibcLocal.Chain).Height(ctx)
@@ -372,7 +372,7 @@ func (c *CosmosLocalnet) EOAXCall(ctx context.Context, targetChain chains.Chain,
 	return sn, reqId, destData, err
 }
 
-func (c *CosmosLocalnet) findSn(tx *TxResul, eType string) string {
+func (c *CosmosRemotenet) findSn(tx *TxResul, eType string) string {
 	// find better way to parse events
 	for _, event := range tx.Events {
 		if event.Type == eType {
@@ -389,7 +389,7 @@ func (c *CosmosLocalnet) findSn(tx *TxResul, eType string) string {
 }
 
 // IsPacketReceived returns the receipt of the packet sent to the target chain
-func (c *CosmosLocalnet) IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool {
+func (c *CosmosRemotenet) IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool {
 	if order == ibc.Ordered {
 		sequence := params["sequence"].(uint64)
 		ctx, err := c.QueryContract(ctx, c.IBCAddresses["ibc"], chains.GetNextSequenceReceive, params)
@@ -410,13 +410,13 @@ func (c *CosmosLocalnet) IsPacketReceived(ctx context.Context, params map[string
 	return response["data"].(bool)
 }
 
-func (c *CosmosLocalnet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
+func (c *CosmosRemotenet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
 	// testcase := ctx.Value("testcase").(string)
 	// xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	return c.executeContract(ctx, c.IBCAddresses["xcall"], interchaintest.FaucetAccountKeyName, "execute_call", `{"request_id":"`+reqId+`", "data":`+data+`}`)
 }
 
-func (c *CosmosLocalnet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
+func (c *CosmosRemotenet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
 	// testcase := ctx.Value("testcase").(string)
 	// xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	ctx, err := c.executeContract(context.Background(), c.IBCAddresses["xcall"], interchaintest.FaucetAccountKeyName, "execute_rollback", `{"sequence_no":"`+sn+`"}`)
@@ -428,7 +428,7 @@ func (c *CosmosLocalnet) ExecuteRollback(ctx context.Context, sn string) (contex
 	return context.WithValue(ctx, "IsRollbackEventFound", sequence == sn), nil
 }
 
-func (c *CosmosLocalnet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
+func (c *CosmosRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
 	// testcase := ctx.Value("testcase").(string)
 	xCallKey := "xcall" //fmt.Sprintf("xcall-%s", testcase)
 	index := strings.Join([]string{
@@ -445,7 +445,7 @@ func (c *CosmosLocalnet) FindCallMessage(ctx context.Context, startHeight uint64
 
 }
 
-func (c *CosmosLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
+func (c *CosmosRemotenet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
 	// testcase := ctx.Value("testcase").(string)
 	xCallKey := "xcall" //fmt.Sprintf("xcall-%s", testcase)
 	index := fmt.Sprintf("wasm-ResponseMessage.sn CONTAINS '%s'", sn)
@@ -457,7 +457,7 @@ func (c *CosmosLocalnet) FindCallResponse(ctx context.Context, startHeight uint6
 	return event.Events["wasm-ResponseMessage.code"][0], nil
 }
 
-func (c *CosmosLocalnet) FindEvent(ctx context.Context, startHeight uint64, contract, index string) (*ctypes.ResultEvent, error) {
+func (c *CosmosRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, index string) (*ctypes.ResultEvent, error) {
 	endpoint := c.GetHostRPCAddress()
 	client, err := rpchttp.New(endpoint, "/websocket")
 	if err != nil {
@@ -490,7 +490,7 @@ func (c *CosmosLocalnet) FindEvent(ctx context.Context, startHeight uint64, cont
 	}
 }
 
-func (c *CosmosLocalnet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
+func (c *CosmosRemotenet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
 	// Fund user to deploy contract
 	wallet, _ := c.GetAndFundTestUser(ctx, keyName, "", int64(100_000_000))
 
@@ -518,7 +518,7 @@ func (c *CosmosLocalnet) DeployContract(ctx context.Context, keyName string) (co
 	return context.WithValue(ctx, chains.Mykey("contract Names"), contracts), err
 }
 
-func (c *CosmosLocalnet) QueryContract(ctx context.Context, contractAddress, methodName string, params map[string]interface{}) (context.Context, error) {
+func (c *CosmosRemotenet) QueryContract(ctx context.Context, contractAddress, methodName string, params map[string]interface{}) (context.Context, error) {
 	// wait for few blocks after executing before querying
 	time.Sleep(2 * time.Second)
 
@@ -532,7 +532,7 @@ func (c *CosmosLocalnet) QueryContract(ctx context.Context, contractAddress, met
 
 }
 
-func (c *CosmosLocalnet) executeContract(ctx context.Context, contractAddress, keyName, methodName, param string) (context.Context, error) {
+func (c *CosmosRemotenet) executeContract(ctx context.Context, contractAddress, keyName, methodName, param string) (context.Context, error) {
 	txHash, err := c.ExecTx(ctx,
 		"wasm", "execute", contractAddress, `{"`+methodName+`":`+param+`}`, "--gas", "auto")
 	if err != nil || txHash == "" {
@@ -545,12 +545,12 @@ func (c *CosmosLocalnet) executeContract(ctx context.Context, contractAddress, k
 	return context.WithValue(ctx, "txResult", tx), nil
 }
 
-func (c *CosmosLocalnet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
+func (c *CosmosRemotenet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
 	execMethodName, execParams := c.getExecuteParam(ctx, methodName, params)
 	return c.executeContract(ctx, contractAddress, keyName, execMethodName, execParams)
 }
 
-func (c *CosmosLocalnet) getTransaction(txHash string) (*TxResul, error) {
+func (c *CosmosRemotenet) getTransaction(txHash string) (*TxResul, error) {
 	// Retry because sometimes the tx is not committed to state yet.
 	var result TxResul
 
@@ -569,24 +569,24 @@ func (c *CosmosLocalnet) getTransaction(txHash string) (*TxResul, error) {
 	return &result, err
 }
 
-func (c *CosmosLocalnet) getFullNode() *cosmos.ChainNode {
+func (c *CosmosRemotenet) getFullNode() *cosmos.ChainNode {
 	panic("not implemented")
 }
 
-func (c *CosmosLocalnet) GetLastBlock(ctx context.Context) (context.Context, error) {
+func (c *CosmosRemotenet) GetLastBlock(ctx context.Context) (context.Context, error) {
 	h, err := c.CosmosChain.Height(ctx)
 	return context.WithValue(ctx, chains.LastBlock{}, h), err
 }
 
-func (c *CosmosLocalnet) GetBlockByHeight(ctx context.Context) (context.Context, error) {
+func (c *CosmosRemotenet) GetBlockByHeight(ctx context.Context) (context.Context, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func (c *CosmosLocalnet) BuildWallets(ctx context.Context, keyName string) (ibcLocal.Wallet, error) {
+func (c *CosmosRemotenet) BuildWallets(ctx context.Context, keyName string) (ibcLocal.Wallet, error) {
 	return c.GetAndFundTestUser(ctx, keyName, "", int64(100_000_000))
 }
 
-func (c *CosmosLocalnet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibcLocal.Wallet, error) {
+func (c *CosmosRemotenet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibcLocal.Wallet, error) {
 	if mnemonic == "" {
 		wallet, _ := c.BuildRelayerWallet(ctx, keyName)
 		mnemonic = wallet.Mnemonic()
@@ -605,16 +605,16 @@ func (c *CosmosLocalnet) BuildWallet(ctx context.Context, keyName string, mnemon
 	return wallet, nil
 }
 
-func (c *CosmosLocalnet) GetCommonArgs() []string {
+func (c *CosmosRemotenet) GetCommonArgs() []string {
 	return []string{"--gas", "auto"}
 }
 
-func (c *CosmosLocalnet) GetClientName(suffix int) string {
+func (c *CosmosRemotenet) GetClientName(suffix int) string {
 	return fmt.Sprintf("iconclient-%d", suffix)
 }
 
 // GetClientsCount returns the next sequence number for the client
-func (c *CosmosLocalnet) GetClientsCount(ctx context.Context) (int, error) {
+func (c *CosmosRemotenet) GetClientsCount(ctx context.Context) (int, error) {
 	var err error
 	ctx, err = c.QueryContract(ctx, c.GetIBCAddress("ibc"), chains.GetNextClientSequence, map[string]interface{}{})
 	if err != nil {
@@ -626,7 +626,7 @@ func (c *CosmosLocalnet) GetClientsCount(ctx context.Context) (int, error) {
 }
 
 // GetNextConnectionSequence returns the next sequence number for the client
-func (c *CosmosLocalnet) GetNextConnectionSequence(ctx context.Context) (int, error) {
+func (c *CosmosRemotenet) GetNextConnectionSequence(ctx context.Context) (int, error) {
 	params := map[string]interface{}{}
 	var err error
 	ctx, err = c.QueryContract(ctx, c.GetIBCAddress("ibc"), chains.GetNextConnectionSequence, params)
@@ -640,7 +640,7 @@ func (c *CosmosLocalnet) GetNextConnectionSequence(ctx context.Context) (int, er
 }
 
 // GetNextChannelSequence returns the next sequence number for the client
-func (c *CosmosLocalnet) GetNextChannelSequence(ctx context.Context) (int, error) {
+func (c *CosmosRemotenet) GetNextChannelSequence(ctx context.Context) (int, error) {
 	params := map[string]interface{}{}
 	var err error
 	ctx, err = c.QueryContract(ctx, c.GetIBCAddress("ibc"), chains.GetNextChannelSequence, params)
@@ -654,16 +654,16 @@ func (c *CosmosLocalnet) GetNextChannelSequence(ctx context.Context) (int, error
 }
 
 // PauseNode halts a node
-func (c *CosmosLocalnet) PauseNode(ctx context.Context) error {
+func (c *CosmosRemotenet) PauseNode(ctx context.Context) error {
 	return nil
 }
 
 // UnpauseNode restarts a node
-func (c *CosmosLocalnet) UnpauseNode(ctx context.Context) error {
+func (c *CosmosRemotenet) UnpauseNode(ctx context.Context) error {
 	return nil
 }
 
-func (c *CosmosLocalnet) BackupConfig() ([]byte, error) {
+func (c *CosmosRemotenet) BackupConfig() ([]byte, error) {
 	wallets := make(map[string]interface{})
 	for key, value := range c.Wallets {
 		wallets[key] = map[string]string{
@@ -679,7 +679,7 @@ func (c *CosmosLocalnet) BackupConfig() ([]byte, error) {
 	return json.MarshalIndent(backup, "", "\t")
 }
 
-func (c *CosmosLocalnet) RestoreConfig(backup []byte) error {
+func (c *CosmosRemotenet) RestoreConfig(backup []byte) error {
 	result := make(map[string]interface{})
 	err := json.Unmarshal(backup, &result)
 	if err != nil {
@@ -830,7 +830,7 @@ func modifyGenesisMinGasPriceLocal(g map[string]interface{}, config ibcLocal.Cha
 	return nil
 }
 
-func (an *CosmosLocalnet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
+func (an *CosmosRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
 	job := dockerutil.NewImage(an.log, an.DockerClient, an.Network, an.testName, an.cfg.Images[0].Repository, an.cfg.Images[0].Version)
 	bindPaths := []string{
 		an.testconfig.ContractsPath + ":/contracts",
@@ -846,8 +846,8 @@ func (an *CosmosLocalnet) Exec(ctx context.Context, cmd []string, env []string) 
 	return res.Stdout, res.Stderr, res.Err
 }
 
-// func (tn *CosmosLocalnet) Height(ctx context.Context) (uint64, error) {
-// 	res, err := tn.Client.Status(ctx)
+// func (c *CosmosLocalnet) Height(ctx context.Context) (uint64, error) {
+// 	res, err := c.Client.Status(ctx)
 // 	if err != nil {
 // 		return 0, fmt.Errorf("tendermint rpc client status: %w", err)
 // 	}
@@ -855,26 +855,26 @@ func (an *CosmosLocalnet) Exec(ctx context.Context, cmd []string, env []string) 
 // 	return uint64(height), nil
 // }
 
-func (tn *CosmosLocalnet) StoreContractRemote(ctx context.Context, fileName string, extraExecTxArgs ...string) (string, error) {
+func (c *CosmosRemotenet) StoreContractRemote(ctx context.Context, fileName string, extraExecTxArgs ...string) (string, error) {
 	_, file := filepath.Split(fileName)
 
 	cmd := []string{"wasm", "store", path.Join("/contracts/", file), "--gas", "auto"}
 	cmd = append(cmd, extraExecTxArgs...)
-	// ht, _ := tn.Height(ctx)
+	// ht, _ := c.Height(ctx)
 	// fmt.Println("Current height is ", ht)
-	if _, err := tn.ExecTx(ctx, cmd...); err != nil {
+	if _, err := c.ExecTx(ctx, cmd...); err != nil {
 		return "", err
 	}
 
-	// err := testutil.WaitForBlocks(ctx, 5, tn.CosmosChain)
+	// err := testutil.WaitForBlocks(ctx, 5, c.CosmosChain)
 	// if err != nil {
 	// 	return "", fmt.Errorf("wait for blocks: %w", err)
 	// }
 
 	time.Sleep(9 * time.Second)
-	// ht, _ = tn.Height(ctx)
+	// ht, _ = c.Height(ctx)
 	// fmt.Println("Current New height is ", ht)
-	stdout, _, err := tn.ExecQuery(ctx, "wasm", "list-code", "--reverse")
+	stdout, _, err := c.ExecQuery(ctx, "wasm", "list-code", "--reverse")
 	if err != nil {
 		return "", err
 	}
@@ -887,18 +887,18 @@ func (tn *CosmosLocalnet) StoreContractRemote(ctx context.Context, fileName stri
 }
 
 // InstantiateContract takes a code id for a smart contract and initialization message and returns the instantiated contract address.
-func (tn *CosmosLocalnet) InstantiateContractRemote(ctx context.Context, codeID string, initMessage string, needsNoAdminFlag bool, extraExecTxArgs ...string) (string, error) {
+func (c *CosmosRemotenet) InstantiateContractRemote(ctx context.Context, codeID string, initMessage string, needsNoAdminFlag bool, extraExecTxArgs ...string) (string, error) {
 	command := []string{"wasm", "instantiate", codeID, initMessage, "--label", "wasm-contract"}
 	command = append(command, extraExecTxArgs...)
 	if needsNoAdminFlag {
 		command = append(command, "--no-admin")
 	}
-	_, err := tn.ExecTx(ctx, command...)
+	_, err := c.ExecTx(ctx, command...)
 	if err != nil {
 		return "", err
 	}
 
-	// txResp, err := tn.GetTransaction( txHash)
+	// txResp, err := c.GetTransaction( txHash)
 	// if err != nil {
 	// 	return "", fmt.Errorf("failed to get transaction %s: %w", txHash, err)
 	// }
@@ -907,7 +907,7 @@ func (tn *CosmosLocalnet) InstantiateContractRemote(ctx context.Context, codeID 
 	// }
 	time.Sleep(8 * time.Second)
 
-	stdout, _, err := tn.ExecQuery(ctx, "wasm", "list-contract-by-code", codeID)
+	stdout, _, err := c.ExecQuery(ctx, "wasm", "list-contract-by-code", codeID)
 	if err != nil {
 		return "", err
 	}
@@ -920,7 +920,7 @@ func (tn *CosmosLocalnet) InstantiateContractRemote(ctx context.Context, codeID 
 }
 
 // ExecuteContract executes a contract transaction with a message using it's address.
-func (tn *CosmosLocalnet) ExecuteContractRemote(ctx context.Context, contractAddress string, methodName, message string, extraExecTxArgs ...string) (res *TxResul, err error) {
+func (c *CosmosRemotenet) ExecuteContractRemote(ctx context.Context, contractAddress string, methodName, message string, extraExecTxArgs ...string) (res *TxResul, err error) {
 	msg := `{"` + methodName + `":` + message + `}`
 	cmd := []string{"wasm", "execute", contractAddress, msg}
 	cmd = append(cmd, extraExecTxArgs...)
@@ -928,12 +928,12 @@ func (tn *CosmosLocalnet) ExecuteContractRemote(ctx context.Context, contractAdd
 		cmd = append(cmd, "--gas", "auto")
 	}
 
-	txHash, err := tn.ExecTx(ctx, cmd...)
+	txHash, err := c.ExecTx(ctx, cmd...)
 	if err != nil {
 		return nil, err
 	}
 
-	txResp, err := tn.getTransaction(txHash)
+	txResp, err := c.getTransaction(txHash)
 	if err != nil {
 		return txResp, fmt.Errorf("failed to get transaction %s: %w", txHash, err)
 	}
@@ -946,7 +946,7 @@ func (tn *CosmosLocalnet) ExecuteContractRemote(ctx context.Context, contractAdd
 }
 
 // QueryContract performs a smart query, taking in a query struct and returning a error with the response struct populated.
-func (tn *CosmosLocalnet) QueryContractRemote(ctx context.Context, contractAddress string, queryMsg any, response any) error {
+func (c *CosmosRemotenet) QueryContractRemote(ctx context.Context, contractAddress string, queryMsg any, response any) error {
 	var query []byte
 	var err error
 
@@ -967,7 +967,7 @@ func (tn *CosmosLocalnet) QueryContractRemote(ctx context.Context, contractAddre
 		}
 	}
 
-	stdout, _, err := tn.ExecQuery(ctx, "wasm", "contract-state", "smart", contractAddress, string(query))
+	stdout, _, err := c.ExecQuery(ctx, "wasm", "contract-state", "smart", contractAddress, string(query))
 	if err != nil {
 		return err
 	}
@@ -975,8 +975,8 @@ func (tn *CosmosLocalnet) QueryContractRemote(ctx context.Context, contractAddre
 	return err
 }
 
-func (tn *CosmosLocalnet) BinCommand(command ...string) []string {
-	command = append([]string{tn.CosmosChain.Config().Bin}, command...)
+func (c *CosmosRemotenet) BinCommand(command ...string) []string {
+	command = append([]string{c.CosmosChain.Config().Bin}, command...)
 	return command
 }
 
@@ -984,17 +984,17 @@ func (tn *CosmosLocalnet) BinCommand(command ...string) []string {
 // For example, if chain node binary is `gaiad`, and desired command is `gaiad keys show key1`,
 // pass ("keys", "show", "key1") for command to execute the command against the node.
 // Will include additional flags for home directory and chain ID.
-func (tn *CosmosLocalnet) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
-	return tn.Exec(ctx, tn.BinCommand(command...), nil)
+func (c *CosmosRemotenet) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
+	return c.Exec(ctx, c.BinCommand(command...), nil)
 }
 
 // QueryCommand is a helper to retrieve the full query command. For example,
 // if chain node binary is gaiad, and desired command is `gaiad query gov params`,
 // pass ("gov", "params") for command to return the full command with all necessary
 // flags to query the specific node.
-func (tn *CosmosLocalnet) QueryCommand(command ...string) []string {
+func (c *CosmosRemotenet) QueryCommand(command ...string) []string {
 	command = append([]string{"query"}, command...)
-	return tn.NodeCommand(append(command,
+	return c.NodeCommand(append(command,
 		"--output", "json",
 	)...)
 }
@@ -1003,20 +1003,20 @@ func (tn *CosmosLocalnet) QueryCommand(command ...string) []string {
 // if chain node binary is gaiad, and desired command is `gaiad query gov params`,
 // pass ("gov", "params") for command to execute the query against the node.
 // Returns response in json format.
-func (tn *CosmosLocalnet) ExecQuery(ctx context.Context, command ...string) ([]byte, []byte, error) {
-	return tn.Exec(ctx, tn.QueryCommand(command...), nil)
+func (c *CosmosRemotenet) ExecQuery(ctx context.Context, command ...string) ([]byte, []byte, error) {
+	return c.Exec(ctx, c.QueryCommand(command...), nil)
 }
 
-func (tn *CosmosLocalnet) NodeCommand(command ...string) []string {
-	command = tn.BinCommand(command...)
+func (c *CosmosRemotenet) NodeCommand(command ...string) []string {
+	command = c.BinCommand(command...)
 	return append(command,
-		"--node", tn.testconfig.RPCUri,
+		"--node", c.testconfig.RPCUri,
 	)
 }
 
-func (tn *CosmosLocalnet) ExecTx(ctx context.Context, command ...string) (string, error) {
+func (c *CosmosRemotenet) ExecTx(ctx context.Context, command ...string) (string, error) {
 
-	stdout, _, err := tn.Exec(ctx, tn.TxCommand(command...), nil)
+	stdout, _, err := c.Exec(ctx, c.TxCommand(command...), nil)
 	if err != nil {
 		return "", err
 	}
@@ -1035,8 +1035,8 @@ func (tn *CosmosLocalnet) ExecTx(ctx context.Context, command ...string) (string
 }
 
 // TxHashToResponse returns the sdk transaction response struct for a given transaction hash.
-func (tn *CosmosLocalnet) TxHashToResponse(ctx context.Context, txHash string) (*sdk.TxResponse, error) {
-	stdout, stderr, err := tn.ExecQuery(ctx, "tx", txHash)
+func (c *CosmosRemotenet) TxHashToResponse(ctx context.Context, txHash string) (*sdk.TxResponse, error) {
+	stdout, stderr, err := c.ExecQuery(ctx, "tx", txHash)
 	if err != nil {
 		fmt.Println("TxHashToResponse err: ", err.Error()+" "+string(stderr))
 	}
@@ -1048,7 +1048,7 @@ func (tn *CosmosLocalnet) TxHashToResponse(ctx context.Context, txHash string) (
 	return i, nil
 }
 
-func (tn *CosmosLocalnet) TxCommand(command ...string) []string {
+func (c *CosmosRemotenet) TxCommand(command ...string) []string {
 	command = append([]string{"tx"}, command...)
 	var gasPriceFound, gasAdjustmentFound, feesFound = false, false, false
 	for i := 0; i < len(command); i++ {
@@ -1063,22 +1063,22 @@ func (tn *CosmosLocalnet) TxCommand(command ...string) []string {
 		}
 	}
 	if !gasPriceFound && !feesFound {
-		command = append(command, "--gas-prices", tn.CosmosChain.Config().GasPrices)
+		command = append(command, "--gas-prices", c.CosmosChain.Config().GasPrices)
 	}
 	if !gasAdjustmentFound {
-		command = append(command, "--gas-adjustment", strconv.FormatFloat(tn.CosmosChain.Config().GasAdjustment, 'f', -1, 64))
+		command = append(command, "--gas-adjustment", strconv.FormatFloat(c.CosmosChain.Config().GasAdjustment, 'f', -1, 64))
 	}
-	return tn.NodeCommand(append(command,
-		"--from", tn.testconfig.KeystoreFile,
+	return c.NodeCommand(append(command,
+		"--from", c.testconfig.KeystoreFile,
 		"--keyring-backend", keyring.BackendTest,
 		"--output", "json",
 		"-y",
-		"--chain-id", tn.CosmosChain.Config().ChainID,
+		"--chain-id", c.CosmosChain.Config().ChainID,
 	)...)
 }
 
-func (tn *CosmosLocalnet) CliContext() client.Context {
-	cfg := tn.CosmosChain.Config()
+func (c *CosmosRemotenet) CliContext() client.Context {
+	cfg := c.CosmosChain.Config()
 	return client.Context{
 		Client:            nil,
 		GRPCClient:        nil,
@@ -1092,27 +1092,27 @@ func (tn *CosmosLocalnet) CliContext() client.Context {
 	}
 }
 
-func (c *CosmosLocalnet) GetRPCAddress() string {
+func (c *CosmosRemotenet) GetRPCAddress() string {
 	return c.testconfig.RPCUri
 }
 
 // Implements Chain interface
-func (c *CosmosLocalnet) GetAPIAddress() string {
+func (c *CosmosRemotenet) GetAPIAddress() string {
 	return c.testconfig.RPCUri
 }
 
 // Implements Chain interface
-func (c *CosmosLocalnet) GetGRPCAddress() string {
+func (c *CosmosRemotenet) GetGRPCAddress() string {
 	return c.testconfig.GRPCUri
 }
 
 // GetHostRPCAddress returns the address of the RPC server accessible by the host.
 // This will not return a valid address until the chain has been started.
-func (c *CosmosLocalnet) GetHostRPCAddress() string {
+func (c *CosmosRemotenet) GetHostRPCAddress() string {
 	return c.testconfig.RPCUri
 }
 
-func (c *CosmosLocalnet) Height(ctx context.Context) (uint64, error) {
+func (c *CosmosRemotenet) Height(ctx context.Context) (uint64, error) {
 	res, err := c.Rpcclient.Status(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("tendermint rpc client status: %w", err)

@@ -11,7 +11,7 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains"
 )
 
-func (c *EVMLocalnet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, []interface{}) {
+func (c *EVMRemotenet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, []interface{}) {
 	if strings.Contains(methodName, chains.BindPort) {
 		return "bindPort", []interface{}{params["port_id"], params["address"]}
 	} else if strings.Contains(methodName, chains.SendMessage) {
@@ -26,7 +26,7 @@ func (c *EVMLocalnet) getExecuteParam(ctx context.Context, methodName string, pa
 	return methodName, _params
 }
 
-func (c *EVMLocalnet) GetQueryParam(method string, params map[string]interface{}) Query {
+func (c *EVMRemotenet) GetQueryParam(method string, params map[string]interface{}) Query {
 	var query Query
 	switch method {
 	case chains.HasPacketReceipt:
@@ -95,7 +95,7 @@ func (c *EVMLocalnet) GetQueryParam(method string, params map[string]interface{}
 	return query
 }
 
-func (c *EVMLocalnet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
+func (c *EVMRemotenet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
 	if contractName == "mockdapp" {
 		updatedInit, _ := json.Marshal(map[string]string{
 			"ibcHandler": initMsg["ibc_host"].(string),
@@ -106,7 +106,7 @@ func (c *EVMLocalnet) getInitParams(ctx context.Context, contractName string, in
 	return ""
 }
 
-func (c *EVMLocalnet) SetAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
+func (c *EVMRemotenet) SetAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
 	var admins chains.Admins
 	executeMethodName := "setAdmin"
 	if strings.ToLower(keyName) == "null" {
@@ -133,7 +133,7 @@ func (c *EVMLocalnet) SetAdminParams(ctx context.Context, methodaName, keyName s
 
 }
 
-func (c *EVMLocalnet) UpdateAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
+func (c *EVMRemotenet) UpdateAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
 	var admins chains.Admins
 	executeMethodName := "updateAdmin"
 	if strings.ToLower(keyName) == "null" {
@@ -160,7 +160,7 @@ func (c *EVMLocalnet) UpdateAdminParams(ctx context.Context, methodaName, keyNam
 
 }
 
-func (c *EVMLocalnet) CheckForKeyStore(ctx context.Context, keyName string) ibc.Wallet {
+func (c *EVMRemotenet) CheckForKeyStore(ctx context.Context, keyName string) ibc.Wallet {
 	wallet := c.Wallets[keyName]
 	if wallet != nil {
 		c.privateKey = wallet.Mnemonic()

@@ -18,7 +18,7 @@ import (
 	"github.com/icon-project/icon-bridge/common/codec"
 )
 
-type CosmosLocalnet struct {
+type CosmosRemotenet struct {
 	*cosmos.CosmosChain
 	cfg          ibcLocal.ChainConfig
 	keyName      string
@@ -34,11 +34,11 @@ type CosmosLocalnet struct {
 	Rpcclient    *rpchttp.HTTP
 }
 
-func (c *CosmosLocalnet) Config() ibcLocal.ChainConfig {
+func (c *CosmosRemotenet) Config() ibcLocal.ChainConfig {
 	return c.cfg
 }
 
-func (c *CosmosLocalnet) OverrideConfig(key string, value any) {
+func (c *CosmosRemotenet) OverrideConfig(key string, value any) {
 	if value == nil {
 		return
 	}

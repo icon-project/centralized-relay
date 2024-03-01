@@ -27,7 +27,7 @@ var correcrRequestID = `{"execute_call":{"request_id":"1"}}`
 var nullRequestID = `{"execute_call":{"request_id":""}}`
 var correcrSequenceID = `{"execute_rollback":{"sequence_no":"1"}}`
 
-func (c *CosmosLocalnet) GetQueryParam(method string, params map[string]interface{}) Query {
+func (c *CosmosRemotenet) GetQueryParam(method string, params map[string]interface{}) Query {
 	var query Query
 	switch method {
 	case chains.HasPacketReceipt:
@@ -62,7 +62,7 @@ func (c *CosmosLocalnet) GetQueryParam(method string, params map[string]interfac
 	return query
 }
 
-func (c *CosmosLocalnet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, string) {
+func (c *CosmosRemotenet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, string) {
 	_params, _ := json.Marshal(params)
 	return methodName, string(_params)
 }
@@ -106,7 +106,7 @@ func executeCallData(param string) string {
 	return executeCall
 }
 
-func (c *CosmosLocalnet) GetAndFundTestUser(
+func (c *CosmosRemotenet) GetAndFundTestUser(
 	ctx context.Context,
 	keyNamePrefix string,
 	mnemonic string,
@@ -141,7 +141,7 @@ func (c *CosmosLocalnet) GetAndFundTestUser(
 
 }
 
-func (c *CosmosLocalnet) SetAdminParams(ctx context.Context, keyName string) (context.Context, string, error) {
+func (c *CosmosRemotenet) SetAdminParams(ctx context.Context, keyName string) (context.Context, string, error) {
 	var admin SetAdmin
 	var admins chains.Admins
 	originalJSON := `{"set_admin":{"address":""}}`
@@ -176,7 +176,7 @@ func (c *CosmosLocalnet) SetAdminParams(ctx context.Context, keyName string) (co
 	}
 }
 
-func (c *CosmosLocalnet) UpdateAdminParams(ctx context.Context, keyName string) (context.Context, string, error) {
+func (c *CosmosRemotenet) UpdateAdminParams(ctx context.Context, keyName string) (context.Context, string, error) {
 	var admin UpdateAdmin
 	var admins chains.Admins
 	originalJSON := `{"update_admin":{"address":""}}`
@@ -211,7 +211,7 @@ func (c *CosmosLocalnet) UpdateAdminParams(ctx context.Context, keyName string) 
 	}
 }
 
-func (c *CosmosLocalnet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
+func (c *CosmosRemotenet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
 	if contractName == "mockdapp" {
 		updatedInit, _ := json.Marshal(initMsg)
 		fmt.Printf("Init msg for Dapp is : %s", string(updatedInit))
