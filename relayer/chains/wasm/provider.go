@@ -12,8 +12,8 @@ import (
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	abiTypes "github.com/cometbft/cometbft/abci/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -33,6 +33,7 @@ type Provider struct {
 	kms        kms.KMS
 	wallet     sdkTypes.AccountI
 	contracts  map[string]relayTypes.EventMap
+	eventList  []sdkTypes.Event
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -107,8 +108,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	heightTicker := time.NewTicker(p.cfg.BlockInterval)
 	heightPoller := time.NewTicker(time.Minute)
+	sequenceTicker := time.NewTicker(3 * time.Minute)
 	defer heightTicker.Stop()
 	defer heightPoller.Stop()
+	defer sequenceTicker.Stop()
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight))
 
@@ -126,13 +129,17 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latestHeight = height
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-sequenceTicker.C:
+			if err := p.handleAccountSequenceMismatchError(); err != nil {
+				p.logger.Error("failed to update sequence", zap.Error(err))
+			}
 		default:
 			if startHeight > latestHeight {
 				continue
 			}
 			toHeight := latestHeight
 			p.logger.Debug("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-			p.runBlockQuery(blockInfoChan, startHeight, toHeight)
+			p.runBlockQuery(ctx, blockInfoChan, startHeight, toHeight)
 			startHeight = toHeight + 1
 		}
 	}
@@ -218,7 +225,7 @@ func (p *Provider) logTxFailed(err error, txHash string) {
 }
 
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
-	p.logger.Info("transaction success",
+	p.logger.Info("successful transaction",
 		zap.Uint64("block_height", height),
 		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
@@ -502,7 +509,7 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	return heightStream
 }
 
-func (p *Provider) getBlockInfoStream(done <-chan bool, heightStream <-chan uint64) <-chan interface{} {
+func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStream <-chan uint64) <-chan interface{} {
 	blockInfoStream := make(chan interface{})
 	go func(blockInfoChan chan interface{}, heightChan <-chan uint64) {
 		defer close(blockInfoChan)
@@ -513,7 +520,7 @@ func (p *Provider) getBlockInfoStream(done <-chan bool, heightStream <-chan uint
 			case height, ok := <-heightChan:
 				if ok {
 					for {
-						messages, err := p.fetchBlockMessages(height)
+						messages, err := p.fetchBlockMessages(ctx, height)
 						if err != nil {
 							p.logger.Error("failed to fetch block messages: ", zap.Error(err), zap.Uint64("block-height", height))
 							time.Sleep(time.Second)
@@ -532,7 +539,7 @@ func (p *Provider) getBlockInfoStream(done <-chan bool, heightStream <-chan uint
 	return blockInfoStream
 }
 
-func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, error) {
+func (p *Provider) fetchBlockMessages(ctx context.Context, height uint64) ([]*relayTypes.Message, error) {
 	perPage := 100
 	searchParam := types.TxSearchParam{
 		BlockHeight: height,
@@ -541,40 +548,33 @@ func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, err
 
 	var (
 		wg           sync.WaitGroup
-		messages     []*relayTypes.Message
-		messagesChan = make(chan []*relayTypes.Message)
+		messages     coretypes.ResultTxSearch
+		messagesChan = make(chan *coretypes.ResultTxSearch)
 		errorChan    = make(chan error)
 	)
 
-	for _, event := range p.GetMonitorEventFilters() {
+	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan []*relayTypes.Message, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
-			searchParam.Events = append(searchParam.Events, sdkTypes.Event{
-				Type:       EventTypeWasmMessage,
-				Attributes: []abiTypes.EventAttribute{event},
-			})
-			res, err := p.client.TxSearch(context.Background(), searchParam)
+			searchParam.Events = append(searchParam.Events, event)
+			res, err := p.client.TxSearch(ctx, searchParam)
 			if err != nil {
 				errorChan <- err
 				return
 			}
-			messages, err := p.getMessagesFromTxList(res.Txs)
-			if err != nil {
-				errorChan <- err
-				return
-			}
-			messagesChan <- messages
+			messagesChan <- res
 		}(&wg, searchParam, messagesChan, errorChan)
 		select {
 		case msgs := <-messagesChan:
-			messages = append(messages, msgs...)
+			messages.Txs = append(messages.Txs, msgs.Txs...)
+			messages.TotalCount += msgs.TotalCount
 		case err := <-errorChan:
 			return nil, err
 		}
 	}
 	wg.Wait()
-	return messages, nil
+	return p.getMessagesFromTxList(messages.Txs)
 }
 
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
@@ -586,19 +586,19 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 		}
 
 		for _, event := range eventsList {
-			messages, err := p.ParseMessageFromEvents(event.Events)
+			msgs, err := p.ParseMessageFromEvents(event.Events)
 			if err != nil {
 				return nil, err
 			}
-			for _, message := range messages {
-				message.MessageHeight = uint64(resultTx.Height)
+			for _, msg := range msgs {
+				msg.MessageHeight = uint64(resultTx.Height)
 				p.logger.Info("Detected eventlog",
-					zap.Uint64("height", message.MessageHeight),
-					zap.String("target_network", message.Dst),
-					zap.Uint64("sn", message.Sn),
-					zap.String("event_type", message.EventType),
+					zap.Uint64("height", msg.MessageHeight),
+					zap.String("target_network", msg.Dst),
+					zap.Uint64("sn", msg.Sn),
+					zap.String("event_type", msg.EventType),
 				)
-				messages = append(messages, message)
+				messages = append(messages, msg)
 			}
 		}
 	}
@@ -626,7 +626,7 @@ func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
 	return runtime.NumCPU()
 }
 
-func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) {
+func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) {
 	done := make(chan bool)
 	defer close(done)
 
@@ -636,7 +636,7 @@ func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromH
 	pipelines := make([]<-chan interface{}, numOfPipelines)
 
 	for i := 0; i < numOfPipelines; i++ {
-		pipelines[i] = p.getBlockInfoStream(done, heightStream)
+		pipelines[i] = p.getBlockInfoStream(ctx, done, heightStream)
 	}
 
 	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight+1)) {

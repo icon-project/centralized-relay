@@ -283,6 +283,5 @@ func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byt
 }
 
 func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
-	// pack abi data
 	return c.eth.EstimateGas(ctx, msg)
 }

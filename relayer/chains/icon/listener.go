@@ -283,9 +283,9 @@ func (p *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh
 					}
 					p.log.Info("Detected eventlog",
 						zap.Int64("height", request.height),
-						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
 						zap.String("target_network", string(el.Indexed[1])),
-						zap.String("sn", string(el.Indexed[2])),
+						zap.ByteString("sn", el.Indexed[2]),
+						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
 					)
 					eventlogs = append(eventlogs, el)
 				}

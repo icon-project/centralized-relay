@@ -89,6 +89,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		cfg:       pc,
 		client:    ws,
 		contracts: contracts,
+		eventList: pc.GetMonitorEventFilters(contracts),
 	}, nil
 }
 

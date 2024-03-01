@@ -167,6 +167,9 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 
 // Load private key from keyring
 func (c *Client) ImportArmor(uid string, armor []byte, passphrase string) error {
+	if _, err := c.ctx.Keyring.Key(uid); err == nil {
+		return nil
+	}
 	return c.ctx.Keyring.ImportPrivKey(uid, string(armor), passphrase)
 }
 

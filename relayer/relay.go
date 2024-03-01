@@ -317,7 +317,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		src := src
 		routeMessage, ok := src.MessageCache.Messages[*key]
 		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
 		if response.Code == types.Success {
@@ -357,7 +357,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	}
 }
 
-// SubmitMessage
+// ExecuteCall
 func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
 	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
 		if response.Code == types.Success {
@@ -376,7 +376,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		}
 		routeMessage, ok := dst.MessageCache.Messages[*key]
 		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
 		r.HandleMessageFailed(routeMessage, dst, dst)

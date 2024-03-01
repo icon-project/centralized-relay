@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"strings"
 
-	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
@@ -37,6 +36,7 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
+	p.NonceTracker.Inc(p.wallet.Address)
 	p.WaitForTxResult(ctx, tx, messageKey, callback)
 	return nil
 }
@@ -47,11 +47,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 		err error
 	)
 
-	gasLimit, err := p.client.EstimateGas(ctx, ethereum.CallMsg{
-		From: opts.From,
-		To:   p.GetAddressByEventType(message.EventType),
-		Data: message.Data,
-	})
+	gasLimit, err := p.EstimateGas(ctx, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas: %w", err)
 	}
@@ -63,6 +59,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 	if gasLimit < p.cfg.GasMin {
 		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
 	}
+	opts.GasLimit = gasLimit
 
 	switch message.EventType {
 	// check estimated gas and gas price

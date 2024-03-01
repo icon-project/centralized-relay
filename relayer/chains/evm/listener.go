@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -50,6 +51,9 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	heightPoller := time.NewTicker(p.cfg.BlockInterval)
 	defer heightPoller.Stop()
 
+	nonceTicker := time.NewTicker(3 * time.Minute)
+	defer nonceTicker.Stop()
+
 	next, latest := startHeight, p.latestHeight()
 	concurrency := p.GetConcurrency(ctx, startHeight, latest)
 	// block notification channel
@@ -77,6 +81,14 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 					p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 				}
 			}
+		case <-nonceTicker.C:
+			addr := common.HexToAddress(p.cfg.Address)
+			nonce, err := p.client.NonceAt(ctx, addr, nil)
+			if err != nil {
+				p.log.Error("failed to get nonce", zap.Error(err))
+				continue
+			}
+			p.NonceTracker.Set(addr, nonce)
 
 		case bn := <-bnch:
 			// process all notifications

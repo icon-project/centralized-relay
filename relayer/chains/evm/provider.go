@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -15,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -23,6 +26,11 @@ import (
 )
 
 var _ provider.Config = (*EVMProviderConfig)(nil)
+
+var (
+	MethodRecvMessage = "recvMessage"
+	MethodExecuteCall = "executeCall"
+)
 
 type EVMProviderConfig struct {
 	ChainName      string                          `json:"-" yaml:"-"`
@@ -42,15 +50,47 @@ type EVMProviderConfig struct {
 }
 
 type EVMProvider struct {
-	client      IClient
-	verifier    IClient
-	log         *zap.Logger
-	cfg         *EVMProviderConfig
-	StartHeight uint64
-	blockReq    ethereum.FilterQuery
-	wallet      *keystore.Key
-	kms         kms.KMS
-	contracts   map[string]providerTypes.EventMap
+	client       IClient
+	verifier     IClient
+	log          *zap.Logger
+	cfg          *EVMProviderConfig
+	StartHeight  uint64
+	blockReq     ethereum.FilterQuery
+	wallet       *keystore.Key
+	kms          kms.KMS
+	contracts    map[string]providerTypes.EventMap
+	NonceTracker *NonceTracker
+}
+
+type NonceTracker struct {
+	address map[common.Address]*big.Int
+	*sync.Mutex
+}
+
+// NewNonceTracker
+func NewNonceTracker() *NonceTracker {
+	return &NonceTracker{
+		address: make(map[common.Address]*big.Int),
+		Mutex:   &sync.Mutex{},
+	}
+}
+
+func (n *NonceTracker) Get(addr common.Address) *big.Int {
+	n.Lock()
+	defer n.Unlock()
+	return n.address[addr]
+}
+
+func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
+	n.Lock()
+	defer n.Unlock()
+	n.address[addr] = nonce
+}
+
+func (n *NonceTracker) Inc(addr common.Address) {
+	n.Lock()
+	defer n.Unlock()
+	n.address[addr].Add(n.address[addr], big.NewInt(1))
 }
 
 func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -87,12 +127,13 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	}
 
 	return &EVMProvider{
-		cfg:       p,
-		log:       log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
-		client:    client,
-		blockReq:  p.GetMonitorEventFilters(),
-		verifier:  verifierClient,
-		contracts: p.eventMap(),
+		cfg:          p,
+		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
+		client:       client,
+		blockReq:     p.GetMonitorEventFilters(),
+		verifier:     verifierClient,
+		contracts:    p.eventMap(),
+		NonceTracker: NewNonceTracker(),
 	}, nil
 }
 
@@ -136,6 +177,13 @@ func (p *EVMProvider) Wallet() (*keystore.Key, error) {
 	if p.wallet == nil {
 		if err := p.RestoreKeystore(context.Background()); err != nil {
 			return nil, err
+		}
+		if p.NonceTracker.Get(p.wallet.Address) == nil {
+			nonce, err := p.client.NonceAt(context.Background(), p.wallet.Address, nil)
+			if err != nil {
+				return nil, err
+			}
+			p.NonceTracker.Set(p.wallet.Address, nonce)
 		}
 	}
 	return p.wallet, nil
@@ -215,16 +263,12 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 		return nil, err
 	}
 
-	non, err := p.client.NonceAt(ctx, wallet.Address, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	txOpts, err := newTransactOpts(p.wallet)
 	if err != nil {
 		return nil, err
 	}
-	txOpts.Nonce = non
+	fmt.Println("nonce", p.NonceTracker.Get(wallet.Address).Uint64())
+	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
 	txOpts.Context = ctx
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
@@ -269,4 +313,35 @@ func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
 	return err
+}
+
+// EstimateGas
+func (p *EVMProvider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
+	msg := ethereum.CallMsg{
+		From: p.wallet.Address,
+		To:   p.GetAddressByEventType(message.EventType),
+	}
+	switch message.EventType {
+	case events.EmitMessage:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodRecvMessage, message.Src, message.Sn, message.Data)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.CallMessage:
+		abi, err := bridgeContract.XcallMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	}
+	return p.client.EstimateGas(ctx, msg)
 }

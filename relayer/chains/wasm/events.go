@@ -3,15 +3,18 @@ package wasm
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
+	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
 )
 
 const (
-	EventTypeWasmMessage = "wasm-Message"
+	EventTypeWasmMessage     = "wasm-Message"
+	EventTypeWasmCallMessage = "wasm-CallMessage"
 
 	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"
@@ -23,6 +26,7 @@ const (
 	EventAttrKeyData  string = "data"
 	EventAttrKeyTo    string = "to"
 	EventAttrKeyFrom  string = "from"
+	EventAttrKeySn    string = "sn"
 
 	// Event types
 	EventAttrKeyCallMessage string = "call_message"
@@ -50,19 +54,13 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 	for _, ev := range eventsList {
 		switch ev.Type {
 		case EventTypeWasmMessage:
-			msg := new(providerTypes.Message)
+			msg := &providerTypes.Message{
+				EventType: events.EmitMessage,
+				Src:       p.NID(),
+			}
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
-				case EventAttrKeyContractAddress:
-					switch attr.Value {
-					case p.cfg.Contracts[providerTypes.XcallContract]:
-						msg.EventType = events.CallMessage
-						msg.Dst = p.NID()
-					case p.cfg.Contracts[providerTypes.ConnectionContract]:
-						msg.EventType = events.EmitMessage
-						msg.Src = p.NID()
-					}
-				case EventAttrKeyMsg, EventAttrKeyData:
+				case EventAttrKeyMsg:
 					data, err := hexstr.NewFromString(attr.Value).ToByte()
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse msg data from event: %v", err)
@@ -76,14 +74,42 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 					msg.Sn = sn
 				case EventAttrKeyTargetNetwork:
 					msg.Dst = attr.Value
+				case EventAttrKeyFrom:
+					msg.Src = attr.Value
+				}
+			}
+			messages = append(messages, msg)
+		case EventTypeWasmCallMessage:
+			msg := &providerTypes.Message{
+				EventType: events.CallMessage,
+				Dst:       p.NID(),
+			}
+			for _, attr := range ev.Attributes {
+				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
+					reqID, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
 					msg.ReqID = reqID
+				case EventAttrKeyData:
+					attr.Value = strings.NewReplacer("[", "", "]", "", " ", "").Replace(attr.Value)
+					dataRaw := strings.Split(attr.Value, ",")
+					for _, d := range dataRaw {
+						b, err := strconv.ParseUint(d, 10, 8)
+						if err != nil {
+							return nil, fmt.Errorf("failed to parse data from event")
+						}
+						msg.Data = append(msg.Data, byte(b))
+					}
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
+				case EventAttrKeySn:
+					sn, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse connSn from event")
+					}
+					msg.Sn = sn
 				}
 			}
 			messages = append(messages, msg)
@@ -120,18 +146,30 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 	return ""
 }
 
-func (p *Provider) GetMonitorEventFilters() []abiTypes.EventAttribute {
-	var filters []abiTypes.EventAttribute
+func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]providerTypes.EventMap) []sdkTypes.Event {
+	var eventList []sdkTypes.Event
 
-	for addr, contract := range p.contracts {
-		for range contract.SigType {
-			filters = append(filters, abiTypes.EventAttribute{
-				Key:   EventAttrKeyContractAddress,
-				Value: fmt.Sprintf("'%s'", addr),
+	for _, contract := range eventMap {
+		for addr, eventType := range contract.SigType {
+			var wasmMessggeType string
+			switch eventType {
+			case events.EmitMessage:
+				wasmMessggeType = EventTypeWasmMessage
+			case events.CallMessage:
+				wasmMessggeType = EventTypeWasmCallMessage
+			}
+			eventList = append(eventList, sdkTypes.Event{
+				Type: wasmMessggeType,
+				Attributes: []abiTypes.EventAttribute{
+					{
+						Key:   EventAttrKeyContractAddress,
+						Value: fmt.Sprintf("'%s'", addr),
+					},
+				},
 			})
 		}
 	}
-	return filters
+	return eventList
 }
 
 func (p *Provider) GetEventName(addr string) string {

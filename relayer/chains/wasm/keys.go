@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"strings"
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
@@ -25,7 +26,9 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 		return err
 	}
 	if err := p.client.ImportArmor(p.NID(), priv, string(pass)); err != nil {
-		return err
+		if strings.Contains(err.Error(), "cannot overwrite key") {
+			return nil
+		}
 	}
 	return nil
 }
