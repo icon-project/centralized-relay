@@ -3,13 +3,17 @@ package kms
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 var ErrKeyAlreadyExists = fmt.Errorf("kms key already exists")
+
+const LocalKMSEndpoint = "LOCAL_KMS_ENDPOINT"
 
 type KMS interface {
 	Init(context.Context) (*string, error)
@@ -23,6 +27,23 @@ type KMSConfig struct {
 }
 
 func NewKMSConfig(ctx context.Context, key *string, profile string) (KMS, error) {
+	val, isSet := os.LookupEnv(LocalKMSEndpoint)
+	if isSet {
+		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				PartitionID:       "aws",
+				URL:               val,
+				SigningRegion:     "us-east-1",
+				HostnameImmutable: true,
+			}, nil
+		})
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithEndpointResolverWithOptions(customResolver), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")))
+
+		if err != nil {
+			return nil, err
+		}
+		return &KMSConfig{kms.NewFromConfig(cfg), key}, nil
+	}
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile), config.WithRegion("us-east-1"))
 	if err != nil {
 		return nil, err

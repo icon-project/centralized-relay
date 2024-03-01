@@ -6,8 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	eth_types "github.com/ethereum/go-ethereum/core/types"
@@ -16,21 +24,16 @@ import (
 	interchaintest "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
-	"io"
-	"math/big"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
+	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
+	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
+	"gopkg.in/yaml.v3"
 
-	dockertypes "github.com/docker/docker/api/types"
 	volumetypes "github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 type Event struct {
@@ -58,23 +61,39 @@ type EVMLocalnet struct {
 	scorePaths    map[string]string
 	IBCAddresses  map[string]string     `json:"addresses"`
 	Wallets       map[string]ibc.Wallet `json:"wallets"`
+	DockerClient  *client.Client
+	ContractABI   map[string]abi.ABI
+	Network       string
+	testconfig    *testconfig.Chain
+	Client        ethclient.Client
 }
 
 func (c *EVMLocalnet) CreateKey(ctx context.Context, keyName string) error {
-	//TODO implement me
 	panic("implement me")
 }
 
-func NewEVMLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, numValidators int, numFullNodes int, scorePaths map[string]string) chains.Chain {
+// func NewEVMLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, numValidators int, numFullNodes int, scorePaths map[string]string) chains.Chain {
+func NewEVMLocalnet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
+	ethclient, err := ethclient.Dial(testconfig.RPCUri)
+	if err != nil {
+		fmt.Println(err)
+	}
+	contractABI := make(map[string]abi.ABI)
+
 	return &EVMLocalnet{
 		testName:      testName,
 		cfg:           chainConfig,
-		numValidators: numValidators,
-		numFullNodes:  numFullNodes,
+		numValidators: 0,
+		numFullNodes:  0,
 		log:           log,
-		scorePaths:    scorePaths,
+		scorePaths:    testconfig.Contracts,
 		Wallets:       map[string]ibc.Wallet{},
 		IBCAddresses:  make(map[string]string),
+		Client:        *ethclient,
+		DockerClient:  client,
+		ContractABI:   contractABI,
+		testconfig:    testconfig,
+		Network:       network,
 	}
 }
 
@@ -85,53 +104,7 @@ func (c *EVMLocalnet) Config() ibc.ChainConfig {
 
 // Initialize initializes node structs so that things like initializing keys can be done before starting the chain
 func (c *EVMLocalnet) Initialize(ctx context.Context, testName string, cli *client.Client, networkID string) error {
-	chainCfg := c.Config()
-	c.pullImages(ctx, cli)
-	image := chainCfg.Images[0]
-
-	newFullNodes := make(HardhatNodes, c.numFullNodes)
-	copy(newFullNodes, c.FullNodes)
-
-	eg, egCtx := errgroup.WithContext(ctx)
-	for i := len(c.FullNodes); i < c.numFullNodes; i++ {
-		i := i
-		eg.Go(func() error {
-			fn, err := c.NewChainNode(egCtx, testName, cli, networkID, image, false)
-			if err != nil {
-				return err
-			}
-			fn.Index = i
-			newFullNodes[i] = fn
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	c.findTxMu.Lock()
-	defer c.findTxMu.Unlock()
-	c.FullNodes = newFullNodes
 	return nil
-}
-
-func (c *EVMLocalnet) pullImages(ctx context.Context, cli *client.Client) {
-	for _, image := range c.Config().Images {
-		rc, err := cli.ImagePull(
-			ctx,
-			image.Repository+":"+image.Version,
-			dockertypes.ImagePullOptions{},
-		)
-		if err != nil {
-			c.log.Error("Failed to pull image",
-				zap.Error(err),
-				zap.String("repository", image.Repository),
-				zap.String("tag", image.Version),
-			)
-		} else {
-			_, _ = io.Copy(io.Discard, rc)
-			_ = rc.Close()
-		}
-	}
 }
 
 func (c *EVMLocalnet) NewChainNode(
@@ -155,7 +128,7 @@ func (c *EVMLocalnet) NewChainNode(
 		ContractABI:  make(map[string]abi.ABI),
 	}
 
-	v, err := cli.VolumeCreate(ctx, volumetypes.VolumeCreateBody{
+	v, err := cli.VolumeCreate(ctx, volumetypes.CreateOptions{
 		Labels: map[string]string{
 			dockerutil.CleanupLabel: testName,
 
@@ -184,21 +157,7 @@ func (c *EVMLocalnet) NewChainNode(
 
 // Start sets up everything needed (validators, gentx, fullnodes, peering, additional accounts) for chain to start from genesis.
 func (c *EVMLocalnet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
-	c.findTxMu.Lock()
-	defer c.findTxMu.Unlock()
-	eg, egCtx := errgroup.WithContext(ctx)
-	for _, n := range c.FullNodes {
-		n := n
-		eg.Go(func() error {
-
-			if err := n.CreateNodeContainer(egCtx, additionalGenesisWallets...); err != nil {
-				return err
-			}
-			// All (validators, gentx, fullnodes, peering, additional accounts) are included in the image itself.
-			return n.StartContainer(ctx)
-		})
-	}
-	return eg.Wait()
+	return nil
 }
 
 // Exec runs an arbitrary command using Chain's docker environment.
@@ -206,8 +165,18 @@ func (c *EVMLocalnet) Start(testName string, ctx context.Context, additionalGene
 // is up to the chain implementation.
 //
 // "env" are environment variables in the format "MY_ENV_VAR=value"
-func (c *EVMLocalnet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
-	return c.getFullNode().Exec(ctx, cmd, env)
+func (an *EVMLocalnet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
+	job := dockerutil.NewImage(an.log, an.DockerClient, an.Network, an.testName, an.cfg.Images[0].Repository, an.cfg.Images[0].Version)
+
+	opts := dockerutil.ContainerOptions{
+		Binds: []string{
+			an.testconfig.ContractsPath + ":/contracts",
+			an.testconfig.ConfigPath + ":/goloop/data",
+		},
+	}
+	res := job.Run(ctx, cmd, opts)
+	return res.Stdout, res.Stderr, res.Err
+	// return c.getFullNode().Exec(ctx, cmd, env)
 }
 
 // ExportState exports the chain state at specific height.
@@ -218,19 +187,19 @@ func (c *EVMLocalnet) ExportState(ctx context.Context, height int64) (string, er
 
 // GetRPCAddress retrieves the rpc address that can be reached by other containers in the docker network.
 func (c *EVMLocalnet) GetRPCAddress() string {
-	return fmt.Sprintf("http://%s:8545", c.getFullNode().HostName())
+	return c.testconfig.RPCUri
 }
 
 // GetGRPCAddress retrieves the grpc address that can be reached by other containers in the docker network.
 // Not Applicable for Icon
 func (c *EVMLocalnet) GetGRPCAddress() string {
-	return ""
+	return c.testconfig.RPCUri
 }
 
 // GetHostRPCAddress returns the rpc address that can be reached by processes on the host machine.
 // Note that this will not return a valid value until after Start returns.
 func (c *EVMLocalnet) GetHostRPCAddress() string {
-	return "http://" + c.getFullNode().HostRPCPort
+	return c.testconfig.RPCUri
 }
 
 // GetHostGRPCAddress returns the grpc address that can be reached by processes on the host machine.
@@ -281,8 +250,25 @@ func (c *EVMLocalnet) GetAddress(ctx context.Context, keyName string) ([]byte, e
 	return addrInByte, nil
 }
 
-func (c *EVMLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
-	return c.FullNodes[0].GetChainConfig(ctx, rlyHome, keyName)
+func (an *EVMLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
+	// gasPrice, _ := an.Client.SuggestGasPrice(context.Background())
+	contracts := make(map[string]string)
+	contracts["xcall"] = an.GetContractAddress("xcall")
+	contracts["connection"] = an.GetContractAddress("connection")
+	config := &centralized.EVMRelayerChainConfig{
+		Type: "evm",
+		Value: centralized.EVMRelayerChainConfigValue{
+			NID:           an.Config().ChainID,
+			RPCURL:        an.GetRPCAddress(),
+			StartHeight:   0,
+			GasPrice:      10000000,
+			GasLimit:      20000000,
+			Contracts:     contracts,
+			BlockInterval: "6s",
+			Address:       an.testconfig.RelayWalletAddress,
+		},
+	}
+	return yaml.Marshal(config)
 }
 
 // SendFunds sends funds to a wallet from a user account.
@@ -321,7 +307,13 @@ func (c *EVMLocalnet) SendFunds(ctx context.Context, keyName string, amount ibc.
 	}
 	tx := eth_types.NewTx(txdata)
 	networkID, err := ethClient.NetworkID(context.Background())
+	if err != nil {
+		fmt.Println(err)
+	}
 	signedTx, err := eth_types.SignTx(tx, eth_types.NewEIP155Signer(networkID), privateKey)
+	if err != nil {
+		fmt.Println(err)
+	}
 	err = ethClient.SendTransaction(context.Background(), signedTx)
 
 	return err
@@ -330,7 +322,11 @@ func (c *EVMLocalnet) SendFunds(ctx context.Context, keyName string, amount ibc.
 
 // Height returns the current block height or an error if unable to get current height.
 func (c *EVMLocalnet) Height(ctx context.Context) (uint64, error) {
-	return c.getFullNode().Height(ctx)
+	header, err := c.Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return 0, err
+	}
+	return header.Number.Uint64(), nil
 }
 
 // GetGasFeesInNativeDenom gets the fees in native denom for an amount of spent gas.
@@ -370,8 +366,7 @@ func (c *EVMLocalnet) getFullNode() *AnvilNode {
 }
 
 func (c *EVMLocalnet) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
-	fn := c.getFullNode()
-	return fn.FindTxs(ctx, height)
+	return nil, nil
 }
 
 // GetBalance fetches the current balance for a specific account address and denom.
@@ -379,46 +374,46 @@ func (c *EVMLocalnet) GetBalance(ctx context.Context, address string, denom stri
 	return c.getFullNode().GetBalance(ctx, address)
 }
 
-func (c *EVMLocalnet) SetupConnection(ctx context.Context, keyName string, target chains.Chain) error {
+func (c *EVMLocalnet) SetupConnection(ctx context.Context, target chains.Chain) error {
 	//testcase := ctx.Value("testcase").(string)
 	xcall := common.HexToAddress(c.IBCAddresses["xcall"])
-	_ = c.CheckForKeyStore(ctx, keyName)
-	connection, err := c.getFullNode().DeployContract(ctx, c.scorePaths["connection"], c.privateKey)
+	// _ = c.CheckForKeyStore(ctx, keyName)
+	connection, err := c.DeployContractRemote(ctx, c.scorePaths["connection"], c.testconfig.KeystorePassword)
 	if err != nil {
 		return err
 	}
-	relayerKey := fmt.Sprintf("relayer-%s", c.Config().Name)
-	relayerAddress := common.HexToAddress(c.Wallets[relayerKey].FormattedAddress())
+	// relayerKey := fmt.Sprintf("relayer-%s", c.Config().Name)
+	// relayerAddress := common.HexToAddress(c.Wallets[relayerKey].FormattedAddress())
+	relayerAddress := common.HexToAddress(c.testconfig.RelayWalletAddress)
 
-	_, err = c.getFullNode().ExecCallTx(ctx, connection.Hex(), "initialize", c.privateKey, relayerAddress, xcall)
+	_, err = c.ExecCallTx(ctx, connection.Hex(), "initialize", c.testconfig.KeystorePassword, relayerAddress, xcall)
 	if err != nil {
 		fmt.Printf("fail to initialized xcall-adapter : %w\n", err)
 		return err
 	}
 
-	_ = c.CheckForKeyStore(ctx, relayerKey)
+	// _ = c.CheckForKeyStore(ctx, relayerKey)
 
-	_, err = c.getFullNode().ExecCallTx(ctx, connection.Hex(), "setFee", c.privateKey, target.Config().ChainID, big.NewInt(0), big.NewInt(0))
-	if err != nil {
-		fmt.Printf("fail to initialized fee for xcall-adapter : %w\n", err)
-		return err
-	}
+	// _, err = c.ExecCallTx(ctx, connection.Hex(), "setFee", privateKey, target.Config().ChainID, big.NewInt(0), big.NewInt(0))
+	// if err != nil {
+	// 	fmt.Printf("fail to initialized fee for xcall-adapter : %w\n", err)
+	// 	return err
+	// }
 
 	c.IBCAddresses["connection"] = connection.Hex()
 	return nil
 }
 
-func (c *EVMLocalnet) SetupXCall(ctx context.Context, keyName string) error {
+func (c *EVMLocalnet) SetupXCall(ctx context.Context) error {
 	//testcase := ctx.Value("testcase").(string)
 	nid := c.cfg.ChainID
 	//ibcAddress := c.IBCAddresses["ibc"]
-	_ = c.CheckForKeyStore(ctx, keyName)
-	xcall, err := c.getFullNode().DeployContract(ctx, c.scorePaths["xcall"], c.privateKey)
+	// _ = c.CheckForKeyStore(ctx, keyName)
+	xcall, err := c.DeployContractRemote(ctx, c.scorePaths["xcall"], c.testconfig.KeystorePassword)
 	if err != nil {
 		return err
 	}
-
-	_, err = c.getFullNode().ExecCallTx(ctx, xcall.Hex(), "initialize", c.privateKey, nid)
+	_, err = c.ExecCallTx(ctx, xcall.Hex(), "initialize", c.testconfig.KeystorePassword, nid)
 	if err != nil {
 		fmt.Printf("fail to initialized xcall : %w\n", err)
 		return err
@@ -430,15 +425,15 @@ func (c *EVMLocalnet) SetupXCall(ctx context.Context, keyName string) error {
 
 func (c *EVMLocalnet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
-	c.CheckForKeyStore(ctx, keyName)
+	// c.CheckForKeyStore(ctx, keyName)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
 	xCall := c.GetContractAddress("xcall")
-	dapp, err := c.getFullNode().DeployContract(ctx, c.scorePaths["dapp"], c.privateKey)
+	dapp, err := c.DeployContractRemote(ctx, c.scorePaths["dapp"], c.testconfig.KeystorePassword)
 	if err != nil {
 		return err
 	}
 	//_, err = c.executeContract(ctx,dapp,keyName,"initialize",xCall)
-	_, err = c.getFullNode().ExecCallTx(ctx, dapp.Hex(), "initialize", c.privateKey, common.HexToAddress(xCall))
+	_, err = c.ExecCallTx(ctx, dapp.Hex(), "initialize", c.testconfig.KeystorePassword, common.HexToAddress(xCall))
 	if err != nil {
 		fmt.Printf("fail to initialized dapp : %w\n", err)
 		return err
@@ -605,7 +600,8 @@ func (c *EVMLocalnet) FindCallResponse(ctx context.Context, startHeight uint64, 
 
 func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event Event, topics []common.Hash) (map[string]interface{}, error) {
 	//eventSignature := []byte(event.hash)
-	eClient, err := ethclient.Dial(fmt.Sprintf("ws://%s", c.getFullNode().HostRPCPort))
+	wsAddress := strings.Replace(c.testconfig.RPCUri, "http", "ws", 1)
+	eClient, err := ethclient.Dial(wsAddress)
 	defer eClient.Close()
 	if err != nil {
 		return nil, errors.New("error: fail to create eth client")
@@ -616,7 +612,6 @@ func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event E
 	// Starting block number
 	fromBlock := new(big.Int).SetUint64(startHeight - 1)
 	address := common.HexToAddress(c.IBCAddresses[event.contract])
-	fmt.Printf("address :: %v\n", address)
 	query := ethereum.FilterQuery{
 		FromBlock: fromBlock,
 		Addresses: []common.Address{address},
@@ -634,7 +629,7 @@ func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event E
 		}
 
 		for _, lg := range logs {
-			contractABI := c.getFullNode().ContractABI[address.Hex()]
+			contractABI := c.ContractABI[address.Hex()]
 			if len(lg.Data) > 0 {
 				if err = contractABI.UnpackIntoMap(ev, event.name, lg.Data); err != nil {
 					return ev, err
@@ -659,7 +654,7 @@ func (c *EVMLocalnet) FindEvent(ctx context.Context, startHeight uint64, event E
 }
 
 func (c *EVMLocalnet) ParseEvent(event Event, logs []*eth_types.Log) (map[string]interface{}, error) {
-	contractABI := c.getFullNode().ContractABI[c.IBCAddresses[event.contract]]
+	contractABI := c.ContractABI[c.IBCAddresses[event.contract]]
 	var ev = make(map[string]interface{})
 	var err error
 	for _, lg := range logs {
@@ -723,9 +718,9 @@ func (c *EVMLocalnet) DeployContract(ctx context.Context, keyName string) (conte
 
 // executeContract implements chains.Chain
 func (c *EVMLocalnet) executeContract(ctx context.Context, contractAddress, keyName, methodName string, params ...interface{}) (context.Context, error) {
-	c.CheckForKeyStore(ctx, keyName)
+	// c.CheckForKeyStore(ctx, keyName)
 
-	receipt, err := c.getFullNode().ExecCallTx(ctx, contractAddress, methodName, c.privateKey, params...)
+	receipt, err := c.ExecCallTx(ctx, contractAddress, methodName, c.testconfig.KeystorePassword, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -747,7 +742,7 @@ func (c *EVMLocalnet) GetBlockByHeight(ctx context.Context) (context.Context, er
 
 // GetLastBlock implements chains.Chain
 func (c *EVMLocalnet) GetLastBlock(ctx context.Context) (context.Context, error) {
-	h, err := c.getFullNode().Height(ctx)
+	h, err := c.Height(ctx)
 	return context.WithValue(ctx, chains.LastBlock{}, h), err
 }
 
@@ -772,6 +767,7 @@ func (c *EVMLocalnet) QueryContract(ctx context.Context, contractAddress, method
 }
 
 func (c *EVMLocalnet) BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error) {
+	fmt.Println("I am building wallets", "Foundry")
 	w := c.CheckForKeyStore(ctx, keyName)
 	if w == nil {
 		return nil, fmt.Errorf("error keyName already exists")
@@ -789,10 +785,184 @@ func (c *EVMLocalnet) BuildWallets(ctx context.Context, keyName string) (ibc.Wal
 
 // PauseNode pauses the node
 func (c *EVMLocalnet) PauseNode(ctx context.Context) error {
-	return c.getFullNode().DockerClient.ContainerPause(ctx, c.getFullNode().ContainerID)
+	return nil
 }
 
 // UnpauseNode starts the paused node
 func (c *EVMLocalnet) UnpauseNode(ctx context.Context) error {
-	return c.getFullNode().DockerClient.ContainerUnpause(ctx, c.getFullNode().ContainerID)
+	return nil
+}
+
+func (c *EVMLocalnet) DeployContractRemote(ctx context.Context, contractPath, key string, params ...interface{}) (common.Address, error) {
+	bytecode, contractABI, err := c.loadABI(contractPath)
+	if err != nil {
+		return common.Address{}, err
+	}
+	privateKey, fromAddress, err := getPrivateKey(c.testconfig.KeystorePassword)
+
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	nonce, gasPrice, err := c.getNonceAndGasPrice(fromAddress)
+	if err != nil {
+		return common.Address{}, err
+	}
+	chainID, _ := c.Client.ChainID(ctx)
+	auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)
+	auth.GasLimit = uint64(30000000)
+	auth.GasPrice = gasPrice
+
+	address, tx, _, err := bind.DeployContract(auth, contractABI, bytecode, &c.Client, params...)
+	if err != nil {
+		fmt.Println(auth, fromAddress)
+		fmt.Printf("error while deploying contract :: %w", err)
+		return common.Address{}, err
+	}
+	fmt.Println("Contract deployment transaction hash:", tx.Hash().Hex())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // Set your desired timeout
+	defer cancel()
+	minedTx, err := bind.WaitMined(timeoutCtx, &c.Client, tx)
+	if err != nil {
+		return common.Address{}, err
+	}
+	fmt.Println("Contract deployment transaction status:", minedTx.Status)
+	c.ContractABI[address.Hex()] = contractABI
+	return address, err
+}
+
+func (an *EVMLocalnet) loadABI(contractPath string) ([]byte, abi.ABI, error) {
+
+	_abi, err := os.Open(contractPath + ".abi.json")
+	if err != nil {
+		return nil, abi.ABI{}, err
+	}
+	defer _abi.Close()
+
+	_bin, err := os.ReadFile(contractPath + ".bin")
+	if err != nil {
+		return nil, abi.ABI{}, err
+	}
+
+	bytecode, err := hex.DecodeString(string(_bin))
+	if err != nil {
+		return nil, abi.ABI{}, err
+	}
+
+	contractABI, err := abi.JSON(_abi)
+
+	return bytecode, contractABI, err
+}
+
+func (an *EVMLocalnet) getNonceAndGasPrice(fromAddress common.Address) (uint64, *big.Int, error) {
+	nonce, err := an.Client.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	gasPrice, err := an.Client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return nonce, gasPrice, nil
+}
+
+func (an *EVMLocalnet) ExecCallTx(ctx context.Context, contractAddress, methodName, pKey string, params ...interface{}) (*eth_types.Receipt, error) {
+	address := common.HexToAddress(contractAddress)
+	parsedABI := an.ContractABI[contractAddress]
+	privateKey, fromAddress, _ := getPrivateKey(pKey)
+
+	nonce, gasPrice, _ := an.getNonceAndGasPrice(fromAddress)
+
+	data, err := parsedABI.Pack(methodName, params...)
+	if err != nil {
+		an.log.Error("Failed to pack abi", zap.Error(err), zap.String("method", methodName), zap.Any("params", params))
+		return nil, err
+	}
+	txdata := &eth_types.LegacyTx{
+		To:       &address,
+		Nonce:    nonce,
+		GasPrice: gasPrice,
+		Gas:      uint64(2000000),
+		Value:    big.NewInt(0x0),
+		Data:     data,
+	}
+	tx := eth_types.NewTx(txdata)
+
+	networkID, _ := an.Client.NetworkID(context.Background())
+	signedTx, err := eth_types.SignTx(tx, eth_types.NewEIP155Signer(networkID), privateKey)
+	if err != nil {
+		return nil, err
+	}
+	err = an.Client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return nil, err
+	}
+	receipt, err := bind.WaitMined(context.Background(), &an.Client, signedTx)
+	if err != nil {
+		return nil, err
+	}
+	if receipt.Status == 0 {
+		cmd := []string{
+			"run",
+			receipt.TxHash.String(),
+			"--rpc-url",
+			an.GetRPCAddress(),
+		}
+		out, _, _ := an.ExecBin(ctx, cmd...)
+		return receipt, fmt.Errorf("error on trasaction :: %s\n%v", methodName, string(out))
+	}
+	return receipt, nil
+
+}
+
+func (an *EVMLocalnet) ExecCallTxCommand(contractAddress, methodName, pKey string, params ...interface{}) []string {
+	// get password from pathname as pathname will have the password prefixed. ex - Alice.Json
+	address := common.HexToAddress(contractAddress)
+	parsedABI := an.ContractABI[contractAddress]
+
+	//if err != nil {
+	//
+	//}
+	//msg := ethereum.CallMsg{
+	//	To:   &address,
+	//	Data: data,
+	//}
+	//result, err := an.Client.CallContract(context.Background(), msg, nil)
+
+	privateKey, fromAddress, _ := getPrivateKey(pKey)
+
+	nonce, gasPrice, _ := an.getNonceAndGasPrice(fromAddress)
+
+	data, _ := parsedABI.Pack(methodName, params...)
+	txdata := &eth_types.LegacyTx{
+		To:       &address,
+		Nonce:    nonce,
+		GasPrice: gasPrice,
+		Gas:      uint64(200000),
+		Value:    big.NewInt(0x0),
+		Data:     data,
+	}
+	tx := eth_types.NewTx(txdata)
+
+	networkID, _ := an.Client.NetworkID(context.Background())
+	signedTx, err := eth_types.SignTx(tx, eth_types.NewEIP155Signer(networkID), privateKey)
+	if err != nil {
+		return nil
+	}
+	err = an.Client.SendTransaction(context.Background(), signedTx)
+	return nil
+
+}
+
+func (an *EVMLocalnet) BinCommand(command ...string) []string {
+	command = append([]string{an.Config().Bin}, command...)
+	return command
+}
+
+func (an *EVMLocalnet) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
+	return an.Exec(ctx, an.BinCommand(command...), nil)
 }

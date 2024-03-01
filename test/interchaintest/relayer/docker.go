@@ -5,14 +5,17 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/testutil"
 	iccrypto "github.com/icon-project/icon-bridge/common/crypto"
-	"io"
-	"time"
 
 	"github.com/docker/docker/api/types"
 	volumetypes "github.com/docker/docker/api/types/volume"
@@ -89,7 +92,7 @@ func NewDockerRelayer(ctx context.Context, log *zap.Logger, testName string, cli
 		return nil, fmt.Errorf("pulling container image %s: %w", containerImage.Ref(), err)
 	}
 
-	v, err := cli.VolumeCreate(ctx, volumetypes.VolumeCreateBody{
+	v, err := cli.VolumeCreate(ctx, volumetypes.CreateOptions{
 		// Have to leave Driver unspecified for Docker Desktop compatibility.
 
 		Labels: map[string]string{dockerutil.CleanupLabel: testName},
@@ -402,7 +405,7 @@ func (r *DockerRelayer) CreateConfig(ctx context.Context, configYAML []byte) err
 	return nil
 }
 func (r *DockerRelayer) RestoreKeystore(ctx context.Context, keyJSON []byte, chainID string, name string) error {
-
+	fmt.Println("I AM HERE__________")
 	ksPath := fmt.Sprintf(".centralized-relay/keys/%s/%s", chainID, name)
 	fw := dockerutil.NewFileWriter(r.log, r.client, r.testName)
 	if err := fw.WriteFile(ctx, r.volumeName, ksPath, keyJSON); err != nil {
@@ -451,7 +454,20 @@ func (r *DockerRelayer) Name() string {
 
 // Bind returns the home folder bind point for running the node.
 func (r *DockerRelayer) Bind() []string {
-	return []string{r.volumeName + ":" + r.HomeDir()}
+	path, _ := os.Getwd()
+	testfolder := filepath.Dir(path)
+	rlyKeystorePath := testfolder + "/relayer/data/keystore"
+
+	_, err := os.Stat(path)
+	if err != nil {
+		return []string{
+			r.volumeName + ":" + r.HomeDir(),
+		}
+	}
+	return []string{
+		r.volumeName + ":" + r.HomeDir(),
+		rlyKeystorePath + ":" + "/home/relayer/.centralized-relay/keystore",
+	}
 }
 
 // HomeDir returns the home directory of the relayer on the underlying Docker container's filesystem.

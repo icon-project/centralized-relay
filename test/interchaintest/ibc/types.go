@@ -6,6 +6,7 @@ type RelayerConfig struct {
 		Timeout        string `yaml:"timeout"`
 		Memo           string `yaml:"memo"`
 		LightCacheSize int    `yaml:"light-cache-size"`
+		KMSKeyID       string `yaml:"kms-key-id"`
 	} `yaml:"global"`
 	Chains map[string]interface{} `yaml:"chains"`
 }

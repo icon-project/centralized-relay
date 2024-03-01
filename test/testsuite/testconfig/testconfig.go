@@ -3,11 +3,12 @@ package testconfig
 import (
 	"bytes"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest"
 
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/spf13/viper"
@@ -19,15 +20,21 @@ const (
 )
 
 type Chain struct {
-	Name             string             `mapstructure:"name"`
-	version          string             `mapstructure:"version"`
-	Environment      string             `mapstructure:"environment"`
-	ChainConfig      chains.ChainConfig `mapstructure:"chain_config"`
-	URL              string             `mapstructure:"url"`
-	NID              string             `mapstructure:"nid"`
-	KeystoreFile     string             `mapstructure:"keystore_file"`
-	KeystorePassword string             `mapstructure:"keystore_password"`
-	Contracts        map[string]string  `mapstructure:"contracts"`
+	Name               string             `mapstructure:"name"`
+	version            string             `mapstructure:"version"`
+	Environment        string             `mapstructure:"environment"`
+	ChainConfig        chains.ChainConfig `mapstructure:"chain_config"`
+	URL                string             `mapstructure:"url"`
+	NID                string             `mapstructure:"nid"`
+	KeystoreFile       string             `mapstructure:"keystore_file"`
+	KeystorePassword   string             `mapstructure:"keystore_password"`
+	Contracts          map[string]string  `mapstructure:"contracts"`
+	RPCUri             string             `mapstructure:"rpc_uri"`
+	GRPCUri            string             `mapstructure:"grpc_uri"`
+	RelayWalletAddress string             `mapstructure:"relay_wallet"`
+	ContractsPath      string             `mapstructure:"contracts_path"`
+	ConfigPath         string             `mapstructure:"config_path"`
+	CertPath           string             `mapstructure:"cert_path"`
 }
 
 type DebugConfig struct {
@@ -45,8 +52,7 @@ type TestConfig struct {
 }
 
 type ChainOptions struct {
-	ChainAConfig *Chain
-	ChainBConfig *Chain
+	ChainConfig *[]Chain
 }
 
 // ChainOptionConfiguration enables arbitrary configuration of ChainOptions.
@@ -60,8 +66,7 @@ func DefaultChainOptions() (*ChainOptions, error) {
 		return nil, err
 	}
 	return &ChainOptions{
-		ChainAConfig: &tc.ChainConfigs[0],
-		ChainBConfig: &tc.ChainConfigs[1],
+		ChainConfig: &tc.ChainConfigs,
 	}, nil
 }
 

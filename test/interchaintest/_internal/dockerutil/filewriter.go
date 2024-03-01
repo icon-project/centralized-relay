@@ -63,6 +63,7 @@ func (w *FileWriter) WriteFile(ctx context.Context, volumeName, relPath string, 
 			AutoRemove: true,
 		},
 		nil, // No networking necessary.
+		nil,
 		containerName,
 	)
 	if err != nil {

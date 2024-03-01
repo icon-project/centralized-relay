@@ -4,12 +4,19 @@ RUN apk add --update --no-cache make git musl-dev gcc binutils-gold
 
 ARG BUILDPLATFORM=arm64
 ARG TARGETPLATFORM=arm64
+ARG COSMWASM_VERSION=1.5.0
+
+RUN wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.aarch64.a -O /usr/lib/libwasmvm.aarch64.a && \
+    wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.x86_64.a -O /usr/lib/libwasmvm.x86_64.a
+
 
 COPY . .
-
+COPY rootCA/ /usr/local/share/ca-certificates/
+RUN chmod 644 /usr/local/share/ca-certificates/ && update-ca-certificates
 RUN LDFLAGS='-linkmode external -extldflags "-static"' make install
 
 RUN if [ -d "/go/bin/linux_${TARGETPLATFORM}" ]; then mv /go/bin/linux_${TARGETPLATFORM}/* /go/bin/; fi
+
 
 # Use minimal busybox from infra-toolkit image for final scratch image
 FROM --platform=$BUILDPLATFORM ghcr.io/strangelove-ventures/infra-toolkit:v0.0.6 AS busybox-min
@@ -44,7 +51,7 @@ RUN ln sh pwd && \
     rm ln rm
 
 # Install chain binaries
-COPY --from=build-env /bin/centralized-rly /bin
+COPY --from=build-env /go/bin/crly /bin/centralized-rly
 
 # Install trusted CA certificates
 COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
@@ -52,6 +59,9 @@ COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
 # Install relayer user
 COPY --from=busybox-min /etc/passwd /etc/passwd
 COPY --from=busybox-min --chown=100:1000 /home/relayer /home/relayer
+
+COPY --from=busybox-min --chown=100:1000 /tmp /tmp
+COPY --from=build-env /usr/local/share/ca-certificates/ /etc/ssl/certs/
 
 USER relayer
 

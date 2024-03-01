@@ -3,14 +3,13 @@ package testsuite
 import (
 	"context"
 	"fmt"
-	setup "github.com/icon-project/centralized-relay/test"
+	"strconv"
+
+	"github.com/icon-project/centralized-relay/test/chains/cosmos"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
-	"github.com/icon-project/centralized-relay/test/interchaintest/testutil"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
-	"strconv"
-	"time"
 
 	"strings"
 
@@ -19,6 +18,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/testreporter"
+	ibcv8 "github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -69,18 +69,20 @@ func newPath(chainA, chainB chains.Chain) path {
 // SetupRelayer sets up the relayer, creates interchain networks, builds chains, and starts the relayer.
 // It returns a Relayer interface and an error if any.
 func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relayer, error) {
-	chainA, chainB := s.GetChains()
+	createdChains := s.GetChains()
 	r := interchaintest.New(s.T(), s.cfg.RelayerConfig, s.logger, s.DockerClient, s.network)
-	//pathName := s.GeneratePathName()
-	ic := interchaintest.NewInterchain().
-		AddChain(chainA).
-		AddChain(chainB).
-		AddRelayer(r, "r").
-		AddLink(interchaintest.InterchainLink{
-			Chain1:  chainA,
-			Chain2:  chainB,
-			Relayer: r,
-		})
+	ic := interchaintest.NewInterchain()
+
+	for index := range createdChains {
+		ic.AddChain(createdChains[index])
+	}
+	ic.AddRelayer(r, "r").
+		AddLink(
+			interchaintest.InterchainLink{
+				Chains:  createdChains,
+				Relayer: r,
+			},
+		)
 
 	eRep := s.GetRelayerExecReporter()
 	buildOptions := interchaintest.InterchainBuildOptions{
@@ -93,12 +95,7 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	if err := ic.BuildChains(ctx, eRep, buildOptions); err != nil {
 		return nil, err
 	}
-
 	var err error
-	err = s.buildWallets(ctx, chainA, chainB)
-	if err != nil {
-		return nil, err
-	}
 
 	if err := s.SetupXCall(ctx); err != nil {
 		return nil, err
@@ -111,11 +108,6 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 		if err := relayer.StartRelayer(ctx, eRep); err != nil {
 			return fmt.Errorf("failed to start relayer: %s", err)
 		}
-		_ctx, cancel := context.WithTimeout(ctx, time.Second*20)
-		defer cancel()
-		if err := testutil.WaitForBlocks(_ctx, 2, chainA.(ibc.Chain), chainB.(ibc.Chain)); err != nil {
-			return fmt.Errorf("failed to wait for blocks: %v", err)
-		}
 		return nil
 	}
 	if s.Relayers == nil {
@@ -125,76 +117,73 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	return r, err
 }
 
-func (s *E2ETestSuite) buildWallets(ctx context.Context, chainA chains.Chain, chainB chains.Chain) error {
-	if _, err := chainA.BuildWallets(ctx, setup.IBCOwnerAccount); err != nil {
-		return err
-	}
-	if _, err := chainB.BuildWallets(ctx, setup.IBCOwnerAccount); err != nil {
-		return err
-	}
-	if _, err := chainA.BuildWallets(ctx, setup.UserAccount); err != nil {
-		return err
-	}
-	if _, err := chainB.BuildWallets(ctx, setup.UserAccount); err != nil {
-		return err
-	}
-	if _, err := chainA.BuildWallets(ctx, setup.XCallOwnerAccount); err != nil {
-		return err
-	}
-	if _, err := chainB.BuildWallets(ctx, setup.XCallOwnerAccount); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
-	//testcase := ctx.Value("testcase").(string)
-
-	chainA, chainB := s.GetChains()
-	if err := chainA.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
-		Nid:         chainB.(ibc.Chain).Config().ChainID,
-		Destination: chainB.GetContractAddress("connection"),
-		Connection:  "connection",
-	}}); err != nil {
-		return err
-	}
-	if err := chainB.DeployXCallMockApp(ctx, setup.XCallOwnerAccount, []chains.XCallConnection{{
-		Nid:         chainA.(ibc.Chain).Config().ChainID,
-		Destination: chainA.GetContractAddress("connection"),
-		Connection:  "connection",
-	}}); err != nil {
-		return err
+	createdChains := s.GetChains()
+	// chainA, chainB := createdChains[0], createdChains[1]
+	for idx, chain := range createdChains {
+		var connections []chains.XCallConnection
+		for id, cn := range createdChains {
+			if id != idx {
+				connections = append(connections, chains.XCallConnection{
+					Nid:         cn.(ibc.Chain).Config().ChainID,
+					Destination: cn.GetContractAddress("connection"),
+					Connection:  "connection",
+				})
+			}
+		}
+		if err := chain.DeployXCallMockApp(ctx, "cn.(ibc.Chain).Config().Name", connections); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // GetChains returns two chains that can be used in a test. The pair returned
 // is unique to the current test being run. Note: this function does not create containers.
-func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguration) (chains.Chain, chains.Chain) {
+func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguration) []chains.Chain {
 	if s.paths == nil {
 		s.paths = map[string]path{}
 	}
-
-	path, ok := s.paths[s.T().Name()]
-	if ok {
-		return path.chainA, path.chainB
+	preCreatedChains := []chains.Chain{}
+	for i := 0; i <= 10; i++ {
+		pathKey := fmt.Sprintf("%s-%d", s.T().Name(), i)
+		path, ok := s.paths[pathKey]
+		if ok {
+			if len(preCreatedChains) == 0 {
+				preCreatedChains = append(preCreatedChains, path.chainA, path.chainB)
+			} else {
+				preCreatedChains = append(preCreatedChains, path.chainB)
+			}
+		} else {
+			if len(preCreatedChains) != 0 {
+				return preCreatedChains
+			}
+		}
 	}
-
 	chainOptions, err := testconfig.DefaultChainOptions()
 	s.Require().NoError(err)
 	for _, opt := range chainOpts {
 		opt(chainOptions)
 	}
 
-	chainA, chainB := s.createChains(chainOptions)
-	path = newPath(chainA, chainB)
-	s.paths[s.T().Name()] = path
-	return path.chainA, path.chainB
+	createdChains := s.createChains(chainOptions)
+	for index := range createdChains {
+		if index < len(createdChains)-1 {
+			path := newPath(createdChains[index], createdChains[index+1])
+			pathKey := fmt.Sprintf("%s-%d", s.T().Name(), index)
+			s.paths[pathKey] = path
+		}
+	}
+	// chainA, chainB := createdChains[0], createdChains[1]
+	// path = newPath(chainA, chainB)
+	// s.paths[s.T().Name()] = path
+	return createdChains
 }
 
 // GetRelayerWallets returns the relayer wallets associated with the chains.
 func (s *E2ETestSuite) GetRelayerWallets(relayer ibc.Relayer) (ibc.Wallet, ibc.Wallet, error) {
-	chainA, chainB := s.GetChains()
+	chains := s.GetChains()
+	chainA, chainB := chains[0], chains[1]
 	chainARelayerWallet, ok := relayer.GetWallet(chainA.(ibc.Chain).Config().ChainID)
 	if !ok {
 		return nil, nil, fmt.Errorf("unable to find chain A relayer wallet")
@@ -223,7 +212,7 @@ func (s *E2ETestSuite) StopRelayer(ctx context.Context, relayer ibc.Relayer) err
 
 // createChains creates two separate chains in docker containers.
 // test and can be retrieved with GetChains.
-func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) (chains.Chain, chains.Chain) {
+func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) []chains.Chain {
 	client, network := interchaintest.DockerSetup(s.T())
 	t := s.T()
 
@@ -232,10 +221,18 @@ func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) (chai
 	s.network = network
 
 	logger := zaptest.NewLogger(t)
+	chains := []chains.Chain{}
 
-	chainA, _ := buildChain(logger, t.Name(), chainOptions.ChainAConfig)
+	for _, config := range *chainOptions.ChainConfig {
+		chain, _ := buildChain(logger, t.Name(), s, &config)
+		chains = append(chains,
+			chain,
+		)
+	}
 
-	chainB, _ := buildChain(logger, t.Name(), chainOptions.ChainBConfig)
+	// chainA, _ := buildChain(logger, t.Name(), s, chainOptions.ChainAConfig)
+
+	// chainB, _ := buildChain(logger, t.Name(), s, chainOptions.ChainBConfig)
 
 	// this is intentionally called after the setup.DockerSetup function. The above function registers a
 	// cleanup task which deletes all containers. By registering a cleanup function afterwards, it is executed first
@@ -244,21 +241,50 @@ func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) (chai
 	//	diagnostics.Collect(t, s.DockerClient, chainOptions)
 	//})
 
-	return chainA, chainB
+	return chains
 }
 
-func buildChain(log *zap.Logger, testName string, cfg *testconfig.Chain) (chains.Chain, error) {
+func toInterchantestConfig(config ibc.ChainConfig) ibcv8.ChainConfig {
+
+	images := []ibcv8.DockerImage{
+		ibcv8.NewDockerImage(
+			config.Images[0].Repository, config.Images[0].Version, config.Images[0].UidGid),
+	}
+	decimals := int64(6)
+	return ibcv8.ChainConfig{
+		Type:           config.Type,
+		Name:           config.Name,
+		ChainID:        config.ChainID,
+		Images:         images,
+		Bin:            config.Bin,
+		Bech32Prefix:   config.Bech32Prefix,
+		Denom:          config.Denom,
+		SkipGenTx:      config.SkipGenTx,
+		CoinType:       config.CoinType,
+		GasPrices:      config.GasPrices,
+		GasAdjustment:  config.GasAdjustment,
+		TrustingPeriod: config.TrustingPeriod,
+		NoHostMount:    config.NoHostMount,
+		CoinDecimals:   &decimals,
+	}
+}
+
+func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconfig.Chain) (chains.Chain, error) {
 	var (
 		chain chains.Chain
 	)
 	ibcChainConfig := cfg.ChainConfig.GetIBCChainConfig(&chain)
 	switch cfg.ChainConfig.Type {
 	case "icon":
-		chain = icon.NewIconLocalnet(testName, log, ibcChainConfig, chains.DefaultNumValidators, chains.DefaultNumFullNodes, cfg.Contracts)
+		chain = icon.NewIconRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "evm":
-		chain = evm.NewEVMLocalnet(testName, log, ibcChainConfig, chains.DefaultNumValidators, chains.DefaultNumFullNodes, cfg.Contracts)
+		chain = evm.NewEVMLocalnet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
+	case "wasm", "cosmos":
+		interchainTestConfig := toInterchantestConfig(ibcChainConfig)
+		chain, err := cosmos.NewCosmosLocalnet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
+		return chain, err
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)
 	}

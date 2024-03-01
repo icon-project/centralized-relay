@@ -3,10 +3,10 @@ package dockerutil
 import (
 	"context"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"net"
 	"strings"
-	"time"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
 	dockertypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -57,12 +57,12 @@ func (c *ContainerLifecycle) CreateContainer(
 	}
 
 	c.preStartListeners = listeners
-
+	env := []string{"LOCAL_KMS_ENDPOINT=http://docker.for.mac.host.internal:8088"}
 	cc, err := c.client.ContainerCreate(
 		ctx,
 		&container.Config{
-			Image: imageRef,
-
+			Image:      imageRef,
+			Env:        env,
 			Entrypoint: []string{},
 			Cmd:        cmd,
 
@@ -84,6 +84,7 @@ func (c *ContainerLifecycle) CreateContainer(
 				networkID: {},
 			},
 		},
+		nil,
 		c.containerName,
 	)
 	if err != nil {
@@ -114,8 +115,12 @@ func (c *ContainerLifecycle) StartContainer(ctx context.Context) error {
 }
 
 func (c *ContainerLifecycle) StopContainer(ctx context.Context) error {
-	duration := time.Second * 30
-	return c.client.ContainerStop(ctx, c.id, &duration)
+	// duration := time.Second * 30
+	timeout := int(30)
+	options := container.StopOptions{
+		Timeout: &timeout,
+	}
+	return c.client.ContainerStop(ctx, c.id, options)
 }
 
 func (c *ContainerLifecycle) RemoveContainer(ctx context.Context) error {

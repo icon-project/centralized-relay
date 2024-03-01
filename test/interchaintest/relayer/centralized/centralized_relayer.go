@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer"
-	"strings"
 
 	"github.com/docker/docker/client"
 	"go.uber.org/zap"
@@ -39,24 +40,50 @@ func NewCentralizedRelayer(log *zap.Logger, testName string, cli *client.Client,
 }
 
 type ICONRelayerChainConfigValue struct {
-	NID             string `yaml:"nid"`
-	RPCURL          string `yaml:"rpc-url"`
-	StartHeight     int    `yaml:"start-height"`
-	Keystore        string `yaml:"keystore"`
-	Password        string `yaml:"password"`
-	ContractAddress string `yaml:"contract-address"`
-	NetworkID       int    `yaml:"network-id"`
+	NID           string            `yaml:"nid"`
+	RPCURL        string            `yaml:"rpc-url"`
+	StartHeight   int               `yaml:"start-height"`
+	NetworkID     int               `yaml:"network-id"`
+	Contracts     map[string]string `yaml:"contracts"`
+	BlockInterval string            `yaml:"block-interval"`
+	Address       string            `yaml:"address"`
+	FinalityBlock uint64            `yaml:"finality-block"`
+	StepMin       int64             `yaml:"step-min"`
+	StepLimit     int64             `yaml:"step-limit"`
 }
 
 type EVMRelayerChainConfigValue struct {
-	NID             string `yaml:"nid"`
-	RPCURL          string `yaml:"rpc-url"`
-	StartHeight     int    `yaml:"start-height"`
-	Keystore        string `yaml:"keystore"`
-	Password        string `yaml:"password"`
-	GasPrice        int64  `yaml:"gas-price"`
-	GasLimit        int    `yaml:"gas-limit"`
-	ContractAddress string `yaml:"contract-address"`
+	NID           string            `yaml:"nid"`
+	RPCURL        string            `yaml:"rpc-url"`
+	StartHeight   int               `yaml:"start-height"`
+	GasPrice      int64             `yaml:"gas-price"`
+	GasLimit      int               `yaml:"gas-limit"`
+	Contracts     map[string]string `yaml:"contracts"`
+	BlockInterval string            `yaml:"block-interval"`
+	Address       string            `yaml:"address"`
+}
+
+type CosmosRelayerChainConfigValue struct {
+	NID                    string            `yaml:"nid"`
+	RPCURL                 string            `yaml:"rpc-url"`
+	GrpcUrl                string            `yaml:"grpc-url"`
+	StartHeight            int               `yaml:"start-height"`
+	GasPrice               int64             `yaml:"gas-price"`
+	GasLimit               int               `yaml:"gas-limit"`
+	Contracts              map[string]string `yaml:"contracts"`
+	BlockInterval          string            `yaml:"block-interval"`
+	Address                string            `yaml:"address"`
+	KeyringBackend         string            `yaml:"keyring-backend"`
+	TxConfirmationInterval string            `yaml:"tx-confirmation-interval"`
+	ChainName              string            `yaml:"chain-name"`
+	MinGasAmount           uint64            `yaml:"min-gas-amount"`
+	AccountPrefix          string            `yaml:"account-prefix"`
+	Denomination           string            `yaml:"denomination"`
+	ChainID                string            `yaml:"chain-id"`
+	BroadcastMode          string            `yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
+	SignModeStr            string            `yaml:"sign-mode"`
+	MaxGasAmount           uint64            `yaml:"max-gas-amount"`
+	Simulate               bool              `yaml:"simulate"`
 }
 
 type ICONRelayerChainConfig struct {
@@ -67,6 +94,11 @@ type ICONRelayerChainConfig struct {
 type EVMRelayerChainConfig struct {
 	Type  string                     `json:"type"`
 	Value EVMRelayerChainConfigValue `json:"value"`
+}
+
+type CosmosRelayerChainConfig struct {
+	Type  string                        `json:"type"`
+	Value CosmosRelayerChainConfigValue `json:"value"`
 }
 
 const (

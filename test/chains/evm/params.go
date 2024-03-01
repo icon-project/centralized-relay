@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"strings"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
 	"github.com/icon-project/centralized-relay/test/chains"
 )
