@@ -89,3 +89,20 @@ func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
 		},
 	}
 }
+
+// SetAdmin
+type SetAdmin struct {
+	Address string `json:"address"`
+}
+
+type ExecSetAdmin struct {
+	SetAdmin *SetAdmin `json:"set_admin"`
+}
+
+func NewExecSetAdmin(address string) *ExecSetAdmin {
+	return &ExecSetAdmin{
+		SetAdmin: &SetAdmin{
+			Address: address,
+		},
+	}
+}

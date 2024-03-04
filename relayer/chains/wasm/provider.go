@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -469,8 +470,20 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	return err
 }
 
-func (p *Provider) SetAdmin(context.Context, string) error {
-	return nil
+func (p *Provider) SetAdmin(ctx context.Context, address string) error {
+	execMsg := types.NewExecSetAdmin(address)
+	rawMsg, err := json.Marshal(execMsg)
+	if err != nil {
+		return err
+	}
+	msg := &wasmTypes.MsgExecuteContract{
+		Sender:   p.Wallet().String(),
+		Contract: p.cfg.Contracts[relayTypes.ConnectionContract],
+		Msg:      rawMsg,
+	}
+	msgs := []sdkTypes.Msg{msg}
+	_, err = p.sendMessage(ctx, msgs...)
+	return err
 }
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
