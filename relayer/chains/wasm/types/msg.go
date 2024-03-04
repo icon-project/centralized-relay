@@ -68,3 +68,19 @@ type QueryReceiptMsg struct {
 type QueryReceiptMsgResponse struct {
 	Status bool `json:"status"`
 }
+
+type ExecRevertMessge struct {
+	ExecMessage *RevertMessage `json:"revert_message"`
+}
+
+type RevertMessage struct {
+	Sn uint64 `json:"sn"`
+}
+
+func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
+	return &ExecRevertMessge{
+		ExecMessage: &RevertMessage{
+			Sn: message.ReqID,
+		},
+	}
+}

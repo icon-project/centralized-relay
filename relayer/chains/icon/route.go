@@ -17,6 +17,7 @@ const (
 )
 
 func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+	p.log.Info("starting to route message", zap.Any("message", message))
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
 		return err
@@ -42,7 +43,6 @@ func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMes
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
-		time.Sleep(10 * time.Second)
 		msg := &types.ExecuteCall{
 			ReqID: types.NewHexInt(int64(message.ReqID)),
 			Data:  types.NewHexBytes(message.Data),
@@ -85,7 +85,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 		return nil, fmt.Errorf("step limit is too high: %d", steps)
 	}
 
-	if steps < p.cfg.StepLimit {
+	if steps < p.cfg.StepMin {
 		return nil, fmt.Errorf("step limit is too low: %d", steps)
 	}
 
@@ -136,7 +136,7 @@ func (p *IconProvider) WaitForTxResult(
 
 	status, err := txRes.Status.Int()
 	if status != 1 {
-		err = fmt.Errorf("Transaction Failed to Execute")
+		err = fmt.Errorf("transaction failed")
 		callback(messageKey, res, err)
 		p.LogFailedTx(method, txRes, err)
 		return

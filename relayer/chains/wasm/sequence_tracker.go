@@ -18,7 +18,13 @@ type SequenceTracker struct {
 	*sync.Mutex
 }
 
-func (p *Provider) NewSeqTracker(addr types.AccAddress) *SequenceTracker {
+type SequenceTrackerI interface {
+	Set(address types.AccAddress, ac *AccountInfo) error
+	Get(address types.AccAddress) (*AccountInfo, error)
+	IncrementSequence(address types.AccAddress) error
+}
+
+func (p *Provider) NewSeqTracker(addr types.AccAddress) SequenceTrackerI {
 	accounts := map[string]*AccountInfo{
 		addr.String(): {
 			AccountNumber: p.wallet.GetAccountNumber(),
@@ -44,20 +50,6 @@ func (s *SequenceTracker) Set(address types.AccAddress, ac *AccountInfo) error {
 	return nil
 }
 
-func (s *SequenceTracker) GetWithLock(address sdkTypes.AccAddress) (*AccountInfo, error) {
-	s.Lock()
-	defer s.Unlock()
-	currAcInfo, ok := s.accounts[address.String()]
-	if !ok {
-		return nil, fmt.Errorf("failed to get sequence with lock: address %s not found in sequence tracker", address)
-	}
-	s.accounts[address.String()] = &AccountInfo{
-		AccountNumber: currAcInfo.AccountNumber,
-		Sequence:      currAcInfo.Sequence + 1,
-	}
-	return currAcInfo, nil
-}
-
 // Get use this method with caution. Requires explicit lock handling.
 func (s *SequenceTracker) Get(address sdkTypes.AccAddress) (*AccountInfo, error) {
 	currAcInfo, ok := s.accounts[address.String()]
@@ -69,6 +61,8 @@ func (s *SequenceTracker) Get(address sdkTypes.AccAddress) (*AccountInfo, error)
 
 // IncrementSequence use this method with caution. Requires explicit lock handling.
 func (s *SequenceTracker) IncrementSequence(address types.AccAddress) error {
+	s.Lock()
+	defer s.Unlock()
 	currAcInfo, ok := s.accounts[address.String()]
 	if !ok {
 		return fmt.Errorf("failed to increment sequence: address %s not found in sequence tracker", address)

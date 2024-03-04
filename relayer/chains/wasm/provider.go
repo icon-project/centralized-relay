@@ -26,14 +26,13 @@ import (
 )
 
 type Provider struct {
-	logger         *zap.Logger
-	cfg            *ProviderConfig
-	client         IClient
-	seqTracker     *SequenceTracker
-	memPoolTracker *MemPoolInfo
-	kms            kms.KMS
-	wallet         sdkTypes.AccountI
-	contracts      map[string]relayTypes.EventMap
+	logger     *zap.Logger
+	cfg        *ProviderConfig
+	client     IClient
+	seqTracker SequenceTrackerI
+	kms        kms.KMS
+	wallet     sdkTypes.AccountI
+	contracts  map[string]relayTypes.EventMap
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -128,8 +127,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			if startHeight > latestHeight {
+				continue
+			}
 			toHeight := latestHeight
-			p.logger.Info("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+			p.logger.Debug("Query started.", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 			p.runBlockQuery(blockInfoChan, startHeight, toHeight)
 			startHeight = toHeight + 1
 		}
@@ -137,6 +139,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
+	p.logger.Info("starting to route message", zap.Any("message", message))
 	rawMsg, err := p.getRawContractMessage(message)
 	if err != nil {
 		return err
@@ -176,35 +179,22 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	addr := p.Wallet()
 	if p.seqTracker == nil {
-		addr := p.Wallet()
 		p.seqTracker = p.NewSeqTracker(addr)
 	}
-	p.seqTracker.Lock()
-	p.memPoolTracker.Lock()
-	defer p.seqTracker.Unlock()
-	defer p.memPoolTracker.Unlock()
 
-	var accountNumber, sequence uint64
-
-	if p.memPoolTracker.IsBlocked() {
-		accountNumber, sequence = p.wallet.GetAccountNumber(), p.wallet.GetSequence()
-	} else {
-		senderAccount, err := p.seqTracker.Get(p.Wallet())
-		if err != nil {
-			return nil, err
-		}
-		accountNumber, sequence = senderAccount.AccountNumber, senderAccount.Sequence
-	}
-
-	res, err := p.prepareAndPushTxToMemPool(ctx, accountNumber, sequence, msgs...)
+	account, err := p.seqTracker.Get(addr)
 	if err != nil {
 		return nil, err
 	}
 
-	if p.memPoolTracker.IsBlocked() {
-		p.memPoolTracker.SetBlockedStatus(false)
-	} else if err := p.seqTracker.IncrementSequence(p.Wallet()); err != nil {
+	res, err := p.prepareAndPushTxToMemPool(ctx, account.AccountNumber, account.Sequence, msgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.seqTracker.IncrementSequence(addr); err != nil {
 		return nil, err
 	}
 
@@ -223,7 +213,6 @@ func (p *Provider) handleAccountSequenceMismatchError() error {
 func (p *Provider) logTxFailed(err error, txHash string) {
 	p.logger.Error("transaction failed",
 		zap.Error(err),
-		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
 	)
 }
@@ -288,7 +277,6 @@ func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKe
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
 		if txWaitRes.Error != nil {
 			p.logTxFailed(txWaitRes.Error, txHash)
-			p.memPoolTracker.SetBlockedStatusWithLock(true)
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
 		}
@@ -458,7 +446,24 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	return nil
+	execMsg := types.NewExecRevertMsg(&relayTypes.Message{
+		Sn: sn.Uint64(),
+	})
+	rawMsg, err := json.Marshal(execMsg)
+	if err != nil {
+		return err
+	}
+
+	msg := &wasmTypes.MsgExecuteContract{
+		Sender:   p.Wallet().String(),
+		Contract: p.cfg.Contracts[relayTypes.ConnectionContract],
+		Msg:      rawMsg,
+	}
+
+	msgs := []sdkTypes.Msg{msg}
+
+	_, err = p.sendMessage(ctx, msgs...)
+	return err
 }
 
 func (p *Provider) SetAdmin(context.Context, string) error {
@@ -528,8 +533,10 @@ func (p *Provider) getBlockInfoStream(done <-chan bool, heightStream <-chan uint
 }
 
 func (p *Provider) fetchBlockMessages(height uint64) ([]*relayTypes.Message, error) {
+	perPage := 100
 	searchParam := types.TxSearchParam{
 		BlockHeight: height,
+		PerPage:     &perPage,
 	}
 
 	var (
@@ -579,19 +586,19 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 		}
 
 		for _, event := range eventsList {
-			msgs, err := p.ParseMessageFromEvents(event.Events)
+			messages, err := p.ParseMessageFromEvents(event.Events)
 			if err != nil {
 				return nil, err
 			}
-			for _, msg := range msgs {
-				msg.MessageHeight = uint64(resultTx.Height)
+			for _, message := range messages {
+				message.MessageHeight = uint64(resultTx.Height)
 				p.logger.Info("Detected eventlog",
-					zap.Uint64("height", msg.MessageHeight),
-					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn),
-					zap.String("event_type", msg.EventType),
+					zap.Uint64("height", message.MessageHeight),
+					zap.String("target_network", message.Dst),
+					zap.Uint64("sn", message.Sn),
+					zap.String("event_type", message.EventType),
 				)
-				messages = append(messages, msg)
+				messages = append(messages, message)
 			}
 		}
 	}
@@ -639,6 +646,7 @@ func (p *Provider) runBlockQuery(blockInfoChan chan *relayTypes.BlockInfo, fromH
 }
 
 // SubscribeMessageEvents subscribes to the message events
+// Expermental: Allows to subscribe to the message events from the chain realtime without syncing the chain
 func (p *Provider) SubscribeMessageEvents(ctx context.Context, contractAddress string, height uint64) error {
 	httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
 	if err != nil {
