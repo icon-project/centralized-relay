@@ -86,21 +86,21 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
+					reqID, err := strconv.Atoi(attr.Value)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
-					msg.ReqID = reqID
+					msg.ReqID = uint64(reqID)
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
+					sn, err := strconv.Atoi(attr.Value)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.Sn = sn
+					msg.Sn = uint64(sn)
 				}
 			}
 			messages = append(messages, msg)
