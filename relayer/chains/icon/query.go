@@ -20,7 +20,7 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 	}
 }
 
-func (ip *IconProvider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
+func (ip *Provider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
@@ -40,7 +40,7 @@ func (ip *IconProvider) prepareCallParams(methodName string, address string, par
 	return callParam
 }
 
-func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
+func (ip *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	block, err := ip.client.GetLastBlock()
 	if err != nil {
 		return 0, err
@@ -48,15 +48,15 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return uint64(block.Height), nil
 }
 
-func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
+func (ip *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
+func (ip *Provider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
+func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
 	param := types.AddressParam{
 		Address: types.Address(addr),
 	}
@@ -67,7 +67,7 @@ func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*provide
 	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
-func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
+func (ip *Provider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
 	ip.log.Info("generating message", zap.Any("messagekey", key))
 	if key == nil {
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
@@ -135,7 +135,7 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 
 // QueryTransactionReceipt ->
 // TxHash should be in hex string
-func (p *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
 	res, err := p.client.GetTransactionResult(&types.TransactionHashParam{
 		Hash: types.HexBytes(txHash),
 	})

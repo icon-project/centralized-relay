@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetMockIconProvider() (*IconProvider, error) {
-	pc := IconProviderConfig{
+func GetMockIconProvider() (*Provider, error) {
+	pc := Config{
 		NID:             "0x2.icon",
 		NetworkID:       2,
 		Address:         testKeyAddr,
@@ -27,7 +27,7 @@ func GetMockIconProvider() (*IconProvider, error) {
 		return nil, err
 	}
 
-	iconProvider, ok := prov.(*IconProvider)
+	iconProvider, ok := prov.(*Provider)
 	if !ok {
 		return nil, fmt.Errorf("unbale to type case to icon chain provider")
 	}

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -22,7 +23,7 @@ type ReceiveMessage struct {
 
 type ExecMessage struct {
 	ReqID string `json:"request_id"`
-	Data  []byte `json:"data"`
+	Data  []int  `json:"data"`
 }
 
 type GetReceiptMsg struct {
@@ -53,11 +54,14 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 }
 
 func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
+	exec := &ExecMessage{
+		ReqID: fmt.Sprintf("%d", message.ReqID),
+	}
+	if err := json.Unmarshal(message.Data, &exec.Data); err != nil {
+		return nil
+	}
 	return &ExecExecMsg{
-		ExecMessage: &ExecMessage{
-			ReqID: fmt.Sprintf("%d", message.ReqID),
-			Data:  message.Data,
-		},
+		ExecMessage: exec,
 	}
 }
 

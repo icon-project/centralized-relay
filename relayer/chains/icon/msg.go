@@ -22,6 +22,6 @@ func (m *IconMessage) MsgBytes() ([]byte, error) {
 	return json.Marshal(m.Params)
 }
 
-func (p *IconProvider) NewIconMessage(address types.Address, msg interface{}, method string) *IconMessage {
+func (p *Provider) NewIconMessage(address types.Address, msg interface{}, method string) *IconMessage {
 	return &IconMessage{Address: address, Params: msg, Method: method}
 }

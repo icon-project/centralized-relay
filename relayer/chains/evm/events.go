@@ -15,7 +15,7 @@ var (
 )
 
 // EventSigToEventType converts event signature to event type
-func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
+func (p *Config) eventMap() map[string]providerTypes.EventMap {
 	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
 		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
@@ -32,7 +32,7 @@ func (p *EVMProviderConfig) eventMap() map[string]providerTypes.EventMap {
 	return eventMap
 }
 
-func (p *EVMProviderConfig) GetMonitorEventFilters() ethereum.FilterQuery {
+func (p *Config) GetMonitorEventFilters() ethereum.FilterQuery {
 	var (
 		addresses []common.Address
 		topics    []common.Hash
@@ -49,7 +49,7 @@ func (p *EVMProviderConfig) GetMonitorEventFilters() ethereum.FilterQuery {
 	}
 }
 
-func (p *EVMProvider) GetEventName(sig string) string {
+func (p *Provider) GetEventName(sig string) string {
 	for _, contract := range p.contracts {
 		if eventName, ok := contract.SigType[sig]; ok {
 			return eventName
@@ -58,7 +58,7 @@ func (p *EVMProvider) GetEventName(sig string) string {
 	return ""
 }
 
-func (p *EVMProvider) GetAddressByEventType(eventType string) *common.Address {
+func (p *Provider) GetAddressByEventType(eventType string) *common.Address {
 	for _, contract := range p.contracts {
 		for _, eventName := range contract.SigType {
 			if eventName == eventType {

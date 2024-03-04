@@ -22,7 +22,7 @@ const (
 )
 
 // this will be executed in go route
-func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message", zap.Any("message", message))
 
 	opts, err := p.GetTransationOpts(ctx)
@@ -36,12 +36,12 @@ func (p *EVMProvider) Route(ctx context.Context, message *providerTypes.Message,
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
+	go p.WaitForTxResult(ctx, tx, messageKey, callback)
 	p.NonceTracker.Inc(p.wallet.Address)
-	p.WaitForTxResult(ctx, tx, messageKey, callback)
 	return nil
 }
 
-func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
+func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
 	var (
 		tx  *types.Transaction
 		err error
@@ -104,7 +104,7 @@ func (p *EVMProvider) SendTransaction(ctx context.Context, opts *bind.TransactOp
 	return tx, err
 }
 
-func (p *EVMProvider) WaitForTxResult(
+func (p *Provider) WaitForTxResult(
 	ctx context.Context,
 	tx *types.Transaction,
 	message *providerTypes.MessageKey,
@@ -143,7 +143,7 @@ func (p *EVMProvider) WaitForTxResult(
 	p.LogSuccessTx(message, txReceipts)
 }
 
-func (p *EVMProvider) LogSuccessTx(message *providerTypes.MessageKey, receipt *types.Receipt) {
+func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *types.Receipt) {
 	p.log.Info("successful transaction",
 		zap.Any("message-key", message),
 		zap.String("tx_hash", receipt.TxHash.String()),
@@ -151,7 +151,7 @@ func (p *EVMProvider) LogSuccessTx(message *providerTypes.MessageKey, receipt *t
 	)
 }
 
-func (p *EVMProvider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
+func (p *Provider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
 	p.log.Info("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),
@@ -159,7 +159,7 @@ func (p *EVMProvider) LogFailedTx(messageKey *providerTypes.MessageKey, result *
 	)
 }
 
-func (p *EVMProvider) parseErr(err error, shouldParse bool) string {
+func (p *Provider) parseErr(err error, shouldParse bool) string {
 	msg := err.Error()
 	switch {
 	case !shouldParse:

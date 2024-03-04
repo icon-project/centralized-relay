@@ -8,7 +8,7 @@ import (
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
+func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
 	if len(log.Topics) < 1 {
 		return nil, fmt.Errorf("topic length mismatch")
 	}

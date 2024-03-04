@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 )
 
-func (p *EVMProvider) RestoreKeystore(ctx context.Context) error {
+func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
 	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
@@ -34,7 +34,7 @@ func (p *EVMProvider) RestoreKeystore(ctx context.Context) error {
 	return nil
 }
 
-func (p *EVMProvider) NewKeystore(password string) (string, error) {
+func (p *Provider) NewKeystore(password string) (string, error) {
 	key, err := keystore.StoreKey(os.TempDir(), password, keystore.StandardScryptN, keystore.StandardScryptP)
 	if err != nil {
 		return "", err
@@ -62,7 +62,7 @@ func (p *EVMProvider) NewKeystore(password string) (string, error) {
 }
 
 // ImportKeystore imports a keystore from a file
-func (p *EVMProvider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
 	keystoreContent, err := os.ReadFile(keyPath)
 	if err != nil {
 		return "", err

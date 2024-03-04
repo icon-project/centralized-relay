@@ -3,7 +3,6 @@ package icon
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
@@ -12,11 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	defaultBroadcastWaitTimeout = 10 * time.Minute
-)
-
-func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message", zap.Any("message", message))
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
@@ -24,8 +19,7 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 	}
 	messageKey := message.MessageKey()
 
-	var txhash []byte
-	txhash, err = p.SendTransaction(ctx, iconMessage)
+	txhash, err := p.SendTransaction(ctx, iconMessage)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
@@ -33,7 +27,7 @@ func (p *IconProvider) Route(ctx context.Context, message *providerTypes.Message
 	return nil
 }
 
-func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
+func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
 		msg := &types.RecvMessage{
@@ -52,7 +46,7 @@ func (p *IconProvider) MakeIconMessage(message *providerTypes.Message) (*IconMes
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
 
-func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byte, error) {
+func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byte, error) {
 	wallet, err := p.Wallet()
 	if err != nil {
 		return nil, err
@@ -103,7 +97,7 @@ func (p *IconProvider) SendTransaction(ctx context.Context, msg *IconMessage) ([
 }
 
 // TODO: review try to remove wait for Tx from packet-transfer and only use this for client and connection creation
-func (p *IconProvider) WaitForTxResult(
+func (p *Provider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
 	messageKey *providerTypes.MessageKey,
@@ -146,7 +140,7 @@ func (p *IconProvider) WaitForTxResult(
 	p.LogSuccessTx(method, txRes)
 }
 
-func (p *IconProvider) LogSuccessTx(method string, result *types.TransactionResult) {
+func (p *Provider) LogSuccessTx(method string, result *types.TransactionResult) {
 	stepUsed, err := result.StepUsed.Value()
 	if err != nil {
 		p.log.Error("Failed to get step used", zap.Error(err))
@@ -166,7 +160,7 @@ func (p *IconProvider) LogSuccessTx(method string, result *types.TransactionResu
 	)
 }
 
-func (p *IconProvider) LogFailedTx(method string, result *types.TransactionResult, err error) {
+func (p *Provider) LogFailedTx(method string, result *types.TransactionResult, err error) {
 	stepUsed, _ := result.StepUsed.Value()
 	height, _ := result.BlockHeight.Value()
 

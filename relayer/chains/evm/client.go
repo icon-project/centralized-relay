@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -21,9 +22,9 @@ import (
 
 const (
 	RPCCallRetry                               = 5
-	MaxGasPriceInceremtRetry                   = 10
+	MaxGasPriceInceremtRetry                   = 5
 	GasPriceRatio                              = 10.0
-	DefaultGetTransactionResultPollingInterval = 1500
+	DefaultGetTransactionResultPollingInterval = time.Millisecond * 500
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {

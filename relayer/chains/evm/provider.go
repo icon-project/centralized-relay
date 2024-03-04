@@ -25,14 +25,14 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ provider.Config = (*EVMProviderConfig)(nil)
+var _ provider.Config = (*Config)(nil)
 
 var (
 	MethodRecvMessage = "recvMessage"
 	MethodExecuteCall = "executeCall"
 )
 
-type EVMProviderConfig struct {
+type Config struct {
 	ChainName      string                          `json:"-" yaml:"-"`
 	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
@@ -49,11 +49,11 @@ type EVMProviderConfig struct {
 	HomeDir        string                          `json:"-" yaml:"-"`
 }
 
-type EVMProvider struct {
+type Provider struct {
 	client       IClient
 	verifier     IClient
 	log          *zap.Logger
-	cfg          *EVMProviderConfig
+	cfg          *Config
 	StartHeight  uint64
 	blockReq     ethereum.FilterQuery
 	wallet       *keystore.Key
@@ -93,7 +93,7 @@ func (n *NonceTracker) Inc(addr common.Address) {
 	n.address[addr].Add(n.address[addr], big.NewInt(1))
 }
 
-func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 		p.FinalityBlock = uint64(DefaultFinalityBlock)
 	}
 
-	return &EVMProvider{
+	return &Provider{
 		cfg:          p,
 		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
 		client:       client,
@@ -137,43 +137,43 @@ func (p *EVMProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, ho
 	}, nil
 }
 
-func (p *EVMProvider) NID() string {
+func (p *Provider) NID() string {
 	return p.cfg.NID
 }
 
-func (p *EVMProviderConfig) Validate() error {
+func (p *Config) Validate() error {
 	if err := p.Contracts.Validate(); err != nil {
 		return fmt.Errorf("contracts are not valid: %s", err)
 	}
 	return nil
 }
 
-func (p *EVMProviderConfig) SetWallet(addr string) {
+func (p *Config) SetWallet(addr string) {
 	p.Address = addr
 }
 
-func (p *EVMProviderConfig) GetWallet() string {
+func (p *Config) GetWallet() string {
 	return p.Address
 }
 
-func (p *EVMProvider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
+func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
 	return nil
 }
 
-func (p *EVMProvider) Type() string {
+func (p *Provider) Type() string {
 	return "evm"
 }
 
-func (p *EVMProvider) Config() provider.Config {
+func (p *Provider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *EVMProvider) Name() string {
+func (p *Provider) Name() string {
 	return p.cfg.ChainName
 }
 
-func (p *EVMProvider) Wallet() (*keystore.Key, error) {
+func (p *Provider) Wallet() (*keystore.Key, error) {
 	if p.wallet == nil {
 		if err := p.RestoreKeystore(context.Background()); err != nil {
 			return nil, err
@@ -189,12 +189,12 @@ func (p *EVMProvider) Wallet() (*keystore.Key, error) {
 	return p.wallet, nil
 }
 
-func (p *EVMProvider) FinalityBlock(ctx context.Context) uint64 {
+func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * time.Millisecond)
+func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * 2)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
@@ -207,7 +207,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (*
 			}
 			retryCounter++
 			txr, err := p.client.TransactionReceipt(ctx, txHash)
-			if err != nil && err == ethereum.NotFound {
+			if err == ethereum.NotFound {
 				continue
 			}
 			return txr, err
@@ -215,7 +215,7 @@ func (p *EVMProvider) WaitForResults(ctx context.Context, txHash common.Hash) (*
 	}
 }
 
-func (r *EVMProvider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
+func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
 	from, err := crypto.HexToECDSA(senderKey)
 	if err != nil {
 		return common.Hash{}, err
@@ -249,7 +249,7 @@ func (r *EVMProvider) transferBalance(senderKey, recepientAddress string, amount
 	return
 }
 
-func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, error) {
+func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, error) {
 	newTransactOpts := func(w *keystore.Key) (*bind.TransactOpts, error) {
 		txo, err := bind.NewKeyedTransactorWithChainID(w.PrivateKey, p.client.GetChainID())
 		if err != nil {
@@ -267,7 +267,6 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("nonce", p.NonceTracker.Get(wallet.Address).Uint64())
 	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
 	txOpts.Context = ctx
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
@@ -279,7 +278,7 @@ func (p *EVMProvider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts
 }
 
 // SetAdmin sets the admin address of the bridge contract
-func (p *EVMProvider) SetAdmin(ctx context.Context, admin string) error {
+func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -299,7 +298,7 @@ func (p *EVMProvider) SetAdmin(ctx context.Context, admin string) error {
 }
 
 // RevertMessage
-func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
+func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -316,7 +315,7 @@ func (p *EVMProvider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 // EstimateGas
-func (p *EVMProvider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
+func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
 	msg := ethereum.CallMsg{
 		From: p.wallet.Address,
 		To:   p.GetAddressByEventType(message.EventType),

@@ -57,14 +57,12 @@ type ProviderConfig struct {
 }
 
 func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
-	if pc.HomeDir == "" {
-		pc.HomeDir = homePath
-	}
+	pc.HomeDir = homePath
+	pc.ChainName = chainName
 
 	if pc.KeyringDir == "" {
 		pc.KeyringDir = filepath.Join(pc.HomeDir, pc.NID)
 	}
-	pc.ChainName = chainName
 
 	if err := pc.Validate(); err != nil {
 		return nil, err
@@ -75,7 +73,7 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 		return nil, err
 	}
 
-	clientContext, err := pc.newClientContext()
+	clientContext, err := pc.newClientContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +114,7 @@ func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
 	return pc, nil
 }
 
-func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
+func (c *ProviderConfig) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
 	codec := GetCodecConfig(c)
 
 	keyRing, err := keyring.New(
@@ -139,7 +137,7 @@ func (c *ProviderConfig) newClientContext() (*sdkClient.Context, error) {
 		return nil, err
 	}
 
-	grpcClient, err := grpc.Dial(c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
+	grpcClient, err := grpc.DialContext(ctx, c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
 	if err != nil {
 		return nil, err
 	}

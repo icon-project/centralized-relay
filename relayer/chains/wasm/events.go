@@ -3,7 +3,6 @@ package wasm
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
@@ -93,15 +92,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 					}
 					msg.ReqID = reqID
 				case EventAttrKeyData:
-					attr.Value = strings.NewReplacer("[", "", "]", "", " ", "").Replace(attr.Value)
-					dataRaw := strings.Split(attr.Value, ",")
-					for _, d := range dataRaw {
-						b, err := strconv.ParseUint(d, 10, 8)
-						if err != nil {
-							return nil, fmt.Errorf("failed to parse data from event")
-						}
-						msg.Data = append(msg.Data, byte(b))
-					}
+					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
