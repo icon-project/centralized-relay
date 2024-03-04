@@ -37,7 +37,7 @@ type btpBlockRequest struct {
 
 // TODO: check for balance and if the balance is low show info balance is low
 // starting listener
-func (p *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
 	errCh := make(chan error)                                            // error channel
 	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
 	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
@@ -75,7 +75,7 @@ loop:
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case err := <-errCh:
 			return err
 
@@ -208,7 +208,7 @@ loop:
 	}
 }
 
-func (p *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
+func (p *Provider) handleBTPBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
 	defer func() {
 		requestCh <- request
 	}()
@@ -283,9 +283,9 @@ func (p *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh
 					}
 					p.log.Info("Detected eventlog",
 						zap.Int64("height", request.height),
-						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
 						zap.String("target_network", string(el.Indexed[1])),
-						zap.String("sn", string(el.Indexed[2])),
+						zap.ByteString("sn", el.Indexed[2]),
+						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
 					)
 					eventlogs = append(eventlogs, el)
 				}
@@ -295,7 +295,7 @@ func (p *IconProvider) handleBTPBlockRequest(request *btpBlockRequest, requestCh
 	}
 }
 
-func (p *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
+func (p *Provider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		return 0, err

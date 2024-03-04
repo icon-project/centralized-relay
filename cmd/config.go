@@ -219,8 +219,8 @@ type ProviderConfigYAMLWrapper struct {
 // NOTE: Add new ProviderConfig types in the map here with the key set equal to the type of ChainProvider (e.g. cosmos, substrate, etc.)
 func (pcw *ProviderConfigWrapper) UnmarshalJSON(data []byte) error {
 	customTypes := map[string]reflect.Type{
-		"icon": reflect.TypeOf(icon.IconProviderConfig{}),
-		"evm":  reflect.TypeOf(evm.EVMProviderConfig{}),
+		"icon": reflect.TypeOf(icon.Config{}),
+		"evm":  reflect.TypeOf(evm.Config{}),
 	}
 	val, err := UnmarshalJSONProviderConfig(data, customTypes)
 	if err != nil {
@@ -247,9 +247,9 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 
 	switch iw.Type {
 	case "icon":
-		iw.Value = new(icon.IconProviderConfig)
+		iw.Value = new(icon.Config)
 	case "evm":
-		iw.Value = new(evm.EVMProviderConfig)
+		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.ProviderConfig)
 	default:
@@ -262,7 +262,7 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 // UnmarshalJSONProviderConfig contains the custom unmarshalling logic for ProviderConfig structs
 func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Type) (any, error) {
 	m := map[string]any{
-		"icon": reflect.TypeOf(icon.IconProviderConfig{}),
+		"icon": reflect.TypeOf(icon.Config{}),
 	}
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err

@@ -9,7 +9,7 @@ import (
 	"github.com/icon-project/goloop/common/wallet"
 )
 
-func (p *IconProvider) RestoreKeystore(ctx context.Context) error {
+func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
 	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
@@ -35,7 +35,7 @@ func (p *IconProvider) RestoreKeystore(ctx context.Context) error {
 	return nil
 }
 
-func (p *IconProvider) NewKeystore(password string) (string, error) {
+func (p *Provider) NewKeystore(password string) (string, error) {
 	priv, _ := crypto.GenerateKeyPair()
 	data, err := wallet.EncryptKeyAsKeyStore(priv, []byte(password))
 	if err != nil {
@@ -64,7 +64,7 @@ func (p *IconProvider) NewKeystore(password string) (string, error) {
 	return addr, nil
 }
 
-func (p *IconProvider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
 	keystore, err := os.ReadFile(keyPath)
 	if err != nil {
 		return "", err

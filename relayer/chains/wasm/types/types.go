@@ -1,7 +1,9 @@
 package types
 
 import (
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/cosmos/cosmos-sdk/types"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -53,4 +55,22 @@ type TxResultWaitResponse struct {
 type TxResultChan struct {
 	TxResult *relayerTypes.TxResponse
 	Error    error
+}
+
+// HexBytes
+type HexBytes []byte
+
+// NewHexBytes returns a new HexBytes
+func NewHexBytes(bz []byte) HexBytes {
+	return HexBytes(bz)
+}
+
+// MarshalJSON marshals the HexBytes to JSON
+func (bz HexBytes) MarshalJSON() ([]byte, error) {
+	s := strings.ToUpper(hex.EncodeToString(bz))
+	jbz := make([]byte, len(s)+2)
+	jbz[0] = '"'
+	copy(jbz[1:], s)
+	jbz[len(jbz)-1] = '"'
+	return jbz, nil
 }

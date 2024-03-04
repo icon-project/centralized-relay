@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
@@ -31,8 +32,9 @@ import (
 )
 
 const (
+	DefaultRetryPollingRetires                 = 10
 	DefaultSendTransactionRetryInterval        = 3 * time.Second
-	DefaultGetTransactionResultPollingInterval = 3 * time.Second
+	DefaultGetTransactionResultPollingInterval = 1 * time.Second
 	JsonrpcApiVersion                          = 3
 )
 
@@ -136,15 +138,14 @@ func (c *Client) Call(p *types.CallParam, r interface{}) error {
 
 func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.HexBytes, *types.TransactionResult, error) {
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
-	retryLimit := 20
-	retryCounter := 0
+	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
 			return &thp.Hash, nil, ctx.Err()
 		case <-ticker.C:
-			if retryCounter >= retryLimit {
+			if retryCounter >= providerTypes.MaxTxRetry {
 				return nil, nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
 			}
 			retryCounter++

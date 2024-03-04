@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -27,7 +28,7 @@ type BnOptions struct {
 	Concurrency uint64
 }
 
-func (r *EVMProvider) latestHeight() uint64 {
+func (r *Provider) latestHeight() uint64 {
 	height, err := r.client.GetBlockNumber()
 	if err != nil {
 		r.log.Error("Evm listener: failed to GetBlockNumber", zap.Error(err))
@@ -36,7 +37,7 @@ func (r *EVMProvider) latestHeight() uint64 {
 	return height
 }
 
-func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
 	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
@@ -49,6 +50,9 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 
 	heightPoller := time.NewTicker(p.cfg.BlockInterval)
 	defer heightPoller.Stop()
+
+	nonceTicker := time.NewTicker(3 * time.Minute)
+	defer nonceTicker.Stop()
 
 	next, latest := startHeight, p.latestHeight()
 	concurrency := p.GetConcurrency(ctx, startHeight, latest)
@@ -77,6 +81,14 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 					p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 				}
 			}
+		case <-nonceTicker.C:
+			addr := common.HexToAddress(p.cfg.Address)
+			nonce, err := p.client.NonceAt(ctx, addr, nil)
+			if err != nil {
+				p.log.Error("failed to get nonce", zap.Error(err))
+				continue
+			}
+			p.NonceTracker.Set(addr, nonce)
 
 		case bn := <-bnch:
 			// process all notifications
@@ -199,7 +211,7 @@ func (p *EVMProvider) Listener(ctx context.Context, lastSavedHeight uint64, bloc
 	}
 }
 
-func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
+func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
 	}
@@ -220,7 +232,7 @@ func (p *EVMProvider) FindMessages(ctx context.Context, lbn *types.BlockNotifica
 	return messages, nil
 }
 
-func (p *EVMProvider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
+func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
 	concurrency := p.cfg.Concurrency
 	if concurrency == 0 {
 		concurrency = monitorBlockMaxConcurrency
@@ -236,7 +248,7 @@ func (p *EVMProvider) GetConcurrency(ctx context.Context, startHeight, currentHe
 	return int(concurrency)
 }
 
-func (p *EVMProvider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
+func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		return 0, err

@@ -28,15 +28,16 @@ type IClient interface {
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
 	BuildTxFactory() (tx.Factory, error)
 	EstimateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.SimulateResponse, uint64, error)
-	PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error)
+	PrepareTx(ctx context.Context, txf tx.Factory, msgs ...sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
-	GetAccountInfo(ctx context.Context, uid string) (sdkTypes.AccountI, error)
+	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
 	QuerySmartContract(ctx context.Context, address string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	CreateAccount(name, pass string) (string, string, error)
 	ImportArmor(uid string, armor []byte, passphrase string) error
 	GetArmor(uid, passphrase string) (string, error)
 	GetKey(uid string) (*keyring.Record, error)
+	GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error)
 	SetAddress(account sdkTypes.AccAddress) sdkTypes.AccAddress
 }
 
@@ -60,7 +61,7 @@ func (c *Client) EstimateGas(txf tx.Factory, msgs ...sdkTypes.Msg) (*txTypes.Sim
 	return tx.CalculateGas(c.ctx, txf, msgs...)
 }
 
-func (c *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.Msg) ([]byte, error) {
+func (c *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs ...sdkTypes.Msg) ([]byte, error) {
 	txBuilder, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
@@ -69,7 +70,6 @@ func (c *Client) PrepareTx(ctx context.Context, txf tx.Factory, msgs []sdkTypes.
 	if err = tx.Sign(ctx, txf, c.ctx.FromName, txBuilder, true); err != nil {
 		return nil, err
 	}
-
 	return c.ctx.TxConfig.TxEncoder()(txBuilder.GetTx())
 }
 
@@ -108,17 +108,9 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 	return res.Balance, nil
 }
 
-func (c *Client) GetAccountInfo(ctx context.Context, uid string) (sdkTypes.AccountI, error) {
-	key, err := c.ctx.Keyring.Key(uid)
-	if err != nil {
-		return nil, err
-	}
-	addr, err := key.GetAddress()
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
 	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr.String()})
+	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +159,9 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 
 // Load private key from keyring
 func (c *Client) ImportArmor(uid string, armor []byte, passphrase string) error {
+	if _, err := c.ctx.Keyring.Key(uid); err == nil {
+		return nil
+	}
 	return c.ctx.Keyring.ImportPrivKey(uid, string(armor), passphrase)
 }
 
@@ -175,9 +170,14 @@ func (c *Client) GetArmor(uid, passphrase string) (string, error) {
 	return c.ctx.Keyring.ExportPrivKeyArmor(uid, passphrase)
 }
 
-// GetAccount returns account from keyring
+// GetKey returns key from keyring
 func (c *Client) GetKey(uid string) (*keyring.Record, error) {
 	return c.ctx.Keyring.Key(uid)
+}
+
+// GetAccount returns account from keyring
+func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
+	return c.ctx.Keyring.KeyByAddress(addr)
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {

@@ -70,5 +70,5 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 }
 
 func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
-	return true
+	return !msg.GetIsProcessing()
 }

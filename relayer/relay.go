@@ -122,9 +122,7 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 		chainRuntime := chainRuntime
 
 		eg.Go(func() error {
-			// listening to the block
-			err := chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
-			return err
+			return chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -245,21 +243,20 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 				if err != nil {
-					r.log.Error("processMessage: error occured when checking Message status", zap.Error(err))
 					continue
 				}
 
 				// if message is received we can remove the message from db
 				if messageReceived {
+					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn))
 					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 					continue
 				}
 				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
-				if ok := src.shouldExecuteCall(ctx, message); !ok {
-					continue
+				if ok := src.shouldExecuteCall(ctx, message); ok {
+					go r.ExecuteCall(ctx, message, src)
 				}
-				go r.ExecuteCall(ctx, message, src)
 			}
 		}
 	}
@@ -317,7 +314,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		src := src
 		routeMessage, ok := src.MessageCache.Messages[*key]
 		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
 		if response.Code == types.Success {
@@ -357,8 +354,8 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	}
 }
 
-// SubmitMessage
-func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) error {
+// ExecuteCall
+func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) {
 	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
@@ -376,7 +373,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		}
 		routeMessage, ok := dst.MessageCache.Messages[*key]
 		if !ok {
-			r.log.Error("message of key not found in messageCache", zap.Any("key", key))
+			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
 		r.HandleMessageFailed(routeMessage, dst, dst)
@@ -387,7 +384,6 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		dst.log.Error("error occured during message route", zap.Error(err))
 		r.HandleMessageFailed(msg, dst, dst)
 	}
-	return nil
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {

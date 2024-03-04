@@ -1,7 +1,8 @@
 package types
 
 import (
-	"strconv"
+	"encoding/json"
+	"fmt"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -21,8 +22,8 @@ type ReceiveMessage struct {
 }
 
 type ExecMessage struct {
-	ReqID string           `json:"reqId"`
-	Data  hexstr.HexString `json:"data"`
+	ReqID string `json:"request_id"`
+	Data  []int  `json:"data"`
 }
 
 type GetReceiptMsg struct {
@@ -46,18 +47,21 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 	return &ExecRecvMsg{
 		RecvMessage: &ReceiveMessage{
 			SrcNetwork: message.Src,
-			ConnSn:     strconv.Itoa(int(message.Sn)),
+			ConnSn:     fmt.Sprintf("%d", message.Sn),
 			Msg:        hexstr.NewFromByte(message.Data),
 		},
 	}
 }
 
 func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
+	exec := &ExecMessage{
+		ReqID: fmt.Sprintf("%d", message.ReqID),
+	}
+	if err := json.Unmarshal(message.Data, &exec.Data); err != nil {
+		return nil
+	}
 	return &ExecExecMsg{
-		ExecMessage: &ExecMessage{
-			ReqID: strconv.FormatUint(message.Sn, 16),
-			Data:  hexstr.NewFromByte(message.Data),
-		},
+		ExecMessage: exec,
 	}
 }
 
