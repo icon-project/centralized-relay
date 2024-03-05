@@ -263,6 +263,7 @@ func (an *EVMRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			Contracts:     contracts,
 			BlockInterval: "6s",
 			Address:       an.testconfig.RelayWalletAddress,
+			FinalityBlock: 10,
 		},
 	}
 	return yaml.Marshal(config)
@@ -391,11 +392,11 @@ func (an *EVMRemotenet) SetupConnection(ctx context.Context, target chains.Chain
 
 	// _ =an.CheckForKeyStore(ctx, relayerKey)
 
-	// _, err =an.ExecCallTx(ctx, connection.Hex(), "setFee", privateKey, target.Config().ChainID, big.NewInt(0), big.NewInt(0))
-	// if err != nil {
-	// 	fmt.Printf("fail to initialized fee for xcall-adapter : %w\n", err)
-	// 	return err
-	// }
+	_, err = an.ExecCallTx(ctx, connection.Hex(), "setFee", an.testconfig.KeystorePassword, target.Config().ChainID, big.NewInt(0), big.NewInt(0))
+	if err != nil {
+		fmt.Printf("fail to initialized fee for xcall-adapter : %w\n", err)
+		return err
+	}
 
 	an.IBCAddresses["connection"] = connection.Hex()
 	return nil
@@ -737,7 +738,6 @@ func (an *EVMRemotenet) QueryContract(ctx context.Context, contractAddress, meth
 }
 
 func (an *EVMRemotenet) BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error) {
-	fmt.Println("I am building wallets", "Foundry")
 	w := an.CheckForKeyStore(ctx, keyName)
 	if w == nil {
 		return nil, fmt.Errorf("error keyName already exists")

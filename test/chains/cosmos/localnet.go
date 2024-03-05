@@ -141,7 +141,8 @@ func (c *CosmosRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, ke
 			RPCURL:                 c.GetRPCAddress(),
 			GrpcUrl:                c.GetGRPCAddress(),
 			StartHeight:            0,
-			GasPrice:               int64(250000),
+			GasPrice:               "900000000000" + c.cfg.Denom,
+			GasAdjustment:          1.5,
 			BlockInterval:          "6s",
 			GasLimit:               2000000,
 			MinGasAmount:           200000,
@@ -157,6 +158,7 @@ func (c *CosmosRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, ke
 			SignModeStr:            "SIGN_MODE_DIRECT",
 			MaxGasAmount:           2000000,
 			// Simulate:               true,
+			FinalityBlock: 10,
 		},
 	}
 	return yaml.Marshal(config)
@@ -469,7 +471,7 @@ func (c *CosmosRemotenet) FindEvent(ctx context.Context, startHeight uint64, con
 		return nil, err
 	}
 	defer client.Stop()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	query := strings.Join([]string{"tm.event = 'Tx'",
 		fmt.Sprintf("tx.height >= %d ", startHeight),
@@ -479,6 +481,7 @@ func (c *CosmosRemotenet) FindEvent(ctx context.Context, startHeight uint64, con
 	}, " AND ")
 	channel, err := client.Subscribe(ctx, "wasm-client", query)
 	if err != nil {
+		fmt.Println("error subscribint to channel")
 		return nil, err
 	}
 

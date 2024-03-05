@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -161,7 +160,7 @@ func (in *IconRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, key
 			Address:       in.testconfig.RelayWalletAddress,
 			FinalityBlock: uint64(10),
 			StepMin:       25000,
-			StepLimit:     254998,
+			StepLimit:     2500000,
 		},
 	}
 	return yaml.Marshal(config)
@@ -313,11 +312,11 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 		return err
 	}
 
-	// params := `{"networkId":"` + target.Config().ChainID + `", "messageFee":"0x0", "responseFee":"0x0"}`
-	// _, err = c.executeContract(context.Background(), connection, relayerKey, "setFee", params)
-	// if err != nil {
-	// 	return err
-	// }
+	params := `{"networkId":"` + target.Config().ChainID + `", "messageFee":"0x0", "responseFee":"0x0"}`
+	_, err = in.executeContract(context.Background(), connection, in.testconfig.RelayWalletAddress, "setFee", params)
+	if err != nil {
+		return err
+	}
 	in.IBCAddresses["connection"] = connection
 	return nil
 }
@@ -394,46 +393,7 @@ func (in *IconRemotenet) SendPacketXCall(ctx context.Context, keyName, _to strin
 
 // HasPacketReceipt returns the receipt of the packet sent to the target chain
 func (in *IconRemotenet) IsPacketReceived(ctx context.Context, params map[string]interface{}, order ibc.Order) bool {
-	if order == ibc.Ordered {
-		sequence := params["sequence"].(uint64) //2
-		ctx, err := in.QueryContract(ctx, in.IBCAddresses["ibc"], chains.GetNextSequenceReceive, params)
-		if err != nil {
-			fmt.Printf("Error--%v\n", err)
-			return false
-		}
-		response, err := formatHexNumberFromResponse(ctx.Value("query-result").([]byte))
-
-		if err != nil {
-			fmt.Printf("Error--%v\n", err)
-			return false
-		}
-		fmt.Printf("response[\"data\"]----%v", response)
-		return sequence < response
-	}
-	ctx, _ = in.QueryContract(ctx, in.IBCAddresses["ibc"], chains.HasPacketReceipt, params)
-
-	response, err := formatHexNumberFromResponse(ctx.Value("query-result").([]byte))
-	if err != nil {
-		fmt.Printf("Error--%v\n", err)
-		return false
-	}
-	return response == 1
-}
-
-func formatHexNumberFromResponse(value []byte) (uint64, error) {
-	pattern := `0x[0-9a-fA-F]+`
-	regex := regexp.MustCompile(pattern)
-	result := regex.FindString(string(value))
-	if result == "" {
-		return 0, fmt.Errorf("number not found")
-
-	}
-
-	response, err := strconv.ParseInt(result, 0, 64)
-	if err != nil {
-		return 0, err
-	}
-	return uint64(response), nil
+	panic("not implemented")
 }
 
 // FindTargetXCallMessage returns the request id and the data of the message sent to the target chain
@@ -511,7 +471,6 @@ func (in *IconRemotenet) FindCallResponse(ctx context.Context, startHeight uint6
 	if err != nil {
 		return "", err
 	}
-
 	intHeight, _ := event.Height.Int()
 	block, _ := in.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
 	i, _ := event.Index.Int()
@@ -529,9 +488,8 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		Signature: signature,
 		Indexed:   index,
 	}
-
 	// Create a context with a timeout of 16 seconds.
-	_ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	// Create an event request with the given filter and start height.
@@ -730,6 +688,7 @@ func (in *IconRemotenet) TransactionResult(ctx context.Context, hash string) (*i
 
 func (in *IconRemotenet) GetDebugTrace(ctx context.Context, hash icontypes.HexBytes) (*DebugTrace, error) {
 	uri := in.testconfig.RPCUri
+	uri = strings.Replace(uri, "v3", "v3d", 1)
 	out, _, err := in.ExecBin(ctx, "debug", "trace", string(hash), "--uri", uri)
 	if err != nil {
 		return nil, err

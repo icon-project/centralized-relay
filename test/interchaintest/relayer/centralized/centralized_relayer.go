@@ -61,6 +61,7 @@ type EVMRelayerChainConfigValue struct {
 	Contracts     map[string]string `yaml:"contracts"`
 	BlockInterval string            `yaml:"block-interval"`
 	Address       string            `yaml:"address"`
+	FinalityBlock uint64            `yaml:"finality-block"`
 }
 
 type CosmosRelayerChainConfigValue struct {
@@ -68,7 +69,7 @@ type CosmosRelayerChainConfigValue struct {
 	RPCURL                 string            `yaml:"rpc-url"`
 	GrpcUrl                string            `yaml:"grpc-url"`
 	StartHeight            int               `yaml:"start-height"`
-	GasPrice               int64             `yaml:"gas-price"`
+	GasPrice               string            `yaml:"gas-price"`
 	GasLimit               int               `yaml:"gas-limit"`
 	Contracts              map[string]string `yaml:"contracts"`
 	BlockInterval          string            `yaml:"block-interval"`
@@ -84,6 +85,8 @@ type CosmosRelayerChainConfigValue struct {
 	SignModeStr            string            `yaml:"sign-mode"`
 	MaxGasAmount           uint64            `yaml:"max-gas-amount"`
 	Simulate               bool              `yaml:"simulate"`
+	GasAdjustment          float64           `yaml:"gas-adjustment"`
+	FinalityBlock          uint64            `yaml:"finality-block"`
 }
 
 type ICONRelayerChainConfig struct {
