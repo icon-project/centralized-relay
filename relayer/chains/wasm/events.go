@@ -27,10 +27,6 @@ const (
 	EventAttrKeyFrom  string = "from"
 	EventAttrKeySn    string = "sn"
 
-	// Event types
-	EventAttrKeyCallMessage string = "call_message"
-	EventAttrKeySendMessge  string = "send_message"
-
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
@@ -118,7 +114,9 @@ func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
 		case providerTypes.XcallContract:
 			event.SigType = map[string]string{addr: events.CallMessage}
 		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{addr: events.EmitMessage}
+			event.SigType = map[string]string{
+				addr: events.EmitMessage,
+			}
 		}
 		eventMap[addr] = event
 	}
@@ -140,8 +138,8 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]providerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
-	for _, contract := range eventMap {
-		for addr, eventType := range contract.SigType {
+	for addr, contract := range eventMap {
+		for _, eventType := range contract.SigType {
 			var wasmMessggeType string
 			switch eventType {
 			case events.EmitMessage:

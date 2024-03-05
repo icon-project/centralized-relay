@@ -85,7 +85,7 @@ type RevertMessage struct {
 func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
 	return &ExecRevertMessge{
 		ExecMessage: &RevertMessage{
-			Sn: message.ReqID,
+			Sn: message.Sn,
 		},
 	}
 }

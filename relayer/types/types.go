@@ -22,7 +22,7 @@ type BlockInfo struct {
 type Message struct {
 	Dst           string `json:"dst"`
 	Src           string `json:"src"`
-	Sn            uint64 `json:"sn,omitempty"`
+	Sn            uint64 `json:"sn"`
 	Data          []byte `json:"data"`
 	MessageHeight uint64 `json:"messageHeight"`
 	EventType     string `json:"eventType"`
