@@ -302,5 +302,3 @@ func (c *Client) SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) 
 func (c *Client) ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error) {
 	return c.connection.ClaimFees(opts)
 }
-
-// MedianGasPrice
