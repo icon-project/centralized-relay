@@ -543,11 +543,11 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStream) ([]*relayTypes.Message, error) {
-	perPage := 20
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
 		EndHeight:   heightInfo.End,
-		PerPage:     &perPage,
+		PerPage:     20,
+		Page:        1,
 	}
 
 	var (
@@ -567,9 +567,9 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 				errorChan <- err
 				return
 			}
-			if res.TotalCount > perPage {
-				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					search.Page = &i
+			if res.TotalCount > search.PerPage {
+				for i := 2; i <= int(res.TotalCount/search.PerPage)+1; i++ {
+					search.Page = i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
 					if err != nil {
 						errorChan <- err

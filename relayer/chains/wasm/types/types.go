@@ -13,15 +13,14 @@ type TxSearchParam struct {
 	StartHeight, EndHeight uint64
 	Events                 []types.Event
 	Prove                  bool
-	Page                   *int
-	PerPage                *int
+	Page                   int
+	PerPage                int
 	OrderBy                string
 }
 
 func (param *TxSearchParam) BuildQuery() string {
 	startHeight := &Query{
 		Field: "tx.height", Value: param.StartHeight,
-		Operator: QueryOperator.Eq,
 	}
 
 	var attribQueries []QueryExpression

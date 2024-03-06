@@ -181,7 +181,7 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
-	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
+	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, &param.Page, &param.PerPage, param.OrderBy)
 }
 
 // Set the address to be used for the transactions

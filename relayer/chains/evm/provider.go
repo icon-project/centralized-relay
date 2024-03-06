@@ -283,10 +283,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.client.SetAdmin(opts, common.HexToAddress(admin))
-	if err != nil {
-		return err
-	}
+	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin}, providerTypes.MaxTxRetry)
 	receipt, err := p.WaitForResults(ctx, tx.Hash())
 	if err != nil {
 		return err
@@ -303,22 +300,53 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.client.RevertMessage(opts, sn)
+	msg := &providerTypes.Message{
+		EventType: events.RevertMessage,
+		Sn:        sn.Uint64(),
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
 	if err != nil {
 		return err
 	}
-	res, err := p.WaitForResults(ctx, tx.Hash())
-	if res.Status != 1 {
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
-	return err
+	return nil
+}
+
+// ClaimFees
+func (p *Provider) ClaimFees(ctx context.Context, amount *big.Int) error {
+	msg := &providerTypes.Message{
+		EventType: events.ClaimFee,
+	}
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to revert message: %s", err)
+	}
+	return nil
 }
 
 // EstimateGas
 func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
+	contract := common.HexToAddress(p.cfg.Contracts[providerTypes.ConnectionContract])
 	msg := ethereum.CallMsg{
 		From: p.wallet.Address,
-		To:   p.GetAddressByEventType(message.EventType),
+		To:   &contract,
 	}
 	switch message.EventType {
 	case events.EmitMessage:
@@ -341,6 +369,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 			return 0, nil
 		}
 		msg.Data = data
+		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
 	}
 	return p.client.EstimateGas(ctx, msg)
 }

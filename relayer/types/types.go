@@ -41,10 +41,10 @@ func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]
 		if !ok {
-			return fmt.Errorf("contract %s not configured", contract)
+			continue
 		}
 		if val == "" {
-			return fmt.Errorf("contract %s address is empty", contract)
+			continue
 		}
 	}
 	return nil
