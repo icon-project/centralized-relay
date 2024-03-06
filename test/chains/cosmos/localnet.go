@@ -157,8 +157,8 @@ func (c *CosmosRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, ke
 			BroadcastMode:          "sync",
 			SignModeStr:            "SIGN_MODE_DIRECT",
 			MaxGasAmount:           2000000,
-			// Simulate:               true,
-			FinalityBlock: 10,
+			Simulate:               true,
+			FinalityBlock:          10,
 		},
 	}
 	return yaml.Marshal(config)

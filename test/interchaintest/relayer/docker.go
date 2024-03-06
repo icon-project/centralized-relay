@@ -405,7 +405,6 @@ func (r *DockerRelayer) CreateConfig(ctx context.Context, configYAML []byte) err
 	return nil
 }
 func (r *DockerRelayer) RestoreKeystore(ctx context.Context, keyJSON []byte, chainID string, name string) error {
-	fmt.Println("I AM HERE__________")
 	ksPath := fmt.Sprintf(".centralized-relay/keys/%s/%s", chainID, name)
 	fw := dockerutil.NewFileWriter(r.log, r.client, r.testName)
 	if err := fw.WriteFile(ctx, r.volumeName, ksPath, keyJSON); err != nil {

@@ -101,7 +101,7 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 		return nil, err
 	}
 
-	if err := ic.BuildRelayer(ctx, eRep, buildOptions); err != nil {
+	if err := ic.BuildRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID); err != nil {
 		return nil, err
 	}
 	s.startRelayerFn = func(relayer ibc.Relayer) error {

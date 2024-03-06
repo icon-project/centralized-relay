@@ -230,7 +230,7 @@ func (ic *Interchain) BuildChains(ctx context.Context, rep *testreporter.Relayer
 	return nil
 }
 
-func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter, opts InterchainBuildOptions) error {
+func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter, opts InterchainBuildOptions, kmsId string) error {
 	// Possible optimization: each relayer could be configured concurrently.
 	// But we are only testing with a single relayer so far, so we don't need this yet.
 	config := ibc.RelayerConfig{
@@ -245,7 +245,7 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 			Timeout:        "10s",
 			Memo:           "",
 			LightCacheSize: 20,
-			KMSKeyID:       "5ef77041-d1e6-4af1-9a41-e49a4b45efb6",
+			KMSKeyID:       kmsId,
 		},
 		Chains: make(map[string]interface{}),
 	}

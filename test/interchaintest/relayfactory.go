@@ -1,12 +1,13 @@
 package interchaintest
 
 import (
+	"testing"
+
 	"github.com/docker/docker/client"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
 	"go.uber.org/zap"
-	"testing"
 )
 
 const (
@@ -58,6 +59,8 @@ type Config struct {
 	Tag string `mapstructure:"tag"`
 	// Image is the image that should be used for the relayer.
 	Image string `mapstructure:"image"`
+	// Image is the image that should be used for the relayer.
+	KMS_ID string `mapstructure:"kms_id"`
 }
 
 // New returns an implementation of ibc.Relayer depending on the provided RelayerType.
