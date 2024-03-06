@@ -27,10 +27,6 @@ const (
 	EventAttrKeyFrom  string = "from"
 	EventAttrKeySn    string = "sn"
 
-	// Event types
-	EventAttrKeyCallMessage string = "call_message"
-	EventAttrKeySendMessge  string = "send_message"
-
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
@@ -86,21 +82,21 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
+					reqID, err := strconv.Atoi(attr.Value)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
-					msg.ReqID = reqID
+					msg.ReqID = uint64(reqID)
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.ParseUint(attr.Value, 16, strconv.IntSize)
+					sn, err := strconv.Atoi(attr.Value)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.Sn = sn
+					msg.Sn = uint64(sn)
 				}
 			}
 			messages = append(messages, msg)
@@ -118,7 +114,9 @@ func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
 		case providerTypes.XcallContract:
 			event.SigType = map[string]string{addr: events.CallMessage}
 		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{addr: events.EmitMessage}
+			event.SigType = map[string]string{
+				addr: events.EmitMessage,
+			}
 		}
 		eventMap[addr] = event
 	}
@@ -140,8 +138,8 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]providerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
-	for _, contract := range eventMap {
-		for addr, eventType := range contract.SigType {
+	for addr, contract := range eventMap {
+		for _, eventType := range contract.SigType {
 			var wasmMessggeType string
 			switch eventType {
 			case events.EmitMessage:

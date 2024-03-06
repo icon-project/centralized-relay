@@ -163,7 +163,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				default:
 					go func(q *bnq) {
 						defer func() {
-							time.Sleep(500 * time.Millisecond)
 							qch <- q
 						}()
 						if q.v == nil {

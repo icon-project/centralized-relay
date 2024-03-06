@@ -36,7 +36,7 @@ type ChainProvider interface {
 	SetAdmin(context.Context, string) error
 
 	FinalityBlock(ctx context.Context) uint64
-	GenerateMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) (*types.Message, error)
+	GenerateMessages(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 
 	NewKeystore(string) (string, error)

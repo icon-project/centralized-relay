@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -55,7 +56,7 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 
 func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
 	exec := &ExecMessage{
-		ReqID: fmt.Sprintf("%d", message.ReqID),
+		ReqID: strconv.FormatUint(message.ReqID, 10),
 	}
 	if err := json.Unmarshal(message.Data, &exec.Data); err != nil {
 		return nil
@@ -84,7 +85,24 @@ type RevertMessage struct {
 func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
 	return &ExecRevertMessge{
 		ExecMessage: &RevertMessage{
-			Sn: message.ReqID,
+			Sn: message.Sn,
+		},
+	}
+}
+
+// SetAdmin
+type SetAdmin struct {
+	Address string `json:"address"`
+}
+
+type ExecSetAdmin struct {
+	SetAdmin *SetAdmin `json:"set_admin"`
+}
+
+func NewExecSetAdmin(address string) *ExecSetAdmin {
+	return &ExecSetAdmin{
+		SetAdmin: &SetAdmin{
+			Address: address,
 		},
 	}
 }

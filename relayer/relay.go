@@ -513,7 +513,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// generateMessage
-				message, err := srcChainRuntime.Provider.GenerateMessage(ctx, txObject.MessageKeyWithMessageHeight)
+				messages, err := srcChainRuntime.Provider.GenerateMessages(ctx, txObject.MessageKeyWithMessageHeight)
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),
@@ -523,7 +523,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// merging message to srcChainRuntime
-				srcChainRuntime.mergeMessages(ctx, []*types.Message{message})
+				srcChainRuntime.mergeMessages(ctx, messages)
 			}
 		}
 	}

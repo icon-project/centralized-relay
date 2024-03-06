@@ -6,9 +6,8 @@ import (
 )
 
 const (
-	CodeTypeOK        uint32 = 0
-	ChainType                = "cosmos"
-	MethodExecuteCall        = "execute_call"
+	CodeTypeOK uint32 = 0
+	ChainType         = "cosmos"
 )
 
 var (

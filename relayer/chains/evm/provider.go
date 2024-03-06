@@ -90,7 +90,7 @@ func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
 func (n *NonceTracker) Inc(addr common.Address) {
 	n.Lock()
 	defer n.Unlock()
-	n.address[addr].Add(n.address[addr], big.NewInt(1))
+	n.address[addr] = n.address[addr].Add(n.address[addr], big.NewInt(1))
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {

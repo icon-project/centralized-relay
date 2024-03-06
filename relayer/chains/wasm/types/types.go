@@ -10,17 +10,18 @@ import (
 )
 
 type TxSearchParam struct {
-	BlockHeight uint64
-	Events      []types.Event
-	Prove       bool
-	Page        *int
-	PerPage     *int
-	OrderBy     string
+	StartHeight, EndHeight uint64
+	Events                 []types.Event
+	Prove                  bool
+	Page                   *int
+	PerPage                *int
+	OrderBy                string
 }
 
 func (param *TxSearchParam) BuildQuery() string {
-	heightQuery := &Query{
-		Field: "tx.height", Value: param.BlockHeight,
+	startHeight := &Query{
+		Field: "tx.height", Value: param.StartHeight,
+		Operator: QueryOperator.Eq,
 	}
 
 	var attribQueries []QueryExpression
@@ -36,7 +37,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	finalQuery := &CompositeQuery{
 		Or:      false,
-		Queries: []QueryExpression{heightQuery, eventQuery},
+		Queries: []QueryExpression{startHeight, eventQuery},
 	}
 
 	return finalQuery.GetQuery()
@@ -73,4 +74,11 @@ func (bz HexBytes) MarshalJSON() ([]byte, error) {
 	copy(jbz[1:], s)
 	jbz[len(jbz)-1] = '"'
 	return jbz, nil
+}
+
+// SubscribeOpts
+type SubscribeOpts struct {
+	Height  uint64
+	Address string
+	Method  string
 }

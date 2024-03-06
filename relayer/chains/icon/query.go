@@ -67,7 +67,7 @@ func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTyp
 	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
-func (ip *Provider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
+func (ip *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
 	ip.log.Info("generating message", zap.Any("messagekey", key))
 	if key == nil {
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
@@ -88,9 +88,10 @@ func (ip *Provider) GenerateMessage(ctx context.Context, key *providerTypes.Mess
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
 		}
 
-		var dst string
+		var messages []*providerTypes.Message
 
 		for _, el := range txResult.EventLogs {
+			var dst string
 			switch el.Indexed[0] {
 			case EmitMessage:
 				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]) &&
@@ -119,15 +120,17 @@ func (ip *Provider) GenerateMessage(ctx context.Context, key *providerTypes.Mess
 				continue
 			}
 
-			return &providerTypes.Message{
+			msg := &providerTypes.Message{
 				MessageHeight: key.Height,
 				EventType:     key.EventType,
 				Dst:           dst,
 				Src:           key.Src,
 				Data:          dataValue,
 				Sn:            sn.Uint64(),
-			}, nil
+			}
+			messages = append(messages, msg)
 		}
+		return messages, nil
 	}
 
 	return nil, fmt.Errorf("error generating message: %v", key)

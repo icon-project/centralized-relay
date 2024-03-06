@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	provider "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -39,8 +40,18 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, 
 }
 
 // TODO: may not be need anytime soon so its ok to implement later on
-func (ip *Provider) GenerateMessage(ctx context.Context, key *types.MessageKeyWithMessageHeight) (*types.Message, error) {
-	return nil, nil
+func (p *Provider) GenerateMessages(ctx context.Context, key *types.MessageKeyWithMessageHeight) ([]*types.Message, error) {
+	header, err := p.client.GetHeaderByHeight(ctx, big.NewInt(0).SetUint64(key.Height))
+	if err != nil {
+		return nil, err
+	}
+	p.blockReq.FromBlock = big.NewInt(0).SetUint64(key.Height)
+	p.blockReq.ToBlock = big.NewInt(0).SetUint64(key.Height)
+	logs, err := p.client.FilterLogs(ctx, p.blockReq)
+	if err != nil {
+		return nil, err
+	}
+	return p.FindMessages(ctx, &provider.BlockNotification{Height: big.NewInt(0).SetUint64(key.Height), Header: header, Logs: logs, Hash: header.Hash()})
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
