@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -10,8 +11,8 @@ import (
 type contractState struct {
 	*dbState
 	chain  string
-	msgFee uint64
-	resFee uint64
+	msgFee *big.Int
+	resFee *big.Int
 }
 
 func newContractState() *contractState {
