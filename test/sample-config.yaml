@@ -57,7 +57,7 @@ chains:
   - name: foundry
     version: "3"
     environment: local
-    rpc_uri: https://docker.for.mac.host.internal/evm/
+    rpc_uri: https://docker.for.mac.host.internal/evm
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
     chain_config:
@@ -84,3 +84,4 @@ relayer:
     image: centralized-relay
     tag: latest
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
+    kms_url: http://docker.for.mac.host.internal:8088

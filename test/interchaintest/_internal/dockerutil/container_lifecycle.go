@@ -42,6 +42,7 @@ func (c *ContainerLifecycle) CreateContainer(
 	volumeBinds []string,
 	hostName string,
 	cmd []string,
+	env []string,
 ) error {
 	imageRef := image.Ref()
 	c.log.Info(
@@ -57,7 +58,6 @@ func (c *ContainerLifecycle) CreateContainer(
 	}
 
 	c.preStartListeners = listeners
-	env := []string{"LOCAL_KMS_ENDPOINT=http://docker.for.mac.host.internal:8088"}
 	cc, err := c.client.ContainerCreate(
 		ctx,
 		&container.Config{

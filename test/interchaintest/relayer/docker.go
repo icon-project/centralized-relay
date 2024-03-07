@@ -244,7 +244,7 @@ func (r *DockerRelayer) RestoreKey(ctx context.Context, rep ibc.RelayerExecRepor
 	return nil
 }
 
-func (r *DockerRelayer) StartRelayer(ctx context.Context, rep ibc.RelayerExecReporter) error {
+func (r *DockerRelayer) StartRelayer(ctx context.Context, rep ibc.RelayerExecReporter, environ []string) error {
 	if r.containerLifecycle != nil {
 		return fmt.Errorf("tried to start relayer again without stopping first")
 	}
@@ -259,7 +259,7 @@ func (r *DockerRelayer) StartRelayer(ctx context.Context, rep ibc.RelayerExecRep
 
 	if err := r.containerLifecycle.CreateContainer(
 		ctx, r.testName, r.networkID, containerImage, nil,
-		r.Bind(), r.HostName(""), cmd,
+		r.Bind(), r.HostName(""), cmd, environ,
 	); err != nil {
 		return err
 	}
