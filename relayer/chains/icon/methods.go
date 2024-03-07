@@ -7,9 +7,9 @@ var (
 	MethodGetReceipts   = "getReceipts"
 	MethodSetAdmin      = "setAdmin"
 	MethodRevertMessage = "revertMessage"
-	MethodGetFees       = "getFees"
-	MethodSetFees       = "setFees"
-	MethodClaimFees     = "claimFees"
+	MethodGetFee        = "getFee"
+	MethodSetFee        = "setFee"
+	MethodClaimFees     = "ClaimFees"
 
 	// XCALL Methods
 	MethodExecuteCall = "executeCall"

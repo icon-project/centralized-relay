@@ -63,7 +63,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 
 	p.log.Info("Start from height", zap.Int64("height", processedheight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 	// subscribe to monitor block
-	ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 	reconnect()
 
 	blockReq := &types.BlockRequest{
@@ -80,8 +79,7 @@ loop:
 			return err
 
 		case <-reconnectCh:
-			cancelMonitorBlock()
-			ctxMonitorBlock, cancelMonitorBlock = context.WithCancel(ctx)
+			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 
 			go func(ctx context.Context, cancel context.CancelFunc) {
 				blockReq.Height = types.NewHexInt(int64(processedheight))
@@ -180,7 +178,7 @@ loop:
 							close(requestCh)
 						}
 					default:
-						go p.handleBTPBlockRequest(request, requestCh)
+						go p.handleBlockRequest(request, requestCh)
 					}
 				}
 				// filter nil
@@ -208,7 +206,7 @@ loop:
 	}
 }
 
-func (p *Provider) handleBTPBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
+func (p *Provider) handleBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
 	defer func() {
 		requestCh <- request
 	}()

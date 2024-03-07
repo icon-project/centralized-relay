@@ -13,8 +13,8 @@ type TxSearchParam struct {
 	StartHeight, EndHeight uint64
 	Events                 []types.Event
 	Prove                  bool
-	Page                   int
-	PerPage                int
+	Page                   *int
+	PerPage                *int
 	OrderBy                string
 }
 

@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -39,6 +40,7 @@ type IClient interface {
 	GetKey(uid string) (*keyring.Record, error)
 	GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error)
 	SetAddress(account sdkTypes.AccAddress) sdkTypes.AccAddress
+	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
 }
 
 type Client struct {
@@ -181,7 +183,7 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
-	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, &param.Page, &param.PerPage, param.OrderBy)
+	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
 // Set the address to be used for the transactions
@@ -200,4 +202,18 @@ func (c *Client) QuerySmartContract(ctx context.Context, address string, queryDa
 		Address:   address,
 		QueryData: queryData,
 	})
+}
+
+// GetFee returns the fee set for the network
+func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error) {
+	res, err := c.QuerySmartContract(ctx, addr, queryData)
+	if err != nil {
+		return 0, err
+	}
+	var fee uint64
+
+	if err := json.Unmarshal(res.Data, &fee); err != nil {
+		return 0, err
+	}
+	return fee, nil
 }

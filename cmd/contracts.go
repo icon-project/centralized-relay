@@ -7,12 +7,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func contractCMD(a *appState) *cobra.Command {
+type contractState struct {
+	*dbState
+	chain  string
+	msgFee uint64
+	resFee uint64
+}
+
+func newContractState() *contractState {
 	db := newDBState()
+	return &contractState{
+		dbState: db,
+	}
+}
+
+func contractCMD(a *appState) *cobra.Command {
+	state := newContractState()
 	contract := &cobra.Command{
 		Use:     "contract",
-		Short:   "Manage the database",
-		Aliases: []string{"db"},
+		Short:   "Manage the contracts",
+		Aliases: []string{"c"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s db [command]`, appName)),
 	}
 
@@ -20,7 +34,7 @@ func contractCMD(a *appState) *cobra.Command {
 		Use:   "fee",
 		Short: "Fee related operations",
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return db.closeSocket()
+			return state.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// TODO: Implement fee related operations
@@ -28,13 +42,20 @@ func contractCMD(a *appState) *cobra.Command {
 		},
 	}
 
-	messagesCmd := &cobra.Command{
+	setFeeCmd := &cobra.Command{
 		Use:     "set",
-		Short:   "Get messages stored in the database",
-		Aliases: []string{"m"},
+		Short:   "Set the fee for the chain",
+		Aliases: []string{"s"},
 	}
-	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRm(a), db.revertMessage(a))
 
-	contract.AddCommand()
+	getFeeCmd := &cobra.Command{
+		Use:     "get",
+		Short:   "Get the fee set for the chain",
+		Aliases: []string{"g"},
+	}
+
+	feeCmd.AddCommand(setFeeCmd, getFeeCmd)
+
+	contract.AddCommand(feeCmd)
 	return contract
 }

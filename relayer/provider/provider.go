@@ -43,4 +43,7 @@ type ChainProvider interface {
 	RestoreKeystore(context.Context) error
 	ImportKeystore(context.Context, string, string) (string, error)
 	RevertMessage(ctx context.Context, sn *big.Int) error
+	GetFee(ctx context.Context, networkID string) (uint64, error)
+	SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error
+	ClaimFee(ctx context.Context) error
 }

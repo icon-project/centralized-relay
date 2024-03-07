@@ -169,7 +169,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	var contract string
 
 	switch message.EventType {
-	case events.EmitMessage, events.RevertMessage, events.SetAdmin:
+	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	case events.CallMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
@@ -182,6 +182,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 		Contract: contract,
 		Msg:      rawMsg,
 	}
+
+	fmt.Println("msg", string(rawMsg))
 
 	msgs := []sdkTypes.Msg{msg}
 
@@ -450,27 +452,51 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	msg := relayTypes.Message{
+	msg := &relayTypes.Message{
 		Sn:        sn.Uint64(),
 		EventType: events.RevertMessage,
 	}
-	_, err := p.call(ctx, &msg)
+	_, err := p.call(ctx, msg)
 	return err
 }
 
-func (p *Provider) SetAdmin(ctx context.Context, address string) error {
-	execMsg := types.NewExecSetAdmin(address)
-	rawMsg, err := json.Marshal(execMsg)
+// SetFee
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee *big.Int) error {
+	msg := &relayTypes.Message{
+		Src:       networkdID,
+		Sn:        msgFee.Uint64(),
+		ReqID:     resFee.Uint64(),
+		EventType: events.SetFee,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// ClaimFee
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	msg := &relayTypes.Message{
+		EventType: events.ClaimFee,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// GetFee
+func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error) {
+	getFee := types.NewExecGetFee(networkID, true)
+	data, err := json.Marshal(getFee)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.Wallet().String(),
-		Contract: p.cfg.Contracts[relayTypes.ConnectionContract],
-		Msg:      rawMsg,
+	return p.client.GetFee(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], data)
+}
+
+func (p *Provider) SetAdmin(ctx context.Context, address string) error {
+	msg := &relayTypes.Message{
+		Src:       address,
+		EventType: events.SetAdmin,
 	}
-	msgs := []sdkTypes.Msg{msg}
-	_, err = p.sendMessage(ctx, msgs...)
+	_, err := p.call(ctx, msg)
 	return err
 }
 
@@ -529,7 +555,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 							time.Sleep(time.Second * 3)
 						} else {
 							blockInfoChan <- &relayTypes.BlockInfo{
-								Height:   height.End,
+								Height:   height.Start,
 								Messages: messages,
 							}
 							break
@@ -543,11 +569,11 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStream) ([]*relayTypes.Message, error) {
+	perPage := 25
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
 		EndHeight:   heightInfo.End,
-		PerPage:     20,
-		Page:        1,
+		PerPage:     &perPage,
 	}
 
 	var (
@@ -559,21 +585,21 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, search types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
-			search.Events = append(search.Events, event)
-			res, err := p.client.TxSearch(ctx, search)
+			searchParam.Events = append(searchParam.Events, event)
+			res, err := p.client.TxSearch(ctx, searchParam)
 			if err != nil {
 				errorChan <- err
 				return
 			}
-			if res.TotalCount > search.PerPage {
-				for i := 2; i <= int(res.TotalCount/search.PerPage)+1; i++ {
-					search.Page = i
+			if res.TotalCount > perPage {
+				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
+					searchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
 					if err != nil {
 						errorChan <- err
-						continue
+						return
 					}
 					res.Txs = append(res.Txs, resNext.Txs...)
 				}
@@ -585,7 +611,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 			messages.Txs = append(messages.Txs, msgs.Txs...)
 			messages.TotalCount += msgs.TotalCount
 		case err := <-errorChan:
-			return nil, err
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
 		}
 	}
 	wg.Wait()
@@ -629,11 +655,17 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 		execMsg := types.NewExecExecMsg(message)
 		return json.Marshal(execMsg)
 	case events.RevertMessage:
-		execMsg := types.NewExecRevertMsg(message)
-		return json.Marshal(execMsg)
+		revertMsg := types.NewExecRevertMsg(message)
+		return json.Marshal(revertMsg)
 	case events.SetAdmin:
-		execMsg := types.NewExecSetAdmin(message.Dst)
-		return json.Marshal(execMsg)
+		setAdmin := types.NewExecSetAdmin(message.Dst)
+		return json.Marshal(setAdmin)
+	case events.ClaimFee:
+		claimFee := types.NewExecClaimFee()
+		return json.Marshal(claimFee)
+	case events.SetFee:
+		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
+		return json.Marshal(setFee)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}

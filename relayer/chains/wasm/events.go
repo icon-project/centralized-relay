@@ -82,21 +82,21 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.Atoi(attr.Value)
+					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
-					msg.ReqID = uint64(reqID)
+					msg.ReqID = reqID
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.Atoi(attr.Value)
+					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.Sn = uint64(sn)
+					msg.Sn = sn
 				}
 			}
 			messages = append(messages, msg)
@@ -114,9 +114,7 @@ func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
 		case providerTypes.XcallContract:
 			event.SigType = map[string]string{addr: events.CallMessage}
 		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{
-				addr: events.EmitMessage,
-			}
+			event.SigType = map[string]string{addr: events.EmitMessage}
 		}
 		eventMap[addr] = event
 	}

@@ -58,7 +58,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		msg := &types.SetFee{
 			Src: types.Address(message.Src),
 		}
-		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFees), nil
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }

@@ -102,6 +102,7 @@ type IClient interface {
 	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
 	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
 	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
+	GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error)
 	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
@@ -289,8 +290,8 @@ func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64,
 }
 
 // GetFee
-func (c *Client) GetFee(opts *bind.CallOpts, src string) (*big.Int, error) {
-	return c.connection.GetFee(opts, src, true)
+func (c *Client) GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error) {
+	return c.connection.GetFee(opts, networkID, true)
 }
 
 // SetFee

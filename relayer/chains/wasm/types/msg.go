@@ -106,3 +106,60 @@ func NewExecSetAdmin(address string) *ExecSetAdmin {
 		},
 	}
 }
+
+// ClaimFee
+type ClaimFee struct{}
+
+type ExecClaimFee struct {
+	ClaimFee *ClaimFee `json:"claim_fees"`
+}
+
+func NewExecClaimFee() *ExecClaimFee {
+	return &ExecClaimFee{
+		ClaimFee: &ClaimFee{},
+	}
+}
+
+// SetFee
+type SetFee struct {
+	NetworkID   string `json:"network_id"`
+	MessageFee  string `json:"message_fee"`
+	ResponseFee string `json:"response_fee"`
+}
+
+type ExecSetFee struct {
+	SetFee *SetFee `json:"set_fee"`
+}
+
+func NewExecSetFee(networkID string, msgFee, resFee uint64) *ExecSetFee {
+	return &ExecSetFee{
+		SetFee: &SetFee{
+			NetworkID:   networkID,
+			MessageFee:  strconv.FormatUint(msgFee, 10),
+			ResponseFee: strconv.FormatUint(resFee, 10),
+		},
+	}
+}
+
+// GetFee
+type GetFee struct {
+	NetworkID string `json:"network_id"`
+	Response  bool   `json:"response"`
+}
+
+type ExecGetFee struct {
+	GetFee *GetFee `json:"get_fee"`
+}
+
+func NewExecGetFee(networkID string, response bool) *ExecGetFee {
+	return &ExecGetFee{
+		GetFee: &GetFee{
+			NetworkID: networkID,
+			Response:  response,
+		},
+	}
+}
+
+type QueryGetFeeResponse struct {
+	Total uint64 `json:"message_fee"`
+}
