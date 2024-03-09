@@ -108,6 +108,7 @@ type IClient interface {
 	// abiContract for xcall
 	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
+	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
 func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
@@ -302,4 +303,9 @@ func (c *Client) SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) 
 // ClaimFee
 func (c *Client) ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error) {
 	return c.connection.ClaimFees(opts)
+}
+
+// ExecuteRollback
+func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteRollback(opts, sn)
 }

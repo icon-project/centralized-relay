@@ -9,7 +9,7 @@ import (
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
-	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
+	path := p.keystorePath(p.cfg.Address)
 	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (p *Provider) NewKeystore(password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), key.Address.Hex())
+	path := p.keystorePath(key.Address.Hex())
 	if err := os.WriteFile(path, keystoreEncrypted, 0o644); err != nil {
 		return "", err
 	}
@@ -79,7 +79,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
+	path := p.keystorePath(p.cfg.Address)
 	if err := os.WriteFile(path, keystoreEncrypted, 0o644); err != nil {
 		return "", err
 	}
@@ -87,4 +87,9 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 		return "", err
 	}
 	return key.Address.Hex(), nil
+}
+
+// keystorePath is the path to the keystore file
+func (p *Provider) keystorePath(addr string) string {
+	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 }

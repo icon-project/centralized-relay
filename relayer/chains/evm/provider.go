@@ -345,6 +345,30 @@ func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error)
 	return fee.Uint64(), nil
 }
 
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	msg := &providerTypes.Message{
+		EventType: events.ExecuteRollback,
+		Sn:        sn,
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to execute rollback: %s", err)
+	}
+	return nil
+}
+
 // EstimateGas
 func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
 	contract := common.HexToAddress(p.cfg.Contracts[providerTypes.ConnectionContract])

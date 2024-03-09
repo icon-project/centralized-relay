@@ -112,9 +112,9 @@ func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
 		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
 		switch contractName {
 		case providerTypes.XcallContract:
-			event.SigType = map[string]string{addr: events.CallMessage}
+			event.SigType = map[string]string{EventTypeWasmCallMessage: events.CallMessage}
 		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{addr: events.EmitMessage}
+			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
 		}
 		eventMap[addr] = event
 	}

@@ -155,7 +155,6 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
-
 	return nil
 }
 
@@ -171,7 +170,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	switch message.EventType {
 	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	case events.CallMessage:
+	case events.CallMessage, events.ExecuteRollback:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
@@ -182,8 +181,6 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 		Contract: contract,
 		Msg:      rawMsg,
 	}
-
-	fmt.Println("msg", string(rawMsg))
 
 	msgs := []sdkTypes.Msg{msg}
 
@@ -500,6 +497,16 @@ func (p *Provider) SetAdmin(ctx context.Context, address string) error {
 	return err
 }
 
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
+	msg := &relayTypes.Message{
+		Sn:        sn.Uint64(),
+		EventType: events.ExecuteRollback,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	startHeight := lastSavedHeight
 	if p.cfg.StartHeight > 0 {
@@ -666,6 +673,9 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	case events.SetFee:
 		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
 		return json.Marshal(setFee)
+	case events.ExecuteRollback:
+		executeRollback := types.NewExecExecuteRollback(message.Sn)
+		return json.Marshal(executeRollback)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}

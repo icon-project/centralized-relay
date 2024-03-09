@@ -3,6 +3,7 @@ package socket
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
@@ -16,6 +17,9 @@ const (
 	EventPruneDB        Event = "PruneDB"
 	EventRevertMessage  Event = "RevertMessage"
 	EventError          Event = "Error"
+	EventGetFee         Event = "GetFee"
+	EventSetFee         Event = "SetFee"
+	EventClaimFee       Event = "ClaimFee"
 )
 
 var (
@@ -214,4 +218,39 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 		return nil, ErrInvalidResponse(err)
 	}
 	return res, nil
+}
+
+// GetFee sends GetFee event to socket
+func (c *Client) GetFee(chain string, isReponse bool) (*ResGetFee, error) {
+	req := &ReqGetFee{Chain: chain, Response: isReponse}
+	if err := c.send(EventGetFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResGetFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// SetFee sends SetFee event to socket
+func (c *Client) SetFee(chain string, msgFee, resFee *big.Int) error {
+	req := &ReqSetFee{Chain: chain, MsgFee: msgFee, ResFee: resFee}
+	if err := c.send(EventSetFee, req); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ClaimFee sends ClaimFee event to socket
+func (c *Client) ClaimFee(chain string) error {
+	req := &ReqClaimFee{Chain: chain}
+	if err := c.send(EventClaimFee, req); err != nil {
+		return err
+	}
+	return nil
 }

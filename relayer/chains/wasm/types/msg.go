@@ -48,7 +48,7 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 	return &ExecRecvMsg{
 		RecvMessage: &ReceiveMessage{
 			SrcNetwork: message.Src,
-			ConnSn:     fmt.Sprintf("%d", message.Sn),
+			ConnSn:     strconv.FormatUint(message.Sn, 10),
 			Msg:        hexstr.NewFromByte(message.Data),
 		},
 	}
@@ -79,13 +79,13 @@ type ExecRevertMessge struct {
 }
 
 type RevertMessage struct {
-	Sn uint64 `json:"sn"`
+	Sn string `json:"sn"`
 }
 
 func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
 	return &ExecRevertMessge{
 		ExecMessage: &RevertMessage{
-			Sn: message.Sn,
+			Sn: fmt.Sprintf("%d", message.Sn),
 		},
 	}
 }
@@ -162,4 +162,20 @@ func NewExecGetFee(networkID string, response bool) *ExecGetFee {
 
 type QueryGetFeeResponse struct {
 	Total uint64 `json:"message_fee"`
+}
+
+type ExecuteRollback struct {
+	Sn string `json:"sn"`
+}
+
+type ExecExecuteRollback struct {
+	ExecuteRollback *ExecuteRollback `json:"execute_rollback"`
+}
+
+func NewExecExecuteRollback(sn uint64) *ExecExecuteRollback {
+	return &ExecExecuteRollback{
+		ExecuteRollback: &ExecuteRollback{
+			Sn: strconv.FormatUint(sn, 10),
+		},
+	}
 }

@@ -12,5 +12,6 @@ var (
 	MethodClaimFees     = "ClaimFees"
 
 	// XCALL Methods
-	MethodExecuteCall = "executeCall"
+	MethodExecuteCall     = "executeCall"
+	MethodExecuteRollback = "executeRollback"
 )

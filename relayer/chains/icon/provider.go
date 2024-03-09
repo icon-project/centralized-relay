@@ -223,3 +223,21 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+	params := map[string]interface{}{"_sn": types.NewHexInt(int64(sn))}
+	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.XcallContract]), params, MethodExecuteRollback)
+	txHash, err := p.SendTransaction(ctx, message)
+	if err != nil {
+		return err
+	}
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return err
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("failed: %s", txr.TxHash)
+	}
+	return nil
+}
