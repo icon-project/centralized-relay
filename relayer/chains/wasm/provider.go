@@ -437,7 +437,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	msgs, err := p.fetchBlockMessages(ctx, &heightStream{messageKey.Height, messageKey.Height})
+	msgs, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +465,6 @@ func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee
 		ReqID:     resFee,
 		EventType: events.SetFee,
 	}
-	fmt.Println("SetFee", msg)
 	_, err := p.call(ctx, msg)
 	return err
 }
@@ -526,20 +525,15 @@ func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64,
 	return latestHeight, nil
 }
 
-type heightStream struct {
-	Start uint64
-	End   uint64
-}
-
-func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *heightStream {
-	heightChan := make(chan *heightStream)
-	go func(fromHeight, toHeight uint64, heightChan chan *heightStream) {
+func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *types.HeightRange {
+	heightChan := make(chan *types.HeightRange)
+	go func(fromHeight, toHeight uint64, heightChan chan *types.HeightRange) {
 		defer close(heightChan)
 		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight + 2}:
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
 				fromHeight += 2
 			}
 		}
@@ -547,9 +541,9 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	return heightChan
 }
 
-func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *heightStream) <-chan interface{} {
+func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *types.HeightRange) <-chan interface{} {
 	blockInfoStream := make(chan interface{})
-	go func(blockInfoChan chan interface{}, heightChan <-chan *heightStream) {
+	go func(blockInfoChan chan interface{}, heightChan <-chan *types.HeightRange) {
 		defer close(blockInfoChan)
 		for {
 			select {
@@ -577,7 +571,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 	return blockInfoStream
 }
 
-func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStream) ([]*relayTypes.Message, error) {
+func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.Message, error) {
 	perPage := 25
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,

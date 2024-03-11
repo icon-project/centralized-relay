@@ -87,3 +87,9 @@ type SubscribeOpts struct {
 	Address string
 	Method  string
 }
+
+// HightRange is a struct to represent a range of heights
+type HeightRange struct {
+	Start uint64
+	End   uint64
+}

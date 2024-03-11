@@ -3,11 +3,12 @@ package wasm
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
 )
 
@@ -44,12 +45,12 @@ type EventsList struct {
 	Events []Event `json:"events"`
 }
 
-func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.Message, error) {
-	var messages []*providerTypes.Message
+func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.Message, error) {
+	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {
 		case EventTypeWasmMessage:
-			msg := &providerTypes.Message{
+			msg := &relayerTypes.Message{
 				EventType: events.EmitMessage,
 				Src:       p.NID(),
 			}
@@ -75,7 +76,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			}
 			messages = append(messages, msg)
 		case EventTypeWasmCallMessage:
-			msg := &providerTypes.Message{
+			msg := &relayerTypes.Message{
 				EventType: events.CallMessage,
 				Dst:       p.NID(),
 			}
@@ -90,7 +91,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
-					msg.Src = attr.Value
+					msg.Src = strings.TrimSuffix(attr.Value, "/"+p.Wallet().String())
 				case EventAttrKeySn:
 					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
@@ -106,14 +107,14 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 }
 
 // EventSigToEventType converts event signature to event type
-func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
-	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
+func (p *ProviderConfig) eventMap() map[string]relayerTypes.EventMap {
+	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
+		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
 		switch contractName {
-		case providerTypes.XcallContract:
+		case relayerTypes.XcallContract:
 			event.SigType = map[string]string{EventTypeWasmCallMessage: events.CallMessage}
-		case providerTypes.ConnectionContract:
+		case relayerTypes.ConnectionContract:
 			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
 		}
 		eventMap[addr] = event
@@ -133,7 +134,7 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 	return ""
 }
 
-func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]providerTypes.EventMap) []sdkTypes.Event {
+func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
 	for addr, contract := range eventMap {

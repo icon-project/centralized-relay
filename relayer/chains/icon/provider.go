@@ -213,7 +213,6 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), map[string]interface{}{}, MethodClaimFees)
 	txHash, err := p.SendTransaction(ctx, msg)
 	if err != nil {
-		fmt.Println("ClaimFees: %v", err)
 		return fmt.Errorf("ClaimFees: %v", err)
 	}
 	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
