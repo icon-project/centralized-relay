@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const appName = "crly"
+const appName = "centralized-relay"
 
 var (
 	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
@@ -148,6 +148,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		chainsCmd(a),
 		dbCmd(a),
 		keystoreCmd(a),
+		contractCMD(a),
 	)
 	return rootCmd
 }

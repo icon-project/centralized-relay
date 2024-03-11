@@ -8,7 +8,7 @@ import (
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
-	filePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
+	filePath := p.keystorePath(p.cfg.Address)
 	privFile, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -42,15 +42,15 @@ func (p *Provider) NewKeystore(passphrase string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	filePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
-	if err = os.WriteFile(filePath, encryptedArmor, 0o644); err != nil {
+	path := p.keystorePath(addr)
+	if err = os.WriteFile(path, encryptedArmor, 0o644); err != nil {
 		return "", err
 	}
 	encryptedPassphrase, err := p.kms.Encrypt(context.Background(), []byte(passphrase))
 	if err != nil {
 		return "", err
 	}
-	if err = os.WriteFile(filePath+".pass", encryptedPassphrase, 0o644); err != nil {
+	if err = os.WriteFile(path+".pass", encryptedPassphrase, 0o644); err != nil {
 		return "", err
 	}
 	return addr, nil
@@ -85,12 +85,17 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	filePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr.String())
-	if err = os.WriteFile(filePath, armorCipher, 0o644); err != nil {
+	path := p.keystorePath(addr.String())
+	if err = os.WriteFile(path, armorCipher, 0o644); err != nil {
 		return "", err
 	}
-	if err = os.WriteFile(filePath+".pass", passphraseCipher, 0o644); err != nil {
+	if err = os.WriteFile(path+".pass", passphraseCipher, 0o644); err != nil {
 		return "", err
 	}
 	return addr.String(), nil
+}
+
+// keystorePath is the path to the keystore file
+func (p *Provider) keystorePath(addr string) string {
+	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 }

@@ -63,8 +63,6 @@ type IClient interface {
 	GetLastBlock() (*types.Block, error)
 	GetBlockHeaderByHeight(height int64) (*types.BlockHeader, error)
 	GetValidatorsByHash(hash common.HexHash) ([]common.Address, error)
-
-	ExecuteXcall(ctx context.Context, p *types.CallParam) ([]byte, error)
 }
 
 type Client struct {

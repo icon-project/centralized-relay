@@ -16,6 +16,9 @@ const (
 	EventPruneDB        Event = "PruneDB"
 	EventRevertMessage  Event = "RevertMessage"
 	EventError          Event = "Error"
+	EventGetFee         Event = "GetFee"
+	EventSetFee         Event = "SetFee"
+	EventClaimFee       Event = "ClaimFee"
 )
 
 var (
@@ -105,6 +108,30 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		return res, nil
 	case EventError:
 		return nil, ErrUnknown
+	case EventRevertMessage:
+		res := new(ResRevertMessage)
+		if err := json.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventGetFee:
+		res := new(ResGetFee)
+		if err := json.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventSetFee:
+		res := new(ResSetFee)
+		if err := json.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventClaimFee:
+		res := new(ResClaimFee)
+		if err := json.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
 	default:
 		return nil, ErrUnknownEvent
 	}
@@ -210,6 +237,57 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 		return nil, err
 	}
 	res, ok := data.(*ResRevertMessage)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// GetFee sends GetFee event to socket
+func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFee, error) {
+	req := &ReqGetFee{Chain: chain, Network: network, Response: isReponse}
+	if err := c.send(EventGetFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResGetFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// SetFee sends SetFee event to socket
+func (c *Client) SetFee(chain, network string, msgFee, resFee uint64) (*ResSetFee, error) {
+	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
+	if err := c.send(EventSetFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResSetFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// ClaimFee sends ClaimFee event to socket
+func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
+	req := &ReqClaimFee{Chain: chain}
+	if err := c.send(EventClaimFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResClaimFee)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
 	}

@@ -28,6 +28,13 @@ type BnOptions struct {
 	Concurrency uint64
 }
 
+type bnq struct {
+	h     uint64
+	v     *types.BlockNotification
+	err   error
+	retry int
+}
+
 func (r *Provider) latestHeight() uint64 {
 	height, err := r.client.GetBlockNumber()
 	if err != nil {
@@ -45,10 +52,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
-	heightTicker := time.NewTicker(BlockInterval)
+	heightTicker := time.NewTicker(p.cfg.BlockInterval)
 	defer heightTicker.Stop()
 
-	heightPoller := time.NewTicker(p.cfg.BlockInterval)
+	heightPoller := time.NewTicker(BlockHeightPollInterval)
 	defer heightPoller.Stop()
 
 	nonceTicker := time.NewTicker(3 * time.Minute)
@@ -74,12 +81,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latest++
 
 		case <-heightPoller.C:
-			if height := p.latestHeight(); height > latest {
-				latest = height
-				if next > latest {
-					// TODO:
-					p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
-				}
+			height := p.latestHeight()
+			latest = height
+			if next > latest {
+				// TODO:
+				p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 			}
 		case <-nonceTicker.C:
 			addr := common.HexToAddress(p.cfg.Address)
@@ -118,15 +124,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 		default:
 			if next >= latest {
-				time.Sleep(10 * time.Millisecond)
 				continue
-			}
-
-			type bnq struct {
-				h     uint64
-				v     *types.BlockNotification
-				err   error
-				retry int
 			}
 
 			qch := make(chan *bnq, cap(bnch))

@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -12,6 +13,7 @@ var (
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
+	RetryInterval            = 5 * time.Second
 )
 
 type BlockInfo struct {
@@ -41,10 +43,10 @@ func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]
 		if !ok {
-			return fmt.Errorf("contract %s not configured", contract)
+			continue
 		}
 		if val == "" {
-			return fmt.Errorf("contract %s address is empty", contract)
+			continue
 		}
 	}
 	return nil
@@ -56,15 +58,14 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry        uint8
-	IsProcessing bool
+	Retry   uint8
+	LastTry time.Time
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
-		Message:      m,
-		Retry:        0,
-		IsProcessing: false,
+		Message: m,
+		LastTry: time.Now(),
 	}
 }
 
@@ -80,12 +81,13 @@ func (r *RouteMessage) GetRetry() uint8 {
 	return r.Retry
 }
 
-func (r *RouteMessage) SetIsProcessing(isProcessing bool) {
-	r.IsProcessing = isProcessing
+// ResetLastTry resets the last try time to the current time plus the retry interval
+func (r *RouteMessage) ResetLastTry() {
+	r.LastTry = time.Now().Add(RetryInterval)
 }
 
-func (r *RouteMessage) GetIsProcessing() bool {
-	return r.IsProcessing
+func (r *RouteMessage) IsProcessing() bool {
+	return time.Now().Before(r.LastTry)
 }
 
 // stale means message which is expired
@@ -132,12 +134,13 @@ func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyW
 
 type MessageCache struct {
 	Messages map[MessageKey]*RouteMessage
-	sync.Mutex
+	*sync.Mutex
 }
 
 func NewMessageCache() *MessageCache {
 	return &MessageCache{
 		Messages: make(map[MessageKey]*RouteMessage),
+		Mutex:    &sync.Mutex{},
 	}
 }
 
@@ -163,7 +166,7 @@ type Coin struct {
 }
 
 func NewCoin(denom string, amount uint64) *Coin {
-	return &Coin{denom, amount}
+	return &Coin{strings.ToLower(denom), amount}
 }
 
 func (c *Coin) String() string {
@@ -171,17 +174,10 @@ func (c *Coin) String() string {
 }
 
 func (c *Coin) Calculate() string {
-	coin := strings.ToLower(c.Denom)
 	balance := new(big.Float).SetUint64(c.Amount)
-	amount := new(big.Float)
-	switch coin {
-	case "icx":
-		amount = amount.Quo(balance, big.NewFloat(1e18))
-	case "eth":
-		amount = new(big.Float).Quo(balance, big.NewFloat(1e18))
-	}
+	amount := new(big.Float).Quo(balance, big.NewFloat(1e18))
 	value, _ := amount.Float64()
-	return fmt.Sprintf("%f%s", value, coin)
+	return fmt.Sprintf("%f %s", value, c.Denom)
 }
 
 type TransactionObject struct {

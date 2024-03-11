@@ -211,6 +211,58 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventRevertMessage, data}, nil
+	case EventGetFee:
+		req := new(ReqGetFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		fee, err := chain.Provider.GetFee(context.Background(), req.Network, req.Response)
+		if err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResGetFee{Chain: req.Chain, Fee: fee})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetFee, data}, nil
+	case EventSetFee:
+		req := new(ReqSetFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResSetFee{"Success"})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventSetFee, data}, nil
+	case EventClaimFee:
+		req := new(ReqClaimFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		if err := chain.Provider.ClaimFee(context.Background()); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResClaimFee{"Success"})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventClaimFee, data}, nil
 	default:
 		return nil, fmt.Errorf("invalid request")
 	}

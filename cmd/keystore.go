@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,7 +20,7 @@ type keystoreState struct {
 	path            string
 }
 
-func newKeyStoreState(ctx context.Context) (*keystoreState, error) {
+func newKeyStoreState() (*keystoreState, error) {
 	return new(keystoreState), nil
 }
 
@@ -33,7 +32,7 @@ func keystoreCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.MaximumNArgs(0)),
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s keystore [command]`, appName)),
 	}
-	state, err := newKeyStoreState(ks.Context())
+	state, err := newKeyStoreState()
 	if err != nil {
 		panic(err)
 	}
@@ -179,6 +178,11 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 				return fmt.Errorf("password not found")
 			}
 			cf := chain.ChainProvider.Config()
+			// check if it is the same wallet
+			if cf.GetWallet() == k.address {
+				fmt.Fprintf(os.Stdout, "Wallet already configured: %s\n", k.address)
+				return nil
+			}
 			cf.SetWallet(k.address)
 			if err := a.config.Save(a.homePath); err != nil {
 				return err

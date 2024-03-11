@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -67,6 +68,19 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
 	case events.CallMessage:
 		tx, err = p.client.ExecuteCall(opts, big.NewInt(0).SetUint64(message.ReqID), message.Data)
+	case events.SetAdmin:
+		addr := common.HexToAddress(message.Src)
+		tx, err = p.client.SetAdmin(opts, addr)
+	case events.RevertMessage:
+		tx, err = p.client.RevertMessage(opts, big.NewInt(int64(message.Sn)))
+	case events.ClaimFee:
+		tx, err = p.client.ClaimFee(opts)
+	case events.SetFee:
+		tx, err = p.client.SetFee(opts, message.Src, big.NewInt(int64(message.Sn)), big.NewInt(int64(message.ReqID)))
+	case events.ExecuteRollback:
+		tx, err = p.client.ExecuteRollback(opts, big.NewInt(0).SetUint64(message.Sn))
+	default:
+		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 	if err != nil {
 		switch p.parseErr(err, maxRetry > 0) {

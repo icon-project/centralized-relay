@@ -10,7 +10,7 @@ import (
 )
 
 func (p *Provider) RestoreKeystore(ctx context.Context) error {
-	path := path.Join(p.cfg.HomeDir, "keystore", p.NID(), p.cfg.Address)
+	path := p.keystorePath(p.cfg.Address)
 	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -35,6 +35,11 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	return nil
 }
 
+// keystorePath is the path to the keystore file
+func (p *Provider) keystorePath(addr string) string {
+	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
+}
+
 func (p *Provider) NewKeystore(password string) (string, error) {
 	priv, _ := crypto.GenerateKeyPair()
 	data, err := wallet.EncryptKeyAsKeyStore(priv, []byte(password))
@@ -54,7 +59,7 @@ func (p *Provider) NewKeystore(password string) (string, error) {
 		return "", err
 	}
 	addr := wallet.Address().String()
-	keystorePath := path.Join(p.cfg.HomeDir, p.NID(), addr)
+	keystorePath := p.keystorePath(addr)
 	if err := os.WriteFile(keystorePath, keystoreEncrypted, 0o644); err != nil {
 		return "", err
 	}
@@ -78,7 +83,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	keystorePath := path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
+	keystorePath := p.keystorePath(addr)
 	if err := os.WriteFile(keystorePath, keyStoreEncrypted, 0o644); err != nil {
 		return "", err
 	}

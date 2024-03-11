@@ -135,10 +135,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				p.logger.Error("failed to update sequence", zap.Error(err))
 			}
 		default:
-			if startHeight < latestHeight {
+			if startHeight+2 < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				endHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
-				startHeight = endHeight
+				nextHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+				startHeight = nextHeight
 			}
 		}
 	}
@@ -155,7 +155,6 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
-
 	return nil
 }
 
@@ -169,9 +168,9 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	var contract string
 
 	switch message.EventType {
-	case events.EmitMessage, events.RevertMessage, events.SetAdmin:
+	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	case events.CallMessage:
+	case events.CallMessage, events.ExecuteRollback:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
@@ -450,27 +449,63 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	msg := relayTypes.Message{
+	msg := &relayTypes.Message{
 		Sn:        sn.Uint64(),
 		EventType: events.RevertMessage,
 	}
-	_, err := p.call(ctx, &msg)
+	_, err := p.call(ctx, msg)
 	return err
 }
 
-func (p *Provider) SetAdmin(ctx context.Context, address string) error {
-	execMsg := types.NewExecSetAdmin(address)
-	rawMsg, err := json.Marshal(execMsg)
+// SetFee
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee uint64) error {
+	msg := &relayTypes.Message{
+		Src:       networkdID,
+		Sn:        msgFee,
+		ReqID:     resFee,
+		EventType: events.SetFee,
+	}
+	fmt.Println("SetFee", msg)
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// ClaimFee
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	msg := &relayTypes.Message{
+		EventType: events.ClaimFee,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// GetFee returns the fee for the given networkID
+// responseFee is used to determine if the fee should be returned
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	getFee := types.NewExecGetFee(networkID, responseFee)
+	data, err := json.Marshal(getFee)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.Wallet().String(),
-		Contract: p.cfg.Contracts[relayTypes.ConnectionContract],
-		Msg:      rawMsg,
+	return p.client.GetFee(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], data)
+}
+
+func (p *Provider) SetAdmin(ctx context.Context, address string) error {
+	msg := &relayTypes.Message{
+		Src:       address,
+		EventType: events.SetAdmin,
 	}
-	msgs := []sdkTypes.Msg{msg}
-	_, err = p.sendMessage(ctx, msgs...)
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
+	msg := &relayTypes.Message{
+		Sn:        sn.Uint64(),
+		EventType: events.ExecuteRollback,
+	}
+	_, err := p.call(ctx, msg)
 	return err
 }
 
@@ -500,12 +535,12 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	heightChan := make(chan *heightStream)
 	go func(fromHeight, toHeight uint64, heightChan chan *heightStream) {
 		defer close(heightChan)
-		for fromHeight <= toHeight {
+		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight}:
-				fromHeight++
+			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight + 2}:
+				fromHeight += 2
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -529,7 +564,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 							time.Sleep(time.Second * 3)
 						} else {
 							blockInfoChan <- &relayTypes.BlockInfo{
-								Height:   height.End,
+								Height:   height.Start,
 								Messages: messages,
 							}
 							break
@@ -543,7 +578,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStream) ([]*relayTypes.Message, error) {
-	perPage := 20
+	perPage := 25
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
 		EndHeight:   heightInfo.End,
@@ -559,21 +594,21 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, search types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
-			search.Events = append(search.Events, event)
-			res, err := p.client.TxSearch(ctx, search)
+			searchParam.Events = append(searchParam.Events, event)
+			res, err := p.client.TxSearch(ctx, searchParam)
 			if err != nil {
 				errorChan <- err
 				return
 			}
 			if res.TotalCount > perPage {
 				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					search.Page = &i
+					searchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
 					if err != nil {
 						errorChan <- err
-						continue
+						return
 					}
 					res.Txs = append(res.Txs, resNext.Txs...)
 				}
@@ -585,7 +620,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 			messages.Txs = append(messages.Txs, msgs.Txs...)
 			messages.TotalCount += msgs.TotalCount
 		case err := <-errorChan:
-			return nil, err
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
 		}
 	}
 	wg.Wait()
@@ -629,20 +664,28 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 		execMsg := types.NewExecExecMsg(message)
 		return json.Marshal(execMsg)
 	case events.RevertMessage:
-		execMsg := types.NewExecRevertMsg(message)
-		return json.Marshal(execMsg)
+		revertMsg := types.NewExecRevertMsg(message)
+		return json.Marshal(revertMsg)
 	case events.SetAdmin:
-		execMsg := types.NewExecSetAdmin(message.Dst)
-		return json.Marshal(execMsg)
+		setAdmin := types.NewExecSetAdmin(message.Dst)
+		return json.Marshal(setAdmin)
+	case events.ClaimFee:
+		claimFee := types.NewExecClaimFee()
+		return json.Marshal(claimFee)
+	case events.SetFee:
+		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
+		return json.Marshal(setFee)
+	case events.ExecuteRollback:
+		executeRollback := types.NewExecExecuteRollback(message.Sn)
+		return json.Marshal(executeRollback)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
 }
 
-func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
-	diff := latestHeight - startHeight + 1 // since both heights are inclusive
-	if int(diff) < runtime.NumCPU() {
-		return int(diff)
+func (p *Provider) getNumOfPipelines(diff int) int {
+	if diff <= runtime.NumCPU() {
+		return diff
 	}
 	return runtime.NumCPU()
 }
@@ -653,17 +696,19 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	numOfPipelines := p.getNumOfPipelines(fromHeight, toHeight)
+	diff := int(toHeight-fromHeight) / 2
+
+	numOfPipelines := p.getNumOfPipelines(diff)
 	pipelines := make([]<-chan interface{}, numOfPipelines)
 
 	for i := 0; i < numOfPipelines; i++ {
 		pipelines[i] = p.getBlockInfoStream(ctx, done, heightStream)
 	}
 
-	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight)) {
+	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), diff) {
 		blockInfoChan <- bn.(*relayTypes.BlockInfo)
 	}
-	return toHeight + 1
+	return toHeight + 2
 }
 
 // SubscribeMessageEvents subscribes to the message events

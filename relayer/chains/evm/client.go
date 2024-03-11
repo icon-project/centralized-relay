@@ -102,10 +102,14 @@ type IClient interface {
 	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
 	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
 	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
+	GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error)
+	SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error)
+	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
 	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
+	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
 func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
@@ -285,4 +289,24 @@ func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byt
 
 func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
 	return c.eth.EstimateGas(ctx, msg)
+}
+
+// GetFee
+func (c *Client) GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error) {
+	return c.connection.GetFee(opts, networkID, true)
+}
+
+// SetFee
+func (c *Client) SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error) {
+	return c.connection.SetFee(opts, src, msg, res)
+}
+
+// ClaimFee
+func (c *Client) ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error) {
+	return c.connection.ClaimFees(opts)
+}
+
+// ExecuteRollback
+func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteRollback(opts, sn)
 }
