@@ -117,6 +117,7 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 				name := file.Name()
 				if strings.HasSuffix(name, ".json") {
 					wallet := strings.TrimSuffix(name, ".json")
+					// denote current wallet with *
 					balance, err := chain.ChainProvider.QueryBalance(cmd.Context(), wallet)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "failed to query balance for %s: %v\n", wallet, err)
@@ -126,6 +127,9 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			}
 			printLabels("Wallet", "Balance")
 			for wallet, balance := range wallets {
+				if wallet == chain.ChainProvider.ProviderConfig().GetWallet() {
+					wallet = "* -> " + wallet
+				}
 				printValues(wallet, balance.Calculate())
 			}
 			return nil
@@ -211,7 +215,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("Wallet configured: %s", k.address))
+			fmt.Fprintf(os.Stdout, "Wallet configured: %s", cf.GetWallet())
 			return nil
 		},
 	}
