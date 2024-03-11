@@ -220,7 +220,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		fee, err := chain.Provider.GetFee(context.Background(), req.Chain)
+		fee, err := chain.Provider.GetFee(context.Background(), req.Network, req.Response)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +238,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := chain.Provider.SetFee(context.Background(), req.Chain, req.MsgFee, req.ResFee); err != nil {
+		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
 			return nil, err
 		}
 		data, err := json.Marshal(&ResSetFee{"Success"})

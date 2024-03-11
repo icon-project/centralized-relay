@@ -3,6 +3,8 @@ package wasm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -183,6 +185,7 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
+	fmt.Println(param.BuildQuery())
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
@@ -210,9 +213,14 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 	if err != nil {
 		return 0, err
 	}
-	var fee uint64
 
-	if err := json.Unmarshal(res.Data, &fee); err != nil {
+	var feeStr string
+
+	if err := json.Unmarshal(res.Data, &feeStr); err != nil {
+		return 0, err
+	}
+	fee, err := strconv.ParseUint(feeStr, 10, strconv.IntSize)
+	if err != nil {
 		return 0, err
 	}
 	return fee, nil

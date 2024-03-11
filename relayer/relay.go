@@ -345,7 +345,6 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	}
 
 	// setting before message is processed
-	m.SetIsProcessing(true)
 	m.IncrementRetry()
 
 	if err := dst.Provider.Route(ctx, m.Message, callback); err != nil {
@@ -378,7 +377,6 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		}
 		r.HandleMessageFailed(routeMessage, dst, dst)
 	}
-	msg.SetIsProcessing(true)
 	msg.IncrementRetry()
 	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
@@ -387,8 +385,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
-	routeMessage.SetIsProcessing(false)
-
+	routeMessage.ResetLastTry()
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%types.MaxTxRetry == 0 {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {

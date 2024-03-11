@@ -345,7 +345,7 @@ type RevertMessage struct {
 type ClaimFee struct{}
 
 type SetFee struct {
-	Src Address `json:"_src"`
-	Fee HexInt  `json:"_fee"`
-	Res HexInt  `json:"_res"`
+	NetworkID string `json:"networkId"`
+	MsgFee    HexInt `json:"messageFee"`
+	ResFee    HexInt `json:"responseFee"`
 }

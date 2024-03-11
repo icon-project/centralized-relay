@@ -135,10 +135,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				p.logger.Error("failed to update sequence", zap.Error(err))
 			}
 		default:
-			if startHeight < latestHeight {
+			if startHeight+2 < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				endHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
-				startHeight = endHeight
+				nextHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+				startHeight = nextHeight
 			}
 		}
 	}
@@ -458,13 +458,14 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee *big.Int) error {
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee uint64) error {
 	msg := &relayTypes.Message{
 		Src:       networkdID,
-		Sn:        msgFee.Uint64(),
-		ReqID:     resFee.Uint64(),
+		Sn:        msgFee,
+		ReqID:     resFee,
 		EventType: events.SetFee,
 	}
+	fmt.Println("SetFee", msg)
 	_, err := p.call(ctx, msg)
 	return err
 }
@@ -478,9 +479,10 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	return err
 }
 
-// GetFee
-func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error) {
-	getFee := types.NewExecGetFee(networkID, true)
+// GetFee returns the fee for the given networkID
+// responseFee is used to determine if the fee should be returned
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	getFee := types.NewExecGetFee(networkID, responseFee)
 	data, err := json.Marshal(getFee)
 	if err != nil {
 		return 0, err
@@ -533,12 +535,12 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	heightChan := make(chan *heightStream)
 	go func(fromHeight, toHeight uint64, heightChan chan *heightStream) {
 		defer close(heightChan)
-		for fromHeight <= toHeight {
+		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight}:
-				fromHeight++
+			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight + 2}:
+				fromHeight += 2
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -681,10 +683,9 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	}
 }
 
-func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
-	diff := latestHeight - startHeight + 1 // since both heights are inclusive
-	if int(diff) < runtime.NumCPU() {
-		return int(diff)
+func (p *Provider) getNumOfPipelines(diff int) int {
+	if diff <= runtime.NumCPU() {
+		return diff
 	}
 	return runtime.NumCPU()
 }
@@ -695,17 +696,19 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	numOfPipelines := p.getNumOfPipelines(fromHeight, toHeight)
+	diff := int(toHeight-fromHeight) / 2
+
+	numOfPipelines := p.getNumOfPipelines(diff)
 	pipelines := make([]<-chan interface{}, numOfPipelines)
 
 	for i := 0; i < numOfPipelines; i++ {
 		pipelines[i] = p.getBlockInfoStream(ctx, done, heightStream)
 	}
 
-	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight)) {
+	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), diff) {
 		blockInfoChan <- bn.(*relayTypes.BlockInfo)
 	}
-	return toHeight + 1
+	return toHeight + 2
 }
 
 // SubscribeMessageEvents subscribes to the message events

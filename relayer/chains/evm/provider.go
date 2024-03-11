@@ -28,7 +28,15 @@ import (
 var _ provider.Config = (*Config)(nil)
 
 var (
-	MethodRecvMessage = "recvMessage"
+	// Connection contract
+	MethodRecvMessage   = "recvMessage"
+	MethodSetAdmin      = "setAdmin"
+	MethodRevertMessage = "revertMessage"
+	MethodClaimFees     = "claimFees"
+	MethodSetFee        = "setFee"
+	MethodGetFee        = "getFee"
+
+	// Xcall contract
 	MethodExecuteCall = "executeCall"
 )
 
@@ -311,7 +319,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -319,8 +327,8 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	msg := &providerTypes.Message{
 		EventType: events.SetFee,
 		Src:       networkID,
-		Sn:        msgFee.Uint64(),
-		ReqID:     resFee.Uint64(),
+		Sn:        msgFee,
+		ReqID:     resFee,
 	}
 	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
 	if err != nil {
@@ -337,7 +345,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 // GetFee
-func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error) {
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
 	fee, err := p.client.GetFee(&bind.CallOpts{Context: ctx}, networkID)
 	if err != nil {
 		return 0, err
@@ -387,7 +395,47 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 			return 0, nil
 		}
 		msg.Data = data
-	case events.CallMessage:
+	case events.SetAdmin:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodSetAdmin, message.Src)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.RevertMessage:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodRevertMessage, message.Sn)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.ClaimFee:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodClaimFees)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.SetFee:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.CallMessage, events.ExecuteRollback:
 		abi, err := bridgeContract.XcallMetaData.GetAbi()
 		if err != nil {
 			return 0, err

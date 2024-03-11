@@ -52,7 +52,7 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	if routeMessage.GetIsProcessing() {
+	if routeMessage.IsProcessing() {
 		return false
 	}
 
@@ -70,5 +70,5 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 }
 
 func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
-	return !msg.GetIsProcessing()
+	return !msg.IsProcessing()
 }

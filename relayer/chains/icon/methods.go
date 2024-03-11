@@ -9,7 +9,7 @@ var (
 	MethodRevertMessage = "revertMessage"
 	MethodGetFee        = "getFee"
 	MethodSetFee        = "setFee"
-	MethodClaimFees     = "ClaimFees"
+	MethodClaimFees     = "claimFees"
 
 	// XCALL Methods
 	MethodExecuteCall     = "executeCall"

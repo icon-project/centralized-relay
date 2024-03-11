@@ -167,10 +167,10 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 }
 
 // GetFee
-func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error) {
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
 	callParam := p.prepareCallParams(MethodGetFee, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
-		"to":          networkID,
-		"responseFee": types.NewHexInt(1),
+		"to":       networkID,
+		"response": types.NewHexInt(1),
 	})
 
 	var status types.HexInt
@@ -185,20 +185,21 @@ func (p *Provider) GetFee(ctx context.Context, networkID string) (uint64, error)
 }
 
 // SetFees
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
-	callParam := p.prepareCallParams(MethodSetFee, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	callParam := map[string]interface{}{
 		"networkId":   networkID,
-		"messageFee":  types.NewHexInt(msgFee.Int64()),
-		"responseFee": types.NewHexInt(resFee.Int64()),
-	})
+		"messageFee":  types.NewHexInt(int64(msgFee)),
+		"responseFee": types.NewHexInt(int64(resFee)),
+	}
 
-	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodClaimFees)
+	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetFee)
 	txHash, err := p.SendTransaction(ctx, msg)
 	if err != nil {
 		return fmt.Errorf("SetFee: %v", err)
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
+		fmt.Println("SetFee: WaitForResults: %v", err)
 		return fmt.Errorf("SetFee: WaitForResults: %v", err)
 	}
 	if txr.Status != types.NewHexInt(1) {
@@ -212,9 +213,10 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), map[string]interface{}{}, MethodClaimFees)
 	txHash, err := p.SendTransaction(ctx, msg)
 	if err != nil {
+		fmt.Println("ClaimFees: %v", err)
 		return fmt.Errorf("ClaimFees: %v", err)
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		return fmt.Errorf("ClaimFees: WaitForResults: %v", err)
 	}

@@ -142,13 +142,13 @@ func NewExecSetFee(networkID string, msgFee, resFee uint64) *ExecSetFee {
 }
 
 // GetFee
-type GetFee struct {
-	NetworkID string `json:"network_id"`
-	Response  bool   `json:"response"`
-}
-
 type ExecGetFee struct {
 	GetFee *GetFee `json:"get_fee"`
+}
+
+type GetFee struct {
+	NetworkID string `json:"nid"`
+	Response  bool   `json:"response"`
 }
 
 func NewExecGetFee(networkID string, response bool) *ExecGetFee {
@@ -160,16 +160,13 @@ func NewExecGetFee(networkID string, response bool) *ExecGetFee {
 	}
 }
 
-type QueryGetFeeResponse struct {
-	Total uint64 `json:"message_fee"`
+// ExecuteRollback
+type ExecExecuteRollback struct {
+	ExecuteRollback *ExecuteRollback `json:"execute_rollback"`
 }
 
 type ExecuteRollback struct {
 	Sn string `json:"sn"`
-}
-
-type ExecExecuteRollback struct {
-	ExecuteRollback *ExecuteRollback `json:"execute_rollback"`
 }
 
 func NewExecExecuteRollback(sn uint64) *ExecExecuteRollback {

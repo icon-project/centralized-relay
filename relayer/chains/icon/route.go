@@ -56,7 +56,9 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), nil, MethodClaimFees), nil
 	case events.SetFee:
 		msg := &types.SetFee{
-			Src: types.Address(message.Src),
+			NetworkID: message.Src,
+			MsgFee:    types.NewHexInt(int64(message.Sn)),
+			ResFee:    types.NewHexInt(int64(message.ReqID)),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	}
