@@ -103,6 +103,7 @@ type IClient interface {
 	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
 	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 	GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error)
+	SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error)
 	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall

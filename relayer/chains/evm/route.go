@@ -75,6 +75,8 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.RevertMessage(opts, big.NewInt(int64(message.Sn)))
 	case events.ClaimFee:
 		tx, err = p.client.ClaimFee(opts)
+	case events.SetFee:
+		tx, err = p.client.SetFee(opts, message.Src, big.NewInt(int64(message.Sn)), big.NewInt(int64(message.ReqID)))
 	case events.ExecuteRollback:
 		tx, err = p.client.ExecuteRollback(opts, big.NewInt(0).SetUint64(message.Sn))
 	default:
