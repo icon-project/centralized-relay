@@ -24,7 +24,6 @@ var (
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
 	prefixFinalityStore = "finality"
-	prefixXcallStore    = "xcall"
 )
 
 // main start loop
@@ -307,11 +306,9 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 	return chains
 }
 
-func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
-		// note: it is ok if err is not checked
-		dst := dst
-		src := src
+// callback function
+func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
+	return func(key *types.MessageKey, response *types.TxResponse, err error) {
 		routeMessage, ok := src.MessageCache.Messages[*key]
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
@@ -343,12 +340,12 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		}
 		r.HandleMessageFailed(routeMessage, dst, src)
 	}
+}
 
-	// setting before message is processed
+func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
-
-	if err := dst.Provider.Route(ctx, m.Message, callback); err != nil {
-		dst.log.Error("message routing failed", zap.Stringp("src", &m.Src), zap.Stringp("event_type", &m.EventType), zap.Error(err))
+	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
+		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
 	}
 }
@@ -385,7 +382,6 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
-	routeMessage.ResetLastTry()
 	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%types.MaxTxRetry == 0 {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {

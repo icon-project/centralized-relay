@@ -3,13 +3,13 @@ package wasm
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
+	"go.uber.org/zap"
 )
 
 const (
@@ -91,7 +91,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
-					msg.Src = strings.TrimSuffix(attr.Value, "/"+p.Wallet().String())
+					msg.Src = attr.Value
 				case EventAttrKeySn:
 					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
@@ -101,6 +101,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				}
 			}
 			messages = append(messages, msg)
+		default:
+			p.logger.Debug("unknown event type", zap.String("type", ev.Type))
 		}
 	}
 	return messages, nil

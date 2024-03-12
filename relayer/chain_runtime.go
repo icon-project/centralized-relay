@@ -31,10 +31,6 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 }
 
 func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Message) {
-	if len(messages) == 0 {
-		return
-	}
-
 	for _, m := range messages {
 		routeMessage := types.NewRouteMessage(m)
 		r.MessageCache.Add(routeMessage)

@@ -317,32 +317,19 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 	txResChan := make(chan *types.TxResultChan)
 	go func(txRes chan *types.TxResultChan) {
 		defer close(txRes)
-		httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
-		if err != nil {
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
-			}
-			return
-		}
-		if err := httpClient.Start(); err != nil {
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
-			}
-			return
-		}
-		defer httpClient.Stop()
 
 		newCtx, cancel := context.WithTimeout(ctx, maxWaitInterval)
 		defer cancel()
 
 		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
-		resultEventChan, err := httpClient.Subscribe(newCtx, "tx-result-waiter", query)
+		resultEventChan, err := p.client.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
 			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		}
+		defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
 
 		select {
 		case <-ctx.Done():

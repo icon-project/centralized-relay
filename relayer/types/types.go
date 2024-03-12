@@ -65,7 +65,6 @@ type RouteMessage struct {
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
 		Message: m,
-		LastTry: time.Now(),
 	}
 }
 
@@ -75,6 +74,7 @@ func (r *RouteMessage) GetMessage() *Message {
 
 func (r *RouteMessage) IncrementRetry() {
 	r.Retry++
+	r.AddNextTry()
 }
 
 func (r *RouteMessage) GetRetry() uint8 {
@@ -82,12 +82,12 @@ func (r *RouteMessage) GetRetry() uint8 {
 }
 
 // ResetLastTry resets the last try time to the current time plus the retry interval
-func (r *RouteMessage) ResetLastTry() {
+func (r *RouteMessage) AddNextTry() {
 	r.LastTry = time.Now().Add(RetryInterval)
 }
 
 func (r *RouteMessage) IsProcessing() bool {
-	return time.Now().Before(r.LastTry)
+	return !(r.LastTry.IsZero() || r.LastTry.Before(time.Now()))
 }
 
 // stale means message which is expired

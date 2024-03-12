@@ -3,7 +3,6 @@ package wasm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -42,6 +41,8 @@ type IClient interface {
 	GetKey(uid string) (*keyring.Record, error)
 	GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error)
 	SetAddress(account sdkTypes.AccAddress) sdkTypes.AccAddress
+	Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error)
+	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
 }
 
@@ -185,7 +186,6 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
-	fmt.Println(param.BuildQuery())
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
@@ -224,4 +224,14 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 		return 0, err
 	}
 	return fee, nil
+}
+
+// Subscribe
+func (c *Client) Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error) {
+	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "client", query)
+}
+
+// Unsubscribe
+func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
+	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "client", query)
 }
