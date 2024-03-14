@@ -30,15 +30,15 @@ Flags:
   -l, --limit   int         Page limit
 ```
 
-### Relay a message from the database manually
+### Relay a message manually
 
 ```bash
 messages relay [flags]
 
 Flags:
-  -c, --chain string      Chain ID
-  -s, --sn int            Sequence number
-  -h, --height int        Block height [optional: relay from the database instead if unspecified]
+  -c, --chain   string      Chain ID
+  -s, --sn      int         Sequence number
+  -h, --height  int         Block height [optional: fetch messages from chain]
 ```
 
 ### Remove a message from the database
@@ -47,14 +47,18 @@ Flags:
 messages remove [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -s, --sn int          Sequence number
+  -c, --chain   string        Chain ID
+  -s, --sn      int           Sequence number
 ```
 
 ### Prune the database
 
 ```bash
-prune
+prune [flags]
+
+Flags:
+
+--db-path
 ```
 
 ### Revert Message
@@ -63,8 +67,8 @@ prune
 message revert [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -s, --sn int          Sequence number
+  -c, --chain   string        Chain ID
+  -s, --sn      int           Sequence number
 ```
 
 ## Examples

@@ -99,7 +99,7 @@ chains:
       - `gas-price`: The gas price set for the transcation.
       - `gas-limit`: The gas limit for the transcation.
       - `contracts`: The contracts for the chain.
-        - `xcall`: The xcall contract for the chain.
+        - `xcall`: The xcall contract address for the chain.
         - `connection`: The connection contract for the chain.
       - `concurrency`: The concurrency for the chain.
 

@@ -6,10 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Initial release
+- Support for cosmos chains
+- Fee related operations cmd. `getFee`, `setFee` and `claimFee`
+-
 
 ### Changed
 
+-
+
 ### Fixed
+
+-
 
 ### Migration from 1.0.0 to 1.2.0

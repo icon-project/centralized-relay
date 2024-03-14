@@ -2,12 +2,15 @@
 
 ## 1. Introduction
 
-The `contract` command is used to deploy and manage the fee on the chain.
+The `contract` command is used to deploy and manage the fees on the chain.
 
 ## 2. Usage
 
 ```bash
 centralized-relay contract [command] [flags]
+
+Available Commands:
+  fee         Fee related commands
 
 Flags:
   -h, --help           help for contract
@@ -24,12 +27,12 @@ Flags:
 fee get [flags]
 
 Flags:
-    -c, --chain string      Chain ID
-    -n, --network string    Network ID
-    -r, --res-fee bool      Include response fee
+    -c, --chain    string      Chain ID
+    -n, --network  string      Network ID
+    -r, --res-fee  bool        Include response fee
   ```
 
-2. Get fee for the chain
+2. Set fee for the chain
 
 ```bash
 fee set [flags]
