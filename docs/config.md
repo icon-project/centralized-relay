@@ -103,6 +103,15 @@ chains:
 
 ## Explantion
 
+The configuration file is divided into two sections: global and chains.
+
+### Global
+
+| Field  | Description | Allowed Values | Example | Type |
+| -----  | ----------- | -------------- | ------- | ---- |
+| timeout | The timeout for the chains. | 10s | 10s | duration |
+| kms-key-id | The KMS key ID used for keystore encryption. | --- | --- | uuid |
+
 Common configuration.
 
 | Field  | Description | Allowed Values | Example | Type |
@@ -116,30 +125,28 @@ Common configuration.
 | start-height | This is the past chain height for the chain when starting the relayer. If the start height is set to 0, then the relayer will start from the latest block height. If the start height is set to a specific block height, then the relayer will start from that block height. If the future block height set, then the relayer will refuse to start. | 0  | 123 | int |
 | address | The keystore/wallet for the chain currently being used. | --- | --- | string |
 | contracts | The contracts for the chain. | --- | --- | map |
-
-The configuration file is divided into two sections: global and chains.
+| nid | The NID for the chain. | 0x2.icon | 0x2.icon | string |
 
 Chain specific configurations.
 
-**EVM**
+### EVM
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
 | gas-min | The minimum gas price allowed for the transcation. | 0 | 0 | int |
 | gas-limit | The maximum allowed gas limit for the transcation. | 100056000 | 100056000 | int |
 
-**ICON**
+### ICON
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
 | network-id | The network ID for the chain. | 1 | 1 | int |
-| nid | The NID for the chain, derived from connection contract when deploying. | 0x2.icon | 0x2.icon | string |
 | step-min | The minimum step price for the chain. | 1 | 1 | int |
 | step-limit | The maximum step limit for the chain. | 2000000000000000000 | 2000000000000000000 | int |
 | finality-block | The finality block for the chain. | 10 | 10 | int |
 | rpc-url | The RPC URL for the chain. | any valid rpc url specific to the chain | <https://lisbon.net.solidwallet.io/api/v3/> | url |
 
-**COSMOS**
+### COSMOS
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
