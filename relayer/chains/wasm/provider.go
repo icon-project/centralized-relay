@@ -135,7 +135,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				p.logger.Error("failed to update sequence", zap.Error(err))
 			}
 		default:
-			if startHeight+2 < latestHeight {
+			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				nextHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 				startHeight = nextHeight
@@ -424,11 +424,15 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	msgs, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
 	if err != nil {
 		return nil, err
 	}
-	return msgs, nil
+	var messages []*relayTypes.Message
+	for _, block := range blocks {
+		messages = append(messages, block.Messages...)
+	}
+	return messages, nil
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
@@ -520,8 +524,8 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
-				fromHeight += 2
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight}:
+				fromHeight++
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -544,9 +548,8 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 							p.logger.Error("failed to fetch block messages", zap.Error(err), zap.Any("height", height))
 							time.Sleep(time.Second * 3)
 						} else {
-							blockInfoChan <- &relayTypes.BlockInfo{
-								Height:   height.Start,
-								Messages: messages,
+							for _, message := range messages {
+								blockInfoChan <- message
 							}
 							break
 						}
@@ -558,7 +561,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 	return blockInfoStream
 }
 
-func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.Message, error) {
+func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
 	perPage := 25
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
@@ -608,8 +611,8 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	return p.getMessagesFromTxList(messages.Txs)
 }
 
-func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
-	var messages []*relayTypes.Message
+func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
+	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
 		var eventsList []*EventsList
 		if err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
@@ -629,8 +632,11 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 					zap.Uint64("sn", msg.Sn),
 					zap.String("event_type", msg.EventType),
 				)
-				messages = append(messages, msg)
 			}
+			messages = append(messages, &relayTypes.BlockInfo{
+				Height:   uint64(resultTx.Height),
+				Messages: msgs,
+			})
 		}
 	}
 	return messages, nil
@@ -677,7 +683,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight) / 2
+	diff := int(toHeight - fromHeight)
 
 	numOfPipelines := p.getNumOfPipelines(diff)
 	pipelines := make([]<-chan interface{}, numOfPipelines)
@@ -689,7 +695,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), diff) {
 		blockInfoChan <- bn.(*relayTypes.BlockInfo)
 	}
-	return toHeight + 2
+	return toHeight + 1
 }
 
 // SubscribeMessageEvents subscribes to the message events
