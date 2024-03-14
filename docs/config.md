@@ -12,7 +12,7 @@ centralized-relay config [command] [flags]
 
 ## Flags
 
-- `--config`: The config file to use.
+- `--config`: The path to config file. (default is $HOME/.centralized-relay/config.yaml)
 
 ## Commands
 
@@ -124,8 +124,8 @@ Common configuration.
 | verifier-rpc-url | The verifier RPC URL for the chain. Used for the chains that have a verifier RPC URL. | --- | --- | url |
 | start-height | This is the past chain height for the chain when starting the relayer. If the start height is set to 0, then the relayer will start from the latest block height. If the start height is set to a specific block height, then the relayer will start from that block height. If the future block height set, then the relayer will refuse to start. | 0  | 123 | int |
 | address | The keystore/wallet for the chain currently being used. | --- | --- | string |
-| contracts | The contracts for the chain. | --- | --- | map |
-| nid | The NID for the chain. | 0x2.icon | 0x2.icon | string |
+| contracts | The contracts for the chain. | xcall, connection | --- | map |
+| nid | The NID for the chain. | any | 0x2.icon, archway, 0xa869.fuji | string |
 
 Chain specific configurations.
 
@@ -133,8 +133,9 @@ Chain specific configurations.
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
-| gas-min | The minimum gas price allowed for the transcation. | 0 | 0 | int |
+| gas-min | The minimum gas price allowed for the transcation to process. | 0 | 0 | int |
 | gas-limit | The maximum allowed gas limit for the transcation. | 100056000 | 100056000 | int |
+| block-interval | The block interval for the chain. | > 0s | 2s | duration |
 
 ### ICON
 
@@ -153,5 +154,16 @@ Chain specific configurations.
 | chain-id | The chain ID for the chain. | constantine-3 | constantine-3 | string |
 | rpc-url | The RPC URL for the chain. | any valid rpc url | <https://rpc.constantine.archway.io:443> | url |
 | grpc-url | The gRPC URL for the chain. | any valid grpc url | grpc.constantine.archway.io:443 | url |
-| keyring-backend | The keyring backend for the chain. | memory, test, file | memory | string |
+| keyring-backend | The keyring backend for the chain. | `memory`, `test`, `file` | `memory` | string |
 | account-prefix | The account prefix for the chain. | archway | archway | string |
+| denomination | The denomination for the chain. | aconst | aconst | string |
+| gas-prices | The gas prices for the chain. | 900000000000aconst | 900000000000aconst | string |
+| gas-adjustment | The gas adjustment value. | 1.5 | 1.5 | float |
+| min-gas-amount | The minimum gas amount limit for the transcation to process. | 20000 | 20000 | int |
+| max-gas-amount | The maximum gas limit for the transcation. | 4000000 | 4000000 | int |
+| block-interval | The block interval for the chain. | > 0s | 6s | duration |
+| tx-confirmation-interval | The transaction confirmation interval for the chain. | > 0s | 6s | duration |
+| broadcast-mode | The broadcast mode for the chain. | `sync`, `async`, `block` | `sync` | string |
+| sign-mode | The sign mode for the chain. | `SIGN_MODE_DIRECT`, `SIGN_MODE_LEGACY_AMINO_JSON` | `SIGN_MODE_DIRECT` | string |
+| simulate | Whether to use simulation before transcation. | `true`, `false` | `true` | bool |
+| finality-block | The finality block for the chain. | 10 | 10 | int |
