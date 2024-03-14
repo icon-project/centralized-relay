@@ -75,6 +75,7 @@ func (r *RouteMessage) GetMessage() *Message {
 
 func (r *RouteMessage) IncrementRetry() {
 	r.Retry++
+	r.AddNextTry()
 }
 
 func (r *RouteMessage) ToggleProcessing() {
@@ -91,7 +92,7 @@ func (r *RouteMessage) AddNextTry() {
 }
 
 func (r *RouteMessage) IsProcessing() bool {
-	return r.Processing || !(r.LastTry.IsZero() || r.LastTry.Before(time.Now()))
+	return r.Processing || !r.LastTry.Before(time.Now())
 }
 
 // stale means message which is expired

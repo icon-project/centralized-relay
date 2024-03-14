@@ -23,11 +23,10 @@ func (param *TxSearchParam) BuildQuery() string {
 		Field: "tx.height", Value: param.StartHeight,
 		Operator: QueryOperator.Gte,
 	}
-	// discard the endHeight
-	// endHeight := &Query{
-	// 	Field: "tx.height", Value: param.EndHeight,
-	// 	Operator: QueryOperator.Lt,
-	// }
+	endHeight := &Query{
+		Field: "tx.height", Value: param.EndHeight,
+		Operator: QueryOperator.Lt,
+	}
 
 	var attribQueries []QueryExpression
 
@@ -42,7 +41,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	finalQuery := &CompositeQuery{
 		Or:      false,
-		Queries: []QueryExpression{startHeight, eventQuery},
+		Queries: []QueryExpression{startHeight, endHeight, eventQuery},
 	}
 
 	return finalQuery.GetQuery()

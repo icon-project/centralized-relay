@@ -21,7 +21,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"go.uber.org/zap"
 )
 
@@ -135,8 +134,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				p.logger.Error("failed to update sequence", zap.Error(err))
 			}
 		default:
-			if startHeight < latestHeight {
-				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+			if startHeight+2 < latestHeight {
+				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				nextHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 				startHeight = nextHeight
 			}
@@ -524,8 +523,8 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight}:
-				fromHeight++
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
+				fromHeight += 2
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -683,19 +682,28 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight - fromHeight)
+	diff := int(toHeight-fromHeight) / 2
 
 	numOfPipelines := p.getNumOfPipelines(diff)
-	pipelines := make([]<-chan interface{}, numOfPipelines)
-
+	wg := &sync.WaitGroup{}
 	for i := 0; i < numOfPipelines; i++ {
-		pipelines[i] = p.getBlockInfoStream(ctx, done, heightStream)
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
+			defer wg.Done()
+			for heightRange := range heightStream {
+				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+				if err != nil {
+					p.logger.Error("failed to fetch block messages", zap.Error(err))
+					continue
+				}
+				for _, block := range blockInfo {
+					blockInfoChan <- block
+				}
+			}
+		}(wg, heightStream)
 	}
-
-	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), diff) {
-		blockInfoChan <- bn.(*relayTypes.BlockInfo)
-	}
-	return toHeight + 1
+	wg.Wait()
+	return toHeight + 2
 }
 
 // SubscribeMessageEvents subscribes to the message events

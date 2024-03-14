@@ -3,6 +3,7 @@ package wasm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -186,6 +187,7 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 }
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
+	fmt.Println(param.BuildQuery())
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
 }
 
