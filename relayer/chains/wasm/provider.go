@@ -703,7 +703,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 		}(wg, heightStream)
 	}
 	wg.Wait()
-	return toHeight + 2
+	return toHeight + 1
 }
 
 // SubscribeMessageEvents subscribes to the message events
