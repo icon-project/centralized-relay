@@ -5,12 +5,13 @@
     "nid": "archway",
     "rpc-url": "https://rpc.constantine.archway.io:443",
     "grpc-url": "grpc.constantine.archway.io:443",
-    "home-dir": "/Users/sherpalden",
-    "keyring-backend": "test",
-    "keyring-dir": "/Users/sherpalden/.archway",
-    "key-name": "sherpalden",
+    "keyring-backend": "memory",
+    "address": "archway1s...q3v",
     "account-prefix": "archway",
-    "contract-address": "archway1s0lw2w40g76ssvjd7at2en35ed9xhfskzgpsuemasn27tskey7wqyxfslm",
+    "contracts": {
+      "xcall": "archway1s...cvq",
+      "connection": "archway1s...slm"
+    },
     "denomination": "aconst",
     "gas-prices": "900000000000aconst",
     "gas-adjustment": 1.5,

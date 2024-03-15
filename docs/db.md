@@ -15,6 +15,9 @@ The database stores the following information:
 
 ```bash
 centralized-relay db [command] [flags]
+
+Flags:
+  --db-path string   The path to the database file. (default is $HOME/.centralized-relay/db)
 ```
 
 ## Commands
@@ -22,24 +25,23 @@ centralized-relay db [command] [flags]
 ### List all the messages in the database
 
 ```bash
-messages list [flags]
+messages list  [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -p, --page int          Page number
-  -l, --limit int         Page limit
-  -f, --filter string     Filter by status [accepted: flagged, all if unspecified] // TODO: not implemented yet
+  -c, --chain   string      Chain ID
+  -p, --page    int         Page number
+  -l, --limit   int         Page limit
 ```
 
-### Relay a message from the database manually
+### Relay a message manually
 
 ```bash
 messages relay [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -s, --sn int          Sequence number
-  -h, --height int        Block height [optional: relay from the database instead if unspecified]
+  -c, --chain   string      Chain ID
+  -s, --sn      int         Sequence number
+  -h, --height  int         Block height [optional: fetch messages from chain]
 ```
 
 ### Remove a message from the database
@@ -48,14 +50,14 @@ Flags:
 messages remove [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -s, --sn int          Sequence number
+  -c, --chain   string        Chain ID
+  -s, --sn      int           Sequence number
 ```
 
 ### Prune the database
 
 ```bash
-prune
+prune [flags]
 ```
 
 ### Revert Message
@@ -64,8 +66,8 @@ prune
 message revert [flags]
 
 Flags:
-  -c, --chain string   Chain ID
-  -s, --sn int          Sequence number
+  -c, --chain   string        Chain ID
+  -s, --sn      int           Sequence number
 ```
 
 ## Examples
@@ -97,7 +99,7 @@ centralized-relay db messages remove --chain 0x2.icon --sn 1
 5. **Revert a message.**
 
 ```bash
-centralized-relay db message revert --chain 0x2.icon --sn 1
+centralized-relay db messages revert --chain 0x2.icon --sn 1
 ```
 
 6. **Prune the database.**

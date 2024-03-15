@@ -1,12 +1,17 @@
 {
     "type": "icon",
     "value": {
-        "rpc-url":"https://lisbon.net.solidwallet.io/api/v3/",
-        "keystore":"/users/home/keystore/icon/godwallet.json",
-        "password":"gochain",
-        "start-height":0,
-        "contract-address":"cxb2b31a5252bfcc9be29441c626b8b918d578a58b",
-        "network-id":3,
-        "nid":"0x2.icon"
+        "rpc-url": "https://lisbon.net.solidwallet.io/api/v3/",
+        "address": "hx...",
+        "password": "gochain",
+        "start-height": 0,
+        "min-step-limit": 0,
+        "max-step-limit": 0,
+        "contracts": {
+            "xcall": "cx...",
+            "connection": "cx..."
+        },
+        "network-id": 3,
+        "nid": "0x2.icon"
     }
 }
