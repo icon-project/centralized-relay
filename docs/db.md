@@ -15,6 +15,9 @@ The database stores the following information:
 
 ```bash
 centralized-relay db [command] [flags]
+
+Flags:
+  --db-path string   The path to the database file. (default is $HOME/.centralized-relay/db)
 ```
 
 ## Commands
@@ -55,10 +58,6 @@ Flags:
 
 ```bash
 prune [flags]
-
-Flags:
-
---db-path
 ```
 
 ### Revert Message
