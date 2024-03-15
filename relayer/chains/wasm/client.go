@@ -3,7 +3,6 @@ package wasm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
