@@ -92,7 +92,7 @@ func (r *RouteMessage) AddNextTry() {
 }
 
 func (r *RouteMessage) IsProcessing() bool {
-	return r.Processing || !r.LastTry.Before(time.Now())
+	return r.Processing || !(r.LastTry.IsZero() || r.LastTry.Before(time.Now()))
 }
 
 // stale means message which is expired
