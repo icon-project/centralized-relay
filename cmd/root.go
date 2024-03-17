@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/socket"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -200,6 +199,4 @@ func withUsage(inner cobra.PositionalArgs) cobra.PositionalArgs {
 func cleanup() {
 	// Force syncing the logs before exit, if anything is buffered.
 	_ = zap.L().Sync()
-	// remove socket file to make sure it is not left behind
-	_ = os.Remove(socket.SocketPath)
 }

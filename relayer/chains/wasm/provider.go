@@ -106,11 +106,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	}
 
 	heightTicker := time.NewTicker(p.cfg.BlockInterval)
-	heightPoller := time.NewTicker(time.Minute)
-	sequenceTicker := time.NewTicker(3 * time.Minute)
+	heightPoller := time.NewTicker(time.Minute * 5)
 	defer heightTicker.Stop()
 	defer heightPoller.Stop()
-	defer sequenceTicker.Stop()
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
@@ -122,22 +120,15 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			height, err := p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to query latest height", zap.Error(err))
-				heightPoller.Reset(time.Second * 3)
 				continue
 			}
 			latestHeight = height
-			heightPoller.Reset(time.Minute)
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-sequenceTicker.C:
-			if err := p.handleSequence(ctx); err != nil {
-				p.logger.Error("failed to update sequence", zap.Error(err))
-			}
 		default:
-			if startHeight+2 < latestHeight {
-				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				nextHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
-				startHeight = nextHeight
+			if startHeight+1 < latestHeight {
+				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
 	}
@@ -696,8 +687,13 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 					p.logger.Error("failed to fetch block messages", zap.Error(err))
 					continue
 				}
+				var messages []*relayTypes.Message
 				for _, block := range blockInfo {
-					blockInfoChan <- block
+					messages = append(messages, block.Messages...)
+				}
+				blockInfoChan <- &relayTypes.BlockInfo{
+					Height:   heightRange.End,
+					Messages: messages,
 				}
 			}
 		}(wg, heightStream)
@@ -750,7 +746,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			}
 			eventsList := &struct {
 				Height uint64  `json:"height"`
-				Events []Event `json:"events"`
+				Events []Event `json:"logs"`
 			}{}
 			if err := json.Unmarshal(eventDataJSON, eventsList); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))

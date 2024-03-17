@@ -25,7 +25,7 @@ func (param *TxSearchParam) BuildQuery() string {
 	}
 	endHeight := &Query{
 		Field: "tx.height", Value: param.EndHeight,
-		Operator: QueryOperator.Lt,
+		Operator: QueryOperator.Lte,
 	}
 
 	var attribQueries []QueryExpression
