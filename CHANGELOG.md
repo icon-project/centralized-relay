@@ -38,16 +38,27 @@ Migrate keystore files to the new format by running the following command:
 **important**: Before running the command, make sure you have the AWS KMS key id. You can get the KMS key id by running the `crly config show` command.
 
 ```shell
-aws kms encrypt --key-id <kms-key-id> --plaintext fileb://path/to/keystore.json --output text --query CiphertextBlob > path/to/keystore/address
+aws kms encrypt --key-id <kms-key-id> --plaintext fileb://path/to/keystore.json --output text --query CiphertextBlob | base64 -d > path/to/keystore/address
 ```
 
-Example when migrating the icon chain keystore file where its nid is `0x2.icon` and the keystore address is `0x0B958dd815195F73d6B9B91bFDF1639457678FEb`:
+Example when migrating the icon chain keystore file where its nid is `0x2.icon` and the wallet address is `0x0B958dd815195F73d6B9B91bFDF1639457678FEb`:
+
+verify keystore exists:
 
 ```shell
-aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
+ls $HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json
+```
+
+Encrypt the keystore file:
+
+```shell
+aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob | base64 -d > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
 ```
 
 Additinal Context:
 
 - All the keystore relayer files are located in the `keystore` directory.
   `ls $HOME/.centralized-relay/keystore`
+
+- The version `1.0.0` keystore files for chain are located in the inside the its `nid` directory in a following format:
+  `keystore/<nid>/<wallet-address>.json`
