@@ -67,8 +67,6 @@ release:
 		--rm \
 		-e CGO_ENABLED=1 \
 		--env-file .release-env \
-		--env-file .env \
-		--env GITHUB_TOKEN=${GITHUB_TOKEN} \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-v `pwd`/sysroot:/sysroot \
