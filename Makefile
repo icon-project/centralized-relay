@@ -25,7 +25,7 @@ ifeq ($(OS),Windows_NT)
 	@echo "building centralized-relay binary..."
 	@go build -mod=readonly $(BUILD_FLAGS) -o build/centralized-relay main.go
 else
-	@echo "building centralized-relayer binary..."
+	@echo "building centralized-relay binary..."
 	@go build  $(BUILD_FLAGS) -o build/centralized-relay main.go
 endif
 
@@ -38,7 +38,7 @@ install: go.sum
 	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.22.1
+GOLANG_CROSS_VERSION  ?= v1.21.5
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
