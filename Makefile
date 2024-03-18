@@ -23,7 +23,7 @@ BUILD_FLAGS := -ldflags '$(ldflags)'
 build: go.sum
 ifeq ($(OS),Windows_NT)
 	@echo "building centralized-relay binary..."
-	@go build -mod=readonly $(BUILD_FLAGS) -o build/centralized-relayer.exe main.go
+	@go build -mod=readonly $(BUILD_FLAGS) -o build/centralized-relay main.go
 else
 	@echo "building centralized-relayer binary..."
 	@go build  $(BUILD_FLAGS) -o build/centralized-relay main.go
@@ -38,7 +38,7 @@ install: go.sum
 	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.22.0
+GOLANG_CROSS_VERSION  ?= v1.22.1
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
@@ -48,7 +48,7 @@ SYSROOT_ARCHIVE ?= sysroots.tar.bz2
 release-dry-run:
 	@docker run \
 		--rm \
-		-e CGO_ENABLED=0 \
+		-e CGO_ENABLED=1 \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-v `pwd`/sysroot:/sysroot \
@@ -64,7 +64,7 @@ release:
 	fi
 	docker run \
 		--rm \
-		-e CGO_ENABLED=0 \
+		-e CGO_ENABLED=1 \
 		--env-file .release-env \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
