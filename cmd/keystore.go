@@ -106,7 +106,7 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			wallets := make(map[string]*types.Coin)
 			for _, file := range files {
 				name := file.Name()
-				if !strings.HasSuffix(name, ".pass") {
+				if strings.HasSuffix(name, ".pass") {
 					wallet := strings.TrimSuffix(name, ".pass")
 					balance, err := chain.ChainProvider.QueryBalance(cmd.Context(), wallet)
 					if err != nil {
