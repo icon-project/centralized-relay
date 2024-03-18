@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Wallet encryption and decryption
+- GO version to 1.22.1
 
 ### Fixed
 
@@ -55,7 +56,7 @@ Encrypt the keystore file:
 aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob | base64 -d > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
 ```
 
-**Additinal Context:**
+### Additional Information
 
 - All the keystore relayer files are located in the `keystore` directory.
   `ls $HOME/.centralized-relay/keystore`
