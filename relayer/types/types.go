@@ -180,9 +180,9 @@ func (c *Coin) String() string {
 
 func (c *Coin) Calculate() string {
 	balance := new(big.Float).SetUint64(c.Amount)
-	amount := new(big.Float).Quo(balance, big.NewFloat(1e18))
+	amount := balance.Quo(balance, big.NewFloat(1e18))
 	value, _ := amount.Float64()
-	return fmt.Sprintf("%f %s", value, c.Denom)
+	return fmt.Sprintf("%.18f %s", value, c.Denom)
 }
 
 type TransactionObject struct {
