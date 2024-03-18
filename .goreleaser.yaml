@@ -16,7 +16,7 @@ builds:
       - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
   - id: darwin-arm64
     main: ./main.go
-    binary: centralized-rly
+    binary: centralized-relay
     goos:
       - darwin
     goarch:
@@ -30,7 +30,7 @@ builds:
       - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
   - id: linux-amd64
     main: ./main.go
-    binary: centralized-rly
+    binary: centralized-relay
     goos:
       - linux
     goarch:
@@ -44,7 +44,7 @@ builds:
       - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
   - id: linux-arm64
     main: ./main.go
-    binary: centralized-rly
+    binary: centralized-relay
     goos:
       - linux
     goarch:

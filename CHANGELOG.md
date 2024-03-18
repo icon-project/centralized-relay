@@ -2,11 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - YYYY-MM-DD
+## [1.1.0] - 2024-03-18
 
 ### Added
 
-- Support for cosmos chains
+- Support for cosmos chain
 - Xcall contract support
 - CallMessage event listener for all supported chains
 - Fee related operations cmd. `getFee`, `setFee` and `claimFee`
@@ -55,7 +55,7 @@ Encrypt the keystore file:
 aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob | base64 -d > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
 ```
 
-Additinal Context:
+**Additinal Context:**
 
 - All the keystore relayer files are located in the `keystore` directory.
   `ls $HOME/.centralized-relay/keystore`

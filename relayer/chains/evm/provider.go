@@ -100,7 +100,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 
 	// setting default finality block
 	if p.FinalityBlock == 0 {
-		p.FinalityBlock = uint64(DefaultFinalityBlock)
+		p.FinalityBlock = DefaultFinalityBlock
 	}
 
 	return &Provider{

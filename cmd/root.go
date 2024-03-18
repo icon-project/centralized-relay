@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -22,10 +21,22 @@ import (
 const appName = "centralized-relay"
 
 var (
-	defaultHome   = filepath.Join(os.Getenv("HOME"), ".centralized-relay")
+	homePath = func() string {
+		if home := os.Getenv("RELAY_HOME"); home != "" {
+			if fi, err := os.Stat(home); err == nil && fi.IsDir() {
+				return home
+			}
+			return "."
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "."
+		}
+		return filepath.Join(home, ".centralized-relay")
+	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "dev"
+	Version       = "v1.1.0"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -88,8 +99,9 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:     appName,
 		Short:   "This application makes data relay between chains!",
-		Long:    strings.TrimSpace(`Use this to relay xcall packet between chains`),
+		Long:    `Use this to relay xcall packet between chains using bridge contract.`,
 		Version: Version,
+		Aliases: []string{"crly"},
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -109,7 +121,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	}
 
 	// Register --home flag
-	rootCmd.PersistentFlags().StringVar(&a.homePath, flagHome, defaultHome, "set home directory")
+	rootCmd.PersistentFlags().StringVar(&a.homePath, flagHome, homePath, "set home directory")
 	if err := a.viper.BindPFlag(flagHome, rootCmd.PersistentFlags().Lookup(flagHome)); err != nil {
 		panic(err)
 	}

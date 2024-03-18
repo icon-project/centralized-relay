@@ -44,7 +44,7 @@ func configShowCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config show --home %s
-$ %s cfg list`, appName, defaultHome, appName)),
+$ %s cfg list`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, err := cmd.Flags().GetString(flagHome)
 			if err != nil {
@@ -100,7 +100,7 @@ func configInitCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config init --home %s
-$ %s cfg i`, appName, defaultHome, appName)),
+$ %s cfg i`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := os.MkdirAll(a.homePath, os.ModePerm); err != nil {
 				return err
