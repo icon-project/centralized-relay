@@ -4,6 +4,7 @@ DIRTY := $(shell git status --porcelain | wc -l | xargs)
 
 GOPATH := $(shell go env GOPATH)
 GOBIN := $(GOPATH)/bin
+CGO_ENABLED := 0
 
 all: lint install
 
@@ -14,7 +15,6 @@ all: lint install
 ldflags = -X github.com/icon-project/centralized-relay/cmd.Version=$(VERSION) \
 					-X github.com/icon-project/centralized-relay.Commit=$(COMMIT) \
 					-X github.com/icon-project/centralized-relay.Dirty=$(DIRTY)
-					-extldflags "-static"
 
 ldflags += $(LDFLAGS)
 ldflags := $(strip $(ldflags))
@@ -55,7 +55,7 @@ release-dry-run:
 		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		--rm-dist --skip-validate --skip-publish
+		--clean --skip-validate --skip-publish
 
 .PHONY: release
 release:
