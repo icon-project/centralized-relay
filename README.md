@@ -5,7 +5,7 @@ The following chains are supported:
 
 - ICON
 - AVALANCHE
-- ARCHWAY _(coming soon)_
+- COSMOS
 
 ## Contract Addresses
 
@@ -16,6 +16,6 @@ The following chains are supported:
 | ICON      | cxa07f426062a1384bdd762afa6a87d123fbc81c75  | cxdada6921d08fbf37c6f228816852e58b219cc589 | mainnet | hxda27114a959a3351f3613b055ca96f8f8cb34cbe |
 | AVALANCHE | 0xfc83a3f252090b26f92f91dfb9dc3eb710adaf1b  | 0xCC7936eA419516635fC6fEb8AD2d4341b5D0C2B3 | mainnet | 0xebA66Ad34CCEB70669eddbaA8c9Fb927d41fE2d7 |
 
-## How to use
+## How to use ?
 
 Refer to the [WIKI](<https://github.com/icon-project/centralized-relay/wiki>).
