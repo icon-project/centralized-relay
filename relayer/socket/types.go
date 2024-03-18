@@ -83,3 +83,38 @@ type ReqRevertMessage struct {
 type ResRevertMessage struct {
 	Sn uint64
 }
+
+type ReqGetFee struct {
+	Chain    string
+	Network  string
+	Response bool
+}
+
+type ResGetFee struct {
+	Chain    string
+	Fee      uint64
+	Response bool
+}
+
+// ReqSetFee sends SetFee event to socket
+type ReqSetFee struct {
+	Chain   string
+	Network string
+	MsgFee  uint64
+	ResFee  uint64
+}
+
+// ResSetFee sends SetFee event to socket
+type ResSetFee struct {
+	Status string
+}
+
+// ReqClaimFee sends ClaimFee event to socket
+type ReqClaimFee struct {
+	Chain string
+}
+
+// ResClaimFee sends ClaimFee event to socket
+type ResClaimFee struct {
+	Status string
+}

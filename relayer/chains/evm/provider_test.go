@@ -13,13 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
-	evm := EVMProviderConfig{
+func MockEvmProvider(contractAddress string) (*Provider, error) {
+	evm := Config{
 		NID:             "0x13881.mumbai",
 		ChainName:       "avalanche",
 		RPCUrl:          "https://rpc-mumbai.maticvigil.com",
 		StartHeight:     0,
-		Keystore:        testKeyStore,
+		Address:         testKeyStore,
 		Password:        testKeyPassword,
 		GasPrice:        3000000015,
 		GasLimit:        431877,
@@ -30,7 +30,7 @@ func MockEvmProvider(contractAddress string) (*EVMProvider, error) {
 	if err != nil {
 		return nil, err
 	}
-	p, ok := pro.(*EVMProvider)
+	p, ok := pro.(*Provider)
 	if !ok {
 		return nil, fmt.Errorf("failed to create mock evmprovider")
 	}

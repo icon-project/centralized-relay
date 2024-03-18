@@ -10,7 +10,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
@@ -32,8 +32,9 @@ import (
 )
 
 const (
-	DefaultSendTransactionRetryInterval        = 3 * time.Second        // 3sec
-	DefaultGetTransactionResultPollingInterval = 500 * time.Millisecond // 1.5sec
+	DefaultRetryPollingRetires                 = 10
+	DefaultSendTransactionRetryInterval        = 3 * time.Second
+	DefaultGetTransactionResultPollingInterval = 1 * time.Second
 	JsonrpcApiVersion                          = 3
 )
 
@@ -51,6 +52,7 @@ type IClient interface {
 	GetDataByHash(p *types.DataHashParam) ([]byte, error)
 	GetProofForResult(p *types.ProofResultParam) ([][]byte, error)
 	GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error)
+	EstimateStep(param *types.TransactionParam) (*types.HexInt, error)
 
 	MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error
 	MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error
@@ -132,24 +134,20 @@ func (c *Client) Call(p *types.CallParam, r interface{}) error {
 	return err
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (txh *types.HexBytes, txr *types.TransactionResult, err error) {
-	ticker := time.NewTicker(time.Duration(DefaultGetTransactionResultPollingInterval) * time.Nanosecond)
-	retryLimit := 20
-	retryCounter := 0
-	txh = &thp.Hash
+func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.HexBytes, *types.TransactionResult, error) {
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
+	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			err = errors.New("Context Cancelled ReceiptWait Exiting ")
-			return
+			return &thp.Hash, nil, ctx.Err()
 		case <-ticker.C:
-			if retryCounter >= retryLimit {
-				err = errors.New("Retry Limit Exceeded while waiting for results of transaction")
-				return
+			if retryCounter >= providerTypes.MaxTxRetry {
+				return nil, nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
 			}
 			retryCounter++
-			txr, err = c.GetTransactionResult(thp)
+			txr, err := c.GetTransactionResult(thp)
 			if err != nil {
 				switch re := err.(type) {
 				case *jsonrpc.Error:
@@ -158,8 +156,9 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 						continue
 					}
 				}
+				return &thp.Hash, txr, err
 			}
-			return
+			return &thp.Hash, txr, nil
 		}
 	}
 }
@@ -227,7 +226,6 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 		switch t := v.(type) {
 		case *types.BlockNotification:
 			if err := cb(conn, t); err != nil {
-				// c.log.Debugf("MonitorBlock callback return err:%+v", err)
 				return err
 			}
 		case types.WSEvent:
@@ -469,9 +467,6 @@ func (opts IconOptions) Set(key, value string) {
 }
 
 func (opts IconOptions) Get(key string) string {
-	if opts == nil {
-		return ""
-	}
 	v := opts[key]
 	if len(v) == 0 {
 		return ""
@@ -483,19 +478,19 @@ func (opts IconOptions) Del(key string) {
 	delete(opts, key)
 }
 
-func (opts IconOptions) SetBool(key string, value bool) {
+func (opts *IconOptions) SetBool(key string, value bool) {
 	opts.Set(key, strconv.FormatBool(value))
 }
 
-func (opts IconOptions) GetBool(key string) (bool, error) {
+func (opts *IconOptions) GetBool(key string) (bool, error) {
 	return strconv.ParseBool(opts.Get(key))
 }
 
-func (opts IconOptions) SetInt(key string, v int64) {
+func (opts *IconOptions) SetInt(key string, v int64) {
 	opts.Set(key, strconv.FormatInt(v, 10))
 }
 
-func (opts IconOptions) GetInt(key string) (int64, error) {
+func (opts *IconOptions) GetInt(key string) (int64, error) {
 	return strconv.ParseInt(opts.Get(key), 10, 64)
 }
 
@@ -532,52 +527,37 @@ func NewIconOptionsByHeader(h http.Header) IconOptions {
 	return nil
 }
 
-func (c *Client) EstimateStep(param *types.TransactionParamForEstimate) (*types.HexInt, error) {
+func (c *Client) EstimateStep(param types.TransactionParam) (*types.HexInt, error) {
 	if len(c.DebugEndPoint) == 0 {
 		return nil, errors.New("UnavailableDebugEndPoint")
 	}
 	currTime := time.Now().UnixNano() / time.Hour.Microseconds()
 	param.Timestamp = types.NewHexInt(currTime)
-	var result types.HexInt
+	res := new(types.HexInt)
 	if _, err := c.DoURL(c.DebugEndPoint,
-		"debug_estimateStep", param, &result); err != nil {
+		"debug_estimateStep", param, res); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return res, nil
 }
 
-func NewClient(uri string, l *zap.Logger) *Client {
+func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {
 	// TODO options {MaxRetrySendTx, MaxRetryGetResult, MaxIdleConnsPerHost, Debug, Dump}
+	opts := IconOptions{
+		IconOptionsTimeout: "10s",
+		IconOptionsDebug:   "true",
+	}
 	tr := &http.Transport{MaxIdleConnsPerHost: 1000}
-	cl := &http.Client{Transport: tr}
-	apiClient := client.NewJsonRpcClient(cl, uri)
 	c := &Client{
-		JsonRpcClient: apiClient,
+		JsonRpcClient: client.NewJsonRpcClient(&http.Client{Transport: tr}, uri),
 		DebugEndPoint: guessDebugEndpoint(uri),
 		conns:         make(map[string]*websocket.Conn),
 		log:           l,
 	}
-	opts := IconOptions{}
-	opts.SetBool(IconOptionsDebug, true)
 	c.CustomHeader[HeaderKeyIconOptions] = opts.ToHeaderValue()
 	return c
 }
 
 func guessDebugEndpoint(endpoint string) string {
-	uo, err := url.Parse(endpoint)
-	if err != nil {
-		return ""
-	}
-	ps := strings.Split(uo.Path, "/")
-	for i, v := range ps {
-		if v == "api" {
-			if len(ps) > i+1 && ps[i+1] == "v3" {
-				ps[i+1] = "v3d"
-				uo.Path = strings.Join(ps, "/")
-				return uo.String()
-			}
-			break
-		}
-	}
-	return ""
+	return strings.Replace(endpoint, "v3", "v3d", 1)
 }

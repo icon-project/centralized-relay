@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
+
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
@@ -42,7 +44,7 @@ func configShowCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config show --home %s
-$ %s cfg list`, appName, defaultHome, appName)),
+$ %s cfg list`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, err := cmd.Flags().GetString(flagHome)
 			if err != nil {
@@ -98,51 +100,26 @@ func configInitCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config init --home %s
-$ %s cfg i`, appName, defaultHome, appName)),
+$ %s cfg i`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := cmd.Flags().GetString(flagHome)
+			if err := os.MkdirAll(a.homePath, os.ModePerm); err != nil {
+				return err
+			}
+			// Then create the file...
+			if _, err := os.Stat(a.configPath); err == nil {
+				return fmt.Errorf("config already exists: %s", a.configPath)
+			}
+			f, err := os.Create(a.configPath)
 			if err != nil {
 				return err
 			}
+			defer f.Close()
 
-			cfgDir := path.Join(home)
-			cfgPath := path.Join(cfgDir, "config.yaml")
-
-			// If the config doesn't exist...
-			if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
-				// And the config folder doesn't exist...
-				if _, err := os.Stat(cfgDir); os.IsNotExist(err) {
-					// And the home folder doesn't exist
-					if _, err := os.Stat(home); os.IsNotExist(err) {
-						// Create the home folder
-						if err = os.Mkdir(home, os.ModePerm); err != nil {
-							return err
-						}
-					}
-					// Create the home config folder
-					if err = os.Mkdir(cfgDir, os.ModePerm); err != nil {
-						return err
-					}
-				}
-
-				// Then create the file...
-				f, err := os.Create(cfgPath)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-
-				// And write the default config to that location...
-				if _, err = f.Write(defaultConfigYAML()); err != nil {
-					return err
-				}
-
-				// And return no error...
-				return nil
+			// And write the default config to that location...
+			if _, err = f.Write(defaultConfigYAML()); err != nil {
+				return err
 			}
-
-			// Otherwise, the config file exists, and an error is returned...
-			return fmt.Errorf("config already exists: %s", cfgPath)
+			return nil
 		},
 	}
 	return cmd
@@ -157,7 +134,8 @@ type GlobalConfig struct {
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		Timeout: "10s",
+		Timeout:  "10s",
+		KMSKeyID: "",
 	}
 }
 
@@ -198,8 +176,8 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	// build providers for each chain
 	chains := make(relayer.Chains)
 	for chainName, pcfg := range c.ProviderConfigs {
-		prov, err := pcfg.Value.(provider.ProviderConfig).NewProvider(
-			a.log.With(zap.String("provider_type", pcfg.Type)),
+		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
+			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
 			a.homePath, a.debug, chainName,
 		)
 		if err != nil {
@@ -227,8 +205,8 @@ type ProviderConfigs map[string]*ProviderConfigWrapper
 
 // ProviderConfigWrapper is an intermediary type for parsing arbitrary ProviderConfigs from json files and writing to json/yaml files
 type ProviderConfigWrapper struct {
-	Type  string                  `yaml:"type"  json:"type"`
-	Value provider.ProviderConfig `yaml:"value" json:"value"`
+	Type  string          `yaml:"type"  json:"type"`
+	Value provider.Config `yaml:"value" json:"value"`
 }
 
 // ProviderConfigYAMLWrapper is an intermediary type for parsing arbitrary ProviderConfigs from yaml files
@@ -241,14 +219,14 @@ type ProviderConfigYAMLWrapper struct {
 // NOTE: Add new ProviderConfig types in the map here with the key set equal to the type of ChainProvider (e.g. cosmos, substrate, etc.)
 func (pcw *ProviderConfigWrapper) UnmarshalJSON(data []byte) error {
 	customTypes := map[string]reflect.Type{
-		"icon": reflect.TypeOf(icon.IconProviderConfig{}),
-		"evm":  reflect.TypeOf(evm.EVMProviderConfig{}),
+		"icon": reflect.TypeOf(icon.Config{}),
+		"evm":  reflect.TypeOf(evm.Config{}),
 	}
 	val, err := UnmarshalJSONProviderConfig(data, customTypes)
 	if err != nil {
 		return err
 	}
-	pc := val.(provider.ProviderConfig)
+	pc := val.(provider.Config)
 	pcw.Value = pc
 	return nil
 }
@@ -269,9 +247,11 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 
 	switch iw.Type {
 	case "icon":
-		iw.Value = new(icon.IconProviderConfig)
+		iw.Value = new(icon.Config)
 	case "evm":
-		iw.Value = new(evm.EVMProviderConfig)
+		iw.Value = new(evm.Config)
+	case "cosmos":
+		iw.Value = new(wasm.ProviderConfig)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}
@@ -282,16 +262,16 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 // UnmarshalJSONProviderConfig contains the custom unmarshalling logic for ProviderConfig structs
 func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Type) (any, error) {
 	m := map[string]any{
-		"icon": reflect.TypeOf(icon.IconProviderConfig{}),
+		"icon": reflect.TypeOf(icon.Config{}),
 	}
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
 
 	typeName := m["type"].(string)
-	var provCfg provider.ProviderConfig
+	var provCfg provider.Config
 	if ty, found := customTypes[typeName]; found {
-		provCfg = reflect.New(ty).Interface().(provider.ProviderConfig)
+		provCfg = reflect.New(ty).Interface().(provider.Config)
 	}
 
 	valueBytes, err := json.Marshal(m["value"])
@@ -309,9 +289,9 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 	for _, chain := range c.Chains {
 		pcfgw := &ProviderConfigWrapper{
 			Type:  chain.ChainProvider.Type(),
-			Value: chain.ChainProvider.ProviderConfig(),
+			Value: chain.ChainProvider.Config(),
 		}
-		providers[chain.ChainProvider.ChainName()] = pcfgw
+		providers[chain.ChainProvider.Name()] = pcfgw
 	}
 	return &ConfigOutputWrapper{Global: c.Global, ProviderConfigs: providers}
 }
@@ -336,7 +316,7 @@ func (c Config) MustYAML() []byte {
 }
 
 // AddChain adds an additional chain to the config
-func (c *Config) AddChain(chain *relayer.Chain) (err error) {
+func (c *Config) AddChain(chain *relayer.Chain) error {
 	nId := chain.ChainProvider.NID()
 	if nId == "" {
 		return fmt.Errorf("chain ID cannot be empty")
@@ -345,6 +325,6 @@ func (c *Config) AddChain(chain *relayer.Chain) (err error) {
 	if chn != nil || err == nil {
 		return fmt.Errorf("chain with NID %s already exists in config", nId)
 	}
-	c.Chains[chain.ChainProvider.ChainName()] = chain
+	c.Chains[chain.ChainProvider.Name()] = chain
 	return nil
 }

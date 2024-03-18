@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
-	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -21,15 +19,15 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 	}
 }
 
-func (ip *IconProvider) prepareCallParams(methodName string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
+func (p *Provider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
 	}
 
 	callParam := &types.CallParam{
-		FromAddress: types.Address(fmt.Sprintf("hx%s", strings.Repeat("0", 40))),
-		ToAddress:   types.Address(ip.PCfg.ContractAddress),
+		FromAddress: types.Address(p.cfg.Address),
+		ToAddress:   types.Address(address),
 		DataType:    "call",
 		Data:        callData,
 	}
@@ -41,7 +39,7 @@ func (ip *IconProvider) prepareCallParams(methodName string, param map[string]in
 	return callParam
 }
 
-func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
+func (ip *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	block, err := ip.client.GetLastBlock()
 	if err != nil {
 		return 0, err
@@ -49,34 +47,15 @@ func (ip *IconProvider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return uint64(block.Height), nil
 }
 
-func (ip *IconProvider) ShouldReceiveMessage(ctx context.Context, messagekey providerTypes.Message) (bool, error) {
+func (ip *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) ShouldSendMessage(ctx context.Context, messageKey providerTypes.Message) (bool, error) {
+func (ip *Provider) ShouldSendMessage(ctx context.Context, messageKey *providerTypes.Message) (bool, error) {
 	return true, nil
 }
 
-func (ip *IconProvider) MessageReceived(ctx context.Context, messageKey providerTypes.MessageKey) (bool, error) {
-	callParam := ip.prepareCallParams(MethodGetReceipts, map[string]interface{}{
-		"srcNetwork": messageKey.Src,
-		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
-	})
-
-	var status types.HexInt
-	err := ip.client.Call(callParam, &status)
-	if err != nil {
-		return false, fmt.Errorf("MessageReceived: %v", err)
-	}
-
-	if status == types.NewHexInt(1) {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
+func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
 	param := types.AddressParam{
 		Address: types.Address(addr),
 	}
@@ -84,24 +63,17 @@ func (ip *IconProvider) QueryBalance(ctx context.Context, addr string) (*provide
 	if err != nil {
 		return nil, err
 	}
-	coin := providerTypes.NewCoin("ICX", balance.Uint64())
-	return &coin, nil
+	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
-func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) (*providerTypes.Message, error) {
+func (ip *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
 	ip.log.Info("generating message", zap.Any("messagekey", key))
 	if key == nil {
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
 
-	eventName := ""
-	switch key.EventType {
-	case events.EmitMessage:
-		eventName = EmitMessage
-	}
-
 	block, err := ip.client.GetBlockByHeight(&types.BlockHeightParam{
-		Height: types.NewHexInt(int64(key.MsgHeight)),
+		Height: types.NewHexInt(int64(key.Height)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("GenerateMessage:GetBlockByHeight %v", err)
@@ -115,14 +87,25 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
 		}
 
+		var messages []*providerTypes.Message
+
 		for _, el := range txResult.EventLogs {
-			if el.Addr != types.Address(ip.PCfg.ContractAddress) &&
-				len(el.Indexed) != 3 && len(el.Data) != 1 &&
-				el.Indexed[0] != eventName {
-				continue
+			var dst string
+			switch el.Indexed[0] {
+			case EmitMessage:
+				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]) &&
+					len(el.Indexed) != 3 && len(el.Data) != 1 {
+					continue
+				}
+				dst = el.Indexed[1]
+			case CallMessage:
+				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.XcallContract]) &&
+					len(el.Indexed) != 4 && len(el.Data) != 1 {
+					continue
+				}
+				dst = ip.NID()
 			}
 
-			dst := el.Indexed[1]
 			sn, ok := big.NewInt(0).SetString(el.Indexed[2], 0)
 			if !ok {
 				ip.log.Error("GenerateMessage: error decoding int value ")
@@ -136,15 +119,17 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 				continue
 			}
 
-			return &providerTypes.Message{
-				MessageHeight: key.MsgHeight,
+			msg := &providerTypes.Message{
+				MessageHeight: key.Height,
 				EventType:     key.EventType,
 				Dst:           dst,
 				Src:           key.Src,
 				Data:          dataValue,
 				Sn:            sn.Uint64(),
-			}, nil
+			}
+			messages = append(messages, msg)
 		}
+		return messages, nil
 	}
 
 	return nil, fmt.Errorf("error generating message: %v", key)
@@ -152,8 +137,8 @@ func (ip *IconProvider) GenerateMessage(ctx context.Context, key *providerTypes.
 
 // QueryTransactionReceipt ->
 // TxHash should be in hex string
-func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
-	res, err := icp.client.GetTransactionResult(&types.TransactionHashParam{
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
+	res, err := p.client.GetTransactionResult(&types.TransactionHashParam{
 		Hash: types.HexBytes(txHash),
 	})
 	if err != nil {
@@ -170,27 +155,10 @@ func (icp *IconProvider) QueryTransactionReceipt(ctx context.Context, txHash str
 		return nil, fmt.Errorf("QueryTransactionReceipt: bigIntConversion %v", err)
 	}
 
-	receipt := providerTypes.Receipt{
+	receipt := &providerTypes.Receipt{
 		TxHash: txHash,
 		Height: height.Uint64(),
+		Status: status == 1,
 	}
-	if status == 1 {
-		receipt.Status = true
-	}
-	return &receipt, nil
-}
-
-// SetAdmin sets the admin address of the bridge contract
-func (ip *IconProvider) SetAdmin(ctx context.Context, admin string) error {
-	callParam := map[string]interface{}{
-		"_relayer": admin,
-	}
-	message := ip.NewIconMessage(callParam, "setAdmin")
-
-	data, err := ip.SendTransaction(ctx, message)
-	if err != nil {
-		return fmt.Errorf("SetAdmin: %v", err)
-	}
-	ip.log.Info("SetAdmin: tx sent", zap.String("txHash", string(data)))
-	return nil
+	return receipt, nil
 }

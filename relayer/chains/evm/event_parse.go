@@ -8,14 +8,15 @@ import (
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
-	if len(log.Topics) != 1 {
+func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message, error) {
+	if len(log.Topics) < 1 {
 		return nil, fmt.Errorf("topic length mismatch")
 	}
 	topic := log.Topics[0]
 
-	if topic == crypto.Keccak256Hash([]byte(EmitMessageSig)) {
-		msg, err := p.client.ParseMessage(log)
+	switch topic {
+	case crypto.Keccak256Hash([]byte(EmitMessage)):
+		msg, err := p.client.ParseConnectionMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
@@ -24,9 +25,24 @@ func (p *EVMProvider) getRelayMessageFromLog(log types.Log) (*providerTypes.Mess
 			Src:           p.NID(),
 			Sn:            msg.Sn.Uint64(),
 			MessageHeight: log.BlockNumber,
-			EventType:     eventSigToEventType[topic],
+			EventType:     p.GetEventName(EmitMessage),
 			Data:          msg.Msg,
 		}, nil
+	case crypto.Keccak256Hash([]byte(CallMessage)):
+		msg, err := p.client.ParseXcallMessage(log)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing message:%v ", err)
+		}
+		return &providerTypes.Message{
+			Dst:           p.NID(),
+			Src:           p.NID(),
+			Sn:            msg.Sn.Uint64(),
+			MessageHeight: log.BlockNumber,
+			EventType:     p.GetEventName(CallMessage),
+			Data:          msg.Data,
+			ReqID:         msg.ReqId.Uint64(),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown topic")
 	}
-	return nil, fmt.Errorf("failed to match eventname")
 }

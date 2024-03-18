@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetMockIconProvider() (*IconProvider, error) {
-	pc := IconProviderConfig{
+func GetMockIconProvider() (*Provider, error) {
+	pc := Config{
 		NID:             "0x2.icon",
 		NetworkID:       2,
-		KeyStore:        testKeyAddr,
+		Address:         testKeyAddr,
 		RPCUrl:          "https://lisbon.net.solidwallet.io/api/v3/",
 		Password:        testKeyPassword,
 		StartHeight:     0,
@@ -27,7 +27,7 @@ func GetMockIconProvider() (*IconProvider, error) {
 		return nil, err
 	}
 
-	iconProvider, ok := prov.(*IconProvider)
+	iconProvider, ok := prov.(*Provider)
 	if !ok {
 		return nil, fmt.Errorf("unbale to type case to icon chain provider")
 	}
@@ -70,7 +70,7 @@ func TestGenerateMessage(t *testing.T) {
 	pro, err := GetMockIconProvider()
 	assert.NoError(t, err)
 	msg, err := pro.GenerateMessage(context.TODO(), &relayerTypes.MessageKeyWithMessageHeight{
-		MessageKey: relayerTypes.MessageKey{Sn: 45, Src: "0x2.icon", Dst: "0x13881.mumbai", EventType: "emitMessage"}, MsgHeight: 31969244,
+		MessageKey: relayerTypes.MessageKey{Sn: 45, Src: "0x2.icon", Dst: "0x13881.mumbai", EventType: "emitMessage"}, Height: 31969244,
 	})
 	assert.NoError(t, err)
 	fmt.Println("message is ", msg)
@@ -78,5 +78,4 @@ func TestGenerateMessage(t *testing.T) {
 	// 42 0x2.icon 0x13881.mumbai emitMessage} 31968628
 
 	// {"Sn":45,"Src":"0x2.icon","Dst":"0x13881.mumbai","EventType":"emitMessage","MsgHeight":31969244}
-
 }

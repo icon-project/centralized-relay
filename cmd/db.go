@@ -42,14 +42,13 @@ func dbCmd(a *appState) *cobra.Command {
 			return db.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Pruning the database...")
 			client, err := db.getSocket(a)
 			if err != nil {
 				return err
 			}
 			result, err := client.PruneDB()
 			if err != nil {
-				fmt.Printf("Pruning the database: %s\n", err)
+				return err
 			}
 			printLabels("Status")
 			printValues(result.Status)
@@ -84,7 +83,6 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 			return d.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Listing messages stored in the database...")
 			client, err := d.getSocket(app)
 			if err != nil {
 				return err
@@ -119,12 +117,11 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			return d.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Relaying messages stored in the database...")
 			client, err := d.getSocket(app)
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.sn)
+			result, err := client.RelayMessage(d.chain, d.height, d.sn)
 			if err != nil {
 				return err
 			}
@@ -147,7 +144,6 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			return d.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("removing messages stored in the database...")
 			client, err := d.getSocket(app)
 			if err != nil {
 				return err
@@ -242,7 +238,6 @@ func (d *dbState) revertMessage(app *appState) *cobra.Command {
 			return d.closeSocket()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Reverting messages stored in the database...")
 			client, err := d.getSocket(app)
 			if err != nil {
 				return err

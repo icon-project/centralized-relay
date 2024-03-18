@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,8 +20,8 @@ type keystoreState struct {
 	path            string
 }
 
-func newKeyStoreState(ctx context.Context) (*keystoreState, error) {
-	return &keystoreState{}, nil
+func newKeyStoreState() (*keystoreState, error) {
+	return new(keystoreState), nil
 }
 
 func keystoreCmd(a *appState) *cobra.Command {
@@ -34,7 +32,7 @@ func keystoreCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.MaximumNArgs(0)),
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s keystore [command]`, appName)),
 	}
-	state, err := newKeyStoreState(ks.Context())
+	state, err := newKeyStoreState()
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +55,7 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("KMS key created: %s", a.config.Global.KMSKeyID))
+			fmt.Fprintf(os.Stdout, "KMS key created: %s\n", a.config.Global.KMSKeyID)
 			return nil
 		},
 	}
@@ -77,18 +75,11 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err := os.MkdirAll(kestorePath, 0o755); err != nil {
 				return err
 			}
-			addr, err := chain.ChainProvider.NewKeyStore(kestorePath, k.password)
+			addr, err := chain.ChainProvider.NewKeystore(k.password)
 			if err != nil {
 				return err
 			}
-			data, err := a.kms.Encrypt(cmd.Context(), []byte(k.password))
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), data, 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("Created and encrypted: %s", addr))
+			fmt.Fprintf(os.Stdout, "Created and encrypted: %s\n", addr)
 			return nil
 		},
 	}
@@ -112,12 +103,11 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wallets := make(map[string]*types.Coin, len(files))
+			wallets := make(map[string]*types.Coin)
 			for _, file := range files {
 				name := file.Name()
-				if strings.HasSuffix(name, ".json") {
-					wallet := strings.TrimSuffix(name, ".json")
-					// denote current wallet with *
+				if strings.HasSuffix(name, ".pass") {
+					wallet := strings.TrimSuffix(name, ".pass")
 					balance, err := chain.ChainProvider.QueryBalance(cmd.Context(), wallet)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "failed to query balance for %s: %v\n", wallet, err)
@@ -127,7 +117,7 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 			}
 			printLabels("Wallet", "Balance")
 			for wallet, balance := range wallets {
-				if wallet == chain.ChainProvider.ProviderConfig().GetWallet() {
+				if wallet == chain.ChainProvider.Config().GetWallet() {
 					wallet = "* -> " + wallet
 				}
 				printValues(wallet, balance.Calculate())
@@ -154,33 +144,13 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 				return err
 			}
 			if _, err := os.Stat(k.path); os.IsNotExist(err) {
-				return fmt.Errorf("keystore not found")
+				return fmt.Errorf("file not found")
 			}
-			addr, err := chain.ChainProvider.AddressFromKeyStore(k.path, k.password)
+			addr, err := chain.ChainProvider.ImportKeystore(cmd.Context(), k.path, k.password)
 			if err != nil {
 				return err
 			}
-			data, err := os.Open(k.path)
-			if err != nil {
-				return err
-			}
-			defer data.Close()
-			keystore, err := os.OpenFile(filepath.Join(kestorePath, fmt.Sprintf("%s.json", addr)), os.O_CREATE|os.O_WRONLY, 0o644)
-			if err != nil {
-				return err
-			}
-			defer keystore.Close()
-			if _, err := io.Copy(keystore, data); err != nil {
-				return err
-			}
-			secret, err := a.kms.Encrypt(cmd.Context(), []byte(k.password))
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(kestorePath, fmt.Sprintf("%s.password", addr)), secret, 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintln(os.Stdout, "KMS Key imported and Encrypted")
+			fmt.Fprintf(os.Stdout, "Key imported and Encrypted: %s\n", addr)
 			return nil
 		},
 	}
@@ -201,13 +171,18 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 				return err
 			}
 			kestorePath := filepath.Join(a.homePath, "keystore", k.chain, k.address)
-			if _, err := os.Stat(kestorePath + ".json"); os.IsNotExist(err) {
+			if _, err := os.Stat(kestorePath); os.IsNotExist(err) {
 				return fmt.Errorf("keystore not found")
 			}
-			if _, err := os.Stat(kestorePath + ".password"); os.IsNotExist(err) {
+			if _, err := os.Stat(kestorePath + ".pass"); os.IsNotExist(err) {
 				return fmt.Errorf("password not found")
 			}
-			cf := chain.ChainProvider.ProviderConfig()
+			cf := chain.ChainProvider.Config()
+			// check if it is the same wallet
+			if cf.GetWallet() == k.address {
+				fmt.Fprintf(os.Stdout, "Wallet already configured: %s\n", k.address)
+				return nil
+			}
 			cf.SetWallet(k.address)
 			if err := a.config.Save(a.homePath); err != nil {
 				return err
@@ -215,7 +190,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stdout, "Wallet configured: %s", cf.GetWallet())
+			fmt.Fprintf(os.Stdout, "Wallet configured: %s\n", k.address)
 			return nil
 		},
 	}
@@ -230,7 +205,9 @@ func (k *keystoreState) changePassword(a *appState) *cobra.Command {
 		Use:   "change-password",
 		Short: "change password",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: implement change password
+			if k.password != k.confirmPassword {
+				return fmt.Errorf("password and confirm password does not match")
+			}
 			return fmt.Errorf("not implemented")
 		},
 	}
@@ -255,7 +232,7 @@ func (k *keystoreState) passwordFlag(cmd *cobra.Command, isConfirmRequired bool)
 		panic(err)
 	}
 	if isConfirmRequired {
-		cmd.Flags().StringVarP(&k.password, "confirm", "c", "", "confirm password for keystore")
+		cmd.Flags().StringVarP(&k.confirmPassword, "confirm", "c", "", "confirm password for keystore")
 		if err := cmd.MarkFlagRequired("confirm"); err != nil {
 			panic(err)
 		}

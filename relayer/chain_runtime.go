@@ -11,7 +11,7 @@ import (
 
 type ChainRuntime struct {
 	Provider        provider.ChainProvider
-	listenerChan    chan types.BlockInfo
+	listenerChan    chan *types.BlockInfo
 	log             *zap.Logger
 	LastBlockHeight uint64
 	LastSavedHeight uint64
@@ -25,23 +25,19 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 	return &ChainRuntime{
 		log:          log.With(zap.String("nid ", chain.NID())),
 		Provider:     chain.ChainProvider,
-		listenerChan: make(chan types.BlockInfo, listenerChannelBufferSize),
+		listenerChan: make(chan *types.BlockInfo, listenerChannelBufferSize),
 		MessageCache: types.NewMessageCache(),
 	}, nil
 }
 
 func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Message) {
-	if len(messages) == 0 {
-		return
-	}
-
 	for _, m := range messages {
 		routeMessage := types.NewRouteMessage(m)
 		r.MessageCache.Add(routeMessage)
 	}
 }
 
-func (r *ChainRuntime) clearMessageFromCache(msgs []types.MessageKey) {
+func (r *ChainRuntime) clearMessageFromCache(msgs []*types.MessageKey) {
 	for _, m := range msgs {
 		r.MessageCache.Remove(m)
 	}
@@ -52,19 +48,23 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	if routeMessage.GetIsProcessing() {
+	if routeMessage.IsProcessing() {
 		return false
 	}
 
-	ok, _ := dst.Provider.ShouldReceiveMessage(ctx, *routeMessage.Message)
-	if !ok {
+	ok, err := dst.Provider.ShouldReceiveMessage(ctx, routeMessage.Message)
+	if !ok || err != nil {
 		return false
 	}
 
-	ok, _ = src.Provider.ShouldSendMessage(ctx, *routeMessage.Message)
-	if !ok {
+	ok, err = src.Provider.ShouldSendMessage(ctx, routeMessage.Message)
+	if !ok || err != nil {
 		return false
 	}
 
 	return true
+}
+
+func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
+	return !msg.IsProcessing()
 }

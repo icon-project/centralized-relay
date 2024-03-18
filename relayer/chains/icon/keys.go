@@ -2,28 +2,28 @@ package icon
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
-	"path/filepath"
-	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/goloop/common/crypto"
 	"github.com/icon-project/goloop/common/wallet"
 )
 
-func (p *IconProvider) RestoreKeyStore(ctx context.Context, homePath string, client kms.KMS) error {
-	path := path.Join(homePath, "keystore", p.NID(), p.PCfg.KeyStore)
-	keystoreJson, err := os.ReadFile(fmt.Sprintf("%s.json", path))
+func (p *Provider) RestoreKeystore(ctx context.Context) error {
+	path := p.keystorePath(p.cfg.Address)
+	keystoreCipher, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	authCipher, err := os.ReadFile(fmt.Sprintf("%s.password", path))
+	keystoreJson, err := p.kms.Decrypt(ctx, keystoreCipher)
 	if err != nil {
 		return err
 	}
-	secret, err := client.Decrypt(ctx, authCipher)
+	authCipher, err := os.ReadFile(path + ".pass")
+	if err != nil {
+		return err
+	}
+	secret, err := p.kms.Decrypt(ctx, authCipher)
 	if err != nil {
 		return err
 	}
@@ -35,30 +35,23 @@ func (p *IconProvider) RestoreKeyStore(ctx context.Context, homePath string, cli
 	return nil
 }
 
-type OnlyAddr struct {
-	Address string `json:"address"`
+// keystorePath is the path to the keystore file
+func (p *Provider) keystorePath(addr string) string {
+	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 }
 
-func (p *IconProvider) AddressFromKeyStore(keystorePath, password string) (string, error) {
-	data, err := os.ReadFile(keystorePath)
-	if err != nil {
-		return "", err
-	}
-	wallet, err := wallet.NewFromKeyStore(data, []byte(password))
-	if err != nil {
-		return "", err
-	}
-	return wallet.Address().String(), nil
-}
-
-func (p *IconProvider) NewKeyStore(dir, password string) (string, error) {
+func (p *Provider) NewKeystore(password string) (string, error) {
 	priv, _ := crypto.GenerateKeyPair()
 	data, err := wallet.EncryptKeyAsKeyStore(priv, []byte(password))
 	if err != nil {
 		return "", err
 	}
-	tempKey := filepath.Join(os.TempDir(), time.Now().Format("20060102150405"))
-	if err := os.WriteFile(tempKey, data, 0o644); err != nil {
+	keystoreEncrypted, err := p.kms.Encrypt(context.Background(), data)
+	if err != nil {
+		return "", err
+	}
+	passwordEncrypted, err := p.kms.Encrypt(context.Background(), []byte(password))
+	if err != nil {
 		return "", err
 	}
 	wallet, err := wallet.NewFromKeyStore(data, []byte(password))
@@ -66,9 +59,40 @@ func (p *IconProvider) NewKeyStore(dir, password string) (string, error) {
 		return "", err
 	}
 	addr := wallet.Address().String()
-	keystorePath := path.Join(dir, fmt.Sprintf("%s.json", addr))
-	if err := os.WriteFile(keystorePath, data, 0o644); err != nil {
+	keystorePath := p.keystorePath(addr)
+	if err := os.WriteFile(keystorePath, keystoreEncrypted, 0o644); err != nil {
 		return "", err
 	}
-	return addr, os.Remove(tempKey)
+	if err := os.WriteFile(keystorePath+".pass", passwordEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	return addr, nil
+}
+
+func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase string) (string, error) {
+	keystore, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", err
+	}
+	wallet, err := wallet.NewFromKeyStore(keystore, []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	addr := wallet.Address().String()
+	keyStoreEncrypted, err := p.kms.Encrypt(ctx, keystore)
+	if err != nil {
+		return "", err
+	}
+	keystorePath := p.keystorePath(addr)
+	if err := os.WriteFile(keystorePath, keyStoreEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	passwordEncrypted, err := p.kms.Encrypt(ctx, []byte(passphrase))
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(keystorePath+".pass", passwordEncrypted, 0o644); err != nil {
+		return "", err
+	}
+	return addr, nil
 }

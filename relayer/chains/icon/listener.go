@@ -31,13 +31,13 @@ type btpBlockRequest struct {
 	indexes  [][]types.HexInt
 	events   [][][]types.HexInt
 	err      error
-	retry    int
+	retry    uint8
 	response *btpBlockResponse
 }
 
 // TODO: check for balance and if the balance is low show info balance is low
 // starting listener
-func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan providerTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
 	errCh := make(chan error)                                            // error channel
 	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
 	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
@@ -56,37 +56,35 @@ func (icp *IconProvider) Listener(ctx context.Context, lastSavedHeight uint64, i
 		}
 	}
 
-	processedheight, err := icp.StartFromHeight(ctx, lastSavedHeight)
+	processedheight, err := p.StartFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return errors.Wrapf(err, "failed to calculate start height")
 	}
 
-	icp.log.Info("Start querying from height", zap.Int64("height", processedheight))
+	p.log.Info("Start from height", zap.Int64("height", processedheight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 	// subscribe to monitor block
-	ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 	reconnect()
 
 	blockReq := &types.BlockRequest{
 		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: GetMonitorEventFilters(icp.PCfg.ContractAddress, MonitorEventsList),
+		EventFilters: p.GetMonitorEventFilters(),
 	}
 
 loop:
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case err := <-errCh:
 			return err
 
 		case <-reconnectCh:
-			cancelMonitorBlock()
-			ctxMonitorBlock, cancelMonitorBlock = context.WithCancel(ctx)
+			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 
 			go func(ctx context.Context, cancel context.CancelFunc) {
 				blockReq.Height = types.NewHexInt(int64(processedheight))
-				icp.log.Debug("try to reconnect from", zap.Int64("height", processedheight))
-				err := icp.client.MonitorBlock(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
+				p.log.Debug("try to reconnect from", zap.Int64("height", processedheight))
+				err := p.client.MonitorBlock(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						btpBlockNotifCh <- v
 					}
@@ -99,20 +97,20 @@ loop:
 					}
 					time.Sleep(time.Second * 5)
 					reconnect()
-					icp.log.Warn("error occured during monitor block", zap.Error(err))
+					p.log.Warn("error occured during monitor block", zap.Error(err))
 				}
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
 			for ; br != nil; processedheight++ {
-				icp.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
+				p.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
 
-				//note: because of monitorLoop height should be subtract by 1
+				// note: because of monitorLoop height should be subtract by 1
 				height := br.Height - 1
 
-				messages := icp.parseMessagesFromEventlogs(icp.log, br.EventLogs, uint64(height))
+				messages := p.parseMessagesFromEventlogs(p.log, br.EventLogs, uint64(height))
 
 				// TODO: check for the concurrency
-				incoming <- providerTypes.BlockInfo{
+				incoming <- &providerTypes.BlockInfo{
 					Messages: messages,
 					Height:   uint64(height),
 				}
@@ -137,7 +135,7 @@ loop:
 					if err != nil {
 						return err
 					} else if height != processedheight+i {
-						icp.log.Warn("Reconnect: missing block notification",
+						p.log.Warn("Reconnect: missing block notification",
 							zap.Int64("got", height),
 							zap.Int64("expected", processedheight+i),
 						)
@@ -150,7 +148,7 @@ loop:
 						hash:    bn.Hash,
 						indexes: bn.Indexes,
 						events:  bn.Events,
-						retry:   maxRetires,
+						retry:   providerTypes.MaxTxRetry,
 					}
 					if bn = nil; len(btpBlockNotifCh) > 0 && len(requestCh) < cap(requestCh) {
 						bn = <-btpBlockNotifCh
@@ -167,7 +165,7 @@ loop:
 							requestCh <- request
 							continue
 						}
-						icp.log.Info("Request error ",
+						p.log.Info("Request error ",
 							zap.Any("height", request.height),
 							zap.Error(request.err))
 						brs = append(brs, nil)
@@ -180,8 +178,7 @@ loop:
 							close(requestCh)
 						}
 					default:
-						go icp.handleBTPBlockRequest(request, requestCh)
-
+						go p.handleBlockRequest(request, requestCh)
 					}
 				}
 				// filter nil
@@ -209,11 +206,8 @@ loop:
 	}
 }
 
-func (icp *IconProvider) handleBTPBlockRequest(
-	request *btpBlockRequest, requestCh chan *btpBlockRequest,
-) {
+func (p *Provider) handleBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
 	defer func() {
-		time.Sleep(500 * time.Millisecond)
 		requestCh <- request
 	}()
 
@@ -230,7 +224,7 @@ func (icp *IconProvider) handleBTPBlockRequest(
 
 	containsEventlogs := len(request.indexes) > 0 && len(request.events) > 0
 	if containsEventlogs {
-		blockHeader, err := icp.client.GetBlockHeaderByHeight(request.height)
+		blockHeader, err := p.client.GetBlockHeaderByHeight(request.height)
 		if err != nil {
 			request.err = errors.Wrapf(request.err, "getBlockHeader: %v", err)
 			return
@@ -241,19 +235,18 @@ func (icp *IconProvider) handleBTPBlockRequest(
 		if err != nil {
 			request.err = errors.Wrapf(err, "BlockHeaderResult.UnmarshalFromBytes: %v", err)
 			return
-
 		}
 
 		var eventlogs []*types.EventLog
 		for id := 0; id < len(request.indexes); id++ {
 			for i, index := range request.indexes[id] {
-				p := &types.ProofEventsParam{
+				proof := &types.ProofEventsParam{
 					Index:     index,
 					BlockHash: request.hash,
 					Events:    request.events[id][i],
 				}
 
-				proofs, err := icp.client.GetProofForEvents(p)
+				proofs, err := p.client.GetProofForEvents(proof)
 				if err != nil {
 					request.err = errors.Wrapf(err, "GetProofForEvents: %v", err)
 					return
@@ -274,8 +267,8 @@ func (icp *IconProvider) handleBTPBlockRequest(
 					return
 				}
 
-				for j := 0; j < len(p.Events); j++ {
-					serializedEventLog, err := MptProve(p.Events[j], proofs[j+1], common.HexBytes(result.EventLogsHash))
+				for j := 0; j < len(proof.Events); j++ {
+					serializedEventLog, err := MptProve(proof.Events[j], proofs[j+1], common.HexBytes(result.EventLogsHash))
 					if err != nil {
 						request.err = errors.Wrapf(err, "event.MPTProve: %v", err)
 						return
@@ -286,26 +279,29 @@ func (icp *IconProvider) handleBTPBlockRequest(
 						request.err = errors.Wrapf(err, "event.UnmarshalFromBytes: %v", err)
 						return
 					}
-					icp.log.Info("Detected eventlog ", zap.Int64("height", request.height),
-						zap.String("eventlog", EventNameToType[string(el.Indexed[0])]))
+					p.log.Info("Detected eventlog",
+						zap.Int64("height", request.height),
+						zap.String("target_network", string(el.Indexed[1])),
+						zap.ByteString("sn", el.Indexed[2]),
+						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
+					)
 					eventlogs = append(eventlogs, el)
 				}
-
 			}
 		}
 		request.response.EventLogs = eventlogs
 	}
 }
 
-func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
-	latestHeight, err := icp.QueryLatestHeight(ctx)
+func (p *Provider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) (int64, error) {
+	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	if icp.PCfg.StartHeight > latestHeight {
-		icp.log.Error("start height provided on config cannot be greater than latest height",
-			zap.Uint64("start-height", icp.PCfg.StartHeight),
+	if p.cfg.StartHeight > latestHeight {
+		p.log.Error("start height provided on config cannot be greater than latest height",
+			zap.Uint64("start-height", p.cfg.StartHeight),
 			zap.Int64("latest-height", int64(latestHeight)),
 		)
 	}
@@ -316,8 +312,8 @@ func (icp *IconProvider) StartFromHeight(ctx context.Context, lastSavedHeight ui
 	}
 
 	// priority1: startHeight from config
-	if icp.PCfg.StartHeight != 0 && icp.PCfg.StartHeight < latestHeight {
-		return int64(icp.PCfg.StartHeight), nil
+	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestHeight {
+		return int64(p.cfg.StartHeight), nil
 	}
 
 	// priority3: latest height

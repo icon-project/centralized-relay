@@ -3,16 +3,16 @@ package evm
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
-	"sync"
+	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
-	types "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -21,35 +21,42 @@ import (
 )
 
 const (
-	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 10
-	GasPriceRatio            = 10.0
+	RPCCallRetry                               = 5
+	MaxGasPriceInceremtRetry                   = 5
+	GasPriceRatio                              = 10.0
+	DefaultGetTransactionResultPollingInterval = time.Millisecond * 500
 )
 
-func newClient(url string, contractAddress string, l *zap.Logger) (IClient, error) {
+func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {
 	clrpc, err := rpc.Dial(url)
 	if err != nil {
 		return nil, err
 	}
 	cleth := ethclient.NewClient(clrpc)
 
-	bridgeContract, err := bridgeContract.NewAbi(common.HexToAddress(contractAddress), cleth)
+	connection, err := bridgeContract.NewConnection(connectionContract, cleth)
+	if err != nil {
+		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
+	}
+
+	xcall, err := bridgeContract.NewXcall(XcallContract, cleth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
 
 	// getting the chain id
-	evmChainId, err := cleth.ChainID(context.TODO())
+	evmChainId, err := cleth.ChainID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		log:            l,
-		rpc:            clrpc,
-		eth:            cleth,
-		EVMChainID:     evmChainId,
-		bridgeContract: bridgeContract,
+		log:        l,
+		rpc:        clrpc,
+		eth:        cleth,
+		EVMChainID: evmChainId,
+		connection: connection,
+		xcall:      xcall,
 	}, nil
 }
 
@@ -60,8 +67,9 @@ type Client struct {
 	eth      *ethclient.Client
 	verifier *Client
 	// evm chain ID
-	EVMChainID     *big.Int
-	bridgeContract *bridgeContract.Abi
+	EVMChainID *big.Int
+	connection *bridgeContract.Connection
+	xcall      *bridgeContract.Xcall
 }
 
 type IClient interface {
@@ -71,40 +79,45 @@ type IClient interface {
 	GetBlockByHash(hash common.Hash) (*types.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error)
-	GetMedianGasPriceForBlock(ctx context.Context) (gasPrice *big.Int, gasHeight *big.Int, err error)
 	GetChainID() *big.Int
 
 	// ethClient
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
-	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
+	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 
 	// transaction
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
 
-	// abiContract
-	ParseMessage(log ethTypes.Log) (*bridgeContract.AbiMessage, error)
+	// abiContract for connection
+	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
 	SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error)
 	ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error)
 	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
 	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
 	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
+	GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error)
+	SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error)
+	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
+
+	// abiContract for xcall
+	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
+	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
-func (cl *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
-	mu := new(sync.Mutex)
-	mu.Lock()
-	defer mu.Unlock()
-	return cl.eth.NonceAt(ctx, account, blockNumber)
-}
-
-func (cl *Client) ParseMessage(log ethTypes.Log) (*bridgeContract.AbiMessage, error) {
-	return cl.bridgeContract.ParseMessage(log)
+func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+	nonce, err := c.eth.NonceAt(ctx, account, blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return new(big.Int).SetUint64(nonce), nil
 }
 
 func (cl *Client) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
@@ -155,12 +168,8 @@ func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 	defer cancel()
-	var hb types.Block
-	err := cl.rpc.CallContext(ctx, &hb, "eth_getBlockByHash", hash, false)
-	if err != nil {
-		return nil, err
-	}
-	return &hb, nil
+	hb := new(types.Block)
+	return hb, cl.rpc.CallContext(ctx, hb, "eth_getBlockByHash", hash, false)
 }
 
 func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {
@@ -185,11 +194,11 @@ func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) 
 		txh   string
 		v     *ethTypes.Receipt
 		err   error
-		retry int
+		retry uint8
 	}
 	qch := make(chan *rcq, len(txhs))
 	for _, txh := range txhs {
-		qch <- &rcq{txh, nil, nil, RPCCallRetry}
+		qch <- &rcq{txh, nil, nil, providerTypes.MaxTxRetry}
 	}
 	rmap := make(map[string]*ethTypes.Receipt)
 	for q := range qch {
@@ -230,37 +239,6 @@ func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) 
 	return receipts, nil
 }
 
-func (cl *Client) GetMedianGasPriceForBlock(ctx context.Context) (gasPrice *big.Int, gasHeight *big.Int, err error) {
-	c := IClient(cl)
-
-	gasPrice = big.NewInt(0)
-	header, err := c.GetHeaderByHeight(ctx, nil)
-	if err != nil {
-		err = errors.Wrapf(err, "GetHeaderByNumber(height:latest) Err: %v", err)
-		return
-	}
-	height := header.Number
-	txnCount, err := c.TransactionCount(ctx, header.Hash())
-	if err != nil {
-		err = errors.Wrapf(err, "GetTransactionCount(height:%v, headerHash: %v) Err: %v", height, header.Hash(), err)
-		return
-	} else if err == nil && txnCount == 0 {
-		return nil, nil, fmt.Errorf("TransactionCount is zero for height(%v, headerHash %v)", height, header.Hash())
-	}
-	// txnF, err := c.eth.TransactionInBlock(ctx, header.Hash(), 0)
-	// if err != nil {
-	// 	return nil, errors.Wrapf(err, "GetTransactionInBlock(headerHash: %v, height: %v Index: %v) Err: %v", header.Hash(), height, 0, err)
-	// }
-	txnS, err := c.TransactionInBlock(ctx, header.Hash(), uint(math.Floor(float64(txnCount)/2)))
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "GetTransactionInBlock(headerHash: %v, height: %v Index: %v) Err: %v", header.Hash(), height, txnCount-1, err)
-	}
-
-	gasPrice = txnS.GasPrice()
-	gasHeight = header.Number
-	return
-}
-
 func (c *Client) GetChainID() *big.Int {
 	return c.EVMChainID
 }
@@ -273,12 +251,16 @@ func (c *Client) Log() *zap.Logger {
 	return c.log
 }
 
+func (cl *Client) ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error) {
+	return cl.connection.ParseMessage(log)
+}
+
 func (c *Client) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _sn *big.Int, _msg []byte) (*ethTypes.Transaction, error) {
-	return c.bridgeContract.SendMessage(opts, _to, _svc, _sn, _msg)
+	return c.connection.SendMessage(opts, _to, _svc, _sn, _msg)
 }
 
 func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error) {
-	return c.bridgeContract.RecvMessage(opts, srcNID, sn, msg)
+	return c.connection.RecvMessage(opts, srcNID, sn, msg)
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {
@@ -286,13 +268,45 @@ func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) 
 }
 
 func (c *Client) MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error) {
-	return c.bridgeContract.GetReceipt(opts, srcNetwork, _connSn)
+	return c.connection.GetReceipt(opts, srcNetwork, _connSn)
 }
 
 func (c *Client) SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error) {
-	return c.bridgeContract.SetAdmin(opts, newAdmin)
+	return c.connection.SetAdmin(opts, newAdmin)
 }
 
 func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
-	return c.bridgeContract.RevertMessage(opts, sn)
+	return c.connection.RevertMessage(opts, sn)
+}
+
+func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
+	return c.xcall.ParseCallMessage(log)
+}
+
+func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteCall(opts, reqID, data)
+}
+
+func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	return c.eth.EstimateGas(ctx, msg)
+}
+
+// GetFee
+func (c *Client) GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error) {
+	return c.connection.GetFee(opts, networkID, true)
+}
+
+// SetFee
+func (c *Client) SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error) {
+	return c.connection.SetFee(opts, src, msg, res)
+}
+
+// ClaimFee
+func (c *Client) ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error) {
+	return c.connection.ClaimFees(opts)
+}
+
+// ExecuteRollback
+func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteRollback(opts, sn)
 }

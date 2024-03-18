@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	addr    = path.Join(os.TempDir(), "relayer.sock")
-	network = "unix"
+	SocketPath = path.Join(os.TempDir(), "relayer.sock")
+	network    = "unix"
 )
 
 func NewSocket(rly *relayer.Relayer) (*Server, error) {
-	l, err := net.Listen(network, addr)
+	l, err := net.Listen(network, SocketPath)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		store := s.rly.GetMessageStore()
-		key := types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err
@@ -174,7 +174,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		store := s.rly.GetMessageStore()
-		key := types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err
@@ -211,6 +211,58 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventRevertMessage, data}, nil
+	case EventGetFee:
+		req := new(ReqGetFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		fee, err := chain.Provider.GetFee(context.Background(), req.Network, req.Response)
+		if err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResGetFee{Chain: req.Chain, Fee: fee})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetFee, data}, nil
+	case EventSetFee:
+		req := new(ReqSetFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResSetFee{"Success"})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventSetFee, data}, nil
+	case EventClaimFee:
+		req := new(ReqClaimFee)
+		if err := json.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		if err := chain.Provider.ClaimFee(context.Background()); err != nil {
+			return nil, err
+		}
+		data, err := json.Marshal(&ResClaimFee{"Success"})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventClaimFee, data}, nil
 	default:
 		return nil, fmt.Errorf("invalid request")
 	}
