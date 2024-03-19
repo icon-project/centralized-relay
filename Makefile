@@ -4,7 +4,6 @@ DIRTY := $(shell git status --porcelain | wc -l | xargs)
 
 GOPATH := $(shell go env GOPATH)
 GOBIN := $(GOPATH)/bin
-CGO_ENABLED := 0
 
 all: lint install
 
@@ -39,7 +38,8 @@ install: go.sum
 	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.21.5
+GOLANG_CROSS_VERSION  ?= v1.22.1
+COSMWASM_VERSION      ?= v2.0.0
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
@@ -49,10 +49,8 @@ SYSROOT_ARCHIVE ?= sysroots.tar.bz2
 release-dry-run:
 	@docker run \
 		--rm \
-		-e CGO_ENABLED=1 \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
-		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
 		--clean --skip-validate --skip-publish
@@ -65,11 +63,9 @@ release:
 	fi
 	docker run \
 		--rm \
-		-e CGO_ENABLED=1 \
 		--env-file .release-env \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
-		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		release --clean
+		release --clean --skip-validate

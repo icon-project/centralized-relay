@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -84,7 +85,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			height := p.latestHeight()
 			latest = height
 			if next > latest {
-				// TODO:
+				time.Sleep(p.cfg.BlockInterval)
 				p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 			}
 		case <-nonceTicker.C:
@@ -272,4 +273,40 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 
 	// priority3: latest height
 	return latestQueryHeight, nil
+}
+
+// Subscribe listens to new blocks and sends them to the channel
+func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo) {
+	ch := make(chan ethTypes.Log)
+	sub, err := p.client.Subscribe(ctx, p.blockReq, ch)
+	if err != nil {
+		p.log.Error("failed to subscribe", zap.Error(err))
+		return
+	}
+	defer sub.Unsubscribe()
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("evm listener: context done")
+			return
+		case log := <-ch:
+			message, err := p.getRelayMessageFromLog(log)
+			if err != nil {
+				p.log.Error("failed to get relay message from log", zap.Error(err))
+				continue
+			}
+			p.log.Info("Detected eventlog",
+				zap.String("target_network", message.Dst),
+				zap.Uint64("sn", message.Sn),
+				zap.String("event_type", message.EventType),
+				zap.String("tx_hash", log.TxHash.String()),
+				zap.Uint64("block_number", log.BlockNumber),
+			)
+			blockInfo := &relayertypes.BlockInfo{
+				Height:   log.BlockNumber,
+				Messages: []*relayertypes.Message{message},
+			}
+			blockInfoChan <- blockInfo
+		}
+	}
 }
