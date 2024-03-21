@@ -261,14 +261,14 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 		)
 	}
 
-	// priority1: lastsaveheight from db
-	if lastSavedHeight != 0 && lastSavedHeight < latestQueryHeight {
-		return lastSavedHeight, nil
-	}
-
-	// priority2: startHeight from config
+	// priority1: startHeight from config
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestQueryHeight {
 		return p.cfg.StartHeight, nil
+	}
+
+	// priority2: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestQueryHeight {
+		return lastSavedHeight, nil
 	}
 
 	// priority3: latest height

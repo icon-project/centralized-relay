@@ -309,7 +309,7 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 // callback function
 func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
 	return func(key *types.MessageKey, response *types.TxResponse, err error) {
-		routeMessage, ok := src.MessageCache.Messages[*key]
+		routeMessage, ok := src.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
@@ -368,7 +368,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 			}
 			return
 		}
-		routeMessage, ok := dst.MessageCache.Messages[*key]
+		routeMessage, ok := dst.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return

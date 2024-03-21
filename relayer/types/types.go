@@ -165,6 +165,14 @@ func (m *MessageCache) Remove(key *MessageKey) {
 	delete(m.Messages, *key)
 }
 
+// Get returns the message from the cache
+func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
+	m.Lock()
+	defer m.Unlock()
+	msg, ok := m.Messages[*key]
+	return msg, ok
+}
+
 type Coin struct {
 	Denom  string
 	Amount uint64
