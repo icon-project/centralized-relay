@@ -161,8 +161,8 @@ Chain specific configurations.
 | gas-adjustment | The gas adjustment value. | --- | 1.5 | float |
 | min-gas-amount | The minimum gas amount limit for the transcation to process. | 20000 | 20000 | int |
 | max-gas-amount | The maximum gas limit for the transcation. | 4000000 | 4000000 | int |
-| block-interval | The block interval for the chain. | > 0s | 6s | duration |
-| tx-confirmation-interval | The transaction confirmation interval for the chain. | > 0s | 6s | duration |
+| block-interval | The block interval for the chain. | > 0 | 6s | duration |
+| tx-confirmation-interval | The transaction confirmation interval for the chain. | > 0 | 6s | duration |
 | broadcast-mode | The broadcast mode for the chain. | `sync`, `async`, `block` | `sync` | string |
 | sign-mode | The sign mode for the chain. | `SIGN_MODE_DIRECT`, `SIGN_MODE_LEGACY_AMINO_JSON` | `SIGN_MODE_DIRECT` | string |
 | simulate | Whether to use simulation before transcation. | `true`, `false` | `true` | bool |
