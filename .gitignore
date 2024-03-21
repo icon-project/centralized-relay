@@ -5,5 +5,5 @@
 .xcall-multi
 artifacts
 vendor
-.release-env
 .DS_Store
+.*env

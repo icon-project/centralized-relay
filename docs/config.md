@@ -46,7 +46,8 @@ chains:
   avalanche:
     type: evm
     value:
-      rpc-url: https://nd-507-756-317.p2pify.com/b01d81c64a3b7454f7a40a20ef44a1ce/ext/bc/C/rpc
+      rpc-url: ""
+      websocket-url: ""
       verifier-rpc-url: ""
       start-height: 0
       address: 0xB89596d95b2183722F16d4C30B347dadbf8C941a
@@ -109,15 +110,13 @@ The configuration file is divided into two sections: global and chains.
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
-| timeout | The timeout for the chains. | 10s | 10s | duration |
+| timeout | The timeout for the chains. | --- | 10s | duration |
 | kms-key-id | The KMS key ID used for keystore encryption. | --- | --- | uuid |
 
 Common configuration.
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
-| timeout | The timeout for the chains. | 10s | 10s | duration |
-| kms-key-id | The KMS key ID used for keystore encryption. | --- | --- | uuid |
 | chains | The chains that will be used. | --- | cosmos, evm, icon | map |
 | type | The type of the chain. | evm | evm | string |
 | rpc-url | The RPC URL for the chain. | --- | --- | url |
@@ -133,6 +132,7 @@ Chain specific configurations.
 
 | Field  | Description | Allowed Values | Example | Type |
 | -----  | ----------- | -------------- | ------- | ---- |
+| websocket-url | The websocket URL for the chain. | --- | --- | url |
 | gas-min | The minimum gas price allowed for the transcation to process. | 0 | 0 | int |
 | gas-limit | The maximum allowed gas limit for the transcation. | 100056000 | 100056000 | int |
 | block-interval | The block interval for the chain. | > 0s | 2s | duration |
@@ -144,7 +144,7 @@ Chain specific configurations.
 | network-id | The network ID for the chain. | 1 | 1 | int |
 | step-min | The minimum step price for the chain. | 1 | 1 | int |
 | step-limit | The maximum step limit for the chain. | 2000000000000000000 | 2000000000000000000 | int |
-| finality-block | The finality block for the chain. | 10 | 10 | int |
+| finality-block | The finality block for the chain. | --- | 10 | int |
 | rpc-url | The RPC URL for the chain. | any valid rpc url specific to the chain | <https://lisbon.net.solidwallet.io/api/v3/> | url |
 
 ### COSMOS
@@ -158,7 +158,7 @@ Chain specific configurations.
 | account-prefix | The account prefix for the chain. | archway | archway | string |
 | denomination | The denomination for the chain. | aconst | aconst | string |
 | gas-prices | The gas prices for the chain. | 900000000000aconst | 900000000000aconst | string |
-| gas-adjustment | The gas adjustment value. | 1.5 | 1.5 | float |
+| gas-adjustment | The gas adjustment value. | --- | 1.5 | float |
 | min-gas-amount | The minimum gas amount limit for the transcation to process. | 20000 | 20000 | int |
 | max-gas-amount | The maximum gas limit for the transcation. | 4000000 | 4000000 | int |
 | block-interval | The block interval for the chain. | > 0s | 6s | duration |

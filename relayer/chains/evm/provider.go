@@ -43,6 +43,7 @@ var (
 type Config struct {
 	ChainName      string                          `json:"-" yaml:"-"`
 	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
+	WebsocketUrl   string                          `json:"websocket-url" yaml:"websocket-url"`
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
@@ -81,7 +82,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
 
-	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
+	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
@@ -90,7 +91,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 
 	if p.VerifierRPCUrl != "" {
 		var err error
-		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
+		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
 		if err != nil {
 			return nil, err
 		}

@@ -25,7 +25,7 @@ ifeq ($(OS),Windows_NT)
 	@echo "building centralized-relay binary..."
 	@go build -mod=readonly $(BUILD_FLAGS) -o build/centralized-relay main.go
 else
-	@echo "building centralized-relayer binary..."
+	@echo "building centralized-relay binary..."
 	@go build  $(BUILD_FLAGS) -o build/centralized-relay main.go
 endif
 
@@ -39,6 +39,7 @@ install: go.sum
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.1
+COSMWASM_VERSION      ?= v2.0.0
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
@@ -48,27 +49,19 @@ SYSROOT_ARCHIVE ?= sysroots.tar.bz2
 release-dry-run:
 	@docker run \
 		--rm \
-		-e CGO_ENABLED=1 \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
-		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		--rm-dist --skip-validate --skip-publish
+		--clean --skip-validate --skip-publish
 
 .PHONY: release
 release:
-	@if [ ! -f ".release-env" ]; then \
-		echo "\033[91m.release-env is required for release\033[0m";\
-		exit 1;\
-	fi
 	docker run \
 		--rm \
-		-e CGO_ENABLED=1 \
-		--env-file .release-env \
+		--env GITHUB_TOKEN \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
-		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		release --rm-dist
+		release --clean
