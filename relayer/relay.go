@@ -239,6 +239,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					continue
 				}
 
+				message.ToggleProcessing()
+
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 				if err != nil {
@@ -254,6 +256,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
 				if ok := src.shouldExecuteCall(ctx, message); ok {
+					message.ToggleProcessing()
 					go r.ExecuteCall(ctx, message, src)
 				}
 			}
@@ -344,7 +347,6 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
-	m.ToggleProcessing()
 	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
 		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
