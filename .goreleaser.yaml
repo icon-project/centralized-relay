@@ -1,4 +1,6 @@
 project_name: centralised-relay
+env:
+  - CGO_ENABLED=1
 builds:
   - id: darwin-amd64
     main: ./main.go
@@ -100,4 +102,4 @@ checksum:
 
 release:
   prerelease: auto
-  draft: true
+  draft: false
