@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -77,7 +78,7 @@ var txSerializeExcludes = map[string]bool{"signature": true}
 
 func (c *Client) SignTransaction(w module.Wallet, p *types.TransactionParam) error {
 	p.Timestamp = types.NewHexInt(time.Now().UnixNano() / int64(time.Microsecond))
-	js, err := json.Marshal(p)
+	js, err := jsoniter.Marshal(p)
 	if err != nil {
 		return err
 	}
@@ -380,7 +381,7 @@ func (c *Client) wsRead(conn *websocket.Conn, respPtr interface{}) error {
 	if mt == websocket.CloseMessage {
 		return io.EOF
 	}
-	return json.NewDecoder(r).Decode(respPtr)
+	return jsoniter.NewDecoder(r).Decode(respPtr)
 }
 
 func (c *Client) wsReadJSONLoop(ctx context.Context, conn *websocket.Conn, respPtr interface{}, cb types.WsReadCallback) error {

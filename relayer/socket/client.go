@@ -1,9 +1,10 @@
 package socket
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
 )
@@ -44,12 +45,12 @@ func NewClient() (*Client, error) {
 
 // send sends message to socket
 func (c *Client) send(event Event, req interface{}) error {
-	data, err := json.Marshal(req)
+	data, err := jsoniter.Marshal(req)
 	if err != nil {
 		return err
 	}
 	msg := &Message{Event: event, Data: data}
-	payload, err := json.Marshal(msg)
+	payload, err := jsoniter.Marshal(msg)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func (c *Client) read() (interface{}, error) {
 		return nil, err
 	}
 	msg := new(Message)
-	if err := json.Unmarshal(buf[:nr], msg); err != nil {
+	if err := jsoniter.Unmarshal(buf[:nr], msg); err != nil {
 		return nil, err
 	}
 	return c.parseEvent(msg)
@@ -78,31 +79,31 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 	switch msg.Event {
 	case EventGetBlock:
 		var res []*ResGetBlock
-		if err := json.Unmarshal(msg.Data, &res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, &res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventGetMessageList:
 		res := new(ResMessageList)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventRelayMessage:
 		res := new(ResRelayMessage)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventMessageRemove:
 		res := new(ResMessageRemove)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventPruneDB:
 		res := new(ResPruneDB)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
@@ -110,25 +111,25 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		return nil, ErrUnknown
 	case EventRevertMessage:
 		res := new(ResRevertMessage)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventGetFee:
 		res := new(ResGetFee)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventSetFee:
 		res := new(ResSetFee)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventClaimFee:
 		res := new(ResClaimFee)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil

@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/spf13/cobra"
@@ -67,7 +68,7 @@ $ %s ch l`, appName, appName)),
 				fmt.Fprintln(cmd.OutOrStdout(), string(out))
 				return nil
 			case jsn:
-				out, err := json.Marshal(configs)
+				out, err := jsoniter.Marshal(configs)
 				if err != nil {
 					return err
 				}
@@ -147,7 +148,7 @@ func addChainFromFile(a *appState, chainName string, file string) error {
 		return err
 	}
 
-	if err = json.Unmarshal(byt, &pcw); err != nil {
+	if err = jsoniter.Unmarshal(byt, &pcw); err != nil {
 		return err
 	}
 

@@ -1,10 +1,10 @@
 package store
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type MessageStore struct {
@@ -148,9 +148,9 @@ func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
 }
 
 func (ms *MessageStore) Encode(d interface{}) ([]byte, error) {
-	return json.Marshal(d)
+	return jsoniter.Marshal(d)
 }
 
 func (ms *MessageStore) Decode(data []byte, output interface{}) error {
-	return json.Unmarshal(data, output)
+	return jsoniter.Unmarshal(data, output)
 }

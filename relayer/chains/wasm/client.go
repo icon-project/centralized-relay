@@ -2,8 +2,9 @@ package wasm
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
+
+	jsoniter "github.com/json-iterator/go"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -216,7 +217,7 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 
 	var feeStr string
 
-	if err := json.Unmarshal(res.Data, &feeStr); err != nil {
+	if err := jsoniter.Unmarshal(res.Data, &feeStr); err != nil {
 		return 0, err
 	}
 	fee, err := strconv.ParseUint(feeStr, 10, strconv.IntSize)

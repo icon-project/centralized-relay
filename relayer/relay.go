@@ -201,7 +201,7 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
-	activeMessages := make([]*types.RouteMessage, 0)
+	activeMessages := make([]*types.RouteMessage, maxMessages)
 
 	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)

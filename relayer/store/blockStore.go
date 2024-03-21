@@ -4,7 +4,7 @@
 package store
 
 import (
-	"encoding/json"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type BlockStore struct {
@@ -39,13 +39,13 @@ func (bs *BlockStore) GetLastStoredBlock(nId string) (uint64, error) {
 		return 0, err
 	}
 	var height uint64
-	return height, json.Unmarshal(v, &height)
+	return height, jsoniter.Unmarshal(v, &height)
 }
 
 func (ms *BlockStore) Encode(d interface{}) ([]byte, error) {
-	return json.Marshal(d)
+	return jsoniter.Marshal(d)
 }
 
 func (ms *BlockStore) Decode(data []byte, output interface{}) error {
-	return json.Unmarshal(data, output)
+	return jsoniter.Unmarshal(data, output)
 }

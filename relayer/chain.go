@@ -1,8 +1,9 @@
 package relayer
 
 import (
-	"encoding/json"
 	"fmt"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ func NewChain(log *zap.Logger, prov provider.ChainProvider, debug bool) *Chain {
 }
 
 func (c *Chain) String() string {
-	out, _ := json.Marshal(c)
+	out, _ := jsoniter.Marshal(c)
 	return string(out)
 }
 

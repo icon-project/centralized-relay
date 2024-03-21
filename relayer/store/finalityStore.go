@@ -1,8 +1,9 @@
 package store
 
 import (
-	"encoding/json"
 	"fmt"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
@@ -137,9 +138,9 @@ func (ms *FinalityStore) DeleteTxObject(messageKey *types.MessageKey) error {
 }
 
 func (ms *FinalityStore) Encode(d interface{}) ([]byte, error) {
-	return json.Marshal(d)
+	return jsoniter.Marshal(d)
 }
 
 func (ms *FinalityStore) Decode(data []byte, output interface{}) error {
-	return json.Unmarshal(data, output)
+	return jsoniter.Unmarshal(data, output)
 }
