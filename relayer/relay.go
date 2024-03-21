@@ -189,10 +189,6 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 			chain.log.Warn("error occured when query messagesFromStore", zap.Error(err))
 			continue
 		}
-
-		if len(messages) == 0 {
-			continue
-		}
 		chain.log.Debug("flushing messages", zap.Int("message count", len(messages)))
 		// adding message to messageCache
 		// TODO: message with no txHash
@@ -207,7 +203,7 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
 	activeMessages := make([]*types.RouteMessage, 0)
 
-	p := store.NewPagination().GetAll()
+	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)
 	if err != nil {
 		return nil, err
@@ -215,9 +211,6 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 	for _, m := range msgs {
 		if !m.IsStale() {
 			activeMessages = append(activeMessages, m)
-		}
-		if len(activeMessages) > maxMessages {
-			break
 		}
 	}
 	return activeMessages, nil

@@ -125,46 +125,22 @@ func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMe
 		keyPrefixList = append(keyPrefixList, nId)
 	}
 	iter := ms.db.NewIterator(GetKey(keyPrefixList))
+	defer iter.Release()
 
 	// return all the messages
-	if p.All {
-		for iter.Next() {
-			msg := new(types.RouteMessage)
-			if err := ms.Decode(iter.Value(), msg); err != nil {
-				return nil, err
-			}
-
-			messages = append(messages, msg)
-		}
-		iter.Release()
-		return messages, iter.Error()
-	}
-
-	// if not all use the offset logic
-	for i := 0; i < int(p.Offset); i++ {
-		if !iter.Next() {
-			return nil, fmt.Errorf("no message after offset")
-		}
-	}
-
-	for i := uint(0); i < p.Limit; i++ {
-		if !iter.Next() {
-			break
-		}
-
+	for iter.Next() {
 		msg := new(types.RouteMessage)
 		if err := ms.Decode(iter.Value(), msg); err != nil {
 			return nil, err
 		}
+
 		messages = append(messages, msg)
-	}
-	iter.Release()
-	err := iter.Error()
-	if err != nil {
-		return nil, err
+		if uint(len(messages)) == p.Limit {
+			break
+		}
 	}
 
-	return messages, nil
+	return messages, iter.Error()
 }
 
 func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
