@@ -139,13 +139,13 @@ func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyW
 
 type MessageCache struct {
 	Messages map[MessageKey]*RouteMessage
-	*sync.Mutex
+	*sync.RWMutex
 }
 
 func NewMessageCache() *MessageCache {
 	return &MessageCache{
 		Messages: make(map[MessageKey]*RouteMessage),
-		Mutex:    &sync.Mutex{},
+		RWMutex:  new(sync.RWMutex),
 	}
 }
 
@@ -163,6 +163,14 @@ func (m *MessageCache) Remove(key *MessageKey) {
 	m.Lock()
 	defer m.Unlock()
 	delete(m.Messages, *key)
+}
+
+// Get returns the message from the cache
+func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
+	m.RLock()
+	defer m.RUnlock()
+	msg, ok := m.Messages[*key]
+	return msg, ok
 }
 
 type Coin struct {

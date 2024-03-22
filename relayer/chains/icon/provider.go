@@ -21,7 +21,7 @@ type Config struct {
 	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
 	BlockInterval string                         `json:"block-interval" yaml:"block-interval"`
 	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID     uint                           `json:"network-id" yaml:"network-id"`
+	NetworkID     int64                          `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
 	NID           string                         `json:"nid" yaml:"nid"`
 	StepMin       int64                          `json:"step-min" yaml:"step-min"`

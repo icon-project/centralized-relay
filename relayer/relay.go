@@ -189,10 +189,6 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 			chain.log.Warn("error occured when query messagesFromStore", zap.Error(err))
 			continue
 		}
-
-		if len(messages) == 0 {
-			continue
-		}
 		chain.log.Debug("flushing messages", zap.Int("message count", len(messages)))
 		// adding message to messageCache
 		// TODO: message with no txHash
@@ -205,9 +201,9 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
-	activeMessages := make([]*types.RouteMessage, 0)
+	activeMessages := make([]*types.RouteMessage, maxMessages)
 
-	p := store.NewPagination().GetAll()
+	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)
 	if err != nil {
 		return nil, err
@@ -215,9 +211,6 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 	for _, m := range msgs {
 		if !m.IsStale() {
 			activeMessages = append(activeMessages, m)
-		}
-		if len(activeMessages) > maxMessages {
-			break
 		}
 	}
 	return activeMessages, nil
@@ -239,6 +232,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					continue
 				}
 
+				message.ToggleProcessing()
+
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 				if err != nil {
@@ -254,6 +249,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
 				if ok := src.shouldExecuteCall(ctx, message); ok {
+					message.ToggleProcessing()
 					go r.ExecuteCall(ctx, message, src)
 				}
 			}
@@ -309,7 +305,7 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 // callback function
 func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
 	return func(key *types.MessageKey, response *types.TxResponse, err error) {
-		routeMessage, ok := src.MessageCache.Messages[*key]
+		routeMessage, ok := src.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
@@ -344,7 +340,6 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
-	m.ToggleProcessing()
 	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
 		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
@@ -368,7 +363,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 			}
 			return
 		}
-		routeMessage, ok := dst.MessageCache.Messages[*key]
+		routeMessage, ok := dst.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return

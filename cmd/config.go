@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"reflect"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
@@ -71,7 +72,7 @@ $ %s cfg list`, appName, a.homePath, appName)),
 			case yml && jsn:
 				return fmt.Errorf("can't pass both --json and --yaml, must pick one")
 			case jsn:
-				out, err := json.Marshal(a.config.Wrapped())
+				out, err := jsoniter.Marshal(a.config.Wrapped())
 				if err != nil {
 					return err
 				}
@@ -264,7 +265,7 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 	m := map[string]any{
 		"icon": reflect.TypeOf(icon.Config{}),
 	}
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := jsoniter.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
 
@@ -274,12 +275,12 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 		provCfg = reflect.New(ty).Interface().(provider.Config)
 	}
 
-	valueBytes, err := json.Marshal(m["value"])
+	valueBytes, err := jsoniter.Marshal(m["value"])
 	if err != nil {
 		return nil, err
 	}
 
-	return provCfg, json.Unmarshal(valueBytes, &provCfg)
+	return provCfg, jsoniter.Unmarshal(valueBytes, &provCfg)
 }
 
 // Note: chainId and chainName is basically the same

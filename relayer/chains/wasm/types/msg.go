@@ -1,9 +1,10 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
+
+	jsoniter "github.com/json-iterator/go"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -58,7 +59,7 @@ func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
 	exec := &ExecMessage{
 		ReqID: strconv.FormatUint(message.ReqID, 10),
 	}
-	if err := json.Unmarshal(message.Data, &exec.Data); err != nil {
+	if err := jsoniter.Unmarshal(message.Data, &exec.Data); err != nil {
 		return nil
 	}
 	return &ExecExecMsg{

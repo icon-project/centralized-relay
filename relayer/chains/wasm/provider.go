@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -21,6 +20,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
 
@@ -328,7 +328,7 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 			}
 			return
 		case e := <-resultEventChan:
-			eventDataJSON, err := json.Marshal(e.Data)
+			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
 				txRes <- &types.TxResultChan{
 					TxResult: nil, Error: err,
@@ -337,7 +337,7 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 			}
 
 			txWaitRes := new(types.TxResultWaitResponse)
-			if err := json.Unmarshal(eventDataJSON, txWaitRes); err != nil {
+			if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
 				txRes <- &types.TxResultChan{
 					TxResult: nil, Error: err,
 				}
@@ -378,7 +378,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 			ConnSn:     strconv.FormatUint(key.Sn, 10),
 		},
 	}
-	rawQueryMsg, err := json.Marshal(queryMsg)
+	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
 	if err != nil {
 		return false, err
 	}
@@ -390,7 +390,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 	}
 
 	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	return receiptMsgRes.Status, json.Unmarshal(res.Data, &receiptMsgRes.Status)
+	return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
@@ -463,7 +463,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 // responseFee is used to determine if the fee should be returned
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
 	getFee := types.NewExecGetFee(networkID, responseFee)
-	data, err := json.Marshal(getFee)
+	data, err := jsoniter.Marshal(getFee)
 	if err != nil {
 		return 0, err
 	}
@@ -605,7 +605,7 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
 		var eventsList []*EventsList
-		if err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
+		if err := jsoniter.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
 			return nil, err
 		}
 
@@ -636,25 +636,25 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	switch message.EventType {
 	case events.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
-		return json.Marshal(rcvMsg)
+		return jsoniter.Marshal(rcvMsg)
 	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
-		return json.Marshal(execMsg)
+		return jsoniter.Marshal(execMsg)
 	case events.RevertMessage:
 		revertMsg := types.NewExecRevertMsg(message)
-		return json.Marshal(revertMsg)
+		return jsoniter.Marshal(revertMsg)
 	case events.SetAdmin:
 		setAdmin := types.NewExecSetAdmin(message.Dst)
-		return json.Marshal(setAdmin)
+		return jsoniter.Marshal(setAdmin)
 	case events.ClaimFee:
 		claimFee := types.NewExecClaimFee()
-		return json.Marshal(claimFee)
+		return jsoniter.Marshal(claimFee)
 	case events.SetFee:
 		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
-		return json.Marshal(setFee)
+		return jsoniter.Marshal(setFee)
 	case events.ExecuteRollback:
 		executeRollback := types.NewExecExecuteRollback(message.Sn)
-		return json.Marshal(executeRollback)
+		return jsoniter.Marshal(executeRollback)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
@@ -739,7 +739,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			return ctx.Err()
 		case e := <-resultEventChan:
 			p.logger.Info("event received")
-			eventDataJSON, err := json.Marshal(e.Data)
+			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
 				p.logger.Error("failed to marshal event data", zap.Error(err))
 				continue
@@ -748,7 +748,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				Height uint64  `json:"height"`
 				Events []Event `json:"logs"`
 			}{}
-			if err := json.Unmarshal(eventDataJSON, eventsList); err != nil {
+			if err := jsoniter.Unmarshal(eventDataJSON, eventsList); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}

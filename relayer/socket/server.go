@@ -2,12 +2,13 @@ package socket
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
 	"path"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/types"
@@ -58,20 +59,20 @@ func (s *Server) server(c net.Conn) {
 // Parse message from socket
 func (s *Server) parse(data []byte) ([]byte, error) {
 	msg := new(Message)
-	if err := json.Unmarshal(data, msg); err != nil {
+	if err := jsoniter.Unmarshal(data, msg); err != nil {
 		return nil, err
 	}
 	payload, err := s.parseEvent(msg)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(payload)
+	return jsoniter.Marshal(payload)
 }
 
 // makeError for the client to write to socket
 func makeError(err error) []byte {
 	message := &Message{EventError, []byte(fmt.Sprintf(`{"message": "%s"}`, err.Error()))}
-	data, err := json.Marshal(message)
+	data, err := jsoniter.Marshal(message)
 	if err != nil {
 		return []byte(fmt.Sprintf(`{"error": "%s"}`, err.Error()))
 	}
@@ -92,7 +93,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 	switch msg.Event {
 	case EventGetBlock:
 		req := new(ReqGetBlock)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		var blocks []*ResGetBlock
@@ -101,7 +102,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			for _, chain := range s.rly.GetAllChainsRuntime() {
 				blocks = append(blocks, &ResGetBlock{chain.Provider.NID(), chain.LastSavedHeight})
 			}
-			data, err := json.Marshal(blocks)
+			data, err := jsoniter.Marshal(blocks)
 			if err != nil {
 				return nil, err
 			}
@@ -115,14 +116,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		blocks = append(blocks, &ResGetBlock{req.Chain, height})
-		data, err := json.Marshal(blocks)
+		data, err := jsoniter.Marshal(blocks)
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventGetBlock, data}, nil
 	case EventGetMessageList:
 		req := new(ReqMessageList)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		store := s.rly.GetMessageStore()
@@ -134,14 +135,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResMessageList{messages, int(total)})
+		data, err := jsoniter.Marshal(&ResMessageList{messages, int(total)})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventGetMessageList, data}, nil
 	case EventMessageRemove:
 		req := new(ReqMessageRemove)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		store := s.rly.GetMessageStore()
@@ -153,14 +154,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err := store.DeleteMessage(key); err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResMessageRemove{req.Sn, req.Chain, message.Dst, message.MessageHeight, message.EventType})
+		data, err := jsoniter.Marshal(&ResMessageRemove{req.Sn, req.Chain, message.Dst, message.MessageHeight, message.EventType})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventMessageRemove, data}, nil
 	case EventRelayMessage:
 		req := new(ReqRelayMessage)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 
@@ -180,7 +181,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		src.MessageCache.Add(message)
-		data, err := json.Marshal(&ResRelayMessage{message})
+		data, err := jsoniter.Marshal(&ResRelayMessage{message})
 		if err != nil {
 			return nil, err
 		}
@@ -189,14 +190,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err := s.rly.PruneDB(); err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResPruneDB{"Success"})
+		data, err := jsoniter.Marshal(&ResPruneDB{"Success"})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventPruneDB, data}, nil
 	case EventRevertMessage:
 		req := new(ReqRevertMessage)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
@@ -206,14 +207,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err := chain.Provider.RevertMessage(context.Background(), big.NewInt(0).SetUint64(req.Sn)); err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResRevertMessage{req.Sn})
+		data, err := jsoniter.Marshal(&ResRevertMessage{req.Sn})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventRevertMessage, data}, nil
 	case EventGetFee:
 		req := new(ReqGetFee)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
@@ -224,14 +225,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResGetFee{Chain: req.Chain, Fee: fee})
+		data, err := jsoniter.Marshal(&ResGetFee{Chain: req.Chain, Fee: fee})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventGetFee, data}, nil
 	case EventSetFee:
 		req := new(ReqSetFee)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
@@ -241,14 +242,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResSetFee{"Success"})
+		data, err := jsoniter.Marshal(&ResSetFee{"Success"})
 		if err != nil {
 			return nil, err
 		}
 		return &Message{EventSetFee, data}, nil
 	case EventClaimFee:
 		req := new(ReqClaimFee)
-		if err := json.Unmarshal(msg.Data, req); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
 			return nil, err
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
@@ -258,7 +259,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err := chain.Provider.ClaimFee(context.Background()); err != nil {
 			return nil, err
 		}
-		data, err := json.Marshal(&ResClaimFee{"Success"})
+		data, err := jsoniter.Marshal(&ResClaimFee{"Success"})
 		if err != nil {
 			return nil, err
 		}

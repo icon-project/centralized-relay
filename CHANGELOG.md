@@ -56,6 +56,12 @@ Encrypt the keystore file:
 aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob | base64 -d > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
 ```
 
+Move the encrypted wallet passphrase to the new location:
+
+  ```shell
+  mv $HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.password $HOME/.centralized relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.pass
+  ```
+
 ### Additional Information
 
 - All the keystore relayer files are located in the `keystore` directory.
@@ -63,3 +69,22 @@ aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.central
 
 - The version `1.0.0` keystore files for chain are located in the inside the its `nid` directory in a following format:
   `keystore/<nid>/<wallet-address>.json`
+
+## [1.1.1] - 2024-03-21
+
+### Added
+
+- Websocket support for evm chain
+
+### Fixed
+
+- AWS Region detection
+- Static binary build
+
+## [1.1.2] - 2024-03-22
+
+### Fixed
+
+- Region detection for AWS
+- Priority 0 (high) for `start-height` evm
+- Panic too many packets map access

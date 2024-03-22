@@ -73,9 +73,9 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 
 	txParam := types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
-		FromAddress: types.Address(wallet.Address().String()),
+		FromAddress: types.NewAddress(wallet.Address().Bytes()),
 		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
+		NetworkID:   types.NewHexInt(p.cfg.NetworkID),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
