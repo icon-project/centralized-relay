@@ -9,6 +9,9 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
+      - name: Delete unnecessary tools folder for space
+        run: rm -rf /opt/hostedtoolcache
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
