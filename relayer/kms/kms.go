@@ -3,7 +3,6 @@ package kms
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -23,9 +22,8 @@ type KMSConfig struct {
 	key    *string
 }
 
-func NewKMSConfig(ctx context.Context, key *string, profile string) (KMS, error) {
-	region := os.Getenv("AWS_REGION")
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile), config.WithRegion(region), config.WithEC2IMDSRegion())
+func NewKMSConfig(ctx context.Context, key *string) (KMS, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithEC2IMDSRegion())
 	if err != nil {
 		return nil, err
 	}
