@@ -201,7 +201,7 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
-	activeMessages := make([]*types.RouteMessage, maxMessages)
+	activeMessages := make([]*types.RouteMessage, 0)
 
 	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)
@@ -380,7 +380,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
 	routeMessage.AddNextTry()
-	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%types.MaxTxRetry == 0 {
+	if routeMessage.GetRetry()%types.MaxTxRetry == 0 {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))

@@ -730,7 +730,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 		return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 	}
 	defer httpClient.Unsubscribe(ctx, opts.Address, query)
-	p.logger.Info("event subscription started")
+	p.logger.Info("event subscription started", zap.String("contract_address", opts.Address), zap.String("method", opts.Method))
 
 	for {
 		select {
@@ -744,11 +744,13 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Error("failed to marshal event data", zap.Error(err))
 				continue
 			}
-			eventsList := &struct {
-				Height uint64  `json:"height"`
-				Events []Event `json:"logs"`
-			}{}
-			if err := jsoniter.Unmarshal(eventDataJSON, eventsList); err != nil {
+			var res types.TxResultWaitResponse
+			if err := jsoniter.Unmarshal(eventDataJSON, &res); err != nil {
+				p.logger.Error("failed to unmarshal event data", zap.Error(err))
+				continue
+			}
+			var eventsList EventsList
+			if err := jsoniter.Unmarshal([]byte(res.Result.Log), &eventsList); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
@@ -758,25 +760,24 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				continue
 			}
 			blockInfo := &relayTypes.BlockInfo{
-				Height:   eventsList.Height,
+				Height:   uint64(res.Height),
 				Messages: messages,
 			}
 			blockInfoChan <- blockInfo
+			opts.Height = blockInfo.Height
 			for _, msg := range blockInfo.Messages {
 				p.logger.Info("Detected eventlog",
-					zap.Uint64("height", eventsList.Height),
+					zap.Int64("height", res.Height),
 					zap.String("target_network", msg.Dst),
 					zap.Uint64("sn", msg.Sn),
 					zap.String("event_type", msg.EventType),
 				)
 			}
-			opts.Height = eventsList.Height
 		default:
-			if httpClient.IsRunning() {
-				continue
+			if !httpClient.IsRunning() {
+				p.logger.Info("http client stopped")
+				return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 			}
-			p.logger.Info("http client stopped")
-			return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 		}
 	}
 }

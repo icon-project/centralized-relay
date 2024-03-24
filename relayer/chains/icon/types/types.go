@@ -160,15 +160,22 @@ type BlockNotification struct {
 }
 
 type EventRequest struct {
-	EventFilter
-	Height HexInt `json:"height"`
+	EventFilter []*EventFilter `json:"eventFilters"`
+	Height      HexInt         `json:"height"`
 }
 
 type EventNotification struct {
-	Hash   HexBytes `json:"hash"`
-	Height HexInt   `json:"height"`
-	Index  HexInt   `json:"index"`
-	Events []HexInt `json:"events,omitempty"`
+	Hash   HexBytes               `json:"hash"`
+	Height HexInt                 `json:"height"`
+	Index  HexInt                 `json:"index"`
+	Events []HexInt               `json:"events,omitempty"`
+	Logs   []EventNotificationLog `json:"logs,omitempty"`
+}
+
+type EventNotificationLog struct {
+	Address Address  `json:"scoreAddress"`
+	Indexed []string `json:"indexed"`
+	Data    []string `json:"data"`
 }
 
 type WSEvent string
