@@ -23,7 +23,7 @@ type KMSConfig struct {
 }
 
 func NewKMSConfig(ctx context.Context, key *string) (KMS, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithEC2IMDSRegion())
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithDefaultRegion("us-east-1"), config.WithEC2IMDSRegion())
 	if err != nil {
 		return nil, err
 	}
