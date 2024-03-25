@@ -201,7 +201,7 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
-	activeMessages := make([]*types.RouteMessage, maxMessages)
+	var activeMessages []*types.RouteMessage
 
 	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)
@@ -218,13 +218,13 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
-		for _, message := range src.MessageCache.Messages {
+		for key, message := range src.MessageCache.Messages {
 			switch message.EventType {
 			case events.EmitMessage:
 				dst, err := r.FindChainRuntime(message.Dst)
 				if err != nil {
 					r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
 
@@ -235,7 +235,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				message.ToggleProcessing()
 
 				// if message reached delete the message
-				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
+				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
 					continue
 				}
@@ -243,7 +243,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				// if message is received we can remove the message from db
 				if messageReceived {
 					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
 				go r.RouteMessage(ctx, message, dst, src)

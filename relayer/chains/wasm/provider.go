@@ -491,8 +491,8 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	startHeight := lastSavedHeight
-	if p.cfg.StartHeight > 0 {
-		startHeight = p.cfg.StartHeight
+	if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
+		return p.cfg.StartHeight, nil
 	}
 
 	if startHeight > latestHeight {
