@@ -41,7 +41,7 @@ func (s *Server) Listen() {
 // Send sends message to socket
 func (s *Server) server(c net.Conn) {
 	for {
-		buf := make([]byte, 1024*10)
+		buf := make([]byte, 1024*100)
 		nr, err := c.Read(buf)
 		if err != nil {
 			return
