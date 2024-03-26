@@ -187,12 +187,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	res, err := p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
 func (p *Provider) handleSequence(ctx context.Context) error {
