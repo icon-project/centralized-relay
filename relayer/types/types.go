@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 5
+	MaxTxRetry         uint8 = 10
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
@@ -76,6 +76,11 @@ func (r *RouteMessage) GetMessage() *Message {
 func (r *RouteMessage) IncrementRetry() {
 	r.Retry++
 	r.AddNextTry()
+}
+
+// DecrementRetry decrements the retry count
+func (r *RouteMessage) DecrementRetry() {
+	r.Retry--
 }
 
 func (r *RouteMessage) ToggleProcessing() {

@@ -181,7 +181,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 				return nil, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
 		}
-		return nil, err
+		return p.sendMessage(ctx, msgs...)
 	}
 	return res, nil
 }
@@ -664,7 +664,7 @@ func (p *Provider) getNumOfPipelines(diff int) int {
 	if diff <= runtime.NumCPU() {
 		return diff
 	}
-	return runtime.NumCPU()
+	return runtime.NumCPU() / 2
 }
 
 func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) uint64 {
