@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/CosmWasm/wasmd v0.50.0
 	github.com/avast/retry-go/v4 v4.5.1
+	github.com/block-vision/sui-go-sdk v1.0.5
 	github.com/cometbft/cometbft v0.38.2
 	github.com/cosmos/cosmos-sdk v0.50.2
 	github.com/docker/docker v23.0.1+incompatible
@@ -16,6 +17,7 @@ require (
 	github.com/icon-project/goloop v1.3.11
 	github.com/icon-project/icon-bridge v0.0.11
 	github.com/icza/dyno v0.0.0-20230330125955-09f820a8d9c0
+	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
@@ -53,11 +55,11 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.12.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/labstack/echo/v4 v4.11.3 // indirect
 	github.com/labstack/gommon v0.4.1 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
@@ -74,6 +76,9 @@ require (
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tinylib/msgp v1.1.9 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
