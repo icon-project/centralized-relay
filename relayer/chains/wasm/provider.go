@@ -182,9 +182,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 			}
 			return p.sendMessage(ctx, msgs...)
 		}
-		return nil, err
 	}
-	return res, nil
+	return res, err
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
