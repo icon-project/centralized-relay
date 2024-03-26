@@ -173,15 +173,6 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 
 func (r *Relayer) flushMessages(ctx context.Context) {
 	r.log.Debug("flushing messages from db to cache")
-	count, err := r.messageStore.TotalCount()
-	if err != nil {
-		r.log.Warn("error occured when querying total failed delivery message")
-	}
-	if count == 0 {
-		r.log.Debug("no message to flushout")
-		return
-	}
-
 	for _, chain := range r.chains {
 		nId := chain.Provider.NID()
 		messages, err := r.getActiveMessagesFromStore(nId, maxFlushMessage)
