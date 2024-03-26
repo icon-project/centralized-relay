@@ -180,8 +180,9 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 			if mmErr := p.handleSequence(ctx); mmErr != nil {
 				return nil, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
+			return p.sendMessage(ctx, msgs...)
 		}
-		return p.sendMessage(ctx, msgs...)
+		return nil, err
 	}
 	return res, nil
 }
