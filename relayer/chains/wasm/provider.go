@@ -316,34 +316,47 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 		}
 		defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
 
-		select {
-		case <-ctx.Done():
-			txRes <- &types.TxResultChan{
-				TxResult: &relayTypes.TxResponse{
-					TxHash: txHash,
-					Code:   relayTypes.Success,
-				}, Error: ctx.Err(),
-			}
-			return
-		case e := <-resultEventChan:
-			eventDataJSON, err := jsoniter.Marshal(e.Data)
-			if err != nil {
+		for {
+			select {
+			case <-ctx.Done():
 				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
+					TxResult: &relayTypes.TxResponse{
+						TxHash: txHash,
+						Code:   relayTypes.Success,
+					}, Error: ctx.Err(),
 				}
 				return
-			}
+			case e := <-resultEventChan:
+				eventDataJSON, err := jsoniter.Marshal(e.Data)
+				if err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: nil, Error: err,
+					}
+					return
+				}
 
-			txWaitRes := new(types.TxResultWaitResponse)
-			if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
-				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
+				txWaitRes := new(types.TxResultWaitResponse)
+				if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: nil, Error: err,
+					}
+					return
 				}
-				return
-			}
-			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+				if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+					txRes <- &types.TxResultChan{
+						Error: fmt.Errorf(txWaitRes.Result.Log),
+						TxResult: &relayTypes.TxResponse{
+							Height:    txWaitRes.Height,
+							TxHash:    txHash,
+							Codespace: txWaitRes.Result.Codespace,
+							Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+							Data:      string(txWaitRes.Result.Data),
+						},
+					}
+					return
+				}
+
 				txRes <- &types.TxResultChan{
-					Error: fmt.Errorf(txWaitRes.Result.Log),
 					TxResult: &relayTypes.TxResponse{
 						Height:    txWaitRes.Height,
 						TxHash:    txHash,
@@ -353,16 +366,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					},
 				}
 				return
-			}
-
-			txRes <- &types.TxResultChan{
-				TxResult: &relayTypes.TxResponse{
-					Height:    txWaitRes.Height,
-					TxHash:    txHash,
-					Codespace: txWaitRes.Result.Codespace,
-					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-					Data:      string(txWaitRes.Result.Data),
-				},
 			}
 		}
 	}(txResChan)

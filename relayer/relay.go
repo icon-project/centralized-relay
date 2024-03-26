@@ -237,6 +237,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
+					r.log.Error("error occured when checking message received", zap.Error(err))
 					continue
 				}
 
