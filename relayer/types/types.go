@@ -10,6 +10,7 @@ import (
 
 var (
 	MaxTxRetry         uint8 = 10
+	StaleMarkCount           = MaxTxRetry * 3
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
@@ -98,7 +99,7 @@ func (r *RouteMessage) IsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return (r.Retry - BufferRetryCount) >= MaxTxRetry
+	return r.Retry >= StaleMarkCount
 }
 
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)

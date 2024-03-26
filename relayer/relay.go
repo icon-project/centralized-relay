@@ -381,7 +381,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
 	routeMessage.AddNextTry()
-	if routeMessage.GetRetry()%types.MaxTxRetry == 0 || routeMessage.IsStale() {
+	if routeMessage.GetRetry()%types.MaxTxRetry == 0 || routeMessage.GetRetry() >= types.MaxTxRetry {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
