@@ -14,6 +14,7 @@ var (
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
 	RetryInterval            = 5 * time.Second
+	BufferRetryCount   uint8 = 1
 )
 
 type BlockInfo struct {
@@ -78,11 +79,6 @@ func (r *RouteMessage) IncrementRetry() {
 	r.AddNextTry()
 }
 
-// DecrementRetry decrements the retry count
-func (r *RouteMessage) DecrementRetry() {
-	r.Retry--
-}
-
 func (r *RouteMessage) ToggleProcessing() {
 	r.Processing = !r.Processing
 }
@@ -102,7 +98,7 @@ func (r *RouteMessage) IsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.Retry >= MaxTxRetry
+	return r.Retry-BufferRetryCount >= MaxTxRetry
 }
 
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)

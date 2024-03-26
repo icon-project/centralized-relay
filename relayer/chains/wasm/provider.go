@@ -319,12 +319,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 		for {
 			select {
 			case <-ctx.Done():
-				txRes <- &types.TxResultChan{
-					TxResult: &relayTypes.TxResponse{
-						TxHash: txHash,
-						Code:   relayTypes.Success,
-					}, Error: ctx.Err(),
-				}
 				return
 			case e := <-resultEventChan:
 				eventDataJSON, err := jsoniter.Marshal(e.Data)
