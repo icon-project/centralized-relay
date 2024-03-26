@@ -259,7 +259,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
-		if txWaitRes.Error != nil {
+		if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
@@ -319,7 +319,10 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 		select {
 		case <-ctx.Done():
 			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: ctx.Err(),
+				TxResult: &relayTypes.TxResponse{
+					TxHash: txHash,
+					Code:   relayTypes.Success,
+				}, Error: ctx.Err(),
 			}
 			return
 		case e := <-resultEventChan:
