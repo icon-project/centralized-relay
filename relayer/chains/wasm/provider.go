@@ -324,7 +324,10 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 				eventDataJSON, err := jsoniter.Marshal(e.Data)
 				if err != nil {
 					txRes <- &types.TxResultChan{
-						TxResult: nil, Error: err,
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+							Code:   relayTypes.Failed,
+						}, Error: err,
 					}
 					return
 				}
@@ -332,7 +335,10 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 				txWaitRes := new(types.TxResultWaitResponse)
 				if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
 					txRes <- &types.TxResultChan{
-						TxResult: nil, Error: err,
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+							Code:   relayTypes.Failed,
+						}, Error: err,
 					}
 					return
 				}

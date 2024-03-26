@@ -98,7 +98,7 @@ func (r *RouteMessage) IsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.Retry-BufferRetryCount >= MaxTxRetry
+	return (r.Retry - BufferRetryCount) >= MaxTxRetry
 }
 
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)
