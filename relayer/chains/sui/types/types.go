@@ -13,4 +13,5 @@ const (
 type IClient interface {
 	GetLatestCheckpointSeq(ctx context.Context) (uint64, error)
 	GetCheckpoints(ctx context.Context, req suimodels.SuiGetCheckpointsRequest) (suimodels.PaginatedCheckpointsResponse, error)
+	GetBalance(ctx context.Context, addr string) ([]suimodels.CoinData, error)
 }
