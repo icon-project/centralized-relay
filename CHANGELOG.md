@@ -88,3 +88,16 @@ Move the encrypted wallet passphrase to the new location:
 - Region detection for AWS
 - Priority 0 (high) for `start-height` evm
 - Panic too many packets map access
+
+## [1.1.3] - 2024-03-27
+
+### Added
+
+- Route manually from height (on chain)
+
+### Fixed
+
+- Increase delivery failure by trying for per 15 seconds after initial failures.
+- Panics when subscribing to the event result.
+- AWS ec2 instance profile detection.
+- Other improvements and bug fixes.

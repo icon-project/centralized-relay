@@ -15,7 +15,6 @@ var (
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
 	RetryInterval            = 5 * time.Second
-	BufferRetryCount   uint8 = 1
 )
 
 type BlockInfo struct {

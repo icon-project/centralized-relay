@@ -16,8 +16,9 @@ builds:
       - CGO_LDFLAGS=-L/lib
     flags:
       - -mod=readonly
+      - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm
@@ -37,7 +38,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm
@@ -57,7 +58,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags '-Wl,-z,muldefs -lm'
     tags:
@@ -78,7 +79,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags "-static"
     tags:
