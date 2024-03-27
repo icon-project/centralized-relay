@@ -33,7 +33,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 	client := suiclient.NewClient(rpcClient, logger)
 
 	return &Provider{
-		log:    logger.With(zap.String("nid ", pc.ChainID), zap.String("name", pc.ChainName)),
+		log:    logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
 		cfg:    pc,
 		client: client,
 	}, nil
