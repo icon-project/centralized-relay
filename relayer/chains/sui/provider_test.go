@@ -49,7 +49,7 @@ func GetSuiProvider() (*Provider, error) {
 
 	suiProvider, ok := prov.(*Provider)
 	if !ok {
-		return nil, fmt.Errorf("unbale to type case to icon chain provider")
+		return nil, fmt.Errorf("unable to type cast to sui chain provider")
 	}
 	suiProvider.Init(ctx, "./tmp/", &mockKms{})
 	err = os.MkdirAll(suiProvider.keystorePath("test"), 0777)
