@@ -3,11 +3,10 @@ package kms
 import (
 	"context"
 	"fmt"
-	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 var ErrKeyAlreadyExists = fmt.Errorf("kms key already exists")
@@ -23,9 +22,8 @@ type KMSConfig struct {
 	key    *string
 }
 
-func NewKMSConfig(ctx context.Context, key *string, profile string) (KMS, error) {
-	region := os.Getenv("AWS_REGION")
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile), config.WithRegion(region), config.WithEC2IMDSRegion())
+func NewKMSConfig(ctx context.Context, key *string) (KMS, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithDefaultRegion("us-east-1"))
 	if err != nil {
 		return nil, err
 	}
