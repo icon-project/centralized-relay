@@ -81,5 +81,5 @@ func TestImportKeystore(t *testing.T) {
 	err = pro.RestoreKeystore(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDecodedAddr, pro.wallet.Address)
-	assert.Equal(t, expectedDecodedPrivKey, hex.EncodeToString(pro.wallet.PrivateKey))
+	assert.Equal(t, expectedDecodedPrivKey, hex.EncodeToString(pro.wallet.KeyPair.PrivateKey()[:32]))
 }

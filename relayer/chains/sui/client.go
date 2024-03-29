@@ -1,0 +1,226 @@
+package sui
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"math/big"
+	"strconv"
+
+	"github.com/coming-chat/go-sui/v2/account"
+	suisdkClient "github.com/coming-chat/go-sui/v2/client"
+	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/move_types"
+	"github.com/coming-chat/go-sui/v2/sui_types"
+	"github.com/coming-chat/go-sui/v2/types"
+	"github.com/fardream/go-bcs/bcs"
+	"go.uber.org/zap"
+)
+
+const (
+	suiCurrencyType = "0x2::sui::SUI"
+	pickMethod      = 1
+	baseSuiFee      = 1000
+	suiStringType   = "0x1::string::String"
+	suiU64          = "u64"
+	suiBool         = "bool"
+)
+
+type IClient interface {
+	GetLatestCheckpointSeq(ctx context.Context) (uint64, error)
+	GetTotalBalance(ctx context.Context, addr string) (uint64, error)
+	EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error)
+	ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error)
+	CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
+	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
+	ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
+}
+
+type Client struct {
+	rpc *suisdkClient.Client
+	log *zap.Logger
+}
+
+func NewClient(rpcClient *suisdkClient.Client, l *zap.Logger) *Client {
+	return &Client{
+		rpc: rpcClient,
+		log: l,
+	}
+}
+
+func (c Client) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
+	checkPoint, err := c.rpc.GetLatestCheckpointSequenceNumber(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseUint(checkPoint, 10, 64)
+}
+
+func (c *Client) GetTotalBalance(ctx context.Context, addr string) (uint64, error) {
+	accountAddress, err := move_types.NewAccountAddressHex(addr)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
+		return 0, err
+	}
+	res, err := c.rpc.GetBalance(ctx, *accountAddress, suiCurrencyType)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
+		return 0, err
+	}
+	return res.TotalBalance.BigInt().Uint64(), nil
+}
+
+// Returns dry run result of txn with gas and status response
+func (cl *Client) EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error) {
+	dryrunResult, err := cl.rpc.DryRunTransaction(ctx, txBytes)
+	return dryrunResult, dryrunResult.Effects.Data.GasFee(), err
+}
+
+func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error) {
+	accountAddress, err := move_types.NewAccountAddressHex(address)
+	if err != nil {
+		cl.log.Error(fmt.Sprintf("error getting account address sender %s", address), zap.Error(err))
+		return &types.TransactionBytes{}, err
+	}
+	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
+	if err != nil {
+		cl.log.Error(fmt.Sprintf("error getting account address packageId %s", suiMessage.PackageObjectId), zap.Error(err))
+		return &types.TransactionBytes{}, err
+	}
+	coinId := cl.getGasCoinId(ctx, address, gasBudget)
+	coinAddress, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
+	if err != nil {
+		cl.log.Error(fmt.Sprintf("error getting account address coinId %s", coinId.CoinObjectId.String()), zap.Error(err))
+		return &types.TransactionBytes{}, err
+	}
+	typeArgs := []string{}
+	var stringParams []interface{}
+	for _, s := range suiMessage.Params {
+		stringParams = append(stringParams, fmt.Sprint(s))
+	}
+	if stringParams == nil {
+		stringParams = make([]interface{}, 0)
+	}
+	return cl.rpc.MoveCall(ctx, *accountAddress, *packageId, suiMessage.Module, suiMessage.Method, typeArgs, stringParams, coinAddress, types.NewSafeSuiBigInt(gasBudget))
+}
+
+func (cl *Client) CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error) {
+	return cl.rpc.ExecuteTransactionBlock(ctx, txBytes, signatures, &types.SuiTransactionBlockResponseOptions{
+		ShowEffects: true,
+		ShowEvents:  true,
+	}, types.TxnRequestTypeWaitForLocalExecution)
+}
+
+func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) *types.Coin {
+	accountAddress, err := move_types.NewAccountAddressHex(addr)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("error getting account address sender %s", addr), zap.Error(err))
+		return nil
+	}
+	result, err := c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("error getting gas coins for address %s", addr), zap.Error(err))
+		return nil
+	}
+	_, t, err := result.PickSUICoinsWithGas(big.NewInt(baseSuiFee), gasCost, pickMethod)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("error getting gas coins with enough gas for address %s", addr), zap.Error(err))
+		return nil
+	}
+	return t
+}
+
+func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
+	txBlock, err := cl.rpc.GetTransactionBlock(ctx, lib.Base58(txDigest), types.SuiTransactionBlockResponseOptions{
+		ShowEffects: true,
+	})
+	return txBlock, err
+}
+
+func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
+	var callArgs []sui_types.CallArg
+	for _, param := range suiMessage.Params {
+		byteParam, err := bcs.Marshal(param)
+		if err != nil {
+			return nil, err
+		}
+		callArgs = append(callArgs, sui_types.CallArg{
+			Pure: &byteParam,
+		})
+	}
+	return callArgs, nil
+}
+func (cl *Client) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
+	builder := sui_types.NewProgrammableTransactionBuilder()
+	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
+	if err != nil {
+		return nil, err
+	}
+	senderAddress, err := move_types.NewAccountAddressHex(address)
+	if err != nil {
+		return nil, err
+	}
+	callArgs, err := paramsToCallArgs(suiMessage)
+	if err != nil {
+		return nil, err
+	}
+	err = builder.MoveCall(
+		*packageId,
+		move_types.Identifier(suiMessage.Module),
+		move_types.Identifier(suiMessage.Method),
+		[]move_types.TypeTag{},
+		callArgs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	transaction := builder.Finish()
+	bcsBytes, err := bcs.Marshal(transaction)
+	if err != nil {
+		return nil, err
+	}
+	txBytes := append([]byte{0}, bcsBytes...)
+	b64Data, err := lib.NewBase64Data(base64.StdEncoding.EncodeToString(txBytes))
+	if err != nil {
+		return nil, err
+	}
+	res, err := cl.rpc.DevInspectTransactionBlock(context.Background(), *senderAddress, *b64Data, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.Error != nil {
+		cl.log.Error("error occurred while calling sui contract", zap.Error(err))
+		return nil, fmt.Errorf(*res.Error)
+	}
+	result := (res.Results[0].ReturnValues[0]).([]interface{})
+	resultType := result[1]
+	byteSlice, ok := result[0].([]interface{})
+	if !ok {
+		return nil, err
+	}
+	return extractResult(resultType, byteSlice, result[0])
+}
+
+func extractResult(resultType interface{}, byteSlice []interface{}, defResult interface{}) (any, error) {
+	switch resultType {
+	case suiU64:
+		value := uint64(0)
+		for _, v := range byteSlice {
+			value += uint64((v.(float64)))
+		}
+		return value, nil
+	case suiStringType:
+		byteSlice = byteSlice[1:]
+		valueSlice := make([]byte, len(byteSlice))
+
+		for i, v := range byteSlice {
+			valueSlice[i] = byte(v.(float64))
+		}
+		return string(valueSlice), nil
+	case suiBool:
+		boolValue := byteSlice[0].(float64)
+		return boolValue == 1, nil
+	default:
+		return defResult, nil
+	}
+}
