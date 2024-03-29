@@ -110,6 +110,7 @@ func (p Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64
 // GenerateTxDigests forms the packets of txDigests from the list of checkpoint responses such that each packet
 // contains as much as possible number of digests but not exceeding max limit of maxDigests value
 func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointResponse, maxDigestsPerItem int) []types.TxDigests {
+	// stage-1: split checkpoint to multiple checkpoints if number of transactions is greater than maxDigests
 	var checkpoints []suimodels.CheckpointResponse
 	for _, cp := range checkpointResponses {
 		if len(cp.Transactions) > maxDigestsPerItem {
@@ -121,7 +122,7 @@ func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointRe
 				fromIndex := i * maxDigestsPerItem
 				toIndex := fromIndex + maxDigestsPerItem
 				if i == totalBatches-1 {
-					toIndex = totalBatches * maxDigestsPerItem
+					toIndex = len(cp.Transactions)
 				}
 				subCheckpoint := suimodels.CheckpointResponse{
 					SequenceNumber: cp.SequenceNumber,
@@ -134,6 +135,7 @@ func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointRe
 		}
 	}
 
+	// stage-2: form packets of txDigests
 	var txDigestsList []types.TxDigests
 
 	digests := []string{}
@@ -141,13 +143,23 @@ func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointRe
 	for i, cp := range checkpoints {
 		if (len(digests) + len(cp.Transactions)) > maxDigestsPerItem {
 			toCheckpoint, _ := strconv.Atoi(checkpoints[i-1].SequenceNumber)
-			txDigestsList = append(txDigestsList, types.TxDigests{
-				FromCheckpoint: uint64(fromCheckpoint),
-				ToCheckpoint:   uint64(toCheckpoint),
-				Digests:        digests,
-			})
-			digests = cp.Transactions
-			fromCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
+			if len(digests) < maxDigestsPerItem {
+				toCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
+			}
+			for i, tx := range cp.Transactions {
+				if len(digests) == maxDigestsPerItem {
+					txDigestsList = append(txDigestsList, types.TxDigests{
+						FromCheckpoint: uint64(fromCheckpoint),
+						ToCheckpoint:   uint64(toCheckpoint),
+						Digests:        digests,
+					})
+					digests = cp.Transactions[i:]
+					fromCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
+					break
+				} else {
+					digests = append(digests, tx)
+				}
+			}
 		} else {
 			digests = append(digests, cp.Transactions...)
 		}
@@ -169,7 +181,7 @@ func (p Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-c
 
 	go func() {
 		nextCursor := afterSeq
-		checkpointTicker := time.NewTicker(6 * time.Second)
+		checkpointTicker := time.NewTicker(6 * time.Second) //todo need to decide this interval
 
 		for {
 			select {
