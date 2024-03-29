@@ -29,16 +29,22 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 func (p *Provider) MakeSuiMessage(message *providerTypes.Message) (*SuiMessage, error) {
 	switch message.EventType {
-	//TODO generate appropriate callparams for the call
 	case events.EmitMessage:
 		callParams := []interface{}{
 			message.Src,
 			message.Sn,
 			message.Data,
 		}
-		return p.NewSuiMessage(callParams, "packageID", "module", "MethodRecvMessage"), nil
+		return p.NewSuiMessage(callParams, p.cfg.Contracts[providerTypes.ConnectionContract], ConnectionModule, MethodRecvMessage), nil
+	case events.CallMessage:
+		callParams := []interface{}{
+			message.ReqID,
+			message.Data,
+		}
+		return p.NewSuiMessage(callParams, p.cfg.Contracts[providerTypes.XcallContract], XcallModule, MethodExecuteCall), nil
+	default:
+		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
-	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
 
 func (p *Provider) GetReturnValuesFromCall(ctx context.Context, msg *SuiMessage) (any, error) {

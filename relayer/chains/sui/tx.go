@@ -3,15 +3,15 @@ package sui
 import (
 	"context"
 
-	"github.com/icon-project/centralized-relay/relayer/types"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*types.Receipt, error) {
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayerTypes.Receipt, error) {
 	txBlock, err := p.client.GetTransaction(ctx, txDigest)
 	if err != nil {
 		return nil, err
 	}
-	receipt := &types.Receipt{
+	receipt := &relayerTypes.Receipt{
 		TxHash: txDigest,
 		Height: txBlock.TimestampMs.Uint64(),
 		Status: txBlock.Effects.Data.IsSuccess(),
@@ -19,11 +19,11 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 	return receipt, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error) {
+func (p *Provider) MessageReceived(ctx context.Context, key *relayerTypes.MessageKey) (bool, error) {
 	suiMessage := p.NewSuiMessage([]interface{}{
 		key.Src,
 		key.Sn,
-	}, p.cfg.Contracts["connection"], connectionModule, MethodGetReceipt)
+	}, p.cfg.Contracts[relayerTypes.ConnectionContract], ConnectionModule, MethodGetReceipt)
 	msgReceived, err := p.GetReturnValuesFromCall(ctx, suiMessage)
 	if err != nil {
 		return false, err

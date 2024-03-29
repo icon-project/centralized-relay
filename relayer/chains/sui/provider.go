@@ -18,9 +18,11 @@ var (
 	MethodSetFee        = "methodSetFee"
 	MethodGetFee        = "methodGetFee"
 	MethodRevertMessage = "methodRevertMessage"
-	MethodSetAdmin      = "methodSetAdmin"
-	connectionPackageId = "connectionPackageId"
-	connectionModule    = "donuts_with_events"
+	MethodSetAdmin      = "setAdmin"
+	ConnectionModule    = "donuts_with_events"
+	XcallModule         = "xcall_donuts_with_events"
+	MethodRecvMessage   = "methodRecvMessage"
+	MethodExecuteCall   = "methodExecuteCall"
 )
 
 type Provider struct {
@@ -83,7 +85,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	//Todo
 	suiMessage := p.NewSuiMessage([]interface{}{
 		admin,
-	}, connectionPackageId, connectionModule, MethodSetAdmin)
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetAdmin)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
@@ -91,7 +93,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	suiMessage := p.NewSuiMessage([]interface{}{
 		sn,
-	}, connectionPackageId, connectionModule, MethodRevertMessage)
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodRevertMessage)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
@@ -100,7 +102,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	suiMessage := p.NewSuiMessage([]interface{}{
 		networkID,
 		responseFee,
-	}, p.cfg.Contracts["connection"], connectionModule, MethodGetFee)
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodGetFee)
 	fee, err := p.GetReturnValuesFromCall(ctx, suiMessage)
 	if err != nil {
 		return 0, err
@@ -113,14 +115,14 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		networkID,
 		msgFee,
 		resFee,
-	}, p.cfg.Contracts["connection"], connectionModule, MethodSetFee)
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
 	suiMessage := p.NewSuiMessage([]interface{}{},
-		p.cfg.Contracts["connection"], connectionModule, MethodClaimFee)
+		p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodClaimFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
