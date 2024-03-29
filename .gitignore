@@ -7,3 +7,4 @@ artifacts
 vendor
 .DS_Store
 .*env
+build
