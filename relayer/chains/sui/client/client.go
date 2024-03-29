@@ -139,7 +139,7 @@ func (c *Client) readWsConnMessage(conn *websocket.Conn, dest interface{}) (err 
 	return nil
 }
 
-func (c Client) GetEventsFromTxBlocks(ctx context.Context, digests []string) ([]suimodels.SuiEventResponse, error) {
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, digests []string) ([]suimodels.SuiEventResponse, error) {
 	suiTxBlockResponses, err := c.rpc.SuiMultiGetTransactionBlocks(ctx, suimodels.SuiMultiGetTransactionBlocksRequest{
 		Digests: digests,
 		Options: suimodels.SuiTransactionBlockOptions{ShowEvents: true},

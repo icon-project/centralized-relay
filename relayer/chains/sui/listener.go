@@ -12,18 +12,21 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
 	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
 	if err != nil {
 		return err
 	}
 
 	startCheckpointSeq := latestCheckpointSeq
+	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
+		startCheckpointSeq = lastSavedCheckpointSeq
+	}
 
 	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 
-func (p Provider) listenRealtime(ctx context.Context, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) listenRealtime(ctx context.Context, blockInfo chan *relayertypes.BlockInfo) error {
 	eventFilters := []interface{}{
 		map[string]interface{}{
 			"Package": p.cfg.PackageID,
@@ -72,7 +75,7 @@ func (p Provider) listenRealtime(ctx context.Context, blockInfo chan *relayertyp
 	}
 }
 
-func (p Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
 	done := make(chan interface{})
 	defer close(done)
 
@@ -109,7 +112,7 @@ func (p Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64
 
 // GenerateTxDigests forms the packets of txDigests from the list of checkpoint responses such that each packet
 // contains as much as possible number of digests but not exceeding max limit of maxDigests value
-func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointResponse, maxDigestsPerItem int) []types.TxDigests {
+func (p *Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointResponse, maxDigestsPerItem int) []types.TxDigests {
 	// stage-1: split checkpoint to multiple checkpoints if number of transactions is greater than maxDigests
 	var checkpoints []suimodels.CheckpointResponse
 	for _, cp := range checkpointResponses {
@@ -176,7 +179,7 @@ func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointRe
 	return txDigestsList
 }
 
-func (p Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-chan types.TxDigests {
+func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-chan types.TxDigests {
 	txDigestsStream := make(chan types.TxDigests)
 
 	go func() {
