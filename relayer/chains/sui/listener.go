@@ -2,18 +2,28 @@ package sui
 
 import (
 	"context"
+	"strconv"
 	"strings"
+	"time"
 
+	suimodels "github.com/block-vision/sui-go-sdk/models"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
 func (p Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	return p.listenRealtime(ctx, lastSavedCheckpointSeq, blockInfo)
+	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
+	if err != nil {
+		return err
+	}
+
+	startCheckpointSeq := latestCheckpointSeq
+
+	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 
-func (p Provider) listenRealtime(ctx context.Context, _ uint64, blockInfo chan *relayertypes.BlockInfo) error {
+func (p Provider) listenRealtime(ctx context.Context, blockInfo chan *relayertypes.BlockInfo) error {
 	eventFilters := []interface{}{
 		map[string]interface{}{
 			"Package": p.cfg.PackageID,
@@ -60,4 +70,137 @@ func (p Provider) listenRealtime(ctx context.Context, _ uint64, blockInfo chan *
 			}
 		}
 	}
+}
+
+func (p Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+	done := make(chan interface{})
+	defer close(done)
+
+	txDigestsStream := p.getTxDigestsStream(done, strconv.Itoa(int(startCheckpointSeq)-1))
+
+	p.log.Info("Started to query sui from", zap.Uint64("checkpoint", startCheckpointSeq))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case txDigests, ok := <-txDigestsStream:
+			if ok {
+				p.log.Debug("executing query",
+					zap.Any("from-checkpoint", txDigests.FromCheckpoint),
+					zap.Any("to-checkpoint", txDigests.ToCheckpoint),
+					zap.Any("tx-digests", txDigests.Digests),
+				)
+
+				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, txDigests.Digests)
+				if err != nil {
+					p.log.Error("failed to query events", zap.Error(err))
+				}
+
+				for _, event := range eventResponse {
+					if event.PackageId == p.cfg.PackageID {
+						p.log.Info("detected event log", zap.Any("event", event))
+					}
+				}
+			}
+		}
+	}
+}
+
+// GenerateTxDigests forms the packets of txDigests from the list of checkpoint responses such that each packet
+// contains as much as possible number of digests but not exceeding max limit of maxDigests value
+func (p Provider) GenerateTxDigests(checkpointResponses []suimodels.CheckpointResponse, maxDigestsPerItem int) []types.TxDigests {
+	var checkpoints []suimodels.CheckpointResponse
+	for _, cp := range checkpointResponses {
+		if len(cp.Transactions) > maxDigestsPerItem {
+			totalBatches := len(cp.Transactions) / maxDigestsPerItem
+			if (len(cp.Transactions) % maxDigestsPerItem) != 0 {
+				totalBatches = totalBatches + 1
+			}
+			for i := 0; i < totalBatches; i++ {
+				fromIndex := i * maxDigestsPerItem
+				toIndex := fromIndex + maxDigestsPerItem
+				if i == totalBatches-1 {
+					toIndex = totalBatches * maxDigestsPerItem
+				}
+				subCheckpoint := suimodels.CheckpointResponse{
+					SequenceNumber: cp.SequenceNumber,
+					Transactions:   cp.Transactions[fromIndex:toIndex],
+				}
+				checkpoints = append(checkpoints, subCheckpoint)
+			}
+		} else {
+			checkpoints = append(checkpoints, cp)
+		}
+	}
+
+	var txDigestsList []types.TxDigests
+
+	digests := []string{}
+	fromCheckpoint, _ := strconv.Atoi(checkpoints[0].SequenceNumber)
+	for i, cp := range checkpoints {
+		if (len(digests) + len(cp.Transactions)) > maxDigestsPerItem {
+			toCheckpoint, _ := strconv.Atoi(checkpoints[i-1].SequenceNumber)
+			txDigestsList = append(txDigestsList, types.TxDigests{
+				FromCheckpoint: uint64(fromCheckpoint),
+				ToCheckpoint:   uint64(toCheckpoint),
+				Digests:        digests,
+			})
+			digests = cp.Transactions
+			fromCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
+		} else {
+			digests = append(digests, cp.Transactions...)
+		}
+	}
+
+	lastCheckpointSeq := checkpoints[len(checkpoints)-1].SequenceNumber
+	lastCheckpoint, _ := strconv.Atoi(lastCheckpointSeq)
+	txDigestsList = append(txDigestsList, types.TxDigests{
+		FromCheckpoint: uint64(fromCheckpoint),
+		ToCheckpoint:   uint64(lastCheckpoint),
+		Digests:        digests,
+	})
+
+	return txDigestsList
+}
+
+func (p Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-chan types.TxDigests {
+	txDigestsStream := make(chan types.TxDigests)
+
+	go func() {
+		nextCursor := afterSeq
+		checkpointTicker := time.NewTicker(6 * time.Second)
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-checkpointTicker.C:
+				req := suimodels.SuiGetCheckpointsRequest{
+					Cursor:          nextCursor,
+					Limit:           types.QUERY_MAX_RESULT_LIMIT,
+					DescendingOrder: false,
+				}
+				paginatedRes, err := p.client.GetCheckpoints(context.Background(), req)
+				if err != nil {
+					p.log.Error("failed to fetch checkpoints", zap.Error(err))
+					continue
+				}
+
+				if len(paginatedRes.Data) > 0 {
+					for _, txDigests := range p.GenerateTxDigests(paginatedRes.Data, types.QUERY_MAX_RESULT_LIMIT) {
+						txDigestsStream <- types.TxDigests{
+							FromCheckpoint: uint64(txDigests.FromCheckpoint),
+							ToCheckpoint:   uint64(txDigests.ToCheckpoint),
+							Digests:        txDigests.Digests,
+						}
+					}
+
+					nextCursor = paginatedRes.Data[len(paginatedRes.Data)-1].SequenceNumber
+				}
+			}
+		}
+	}()
+
+	return txDigestsStream
 }
