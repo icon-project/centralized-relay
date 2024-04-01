@@ -182,7 +182,7 @@ func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-
 
 	go func() {
 		nextCursor := afterSeq
-		checkpointTicker := time.NewTicker(6 * time.Second) //todo need to decide this interval
+		checkpointTicker := time.NewTicker(3 * time.Second) //todo need to decide this interval
 
 		for {
 			select {
@@ -194,7 +194,9 @@ func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-
 					Limit:           types.QUERY_MAX_RESULT_LIMIT,
 					DescendingOrder: false,
 				}
-				paginatedRes, err := p.client.GetCheckpoints(context.Background(), req)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				paginatedRes, err := p.client.GetCheckpoints(ctx, req)
 				if err != nil {
 					p.log.Error("failed to fetch checkpoints", zap.Error(err))
 					continue
