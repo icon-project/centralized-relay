@@ -180,19 +180,14 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 			if mmErr := p.handleSequence(ctx); mmErr != nil {
 				return nil, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
+			return p.sendMessage(ctx, msgs...)
 		}
-		return nil, err
 	}
-	return res, nil
+	return res, err
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	res, err := p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
 func (p *Provider) handleSequence(ctx context.Context) error {
@@ -315,37 +310,55 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 		resultEventChan, err := p.client.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
 			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
+				TxResult: &relayTypes.TxResponse{
+					TxHash: txHash,
+				},
+				Error: err,
 			}
 			return
 		}
 		defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
 
-		select {
-		case <-ctx.Done():
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: ctx.Err(),
-			}
-			return
-		case e := <-resultEventChan:
-			eventDataJSON, err := jsoniter.Marshal(e.Data)
-			if err != nil {
-				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
-				}
+		for {
+			select {
+			case <-ctx.Done():
 				return
-			}
+			case e := <-resultEventChan:
+				eventDataJSON, err := jsoniter.Marshal(e.Data)
+				if err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+						}, Error: err,
+					}
+					return
+				}
 
-			txWaitRes := new(types.TxResultWaitResponse)
-			if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
-				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
+				txWaitRes := new(types.TxResultWaitResponse)
+				if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+							Code:   relayTypes.Failed,
+						}, Error: err,
+					}
+					return
 				}
-				return
-			}
-			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+				if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+					txRes <- &types.TxResultChan{
+						Error: fmt.Errorf(txWaitRes.Result.Log),
+						TxResult: &relayTypes.TxResponse{
+							Height:    txWaitRes.Height,
+							TxHash:    txHash,
+							Codespace: txWaitRes.Result.Codespace,
+							Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+							Data:      string(txWaitRes.Result.Data),
+						},
+					}
+					return
+				}
+
 				txRes <- &types.TxResultChan{
-					Error: fmt.Errorf(txWaitRes.Result.Log),
 					TxResult: &relayTypes.TxResponse{
 						Height:    txWaitRes.Height,
 						TxHash:    txHash,
@@ -355,16 +368,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					},
 				}
 				return
-			}
-
-			txRes <- &types.TxResultChan{
-				TxResult: &relayTypes.TxResponse{
-					Height:    txWaitRes.Height,
-					TxHash:    txHash,
-					Codespace: txWaitRes.Result.Codespace,
-					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-					Data:      string(txWaitRes.Result.Data),
-				},
 			}
 		}
 	}(txResChan)
@@ -401,7 +404,7 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.C
 	}
 	return &relayTypes.Coin{
 		Denom:  coin.Denom,
-		Amount: coin.Amount.Uint64(),
+		Amount: coin.Amount.BigInt().Uint64(),
 	}, nil
 }
 
@@ -491,8 +494,8 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	startHeight := lastSavedHeight
-	if p.cfg.StartHeight > 0 {
-		startHeight = p.cfg.StartHeight
+	if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
+		return p.cfg.StartHeight, nil
 	}
 
 	if startHeight > latestHeight {
@@ -664,7 +667,7 @@ func (p *Provider) getNumOfPipelines(diff int) int {
 	if diff <= runtime.NumCPU() {
 		return diff
 	}
-	return runtime.NumCPU()
+	return runtime.NumCPU() / 2
 }
 
 func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) uint64 {

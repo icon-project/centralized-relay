@@ -41,7 +41,7 @@ func (s *Server) Listen() {
 // Send sends message to socket
 func (s *Server) server(c net.Conn) {
 	for {
-		buf := make([]byte, 1024*10)
+		buf := make([]byte, 1024*100)
 		nr, err := c.Read(buf)
 		if err != nil {
 			return
@@ -171,7 +171,18 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		if req.Height != 0 {
-			return nil, fmt.Errorf("not implemented")
+			msgs, err := src.Provider.GenerateMessages(context.Background(), types.NewMessagekeyWithMessageHeight(&types.MessageKey{Src: req.Chain, Sn: req.Sn}, req.Height))
+			if err != nil {
+				return nil, err
+			}
+			for _, msg := range msgs {
+				src.MessageCache.Add(types.NewRouteMessage(msg))
+			}
+			data, err := jsoniter.Marshal(&ResRelayMessage{types.NewRouteMessage(msgs[0])})
+			if err != nil {
+				return nil, err
+			}
+			return &Message{EventRelayMessage, data}, nil
 		}
 
 		store := s.rly.GetMessageStore()

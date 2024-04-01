@@ -52,7 +52,7 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 				return err
 			}
 			a.config.Global.KMSKeyID = *keyID
-			if err := a.config.Save(a.homePath); err != nil {
+			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
 			fmt.Fprintf(os.Stdout, "KMS key created: %s\n", a.config.Global.KMSKeyID)

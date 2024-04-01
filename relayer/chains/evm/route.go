@@ -86,8 +86,8 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		switch p.parseErr(err, maxRetry > 0) {
 		case ErrorLessGas:
 			p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-			// 10 percent increment
-			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, big.NewInt(0).Div(opts.GasPrice, big.NewInt(10)))
+			// GasPriceRatio (10%) percent increment
+			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, big.NewInt(0).Div(opts.GasPrice, big.NewInt(GasPriceRatio)))
 		case ErrorLimitLessThanGas:
 			p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 			// get gas price parsing error message

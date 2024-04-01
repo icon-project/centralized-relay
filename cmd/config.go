@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"reflect"
 	"strings"
 
@@ -145,12 +144,11 @@ type Config struct {
 	Chains relayer.Chains `yaml:"chains" json:"chains"`
 }
 
-func (c *Config) Save(dir string) error {
+func (c *Config) Save(cfgPath string) error {
 	out, err := yaml.Marshal(c.Wrapped())
 	if err != nil {
 		return err
 	}
-	cfgPath := path.Join(dir, "config.yaml")
 	return os.WriteFile(cfgPath, out, 0o600)
 }
 
