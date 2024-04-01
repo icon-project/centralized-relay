@@ -137,6 +137,7 @@ func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.S
 	return txBlock, err
 }
 
+// convert native params to bcs encoded params
 func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
 	var callArgs []sui_types.CallArg
 	for _, param := range suiMessage.Params {
@@ -204,11 +205,12 @@ func (cl *Client) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *S
 func extractResult(resultType interface{}, byteSlice []interface{}, defResult interface{}) (any, error) {
 	switch resultType {
 	case suiU64:
-		value := uint64(0)
+		reverseUint8Array(byteSlice)
+		var result uint64
 		for _, v := range byteSlice {
-			value += uint64((v.(float64)))
+			result = (result << 8) | uint64(v.(float64))
 		}
-		return value, nil
+		return result, nil
 	case suiStringType:
 		byteSlice = byteSlice[1:]
 		valueSlice := make([]byte, len(byteSlice))
@@ -222,5 +224,11 @@ func extractResult(resultType interface{}, byteSlice []interface{}, defResult in
 		return boolValue == 1, nil
 	default:
 		return defResult, nil
+	}
+}
+
+func reverseUint8Array(arr []interface{}) {
+	for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
+		arr[i], arr[j] = arr[j], arr[i]
 	}
 }
