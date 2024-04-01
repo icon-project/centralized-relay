@@ -18,12 +18,13 @@ import (
 )
 
 const (
-	suiCurrencyType = "0x2::sui::SUI"
-	pickMethod      = 1
-	baseSuiFee      = 1000
-	suiStringType   = "0x1::string::String"
-	suiU64          = "u64"
-	suiBool         = "bool"
+	suiCurrencyType                           = "0x2::sui::SUI"
+	pickMethod                                = 1
+	baseSuiFee                                = 1000
+	suiStringType                             = "0x1::string::String"
+	suiU64                                    = "u64"
+	suiBool                                   = "bool"
+	moveCall        suisdkClient.UnsafeMethod = "moveCall"
 )
 
 type IClient interface {
@@ -101,7 +102,22 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	if stringParams == nil {
 		stringParams = make([]interface{}, 0)
 	}
-	return cl.rpc.MoveCall(ctx, *accountAddress, *packageId, suiMessage.Module, suiMessage.Method, typeArgs, stringParams, coinAddress, types.NewSafeSuiBigInt(gasBudget))
+
+	resp := types.TransactionBytes{}
+	return &resp, cl.rpc.CallContext(
+		ctx,
+		&resp,
+		moveCall,
+		*accountAddress,
+		packageId,
+		suiMessage.Module,
+		suiMessage.Method,
+		typeArgs,
+		stringParams,
+		coinAddress,
+		types.NewSafeSuiBigInt(gasBudget),
+		"DevInspect",
+	)
 }
 
 func (cl *Client) CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error) {
