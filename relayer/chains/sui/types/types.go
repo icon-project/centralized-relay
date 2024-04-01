@@ -30,11 +30,16 @@ type TxDigests struct {
 	Digests        []string
 }
 
+type EventResponse struct {
+	suimodels.SuiEventResponse
+	Checkpoint string
+}
+
 type IClient interface {
 	GetLatestCheckpointSeq(ctx context.Context) (uint64, error)
 	GetCheckpoints(ctx context.Context, req suimodels.SuiGetCheckpointsRequest) (suimodels.PaginatedCheckpointsResponse, error)
 	GetBalance(ctx context.Context, addr string) ([]suimodels.CoinData, error)
 
 	SubscribeEventNotification(done chan interface{}, wsUrl string, eventFilters []interface{}) (<-chan EventNotification, error)
-	GetEventsFromTxBlocks(ctx context.Context, digests []string) ([]suimodels.SuiEventResponse, error)
+	GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]EventResponse, error)
 }

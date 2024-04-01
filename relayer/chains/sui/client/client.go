@@ -139,7 +139,7 @@ func (c *Client) readWsConnMessage(conn *websocket.Conn, dest interface{}) (err 
 	return nil
 }
 
-func (c *Client) GetEventsFromTxBlocks(ctx context.Context, digests []string) ([]suimodels.SuiEventResponse, error) {
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]types.EventResponse, error) {
 	suiTxBlockResponses, err := c.rpc.SuiMultiGetTransactionBlocks(ctx, suimodels.SuiMultiGetTransactionBlocksRequest{
 		Digests: digests,
 		Options: suimodels.SuiTransactionBlockOptions{ShowEvents: true},
@@ -147,9 +147,16 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, digests []string) ([
 	if err != nil {
 		return nil, err
 	}
-	var events []suimodels.SuiEventResponse
+	var events []types.EventResponse
 	for _, txRes := range suiTxBlockResponses {
-		events = append(events, txRes.Events...)
+		for _, ev := range txRes.Events {
+			if ev.PackageId == packageID {
+				events = append(events, types.EventResponse{
+					SuiEventResponse: ev,
+					Checkpoint:       txRes.Checkpoint,
+				})
+			}
+		}
 	}
 
 	return events, nil

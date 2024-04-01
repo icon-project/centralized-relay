@@ -95,15 +95,13 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 					zap.Any("tx-digests", txDigests.Digests),
 				)
 
-				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, txDigests.Digests)
+				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.cfg.PackageID, txDigests.Digests)
 				if err != nil {
 					p.log.Error("failed to query events", zap.Error(err))
 				}
 
 				for _, event := range eventResponse {
-					if event.PackageId == p.cfg.PackageID {
-						p.log.Info("detected event log", zap.Any("event", event))
-					}
+					p.log.Info("detected event log", zap.Any("event", event))
 				}
 			}
 		}
