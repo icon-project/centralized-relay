@@ -108,7 +108,11 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		}
 		return res, nil
 	case EventError:
-		return nil, ErrUnknown
+		res := new(ChainProviderError)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, fmt.Errorf(res.Message)
 	case EventRevertMessage:
 		res := new(ResRevertMessage)
 		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
