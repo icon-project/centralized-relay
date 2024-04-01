@@ -7,6 +7,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/coming-chat/go-sui/v2/account"
+	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/sui_types"
+	"github.com/coming-chat/go-sui/v2/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -31,6 +35,41 @@ func (*mockKms) Encrypt(ctx context.Context, input []byte) ([]byte, error) {
 
 func (*mockKms) Decrypt(ctx context.Context, input []byte) ([]byte, error) {
 	return input, nil
+}
+
+type mockClient struct {
+}
+
+func (*mockClient) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
+	panic("not implemented")
+}
+func (*mockClient) GetTotalBalance(ctx context.Context, addr string) (uint64, error) {
+	panic("not implemented")
+}
+func (*mockClient) EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error) {
+	return &types.DryRunTransactionBlockResponse{
+		Effects: lib.TagJson[types.SuiTransactionBlockEffects]{
+			Data: types.SuiTransactionBlockEffects{
+				V1: &types.SuiTransactionBlockEffectsV1{
+					Status: types.ExecutionStatus{Status: "success"},
+				},
+			},
+		},
+	}, 100, nil
+}
+func (*mockClient) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error) {
+	return &types.TransactionBytes{
+		TxBytes: []byte("txbytes"),
+	}, nil
+}
+func (*mockClient) CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error) {
+	return &types.SuiTransactionBlockResponse{}, nil
+}
+func (*mockClient) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
+	panic("not implemented")
+}
+func (*mockClient) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
+	panic("not implemented")
 }
 
 func GetSuiProvider() (*Provider, error) {
@@ -82,4 +121,25 @@ func TestImportKeystore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDecodedAddr, pro.wallet.Address)
 	assert.Equal(t, expectedDecodedPrivKey, hex.EncodeToString(pro.wallet.KeyPair.PrivateKey()[:32]))
+}
+
+func TestSendTransactionErrors(t *testing.T) {
+	pro, err := GetSuiProvider()
+	pro.wallet = &account.Account{
+		Address: "0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21",
+		KeyPair: sui_types.SuiKeyPair{},
+	}
+	assert.NoError(t, err)
+	suiMessage := pro.NewSuiMessage([]interface{}{},
+		"connectionContractAddress", "ConnectionModule", "MethodClaimFee")
+	_, err = pro.SendTransaction(context.TODO(), suiMessage)
+	assert.ErrorContains(t, err, "invalid packageId")
+
+	pro.client = &mockClient{}
+	pro.cfg.GasLimit = 10
+	suiMessage = pro.NewSuiMessage([]interface{}{},
+		"0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21", "ConnectionModule", "MethodClaimFee")
+	_, err = pro.SendTransaction(context.TODO(), suiMessage)
+	assert.ErrorContains(t, err, "gas requirement is too high")
+
 }

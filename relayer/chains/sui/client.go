@@ -60,12 +60,12 @@ func (c *Client) GetTotalBalance(ctx context.Context, addr string) (uint64, erro
 	accountAddress, err := move_types.NewAccountAddressHex(addr)
 	if err != nil {
 		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
-		return 0, err
+		return 0, fmt.Errorf("error getting balance: %w", err)
 	}
 	res, err := c.rpc.GetBalance(ctx, *accountAddress, suiCurrencyType)
 	if err != nil {
 		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
-		return 0, err
+		return 0, fmt.Errorf("error getting balance: %w", err)
 	}
 	return res.TotalBalance.BigInt().Uint64(), nil
 }
@@ -85,13 +85,13 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
 	if err != nil {
 		cl.log.Error(fmt.Sprintf("error getting account address packageId %s", suiMessage.PackageObjectId), zap.Error(err))
-		return &types.TransactionBytes{}, err
+		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
 	}
 	coinId := cl.getGasCoinId(ctx, address, gasBudget)
 	coinAddress, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
 	if err != nil {
 		cl.log.Error(fmt.Sprintf("error getting account address coinId %s", coinId.CoinObjectId.String()), zap.Error(err))
-		return &types.TransactionBytes{}, err
+		return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
 	}
 	typeArgs := []string{}
 	var stringParams []interface{}

@@ -72,9 +72,6 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types
 	if gasRequired > int64(p.cfg.GasLimit) {
 		return &types.SuiTransactionBlockResponse{}, fmt.Errorf("gas requirement is too high: %d", gasRequired)
 	}
-	if gasRequired < int64(p.cfg.GasMin) {
-		return &types.SuiTransactionBlockResponse{}, fmt.Errorf("gas requirement is too low: %d", gasRequired)
-	}
 	if !dryRunResp.Effects.Data.IsSuccess() {
 		return &types.SuiTransactionBlockResponse{}, fmt.Errorf(dryRunResp.Effects.Data.V1.Status.Error)
 	}
