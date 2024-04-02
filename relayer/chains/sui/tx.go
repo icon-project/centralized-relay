@@ -13,7 +13,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 	}
 	receipt := &relayerTypes.Receipt{
 		TxHash: txDigest,
-		Height: txBlock.TimestampMs.Uint64(),
+		Height: txBlock.Checkpoint.Uint64(),
 		Status: txBlock.Effects.Data.IsSuccess(),
 	}
 	return receipt, nil

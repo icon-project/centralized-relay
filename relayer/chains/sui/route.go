@@ -52,7 +52,7 @@ func (p *Provider) GetReturnValuesFromCall(ctx context.Context, msg *SuiMessage)
 	if err != nil {
 		return &types.SuiTransactionBlockResponse{}, err
 	}
-	return p.client.ExecuteContractAndReturnVal(ctx, msg, wallet.Address, p.cfg.GasLimit)
+	return p.client.QueryContract(ctx, msg, wallet.Address, p.cfg.GasLimit)
 
 }
 
@@ -86,7 +86,7 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types
 
 func (p *Provider) executeRouteCallBack(txRes types.SuiTransactionBlockResponse, messageKey *providerTypes.MessageKey, method string, callback providerTypes.TxResponseFunc, err error) {
 	// if error occurred before txn processing
-	if err != nil {
+	if err != nil || txRes.Digest == nil {
 		return
 	}
 

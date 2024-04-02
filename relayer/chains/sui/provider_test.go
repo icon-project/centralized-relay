@@ -68,7 +68,7 @@ func (*mockClient) CommitTx(ctx context.Context, wallet *account.Account, txByte
 func (*mockClient) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
 	panic("not implemented")
 }
-func (*mockClient) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
+func (*mockClient) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
 	panic("not implemented")
 }
 

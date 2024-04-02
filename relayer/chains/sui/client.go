@@ -34,7 +34,7 @@ type IClient interface {
 	ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error)
 	CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
 	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
-	ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
+	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
 }
 
 type Client struct {
@@ -60,12 +60,10 @@ func (c Client) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
 func (c *Client) GetTotalBalance(ctx context.Context, addr string) (uint64, error) {
 	accountAddress, err := move_types.NewAccountAddressHex(addr)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
 		return 0, fmt.Errorf("error getting balance: %w", err)
 	}
 	res, err := c.rpc.GetBalance(ctx, *accountAddress, suiCurrencyType)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting account address total balance %s", addr), zap.Error(err))
 		return 0, fmt.Errorf("error getting balance: %w", err)
 	}
 	return res.TotalBalance.BigInt().Uint64(), nil
@@ -80,18 +78,15 @@ func (cl *Client) EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*typ
 func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error) {
 	accountAddress, err := move_types.NewAccountAddressHex(address)
 	if err != nil {
-		cl.log.Error(fmt.Sprintf("error getting account address sender %s", address), zap.Error(err))
-		return &types.TransactionBytes{}, err
+		return &types.TransactionBytes{}, fmt.Errorf("error getting account address sender: %w", err)
 	}
 	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
 	if err != nil {
-		cl.log.Error(fmt.Sprintf("error getting account address packageId %s", suiMessage.PackageObjectId), zap.Error(err))
 		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
 	}
 	coinId := cl.getGasCoinId(ctx, address, gasBudget)
 	coinAddress, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
 	if err != nil {
-		cl.log.Error(fmt.Sprintf("error getting account address coinId %s", coinId.CoinObjectId.String()), zap.Error(err))
 		return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
 	}
 	typeArgs := []string{}
@@ -167,7 +162,7 @@ func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
 	}
 	return callArgs, nil
 }
-func (cl *Client) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
+func (cl *Client) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
 	builder := sui_types.NewProgrammableTransactionBuilder()
 	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
 	if err != nil {
@@ -206,8 +201,7 @@ func (cl *Client) ExecuteContractAndReturnVal(ctx context.Context, suiMessage *S
 		return nil, err
 	}
 	if res.Error != nil {
-		cl.log.Error("error occurred while calling sui contract", zap.Error(err))
-		return nil, fmt.Errorf(*res.Error)
+		return nil, fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
 	}
 	result := (res.Results[0].ReturnValues[0]).([]interface{})
 	resultType := result[1]
