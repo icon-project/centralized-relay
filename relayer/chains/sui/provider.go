@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/block-vision/sui-go-sdk/models"
+	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -12,11 +12,24 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	MethodClaimFee      = "methodClaimFee"
+	MethodGetReceipt    = "methodGetReceipt"
+	MethodSetFee        = "methodSetFee"
+	MethodGetFee        = "methodGetFee"
+	MethodRevertMessage = "methodRevertMessage"
+	MethodSetAdmin      = "setAdmin"
+	ConnectionModule    = "donuts_with_events"
+	XcallModule         = "xcall_donuts_with_events"
+	MethodRecvMessage   = "methodRecvMessage"
+	MethodExecuteCall   = "methodExecuteCall"
+)
+
 type Provider struct {
 	log    *zap.Logger
 	cfg    *Config
-	client types.IClient
-	wallet models.SuiKeyPair
+	client IClient
+	wallet *account.Account
 	kms    kms.KMS
 }
 
@@ -46,10 +59,10 @@ func (p *Provider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *Provider) Wallet() (models.SuiKeyPair, error) {
-	if p.wallet.PrivateKey == nil {
+func (p *Provider) Wallet() (*account.Account, error) {
+	if p.wallet == nil {
 		if err := p.RestoreKeystore(context.Background()); err != nil {
-			return models.SuiKeyPair{}, err
+			return nil, err
 		}
 	}
 	return p.wallet, nil
@@ -68,27 +81,48 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 }
 
 // SetAdmin transfers the ownership of sui connection module to new address
-func (p *Provider) SetAdmin(context.Context, string) error {
+func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	//Todo
-	return nil
+	suiMessage := p.NewSuiMessage([]interface{}{
+		admin,
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetAdmin)
+	_, err := p.SendTransaction(ctx, suiMessage)
+	return err
 }
 
-func (p *Provider) RevertMessage(context.Context, *big.Int) error {
-	//Todo
-	return nil
+func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	suiMessage := p.NewSuiMessage([]interface{}{
+		sn,
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodRevertMessage)
+	_, err := p.SendTransaction(ctx, suiMessage)
+	return err
 }
 
-func (p *Provider) GetFee(context.Context, string, bool) (uint64, error) {
-	//Todo
-	return 0, nil
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	suiMessage := p.NewSuiMessage([]interface{}{
+		networkID,
+		responseFee,
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodGetFee)
+	fee, err := p.GetReturnValuesFromCall(ctx, suiMessage)
+	if err != nil {
+		return 0, err
+	}
+	return fee.(uint64), nil
 }
 
-func (p *Provider) SetFee(context.Context, string, uint64, uint64) error {
-	//Todo
-	return nil
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	suiMessage := p.NewSuiMessage([]interface{}{
+		networkID,
+		msgFee,
+		resFee,
+	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetFee)
+	_, err := p.SendTransaction(ctx, suiMessage)
+	return err
 }
 
-func (p *Provider) ClaimFee(context.Context) error {
-	//Todo
-	return nil
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	suiMessage := p.NewSuiMessage([]interface{}{},
+		p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodClaimFee)
+	_, err := p.SendTransaction(ctx, suiMessage)
+	return err
 }

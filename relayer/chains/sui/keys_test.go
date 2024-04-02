@@ -1,7 +1,6 @@
 package sui
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"testing"
 
@@ -15,11 +14,8 @@ var (
 
 func TestRestoreKey(t *testing.T) {
 	encodedWithFlag := "ALWS4mKTtggWc8gH+a5bFLFQ0AeNbZpUdDI//3OpAVys"
-	privateKey, err := base64.StdEncoding.DecodeString(encodedWithFlag)
-	assert.NoError(t, err)
-	key, err := fetchKeyPair(privateKey)
+	key, err := fetchKeyPair(encodedWithFlag)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAddr, key.Address)
-	assert.Equal(t, expectedPrivKey, hex.EncodeToString(key.PrivateKey))
-
+	assert.Equal(t, expectedPrivKey, hex.EncodeToString(key.KeyPair.PrivateKey()[:32]))
 }

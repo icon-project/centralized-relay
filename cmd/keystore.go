@@ -184,7 +184,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 				return nil
 			}
 			cf.SetWallet(k.address)
-			if err := a.config.Save(a.homePath); err != nil {
+			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
 			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {

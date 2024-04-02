@@ -3,30 +3,31 @@ package sui
 import (
 	"context"
 
-	"github.com/icon-project/centralized-relay/relayer/types"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*types.Receipt, error) {
-	//Todo
-	return nil, nil
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayerTypes.Receipt, error) {
+	txBlock, err := p.client.GetTransaction(ctx, txDigest)
+	if err != nil {
+		return nil, err
+	}
+	receipt := &relayerTypes.Receipt{
+		TxHash: txDigest,
+		Height: txBlock.Checkpoint.Uint64(),
+		Status: txBlock.Effects.Data.IsSuccess(),
+	}
+	return receipt, nil
 }
 
-func (p Provider) Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error {
-	//Todo
-	return nil
-}
+func (p *Provider) MessageReceived(ctx context.Context, key *relayerTypes.MessageKey) (bool, error) {
+	suiMessage := p.NewSuiMessage([]interface{}{
+		key.Src,
+		key.Sn,
+	}, p.cfg.Contracts[relayerTypes.ConnectionContract], ConnectionModule, MethodGetReceipt)
+	msgReceived, err := p.GetReturnValuesFromCall(ctx, suiMessage)
+	if err != nil {
+		return false, err
+	}
+	return msgReceived.(bool), nil
 
-func (p Provider) ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error) {
-	//Todo
-	return false, nil
-}
-
-func (p Provider) ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error) {
-	//Todo
-	return false, nil
-}
-
-func (p Provider) MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error) {
-	//Todo
-	return false, nil
 }
