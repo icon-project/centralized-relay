@@ -14,6 +14,7 @@ import (
 	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
 	"github.com/fardream/go-bcs/bcs"
+	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"go.uber.org/zap"
 )
 
@@ -35,6 +36,9 @@ type IClient interface {
 	CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
 	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
 	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
+
+	GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error)
+	GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error)
 }
 
 type Client struct {
@@ -241,4 +245,48 @@ func reverseUint8Array(arr []interface{}) {
 	for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
 		arr[i], arr[j] = arr[j], arr[i]
 	}
+}
+
+func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
+	paginatedRes := suitypes.PaginatedCheckpointsResponse{}
+	if err := c.rpc.CallContext(
+		ctx,
+		&paginatedRes,
+		suisdkClient.SuiMethod("getCheckpoints"),
+		req.Cursor,
+		req.Limit,
+		req.DescendingOrder,
+	); err != nil {
+		return nil, err
+	}
+
+	return &paginatedRes, nil
+}
+
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error) {
+	txnBlockResponses := []*types.SuiTransactionBlockResponse{}
+
+	if err := c.rpc.CallContext(
+		ctx,
+		&txnBlockResponses,
+		suisdkClient.SuiMethod("multiGetTransactionBlocks"),
+		digests,
+		types.SuiTransactionBlockResponseOptions{ShowEvents: true},
+	); err != nil {
+		return nil, err
+	}
+
+	var events []suitypes.EventResponse
+	for _, txRes := range txnBlockResponses {
+		for _, ev := range txRes.Events {
+			if ev.PackageId.String() == packageID {
+				events = append(events, suitypes.EventResponse{
+					SuiEvent:   ev,
+					Checkpoint: txRes.Checkpoint.Decimal().String(),
+				})
+			}
+		}
+	}
+
+	return events, nil
 }
