@@ -162,14 +162,15 @@ type BlockNotification struct {
 type EventRequest struct {
 	EventFilter []*EventFilter `json:"eventFilters"`
 	Height      HexInt         `json:"height"`
+	Logs        HexInt         `json:"logs"`
 }
 
 type EventNotification struct {
-	Hash   HexBytes               `json:"hash"`
-	Height HexInt                 `json:"height"`
-	Index  HexInt                 `json:"index"`
-	Events []HexInt               `json:"events,omitempty"`
-	Logs   []EventNotificationLog `json:"logs,omitempty"`
+	Hash   HexBytes                `json:"hash"`
+	Height HexInt                  `json:"height"`
+	Index  HexInt                  `json:"index"`
+	Events []HexInt                `json:"events"`
+	Logs   []*EventNotificationLog `json:"logs"`
 }
 
 type EventNotificationLog struct {

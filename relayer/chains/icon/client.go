@@ -249,12 +249,12 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 	})
 }
 
-func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
+func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
 	resp := &types.EventNotification{}
 	return c.Monitor(ctx, "/event", p, resp, func(conn *websocket.Conn, v interface{}) error {
 		switch t := v.(type) {
 		case *types.EventNotification:
-			if err := cb(conn, t); err != nil {
+			if err := cb(t); err != nil {
 				c.log.Debug(fmt.Sprintf("MonitorEvent callback return err:%+v", err))
 			}
 		case error:
@@ -281,6 +281,9 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
 	}
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	})
 	if err := cb(conn, types.WSEventInit); err != nil {
 		return err
 	}

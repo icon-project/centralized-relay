@@ -65,12 +65,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 	// subscribe to monitor block
 	reconnect()
 
-	blockReq := &types.BlockRequest{
-		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: p.GetMonitorEventFilters(),
+	eventReq := &types.EventRequest{
+		Height:      types.NewHexInt(int64(processedheight)),
+		EventFilter: p.GetMonitorEventFilters(),
+		Logs:        types.NewHexInt(1),
 	}
 
-loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,16 +80,30 @@ loop:
 
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
-
+			// monitor event
 			go func(ctx context.Context, cancel context.CancelFunc) {
-				blockReq.Height = types.NewHexInt(int64(processedheight))
-				p.log.Debug("try to reconnect from", zap.Int64("height", processedheight))
-				err := p.client.MonitorBlock(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
+				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
-						btpBlockNotifCh <- v
+						p.log.Info("event notification received", zap.Any("event", v))
+						msgs, err := p.parseMessageEvent(v)
+						if err != nil {
+							p.log.Error("failed to parse message event", zap.Error(err))
+							return err
+						}
+						for _, msg := range msgs {
+							p.log.Info("Detected eventlog",
+								zap.Uint64("height", msg.MessageHeight),
+								zap.String("target_network", msg.Dst),
+								zap.Uint64("sn", msg.Sn),
+								zap.String("event_type", msg.EventType),
+							)
+							incoming <- &providerTypes.BlockInfo{
+								Messages: msgs,
+								Height:   msg.MessageHeight,
+							}
+						}
 					}
-					return nil
-				}, func(conn *websocket.Conn) {
+					return err
 				}, func(conn *websocket.Conn, err error) {})
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
@@ -97,7 +111,7 @@ loop:
 					}
 					time.Sleep(time.Second * 5)
 					reconnect()
-					p.log.Warn("error occured during monitor block", zap.Error(err))
+					p.log.Error("error occured during monitor event", zap.Error(err))
 				}
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
@@ -140,7 +154,7 @@ loop:
 							zap.Int64("expected", processedheight+i),
 						)
 						reconnect()
-						continue loop
+						continue
 					}
 
 					requestCh <- &btpBlockRequest{

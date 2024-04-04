@@ -95,7 +95,7 @@ type IClient interface {
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
-	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
+	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error)
 
 	// abiContract for connection
 	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
@@ -314,6 +314,6 @@ func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethType
 }
 
 // Subscribe
-func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error) {
+func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error) {
 	return c.eth.SubscribeFilterLogs(ctx, q, ch)
 }

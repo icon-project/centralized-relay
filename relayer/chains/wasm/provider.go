@@ -105,26 +105,26 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	heightTicker := time.NewTicker(p.cfg.BlockInterval)
-	heightPoller := time.NewTicker(time.Minute * 5)
-	defer heightTicker.Stop()
-	defer heightPoller.Stop()
+	subscribeStarter := time.NewTicker(time.Second * 1)
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	for {
 		select {
-		case <-heightTicker.C:
-			latestHeight++
-		case <-heightPoller.C:
-			height, err := p.QueryLatestHeight(ctx)
-			if err != nil {
-				p.logger.Error("failed to query latest height", zap.Error(err))
-				continue
-			}
-			latestHeight = height
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-subscribeStarter.C:
+			subscribeStarter.Stop()
+			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+				Address: p.cfg.Contracts[relayTypes.ConnectionContract],
+				Method:  EventTypeWasmMessage,
+				Height:  latestHeight,
+			})
+			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+				Address: p.cfg.Contracts[relayTypes.XcallContract],
+				Method:  EventTypeWasmCallMessage,
+				Height:  latestHeight,
+			})
 		default:
 			if startHeight+1 < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
@@ -140,11 +140,11 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err != nil {
 		return err
 	}
-	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 	seq := p.wallet.GetSequence() + 1
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
+	p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 	return nil
 }
 
@@ -259,7 +259,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
-		if txWaitRes.Error != nil {
+		if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
@@ -339,7 +339,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					txRes <- &types.TxResultChan{
 						TxResult: &relayTypes.TxResponse{
 							TxHash: txHash,
-							Code:   relayTypes.Failed,
 						}, Error: err,
 					}
 					return
@@ -741,7 +740,6 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			p.logger.Info("event subscription stopped")
 			return ctx.Err()
 		case e := <-resultEventChan:
-			p.logger.Info("event received")
 			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
 				p.logger.Error("failed to marshal event data", zap.Error(err))
@@ -752,16 +750,23 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
-			var eventsList EventsList
+			eventsList := []struct {
+				Events []Event `json:"events"`
+			}{}
 			if err := jsoniter.Unmarshal([]byte(res.Result.Log), &eventsList); err != nil {
-				p.logger.Error("failed to unmarshal event data", zap.Error(err))
+				p.logger.Error("failed to unmarshal event list", zap.Error(err))
 				continue
 			}
-			messages, err := p.ParseMessageFromEvents(eventsList.Events)
-			if err != nil {
-				p.logger.Error("failed to parse message from events", zap.Error(err))
-				continue
+			var messages []*relayTypes.Message
+			for _, event := range eventsList {
+				msgs, err := p.ParseMessageFromEvents(event.Events)
+				if err != nil {
+					p.logger.Error("failed to parse message from events", zap.Error(err))
+					continue
+				}
+				messages = append(messages, msgs...)
 			}
+
 			blockInfo := &relayTypes.BlockInfo{
 				Height:   uint64(res.Height),
 				Messages: messages,
