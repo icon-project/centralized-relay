@@ -66,9 +66,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 	reconnect()
 
 	eventReq := &types.EventRequest{
-		Height:      types.NewHexInt(int64(processedheight)),
-		EventFilter: p.GetMonitorEventFilters(),
-		Logs:        types.NewHexInt(1),
+		Height:           types.NewHexInt(int64(processedheight)),
+		EventFilter:      p.GetMonitorEventFilters(),
+		Logs:             types.NewHexInt(1),
+		ProgressInterval: types.NewHexInt(30),
 	}
 
 	for {
@@ -80,11 +81,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
-			// monitor event
 			go func(ctx context.Context, cancel context.CancelFunc) {
 				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						p.log.Info("event notification received", zap.Any("event", v))
+						height, err := v.Progress.BigInt()
+						if err != nil {
+							return err
+						}
+						if height != nil {
+							eventReq.Height = v.Progress
+							return nil
+						}
 						msgs, err := p.parseMessageEvent(v)
 						if err != nil {
 							p.log.Error("failed to parse message event", zap.Error(err))
