@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -66,13 +67,13 @@ func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTyp
 	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
-func (ip *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
-	ip.log.Info("generating message", zap.Any("messagekey", key))
+func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
+	p.log.Info("generating message", zap.Any("messagekey", key))
 	if key == nil {
 		return nil, errors.New("GenerateMessage: message key cannot be nil")
 	}
 
-	block, err := ip.client.GetBlockByHeight(&types.BlockHeightParam{
+	block, err := p.client.GetBlockByHeight(&types.BlockHeightParam{
 		Height: types.NewHexInt(int64(key.Height)),
 	})
 	if err != nil {
@@ -80,9 +81,7 @@ func (ip *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mes
 	}
 
 	for _, res := range block.NormalTransactions {
-		txResult, err := ip.client.GetTransactionResult(&types.TransactionHashParam{
-			Hash: res.TxHash,
-		})
+		txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{Hash: res.TxHash})
 		if err != nil {
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
 		}
@@ -90,48 +89,81 @@ func (ip *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mes
 		var messages []*providerTypes.Message
 
 		for _, el := range txResult.EventLogs {
-			var dst string
+			var (
+				dst       string
+				eventType = p.GetEventName(el.Indexed[0])
+			)
+			height, err := txResult.BlockHeight.BigInt()
+			if err != nil {
+				return nil, fmt.Errorf("GenerateMessage: bigIntConversion %v", err)
+			}
 			switch el.Indexed[0] {
 			case EmitMessage:
-				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.ConnectionContract]) &&
+				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) &&
 					len(el.Indexed) != 3 && len(el.Data) != 1 {
 					continue
 				}
 				dst = el.Indexed[1]
-			case CallMessage:
-				if el.Addr != types.Address(ip.cfg.Contracts[providerTypes.XcallContract]) &&
-					len(el.Indexed) != 4 && len(el.Data) != 1 {
+				sn, ok := big.NewInt(0).SetString(el.Indexed[2], 10)
+				if !ok {
+					p.log.Error("GenerateMessage: error decoding int value ")
 					continue
 				}
-				dst = ip.NID()
+				data := types.HexBytes(el.Data[0])
+				dataValue, err := data.Value()
+				if err != nil {
+					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
+					continue
+				}
+				msg := &providerTypes.Message{
+					MessageHeight: height.Uint64(),
+					EventType:     eventType,
+					Dst:           dst,
+					Src:           key.Src,
+					Data:          dataValue,
+					Sn:            sn.Uint64(),
+				}
+				messages = append(messages, msg)
+			case CallMessage:
+				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) &&
+					len(el.Indexed) != 4 && len(el.Data) != 2 {
+					continue
+				}
+				dst = p.NID()
+				src := strings.SplitN(string(el.Indexed[1][:]), "/", 2)
+				sn, ok := big.NewInt(0).SetString(el.Indexed[3], 10)
+				if !ok {
+					p.log.Error("GenerateMessage: error decoding int value ")
+					continue
+				}
+				sn, err := types.HexInt(el.Indexed[3]).BigInt()
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[2])
+				}
+				requestID, err := types.HexInt(el.Data[0]).BigInt()
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse reqID: %s", el.Data[0])
+				}
+				data := types.HexBytes(el.Data[1])
+				dataValue, err := data.Value()
+				if err != nil {
+					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
+					continue
+				}
+				msg := &providerTypes.Message{
+					MessageHeight: height.Uint64(),
+					EventType:     p.GetEventName(el.Indexed[0]),
+					Dst:           dst,
+					Src:           src[0],
+					Data:          dataValue,
+					Sn:            sn.Uint64(),
+					ReqID:         requestID.Uint64(),
+				}
+				messages = append(messages, msg)
 			}
-
-			sn, ok := big.NewInt(0).SetString(el.Indexed[2], 0)
-			if !ok {
-				ip.log.Error("GenerateMessage: error decoding int value ")
-				continue
-			}
-
-			data := types.HexBytes(el.Data[0])
-			dataValue, err := data.Value()
-			if err != nil {
-				ip.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
-				continue
-			}
-
-			msg := &providerTypes.Message{
-				MessageHeight: key.Height,
-				EventType:     key.EventType,
-				Dst:           dst,
-				Src:           key.Src,
-				Data:          dataValue,
-				Sn:            sn.Uint64(),
-			}
-			messages = append(messages, msg)
+			return messages, nil
 		}
-		return messages, nil
 	}
-
 	return nil, fmt.Errorf("error generating message: %v", key)
 }
 
