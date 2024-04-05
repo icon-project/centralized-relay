@@ -19,7 +19,6 @@ type Config struct {
 	RPCUrl        string                         `json:"rpc-url" yaml:"rpc-url"`
 	Address       string                         `json:"address" yaml:"address"`
 	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
-	BlockInterval string                         `json:"block-interval" yaml:"block-interval"`
 	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	NetworkID     int64                          `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`

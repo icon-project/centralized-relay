@@ -16,7 +16,7 @@ var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
 
-	SaveHeightMaxAfter = 10
+	HeightSaveInterval = time.Minute * 5
 	RouteDuration      = 1 * time.Second
 	maxFlushMessage    = 10
 	FinalityInterval   = 5 * time.Second
@@ -158,6 +158,7 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
 	routeTimer := time.NewTicker(RouteDuration)
 	flushTimer := time.NewTicker(flushInterval)
+	heightTimer := time.NewTicker(HeightSaveInterval)
 
 	for {
 		select {
@@ -167,6 +168,8 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 		case <-routeTimer.C:
 			// processMessage starting working on all the runtime Messages
 			r.processMessages(ctx)
+		case <-heightTimer.C:
+			r.SaveBlockHeightForAllChains(ctx)
 		}
 	}
 }
@@ -262,19 +265,13 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
 	}
-	if err := r.SaveBlockHeight(ctx, src, blockInfo.Height, len(blockInfo.Messages)); err != nil {
-		r.log.Error("unable to save height", zap.Error(err))
-	}
 }
 
-func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64, messageCount int) error {
-	if messageCount > 0 || (height-chainRuntime.LastSavedHeight) > uint64(SaveHeightMaxAfter) {
-		r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
-		chainRuntime.LastSavedHeight = height
-		err := r.blockStore.StoreBlock(height, chainRuntime.Provider.NID())
-		if err != nil {
-			return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.NID(), err)
-		}
+func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64) error {
+	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
+	chainRuntime.LastSavedHeight = height
+	if err := r.blockStore.StoreBlock(height, chainRuntime.Provider.NID()); err != nil {
+		return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.NID(), err)
 	}
 	return nil
 }
@@ -510,4 +507,18 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// SaveBlockHeight for all chains
+func (r *Relayer) SaveBlockHeightForAllChains(ctx context.Context) error {
+	for _, chain := range r.chains {
+		height, err := chain.Provider.QueryLatestHeight(ctx)
+		if err != nil {
+			return err
+		}
+		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
+			return err
+		}
+	}
+	return nil
 }
