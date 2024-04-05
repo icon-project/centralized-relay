@@ -167,11 +167,11 @@ type EventRequest struct {
 }
 
 type EventNotification struct {
-	Hash     HexBytes                `json:"hash"`
-	Height   HexInt                  `json:"height"`
-	Index    HexInt                  `json:"index"`
-	Events   []HexInt                `json:"events"`
-	Logs     []*EventNotificationLog `json:"logs"`
+	Hash     HexBytes                `json:"hash,omitempty"`
+	Height   HexInt                  `json:"height,omitempty"`
+	Index    HexInt                  `json:"index",omitempty`
+	Events   []HexInt                `json:"events",omitempty`
+	Logs     []*EventNotificationLog `json:"logs",omitempty`
 	Progress HexInt                  `json:"progress,omitempty"`
 }
 

@@ -137,7 +137,6 @@ func (p *Provider) parseCallMessageEvent(height uint64, e *types.EventNotificati
 	if indexdedLen, dataLen := len(e.Indexed), len(e.Data); indexdedLen != 4 && dataLen != 2 {
 		return nil, fmt.Errorf("expected indexed: 4 & data: 2, got: %d indexed & %d", indexdedLen, dataLen)
 	}
-
 	src := strings.SplitN(e.Indexed[1], "/", 2)
 	sn, err := types.HexInt(e.Indexed[3]).BigInt()
 	if err != nil {

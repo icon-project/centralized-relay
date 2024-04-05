@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -84,13 +85,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 			go func(ctx context.Context, cancel context.CancelFunc) {
 				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
-						p.log.Info("event notification received", zap.Any("event", v))
-						height, err := v.Progress.BigInt()
-						if err != nil {
-							return err
-						}
-						if height != nil {
-							eventReq.Height = v.Progress
+						p.log.Debug("event notification received", zap.Any("event", v))
+						if v.Progress != "" {
+							height, err := v.Progress.Value()
+							if err != nil {
+								p.log.Error("failed to get progress height", zap.Error(err))
+								return err
+							}
+							if height > 0 {
+								eventReq.Height = v.Progress
+							}
 							return nil
 						}
 						msgs, err := p.parseMessageEvent(v)
@@ -98,6 +102,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							p.log.Error("failed to parse message event", zap.Error(err))
 							return err
 						}
+						fmt.Println("msgs", msgs)
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
 								zap.Uint64("height", msg.MessageHeight),
