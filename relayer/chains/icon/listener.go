@@ -66,7 +66,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 	reconnect()
 
 	eventReq := &types.EventRequest{
-		Height:           types.NewHexInt(int64(processedheight)),
+		Height:           types.NewHexInt(processedheight),
 		EventFilter:      p.GetMonitorEventFilters(),
 		Logs:             types.NewHexInt(1),
 		ProgressInterval: types.NewHexInt(30),
@@ -124,7 +124,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:
 			for ; br != nil; processedheight++ {
-				p.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
+				p.log.Debug("block notification received", zap.Int64("height", processedheight))
 
 				// note: because of monitorLoop height should be subtract by 1
 				height := br.Height - 1
@@ -328,14 +328,14 @@ func (p *Provider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) 
 		)
 	}
 
-	// priority2: lastsaveheight from db
-	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		return int64(lastSavedHeight), nil
-	}
-
 	// priority1: startHeight from config
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestHeight {
 		return int64(p.cfg.StartHeight), nil
+	}
+
+	// priority2: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
+		return int64(lastSavedHeight), nil
 	}
 
 	// priority3: latest height
