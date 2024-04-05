@@ -707,31 +707,18 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 // SubscribeMessageEvents subscribes to the message events
 // Expermental: Allows to subscribe to the message events realtime without fully syncing the chain
 func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, opts *types.SubscribeOpts) error {
-	httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
-	if err != nil {
-		p.logger.Error("failed to create http client", zap.Error(err))
-		return err
-	}
-	defer httpClient.Stop()
-	if err := httpClient.Start(); err != nil {
-		p.logger.Error("http client start failed", zap.Error(err))
-		return err
-	}
-	newCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	query := strings.Join([]string{
 		"tm.event = 'Tx'",
 		fmt.Sprintf("tx.height >= %d ", opts.Height),
 		fmt.Sprintf("%s._contract_address = '%s'", opts.Method, opts.Address),
 	}, " AND ")
 
-	resultEventChan, err := httpClient.Subscribe(newCtx, opts.Address, query)
+	resultEventChan, err := p.client.Subscribe(ctx, "tx-result-waiter", query)
 	if err != nil {
 		p.logger.Error("event subscription failed", zap.Error(err))
 		return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 	}
-	defer httpClient.Unsubscribe(ctx, opts.Address, query)
+	defer p.client.Unsubscribe(ctx, opts.Address, query)
 	p.logger.Info("event subscription started", zap.String("contract_address", opts.Address), zap.String("method", opts.Method))
 
 	for {
@@ -782,8 +769,14 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				)
 			}
 		default:
-			if !httpClient.IsRunning() {
-				p.logger.Info("http client stopped")
+			if !p.client.IsConnected() {
+				p.logger.Debug("http client stopped")
+				if err := p.client.Reconnect(); err != nil {
+					p.logger.Debug("failed to reconnect", zap.Error(err))
+					time.Sleep(time.Second * 5)
+					continue
+				}
+				p.logger.Debug("http client reconnected")
 				return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 			}
 		}

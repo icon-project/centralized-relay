@@ -2,7 +2,6 @@ package icon
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -102,7 +101,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							p.log.Error("failed to parse message event", zap.Error(err))
 							return err
 						}
-						fmt.Println("msgs", msgs)
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
 								zap.Uint64("height", msg.MessageHeight),

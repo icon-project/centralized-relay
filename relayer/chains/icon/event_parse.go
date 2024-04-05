@@ -120,13 +120,16 @@ func (p *Provider) parseEmitMessageEvent(height uint64, e *types.EventNotificati
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[2])
 	}
-	data := e.Data[0]
+	data, err := types.HexBytes(e.Data[0]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[0])
+	}
 
 	return &providerTypes.Message{
 		MessageHeight: height,
 		EventType:     p.GetEventName(e.Indexed[0]),
 		Dst:           dst,
-		Data:          []byte(data),
+		Data:          data,
 		Sn:            sn.Uint64(),
 		Src:           p.NID(),
 	}, nil
