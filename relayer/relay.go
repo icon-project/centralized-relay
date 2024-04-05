@@ -169,7 +169,7 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			// processMessage starting working on all the runtime Messages
 			r.processMessages(ctx)
 		case <-heightTimer.C:
-			r.SaveBlockHeightForAllChains(ctx)
+			r.SaveChainsBlockHeight(ctx)
 		}
 	}
 }
@@ -510,15 +510,16 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 }
 
 // SaveBlockHeight for all chains
-func (r *Relayer) SaveBlockHeightForAllChains(ctx context.Context) error {
+func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	for _, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
-			return err
+			r.log.Error("error occured when querying latest height", zap.Error(err))
+			continue
 		}
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
-			return err
+			r.log.Error("error occured when saving block height", zap.Error(err))
+			continue
 		}
 	}
-	return nil
 }
