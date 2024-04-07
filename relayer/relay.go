@@ -16,10 +16,10 @@ var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
 
-	HeightSaveInterval = time.Minute * 5
-	RouteDuration      = 1 * time.Second
-	maxFlushMessage    = 10
-	FinalityInterval   = 5 * time.Second
+	HeightSaveInterval      = time.Minute * 5
+	RouteDuration           = 1 * time.Second
+	maxFlushMessage    uint = 10
+	FinalityInterval        = 5 * time.Second
 
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
@@ -194,10 +194,10 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 }
 
 // TODO: optimize the logic
-func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
+func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages uint) ([]*types.RouteMessage, error) {
 	var activeMessages []*types.RouteMessage
 
-	p := store.NewPagination().WithLimit(uint(maxMessages))
+	p := store.NewPagination().WithLimit(maxMessages)
 	msgs, err := r.messageStore.GetMessages(nId, p)
 	if err != nil {
 		return nil, err
@@ -366,10 +366,22 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 	}
 }
 
+// MarkStaleWhen retried for 2 time for CallMessage event
+func (r *Relayer) MarkStale(routeMessage *types.RouteMessage) bool {
+	switch routeMessage.EventType {
+	case events.CallMessage:
+		if routeMessage.GetRetry() >= types.SpecialRetryCount {
+			routeMessage.ToggleStale()
+		}
+	}
+	return routeMessage.IsStale()
+}
+
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
 	routeMessage.AddNextTry()
-	if routeMessage.GetRetry()%types.MaxTxRetry == 0 || routeMessage.GetRetry() >= types.MaxTxRetry {
+	retryCount := routeMessage.GetRetry()
+	if retryCount%types.MaxTxRetry == 0 || retryCount >= types.MaxTxRetry || r.MarkStale(routeMessage) {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
@@ -425,7 +437,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 		finalityBlock := c.Provider.FinalityBlock(ctx)
 		latestHeight := c.LastBlockHeight
 		if finalityBlock > 0 {
-			pagination := store.NewPagination().GetAll()
+			pagination := store.NewPagination().WithLimit(10)
 			txObjects, err := r.finalityStore.GetTxObjects(c.Provider.NID(), pagination)
 			if err != nil {
 				r.log.Warn("finality processor: retrive message from store",

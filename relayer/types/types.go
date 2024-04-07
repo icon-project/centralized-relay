@@ -11,6 +11,7 @@ import (
 var (
 	MaxTxRetry         uint8 = 10
 	StaleMarkCount           = MaxTxRetry * 3
+	SpecialRetryCount  uint8 = 2
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
@@ -59,9 +60,10 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry      uint8
-	Processing bool
-	LastTry    time.Time
+	Retry       uint8
+	Processing  bool
+	MarkedStale bool
+	LastTry     time.Time
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
@@ -83,6 +85,10 @@ func (r *RouteMessage) ToggleProcessing() {
 	r.Processing = !r.Processing
 }
 
+func (r *RouteMessage) ToggleStale() {
+	r.MarkedStale = !r.MarkedStale
+}
+
 func (r *RouteMessage) GetRetry() uint8 {
 	return r.Retry
 }
@@ -98,7 +104,7 @@ func (r *RouteMessage) IsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.Retry >= StaleMarkCount
+	return r.MarkedStale || r.Retry >= StaleMarkCount
 }
 
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)

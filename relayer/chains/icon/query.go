@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -80,13 +79,13 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 		return nil, fmt.Errorf("GenerateMessage:GetBlockByHeight %v", err)
 	}
 
+	var messages []*providerTypes.Message
+
 	for _, res := range block.NormalTransactions {
 		txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{Hash: res.TxHash})
 		if err != nil {
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
 		}
-
-		var messages []*providerTypes.Message
 
 		for _, el := range txResult.EventLogs {
 			var (
@@ -104,8 +103,8 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					continue
 				}
 				dst = el.Indexed[1]
-				sn, ok := big.NewInt(0).SetString(el.Indexed[2], 10)
-				if !ok {
+				sn, err := types.HexInt(el.Indexed[2]).BigInt()
+				if err != nil {
 					p.log.Error("GenerateMessage: error decoding int value ")
 					continue
 				}
@@ -131,11 +130,6 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 				}
 				dst = p.NID()
 				src := strings.SplitN(string(el.Indexed[1][:]), "/", 2)
-				sn, ok := big.NewInt(0).SetString(el.Indexed[3], 10)
-				if !ok {
-					p.log.Error("GenerateMessage: error decoding int value ")
-					continue
-				}
 				sn, err := types.HexInt(el.Indexed[3]).BigInt()
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[2])
@@ -144,8 +138,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse reqID: %s", el.Data[0])
 				}
-				data := types.HexBytes(el.Data[1])
-				dataValue, err := data.Value()
+				data, err := types.HexBytes(el.Data[1]).Value()
 				if err != nil {
 					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
 					continue
@@ -155,16 +148,18 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					EventType:     p.GetEventName(el.Indexed[0]),
 					Dst:           dst,
 					Src:           src[0],
-					Data:          dataValue,
+					Data:          data,
 					Sn:            sn.Uint64(),
 					ReqID:         requestID.Uint64(),
 				}
 				messages = append(messages, msg)
 			}
-			return messages, nil
 		}
 	}
-	return nil, fmt.Errorf("error generating message: %v", key)
+	if len(messages) == 0 {
+		return nil, errors.New("GenerateMessage: no messages found")
+	}
+	return messages, nil
 }
 
 // QueryTransactionReceipt ->
