@@ -24,7 +24,7 @@ const (
 	RPCCallRetry                               = 5
 	MaxGasPriceInceremtRetry                   = 5
 	GasPriceRatio                              = 10.0
-	DefaultGetTransactionResultPollingInterval = time.Millisecond * 500
+	DefaultGetTransactionResultPollingInterval = time.Second * 3
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {

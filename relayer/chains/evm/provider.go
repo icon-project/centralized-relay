@@ -171,7 +171,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*coreTypes.Receipt, error) {
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * 2)
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
