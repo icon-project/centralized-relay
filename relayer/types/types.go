@@ -107,6 +107,11 @@ func (r *RouteMessage) IsStale() bool {
 	return r.MarkedStale || r.Retry >= StaleMarkCount
 }
 
+// IsElasped checks if the time has elapsed
+func (r *RouteMessage) IsElasped(duration time.Duration) bool {
+	return time.Since(r.LastTry) > duration
+}
+
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)
 
 type TxResponse struct {

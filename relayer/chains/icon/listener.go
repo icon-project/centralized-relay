@@ -122,7 +122,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					}
 					time.Sleep(time.Second * 5)
 					reconnect()
-					p.log.Error("error occured during monitor event", zap.Error(err))
+					p.log.Warn("error occured during monitor event", zap.Error(err))
 				}
 			}(ctxMonitorBlock, cancelMonitorBlock)
 		case br := <-btpBlockRespCh:

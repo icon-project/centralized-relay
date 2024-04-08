@@ -16,10 +16,12 @@ var (
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000
 
-	HeightSaveInterval      = time.Minute * 5
-	RouteDuration           = 1 * time.Second
-	maxFlushMessage    uint = 10
-	FinalityInterval        = 5 * time.Second
+	HeightSaveInterval         = time.Minute * 5
+	RouteDuration              = 1 * time.Second
+	maxFlushMessage       uint = 10
+	FinalityInterval           = 5 * time.Second
+	DeleteExpiredInterval      = 6 * time.Hour
+	MessageExpiration          = 48 * time.Hour
 
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
@@ -159,6 +161,7 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 	routeTimer := time.NewTicker(RouteDuration)
 	flushTimer := time.NewTicker(flushInterval)
 	heightTimer := time.NewTicker(HeightSaveInterval)
+	cleanMessageTimer := time.NewTicker(DeleteExpiredInterval)
 
 	for {
 		select {
@@ -170,6 +173,8 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			r.processMessages(ctx)
 		case <-heightTimer.C:
 			r.SaveChainsBlockHeight(ctx)
+		case <-cleanMessageTimer.C:
+			r.cleanExpiredMessages(ctx)
 		}
 	}
 }
@@ -532,6 +537,27 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
 			r.log.Error("error occured when saving block height", zap.Error(err))
 			continue
+		}
+	}
+}
+
+// cleanExpiredMessages
+func (r *Relayer) cleanExpiredMessages(ctx context.Context) {
+	for _, chain := range r.chains {
+		nId := chain.Provider.NID()
+		p := store.NewPagination().WithLimit(50)
+		messages, err := r.messageStore.GetMessages(nId, p)
+		if err != nil {
+			r.log.Error("error occured when fetching messages from db", zap.Error(err))
+			continue
+		}
+
+		for _, m := range messages {
+			if m.IsElasped(MessageExpiration) {
+				if err := r.ClearMessages(ctx, []*types.MessageKey{m.MessageKey()}, chain); err != nil {
+					r.log.Error("error occured when clearing expired message", zap.Error(err))
+				}
+			}
 		}
 	}
 }
