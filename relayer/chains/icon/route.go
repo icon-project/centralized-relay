@@ -23,7 +23,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
-	go p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
+	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (p *Provider) WaitForTxResult(
 		TxHash: string(txhash),
 	}
 
-	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
+	txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {
 		p.log.Error("get txn result failed", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)

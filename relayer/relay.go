@@ -372,10 +372,16 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 }
 
 // MarkStaleWhen retried for 2 time for CallMessage event
-func (r *Relayer) MarkStale(routeMessage *types.RouteMessage) bool {
+func (r *Relayer) IsStale(routeMessage *types.RouteMessage) bool {
+	retryCount := routeMessage.GetRetry()
+
 	switch routeMessage.EventType {
 	case events.CallMessage:
-		if routeMessage.GetRetry() >= types.SpecialRetryCount {
+		if retryCount >= types.SpecialRetryCount {
+			routeMessage.ToggleStale()
+		}
+	case events.EmitMessage:
+		if retryCount%types.MaxTxRetry == 0 || retryCount >= types.MaxTxRetry {
 			routeMessage.ToggleStale()
 		}
 	}
@@ -385,8 +391,7 @@ func (r *Relayer) MarkStale(routeMessage *types.RouteMessage) bool {
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
 	routeMessage.AddNextTry()
-	retryCount := routeMessage.GetRetry()
-	if retryCount%types.MaxTxRetry == 0 || retryCount >= types.MaxTxRetry || r.MarkStale(routeMessage) {
+	if r.IsStale(routeMessage) {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))

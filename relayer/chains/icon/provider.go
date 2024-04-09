@@ -134,7 +134,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	if err != nil {
 		return err
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	if err != nil {
 		return fmt.Errorf("SetAdmin: %v", err)
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
+	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.HexBytes(txHash)})
 	if err != nil {
 		return fmt.Errorf("SetAdmin: WaitForResults: %v", err)
 	}
@@ -196,7 +196,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	if err != nil {
 		return fmt.Errorf("SetFee: %v", err)
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		fmt.Println("SetFee: WaitForResults: %v", err)
 		return fmt.Errorf("SetFee: WaitForResults: %v", err)
@@ -214,7 +214,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ClaimFees: %v", err)
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		return fmt.Errorf("ClaimFees: WaitForResults: %v", err)
 	}
@@ -232,7 +232,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 	if err != nil {
 		return err
 	}
-	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
 		return err
 	}

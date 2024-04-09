@@ -770,10 +770,10 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			}
 		default:
 			if !p.client.IsConnected() {
-				p.logger.Debug("http client stopped")
+				p.logger.Warn("http client stopped")
 				if err := p.client.Reconnect(); err != nil {
-					p.logger.Debug("failed to reconnect", zap.Error(err))
-					time.Sleep(time.Second * 5)
+					p.logger.Warn("failed to reconnect", zap.Error(err))
+					time.Sleep(time.Second * 1)
 					continue
 				}
 				p.logger.Debug("http client reconnected")

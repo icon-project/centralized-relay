@@ -135,17 +135,17 @@ func (c *Client) Call(p *types.CallParam, r interface{}) error {
 	return err
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.HexBytes, *types.TransactionResult, error) {
+func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.TransactionResult, error) {
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			return &thp.Hash, nil, ctx.Err()
+			return nil, ctx.Err()
 		case <-ticker.C:
 			if retryCounter >= providerTypes.MaxTxRetry {
-				return nil, nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
+				return nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
 			}
 			retryCounter++
 			txr, err := c.GetTransactionResult(thp)
@@ -157,9 +157,8 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 						continue
 					}
 				}
-				return &thp.Hash, txr, err
 			}
-			return &thp.Hash, txr, nil
+			return txr, err
 		}
 	}
 }
