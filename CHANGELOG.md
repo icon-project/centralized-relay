@@ -101,3 +101,27 @@ Move the encrypted wallet passphrase to the new location:
 - Panics when subscribing to the event result.
 - AWS ec2 instance profile detection.
 - Other improvements and bug fixes.
+
+## [1.2.0] - 2024-04-09
+
+### Added
+
+- Full websocket listner support for all chains
+- Auto clean expired messages to avoid disk space issues
+
+### Changed
+
+- CallMessage is only retired twice to avoid spamming retries
+- Use only one websocket connection for maximum efficiency
+- Use `/event` active listener instead of block search leading to significant performance gains
+
+### Fixed
+
+- Error handling for the websocket connection
+- Start height for the icon chain
+- Manual relay for icon chain using the height (on chain)
+- Other improvements and bug fixes
+
+### Removed
+
+- Height sync is no longer nessaary.
