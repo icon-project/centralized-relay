@@ -1,7 +1,6 @@
 package icon
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -182,14 +181,6 @@ func (c *Client) GetBlockByHeight(p *types.BlockHeightParam) (*types.Block, erro
 func (c *Client) GetBlockHeaderBytesByHeight(p *types.BlockHeightParam) ([]byte, error) {
 	var result []byte
 	if _, err := c.Do("icx_getBlockHeaderByHeight", p, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *Client) GetVotesByHeight(p *types.BlockHeightParam) ([]byte, error) {
-	var result []byte
-	if _, err := c.Do("icx_getVotesByHeight", p, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -425,23 +416,6 @@ func (c *Client) GetBlockHeaderByHeight(height int64) (*types.BlockHeader, error
 		return nil, err
 	}
 	return &blockHeader, nil
-}
-
-func (c *Client) GetValidatorsByHash(hash common.HexHash) ([]common.Address, error) {
-	data, err := c.GetDataByHash(&types.DataHashParam{Hash: types.NewHexBytes(hash.Bytes())})
-	if err != nil {
-		return nil, errors.Wrapf(err, "GetDataByHash; %v", err)
-	}
-	if !bytes.Equal(hash, crypto.SHA3Sum256(data)) {
-		return nil, errors.Errorf(
-			"invalid data: hash=%v, data=%v", hash, common.HexBytes(data))
-	}
-	var validators []common.Address
-	_, err = codec.BC.UnmarshalFromBytes(data, &validators)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Unmarshal Validators: %v", err)
-	}
-	return validators, nil
 }
 
 func (c *Client) GetBalance(param *types.AddressParam) (*big.Int, error) {

@@ -126,7 +126,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 				Height:  latestHeight,
 			})
 		default:
-			if startHeight+1 < latestHeight {
+			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}

@@ -68,7 +68,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("evm listener: context done")
+			p.log.Debug("evm listener: done")
 			return nil
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
@@ -160,7 +160,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 								return
 							}
 						}
-						latest++
 					}(q)
 				}
 			}
