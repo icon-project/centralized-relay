@@ -124,4 +124,4 @@ Move the encrypted wallet passphrase to the new location:
 
 ### Removed
 
-- Height sync is no longer nessaary.
+- Height sync is no longer nessary.
