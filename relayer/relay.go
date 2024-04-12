@@ -378,12 +378,11 @@ func (r *Relayer) IsStale(routeMessage *types.RouteMessage) bool {
 	switch routeMessage.EventType {
 	case events.CallMessage:
 		if retryCount >= types.SpecialRetryCount {
-			fmt.Println("Marking stale, emit message")
+			r.log.Debug("Marking stale, emit message")
 			routeMessage.ToggleStale()
 		}
 	case events.EmitMessage:
 		if retryCount%types.MaxTxRetry == 0 || retryCount >= types.MaxTxRetry {
-			fmt.Println("Marking stale")
 			routeMessage.ToggleStale()
 		}
 	}
