@@ -111,7 +111,7 @@ Move the encrypted wallet passphrase to the new location:
 
 ### Changed
 
-- CallMessage is only retired twice to avoid spamming retries
+- CallMessage is only retried twice to avoid spamming retries
 - Use only one websocket connection for maximum efficiency
 - Use `/event` active listener instead of block search leading to significant performance gains
 
@@ -124,4 +124,4 @@ Move the encrypted wallet passphrase to the new location:
 
 ### Removed
 
-- Height sync is no longer nessary.
+- Height sync is no longer necessary.
