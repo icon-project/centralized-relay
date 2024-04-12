@@ -105,28 +105,28 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	heightTicker := time.NewTicker(p.cfg.BlockInterval)
-	heightPoller := time.NewTicker(time.Minute * 5)
-	defer heightTicker.Stop()
-	defer heightPoller.Stop()
+	subscribeStarter := time.NewTicker(time.Second * 1)
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	for {
 		select {
-		case <-heightTicker.C:
-			latestHeight++
-		case <-heightPoller.C:
-			height, err := p.QueryLatestHeight(ctx)
-			if err != nil {
-				p.logger.Error("failed to query latest height", zap.Error(err))
-				continue
-			}
-			latestHeight = height
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-subscribeStarter.C:
+			subscribeStarter.Stop()
+			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+				Address: p.cfg.Contracts[relayTypes.ConnectionContract],
+				Method:  EventTypeWasmMessage,
+				Height:  latestHeight,
+			})
+			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+				Address: p.cfg.Contracts[relayTypes.XcallContract],
+				Method:  EventTypeWasmCallMessage,
+				Height:  latestHeight,
+			})
 		default:
-			if startHeight+1 < latestHeight {
+			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
@@ -140,11 +140,11 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err != nil {
 		return err
 	}
-	go p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 	seq := p.wallet.GetSequence() + 1
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
+	p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
 	return nil
 }
 
@@ -310,7 +310,10 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 		resultEventChan, err := p.client.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
 			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
+				TxResult: &relayTypes.TxResponse{
+					TxHash: txHash,
+				},
+				Error: err,
 			}
 			return
 		}
@@ -326,7 +329,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					txRes <- &types.TxResultChan{
 						TxResult: &relayTypes.TxResponse{
 							TxHash: txHash,
-							Code:   relayTypes.Failed,
 						}, Error: err,
 					}
 					return
@@ -337,7 +339,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					txRes <- &types.TxResultChan{
 						TxResult: &relayTypes.TxResponse{
 							TxHash: txHash,
-							Code:   relayTypes.Failed,
 						}, Error: err,
 					}
 					return
@@ -706,32 +707,19 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 // SubscribeMessageEvents subscribes to the message events
 // Expermental: Allows to subscribe to the message events realtime without fully syncing the chain
 func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, opts *types.SubscribeOpts) error {
-	httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
-	if err != nil {
-		p.logger.Error("failed to create http client", zap.Error(err))
-		return err
-	}
-	defer httpClient.Stop()
-	if err := httpClient.Start(); err != nil {
-		p.logger.Error("http client start failed", zap.Error(err))
-		return err
-	}
-	newCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	query := strings.Join([]string{
 		"tm.event = 'Tx'",
 		fmt.Sprintf("tx.height >= %d ", opts.Height),
 		fmt.Sprintf("%s._contract_address = '%s'", opts.Method, opts.Address),
 	}, " AND ")
 
-	resultEventChan, err := httpClient.Subscribe(newCtx, opts.Address, query)
+	resultEventChan, err := p.client.Subscribe(ctx, "tx-result-waiter", query)
 	if err != nil {
 		p.logger.Error("event subscription failed", zap.Error(err))
 		return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 	}
-	defer httpClient.Unsubscribe(ctx, opts.Address, query)
-	p.logger.Info("event subscription started")
+	defer p.client.Unsubscribe(ctx, opts.Address, query)
+	p.logger.Info("event subscription started", zap.String("contract_address", opts.Address), zap.String("method", opts.Method))
 
 	for {
 		select {
@@ -739,45 +727,58 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			p.logger.Info("event subscription stopped")
 			return ctx.Err()
 		case e := <-resultEventChan:
-			p.logger.Info("event received")
 			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
 				p.logger.Error("failed to marshal event data", zap.Error(err))
 				continue
 			}
-			eventsList := &struct {
-				Height uint64  `json:"height"`
-				Events []Event `json:"logs"`
-			}{}
-			if err := jsoniter.Unmarshal(eventDataJSON, eventsList); err != nil {
+			var res types.TxResultWaitResponse
+			if err := jsoniter.Unmarshal(eventDataJSON, &res); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
-			messages, err := p.ParseMessageFromEvents(eventsList.Events)
-			if err != nil {
-				p.logger.Error("failed to parse message from events", zap.Error(err))
+			eventsList := []struct {
+				Events []Event `json:"events"`
+			}{}
+			if err := jsoniter.Unmarshal([]byte(res.Result.Log), &eventsList); err != nil {
+				p.logger.Error("failed to unmarshal event list", zap.Error(err))
 				continue
 			}
+			var messages []*relayTypes.Message
+			for _, event := range eventsList {
+				msgs, err := p.ParseMessageFromEvents(event.Events)
+				if err != nil {
+					p.logger.Error("failed to parse message from events", zap.Error(err))
+					continue
+				}
+				messages = append(messages, msgs...)
+			}
+
 			blockInfo := &relayTypes.BlockInfo{
-				Height:   eventsList.Height,
+				Height:   uint64(res.Height),
 				Messages: messages,
 			}
 			blockInfoChan <- blockInfo
+			opts.Height = blockInfo.Height
 			for _, msg := range blockInfo.Messages {
 				p.logger.Info("Detected eventlog",
-					zap.Uint64("height", eventsList.Height),
+					zap.Int64("height", res.Height),
 					zap.String("target_network", msg.Dst),
 					zap.Uint64("sn", msg.Sn),
 					zap.String("event_type", msg.EventType),
 				)
 			}
-			opts.Height = eventsList.Height
 		default:
-			if httpClient.IsRunning() {
-				continue
+			if !p.client.IsConnected() {
+				p.logger.Warn("http client stopped")
+				if err := p.client.Reconnect(); err != nil {
+					p.logger.Warn("failed to reconnect", zap.Error(err))
+					time.Sleep(time.Second * 1)
+					continue
+				}
+				p.logger.Debug("http client reconnected")
+				return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 			}
-			p.logger.Info("http client stopped")
-			return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
 		}
 	}
 }

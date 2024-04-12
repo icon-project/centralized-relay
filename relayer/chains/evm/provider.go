@@ -53,7 +53,6 @@ type Config struct {
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
-	BlockInterval  time.Duration                   `json:"block-interval" yaml:"block-interval"`
 	NID            string                          `json:"nid" yaml:"nid"`
 	HomeDir        string                          `json:"-" yaml:"-"`
 }
@@ -172,7 +171,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*coreTypes.Receipt, error) {
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * 2)
+	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()

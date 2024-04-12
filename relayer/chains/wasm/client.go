@@ -26,6 +26,8 @@ import (
 
 type IClient interface {
 	HTTP(rpcUrl string) (*http.HTTP, error)
+	IsConnected() bool
+	Reconnect() error
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error)
 	GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error)
@@ -235,4 +237,19 @@ func (c *Client) Subscribe(ctx context.Context, _, query string) (<-chan coretyp
 // Unsubscribe
 func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
 	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "client", query)
+}
+
+// IsConnected returns if the client is connected to the network
+func (c *Client) IsConnected() bool {
+	return c.ctx.Client.(*http.HTTP).IsRunning()
+}
+
+// RestartClient restarts the client
+func (c *Client) Reconnect() error {
+	client, err := c.HTTP(c.ctx.NodeURI)
+	if err != nil {
+		return err
+	}
+	c.ctx.Client = client
+	return nil
 }

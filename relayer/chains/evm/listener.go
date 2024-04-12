@@ -3,13 +3,14 @@ package evm
 import (
 	"context"
 	"math/big"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -53,14 +54,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
-	heightTicker := time.NewTicker(p.cfg.BlockInterval)
-	defer heightTicker.Stop()
-
-	heightPoller := time.NewTicker(BlockHeightPollInterval)
-	defer heightPoller.Stop()
-
-	nonceTicker := time.NewTicker(3 * time.Minute)
-	defer nonceTicker.Stop()
+	subscribeStart := time.NewTicker(time.Second * 1)
 
 	next, latest := startHeight, p.latestHeight()
 	concurrency := p.GetConcurrency(ctx, startHeight, latest)
@@ -74,28 +68,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("evm listener: context done")
+			p.log.Debug("evm listener: done")
 			return nil
-
-		case <-heightTicker.C:
-			p.log.Debug("receiveLoop: heightTicker", zap.Uint64("latest", latest))
-			latest++
-
-		case <-heightPoller.C:
-			height := p.latestHeight()
-			latest = height
-			if next > latest {
-				time.Sleep(p.cfg.BlockInterval)
-				p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
-			}
-		case <-nonceTicker.C:
-			addr := common.HexToAddress(p.cfg.Address)
-			nonce, err := p.client.NonceAt(ctx, addr, nil)
-			if err != nil {
-				p.log.Error("failed to get nonce", zap.Error(err))
-				continue
-			}
-			p.NonceTracker.Set(addr, nonce)
+		case <-subscribeStart.C:
+			subscribeStart.Stop()
+			go p.Subscribe(ctx, subscribeStart, blockInfoChan)
 
 		case bn := <-bnch:
 			// process all notifications
@@ -129,8 +106,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 
 			qch := make(chan *bnq, cap(bnch))
-			for i := next; i < latest &&
-				len(qch) < cap(qch); i++ {
+			for i := next; i < latest && len(qch) < cap(qch); i++ {
 				qch <- &bnq{i, nil, nil, 3} // fill bch with requests
 			}
 			bns := make([]*types.BlockNotification, 0, len(qch))
@@ -231,19 +207,11 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 }
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
-	concurrency := p.cfg.Concurrency
-	if concurrency == 0 {
-		concurrency = monitorBlockMaxConcurrency
+	diff := int(currentHeight - startHeight)
+	if diff <= runtime.NumCPU() {
+		return diff
 	}
-	// we calculate concurrency based on the height to sync
-	// so that we avoid duplicate block number is picked up by multiple workers
-	heightTosync := currentHeight - startHeight
-	if heightTosync < 1 {
-		concurrency = 1 // we don't want to span multiple workers for 1 block
-	} else if heightTosync < concurrency {
-		concurrency = heightTosync // we don't want to span more workers than the height to sync
-	}
-	return int(concurrency)
+	return runtime.NumCPU()
 }
 
 func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {
@@ -276,18 +244,26 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo) {
+func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfoChan chan *relayertypes.BlockInfo) {
 	ch := make(chan ethTypes.Log)
-	sub, err := p.client.Subscribe(ctx, p.blockReq, ch)
+	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
+		Addresses: p.blockReq.Addresses,
+		Topics:    p.blockReq.Topics,
+	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
+		ticker.Reset(time.Second * 3)
 		return
 	}
 	defer sub.Unsubscribe()
+	p.log.Info("Subscribed to new blocks", zap.Uint64("from", p.blockReq.FromBlock.Uint64()), zap.Any("address", p.blockReq.Addresses))
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("evm listener: context done")
+			return
+		case err := <-sub.Err():
+			p.log.Error("subscription error", zap.Error(err))
+			ticker.Reset(time.Second * 3)
 			return
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
@@ -302,11 +278,10 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				zap.String("tx_hash", log.TxHash.String()),
 				zap.Uint64("block_number", log.BlockNumber),
 			)
-			blockInfo := &relayertypes.BlockInfo{
+			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
 			}
-			blockInfoChan <- blockInfo
 		}
 	}
 }

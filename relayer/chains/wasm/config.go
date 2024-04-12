@@ -41,7 +41,6 @@ type ProviderConfig struct {
 	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
 	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
 
-	BlockInterval          time.Duration `json:"block-interval" yaml:"block-interval"`
 	TxConfirmationInterval time.Duration `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
 
 	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
