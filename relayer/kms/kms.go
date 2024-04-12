@@ -11,8 +11,6 @@ import (
 
 var ErrKeyAlreadyExists = fmt.Errorf("kms key already exists")
 
-const LocalKMSEndpoint = "LOCAL_KMS_ENDPOINT"
-
 type KMS interface {
 	Init(context.Context) (*string, error)
 	Encrypt(context.Context, []byte) ([]byte, error)

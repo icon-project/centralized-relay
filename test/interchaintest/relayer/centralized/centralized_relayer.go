@@ -55,6 +55,7 @@ type ICONRelayerChainConfigValue struct {
 type EVMRelayerChainConfigValue struct {
 	NID           string            `yaml:"nid"`
 	RPCURL        string            `yaml:"rpc-url"`
+	WebsocketUrl  string            `yaml:"websocket-url"`
 	StartHeight   int               `yaml:"start-height"`
 	GasPrice      int64             `yaml:"gas-price"`
 	GasLimit      int               `yaml:"gas-limit"`
@@ -105,7 +106,7 @@ type CosmosRelayerChainConfig struct {
 }
 
 const (
-	DefaultContainerImage   = "centralized-rly"
+	DefaultContainerImage   = "centralized-relay"
 	DefaultContainerVersion = "latest"
 )
 
@@ -125,7 +126,7 @@ type commander struct {
 }
 
 func (commander) Name() string {
-	return "centralized-rly"
+	return "centralized-relay"
 }
 
 func (commander) DockerUser() string {
@@ -133,7 +134,7 @@ func (commander) DockerUser() string {
 }
 
 func (commander) Flush(pathName, channelID, homeDir string) []string {
-	cmd := []string{"centralized-rly", "tx", "flush"}
+	cmd := []string{"centralized-relay", "tx", "flush"}
 	if pathName != "" {
 		cmd = append(cmd, pathName)
 		if channelID != "" {
@@ -146,13 +147,13 @@ func (commander) Flush(pathName, channelID, homeDir string) []string {
 
 func (commander) RestoreKey(chainID, keyName, coinType, mnemonic, homeDir string) []string {
 	return []string{
-		"centralized-rly", "keys", "restore", chainID, keyName, mnemonic,
+		"centralized-relay", "keys", "restore", chainID, keyName, mnemonic,
 		"--coin-type", fmt.Sprint(coinType),
 	}
 }
 
 func (c commander) RelayerExecutable() string {
-	return "centralized-rly"
+	return "centralized-relay"
 }
 
 func (c commander) RelayerCommand(command string, params ...interface{}) []string {
@@ -168,7 +169,7 @@ func (c commander) RelayerCommand(command string, params ...interface{}) []strin
 
 func (c commander) StartRelayer(homeDir string, pathNames ...string) []string {
 	cmd := []string{
-		"centralized-rly", "start", "--debug", "--flush-interval", "40s",
+		"centralized-relay", "start", "--debug", "--flush-interval", "40s",
 	}
 	cmd = append(cmd, c.extraStartFlags...)
 	cmd = append(cmd, pathNames...)
@@ -196,7 +197,7 @@ func (commander) ParseRestoreKeyOutput(stdout, stderr string) string {
 
 func (commander) Init(homeDir string) []string {
 	return []string{
-		"centralized-rly", "config", "init",
+		"centralized-relay", "config", "init",
 	}
 }
 

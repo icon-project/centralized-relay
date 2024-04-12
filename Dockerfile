@@ -57,9 +57,6 @@ COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
 COPY --from=busybox-min /etc/passwd /etc/passwd
 COPY --from=busybox-min --chown=100:1000 /home/relayer /home/relayer
 
-COPY --from=busybox-min --chown=100:1000 /tmp /tmp
-COPY --from=build-env /usr/local/share/ca-certificates/ /etc/ssl/certs/
-
 USER relayer
 
 WORKDIR /home/relayer

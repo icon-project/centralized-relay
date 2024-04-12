@@ -252,11 +252,13 @@ func (an *EVMRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	contracts["connection"] = an.GetContractAddress("connection")
+
 	config := &centralized.EVMRelayerChainConfig{
 		Type: "evm",
 		Value: centralized.EVMRelayerChainConfigValue{
 			NID:           an.Config().ChainID,
 			RPCURL:        an.GetRPCAddress(),
+			WebsocketUrl:  an.testconfig.WebsocketUrl,
 			StartHeight:   0,
 			GasPrice:      10000000,
 			GasLimit:      20000000,

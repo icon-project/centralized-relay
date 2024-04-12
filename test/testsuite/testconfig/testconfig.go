@@ -31,6 +31,7 @@ type Chain struct {
 	Contracts          map[string]string  `mapstructure:"contracts"`
 	RPCUri             string             `mapstructure:"rpc_uri"`
 	GRPCUri            string             `mapstructure:"grpc_uri"`
+	WebsocketUrl       string             `mapstructure:"websocket_uri"`
 	RelayWalletAddress string             `mapstructure:"relay_wallet"`
 	ContractsPath      string             `mapstructure:"contracts_path"`
 	ConfigPath         string             `mapstructure:"config_path"`

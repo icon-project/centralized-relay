@@ -182,7 +182,6 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 		return err
 	}
 	c.IBCAddresses["connection"] = connectionAddress
-	time.Sleep(5 * time.Second)
 	// methodName := "set_fee"
 	// _, err = c.ExecuteContract(ctx, connectionAddress, keyName, methodName, map[string]interface{}{
 	// 	"network_id":   target.Config().ChainID,
@@ -329,8 +328,11 @@ func (c *CosmosRemotenet) SendPacketXCall(ctx context.Context, keyName, _to stri
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 
 	dataArray := strings.Join(strings.Fields(fmt.Sprintf("%d", data)), ",")
-	rollbackArray := strings.Join(strings.Fields(fmt.Sprintf("%d", rollback)), ",")
-	params := fmt.Sprintf(`{"to":"%s", "data":%s, "rollback":%s}`, _to, dataArray, rollbackArray)
+	params := fmt.Sprintf(`{"to":"%s", "data":%s}`, _to, dataArray)
+	if rollback != nil {
+		rollbackArray := strings.Join(strings.Fields(fmt.Sprintf("%d", rollback)), ",")
+		params = fmt.Sprintf(`{"to":"%s", "data":%s, "rollback":%s}`, _to, dataArray, rollbackArray)
+	}
 	txRes, err := c.ExecuteContractRemote(ctx, c.IBCAddresses[dappKey], "send_call_message", params)
 	if err != nil {
 		return nil, err
@@ -343,6 +345,7 @@ func (c *CosmosRemotenet) FindTargetXCallMessage(ctx context.Context, target cha
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
+	fmt.Println("Finding target message ", sn)
 	reqId, destData, err := target.FindCallMessage(ctx, height, c.cfg.ChainID+"/"+c.IBCAddresses[dappKey], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
@@ -380,9 +383,13 @@ func (c *CosmosRemotenet) findSn(tx *TxResul, eType string) string {
 		if event.Type == eType {
 			for _, attribute := range event.Attributes {
 				keyName, _ := base64.StdEncoding.DecodeString(attribute.Key)
+				if attribute.Key == "sn" {
+					return attribute.Value
+				}
 				if string(keyName) == "sn" {
 					sn, _ := base64.StdEncoding.DecodeString(attribute.Value)
 					return string(sn)
+
 				}
 			}
 		}
