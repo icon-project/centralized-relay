@@ -3,22 +3,23 @@ package steller
 import (
 	"context"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/stellar/go/clients/horizonclient"
 )
 
 type IClient interface {
-	GetLatestLedgerSeq(ctx context.Context) (uint64, error)
+	GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error)
 }
 
 type Client struct {
 	horizon *horizonclient.Client
+	soroban *sorobanclient.Client
 }
 
-func NewClient(hClient *horizonclient.Client) IClient {
-	return &Client{horizon: hClient}
+func NewClient(hClient *horizonclient.Client, srbClient *sorobanclient.Client) IClient {
+	return &Client{horizon: hClient, soroban: srbClient}
 }
 
-func (cl *Client) GetLatestLedgerSeq(ctx context.Context) (uint64, error) {
-	//Todo
-	return 0, nil
+func (cl *Client) GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error) {
+	return cl.soroban.GetLatestLedger(ctx)
 }

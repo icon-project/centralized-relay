@@ -2,8 +2,10 @@ package steller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stellar/go/clients/horizonclient"
@@ -14,6 +16,7 @@ type Config struct {
 	ChainID    string                         `yaml:"chain-id"`
 	ChainName  string                         `yaml:"-"`
 	HorizonUrl string                         `yaml:"horizon-url"`
+	SorobanUrl string                         `yaml:"soroban-url"`
 	Address    string                         `yaml:"address"`
 	Contracts  relayertypes.ContractConfigMap `yaml:"contracts"`
 	NID        string                         `json:"nid" yaml:"nid"`
@@ -38,7 +41,12 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		AppName:    "centralized-relay",
 	}
 
-	client := NewClient(horizonClient)
+	sorobanclient, err := sorobanclient.New(pc.SorobanUrl, &httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create soroban client: %v", err)
+	}
+
+	client := NewClient(horizonClient, sorobanclient)
 
 	return &Provider{
 		log:    logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),

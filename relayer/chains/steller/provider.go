@@ -19,7 +19,11 @@ type Provider struct {
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return p.client.GetLatestLedgerSeq(ctx)
+	latestLedger, err := p.client.GetLatestLedger(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return latestLedger.Sequence, nil
 }
 
 func (p *Provider) NID() string {
