@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,10 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
+	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -28,13 +28,22 @@ import (
 var _ provider.Config = (*Config)(nil)
 
 var (
-	MethodRecvMessage = "recvMessage"
+	// Connection contract
+	MethodRecvMessage   = "recvMessage"
+	MethodSetAdmin      = "setAdmin"
+	MethodRevertMessage = "revertMessage"
+	MethodClaimFees     = "claimFees"
+	MethodSetFee        = "setFee"
+	MethodGetFee        = "getFee"
+
+	// Xcall contract
 	MethodExecuteCall = "executeCall"
 )
 
 type Config struct {
 	ChainName      string                          `json:"-" yaml:"-"`
 	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
+	WebsocketUrl   string                          `json:"websocket-url" yaml:"websocket-url"`
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
@@ -59,38 +68,7 @@ type Provider struct {
 	wallet       *keystore.Key
 	kms          kms.KMS
 	contracts    map[string]providerTypes.EventMap
-	NonceTracker *NonceTracker
-}
-
-type NonceTracker struct {
-	address map[common.Address]*big.Int
-	*sync.Mutex
-}
-
-// NewNonceTracker
-func NewNonceTracker() *NonceTracker {
-	return &NonceTracker{
-		address: make(map[common.Address]*big.Int),
-		Mutex:   &sync.Mutex{},
-	}
-}
-
-func (n *NonceTracker) Get(addr common.Address) *big.Int {
-	n.Lock()
-	defer n.Unlock()
-	return n.address[addr]
-}
-
-func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
-	n.Lock()
-	defer n.Unlock()
-	n.address[addr] = nonce
-}
-
-func (n *NonceTracker) Inc(addr common.Address) {
-	n.Lock()
-	defer n.Unlock()
-	n.address[addr] = n.address[addr].Add(n.address[addr], big.NewInt(1))
+	NonceTracker types.NonceTrackerI
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -104,7 +82,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
 
-	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
+	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
@@ -113,7 +91,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 
 	if p.VerifierRPCUrl != "" {
 		var err error
-		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, log)
+		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +101,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 
 	// setting default finality block
 	if p.FinalityBlock == 0 {
-		p.FinalityBlock = uint64(DefaultFinalityBlock)
+		p.FinalityBlock = DefaultFinalityBlock
 	}
 
 	return &Provider{
@@ -133,7 +111,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		blockReq:     p.GetMonitorEventFilters(),
 		verifier:     verifierClient,
 		contracts:    p.eventMap(),
-		NonceTracker: NewNonceTracker(),
+		NonceTracker: types.NewNonceTracker(),
 	}, nil
 }
 
@@ -193,7 +171,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
+func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*coreTypes.Receipt, error) {
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval * 2)
 	var retryCounter uint8
 	for {
@@ -234,8 +212,8 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 		return common.Hash{}, err
 	}
 	chainID := r.client.GetChainID()
-	tx := types.NewTransaction(nonce.Uint64(), common.HexToAddress(recepientAddress), amount, 30000000, gasPrice, []byte{})
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), from)
+	tx := ethTypes.NewTransaction(nonce.Uint64(), common.HexToAddress(recepientAddress), amount, 30000000, gasPrice, []byte{})
+	signedTx, err := ethTypes.SignTx(tx, ethTypes.NewEIP155Signer(chainID), from)
 	if err != nil {
 		err = errors.Wrap(err, "SignTx ")
 		return common.Hash{}, err
@@ -283,10 +261,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.client.SetAdmin(opts, common.HexToAddress(admin))
-	if err != nil {
-		return err
-	}
+	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin}, providerTypes.MaxTxRetry)
 	receipt, err := p.WaitForResults(ctx, tx.Hash())
 	if err != nil {
 		return err
@@ -303,22 +278,112 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.client.RevertMessage(opts, sn)
+	msg := &providerTypes.Message{
+		EventType: events.RevertMessage,
+		Sn:        sn.Uint64(),
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
 	if err != nil {
 		return err
 	}
-	res, err := p.WaitForResults(ctx, tx.Hash())
-	if res.Status != 1 {
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
 		return fmt.Errorf("failed to revert message: %s", err)
 	}
-	return err
+	return nil
+}
+
+// ClaimFees
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	msg := &providerTypes.Message{
+		EventType: events.ClaimFee,
+	}
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to revert message: %s", err)
+	}
+	return nil
+}
+
+// SetFee
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	msg := &providerTypes.Message{
+		EventType: events.SetFee,
+		Src:       networkID,
+		Sn:        msgFee,
+		ReqID:     resFee,
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to set fee: %s", err)
+	}
+	return nil
+}
+
+// GetFee
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	fee, err := p.client.GetFee(&bind.CallOpts{Context: ctx}, networkID)
+	if err != nil {
+		return 0, err
+	}
+	return fee.Uint64(), nil
+}
+
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+	opts, err := p.GetTransationOpts(ctx)
+	if err != nil {
+		return err
+	}
+	msg := &providerTypes.Message{
+		EventType: events.ExecuteRollback,
+		Sn:        sn,
+	}
+	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	if err != nil {
+		return err
+	}
+	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	if err != nil {
+		return err
+	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("failed to execute rollback: %s", err)
+	}
+	return nil
 }
 
 // EstimateGas
 func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Message) (uint64, error) {
+	contract := common.HexToAddress(p.cfg.Contracts[providerTypes.ConnectionContract])
 	msg := ethereum.CallMsg{
 		From: p.wallet.Address,
-		To:   p.GetAddressByEventType(message.EventType),
+		To:   &contract,
 	}
 	switch message.EventType {
 	case events.EmitMessage:
@@ -331,7 +396,47 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 			return 0, nil
 		}
 		msg.Data = data
-	case events.CallMessage:
+	case events.SetAdmin:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodSetAdmin, message.Src)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.RevertMessage:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodRevertMessage, message.Sn)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.ClaimFee:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodClaimFees)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.SetFee:
+		abi, err := bridgeContract.ConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
+		if err != nil {
+			return 0, nil
+		}
+		msg.Data = data
+	case events.CallMessage, events.ExecuteRollback:
 		abi, err := bridgeContract.XcallMetaData.GetAbi()
 		if err != nil {
 			return 0, err
@@ -341,6 +446,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 			return 0, nil
 		}
 		msg.Data = data
+		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
 	}
 	return p.client.EstimateGas(ctx, msg)
 }

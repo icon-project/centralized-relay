@@ -1,15 +1,17 @@
 {
     "type": "evm",
     "value": {
-        "rpc-url":"https://rpc-mumbai.maticvigil.com",
-        "verifier-rpc-url":"",
-        "start-height":0,
-        "keystore":"/Users/viveksharmapoudel/my_work_bench/ibriz/ibc-related/centralized-relay/example/wallets/evm/keystore.json",
-        "password":"secret",
-        "gas-price":10056,
+        "rpc-url": "https://rpc-mumbai.maticvigil.com",
+        "verifier-rpc-url": "",
+        "start-height": 0,
+        "address": "0x...c3f",
+        "gas-min": 10056,
         "gas-limit": 200000,
-        "contract-address":"cx7bd6ad0ad8269bcc4b980c3025b349623fdd900e",
-        "concurrency":3,
-        "nid":"0x13881.mumbai"
+        "nid": " 0xa869.fuji",
+        "concurrency": 3,
+        "contracts": {
+            "xcall": "0x...cvv",
+            "connection": "0x...oml"
+        }
     }
 }

@@ -156,5 +156,5 @@ func (c *ProviderConfig) newClientContext(ctx context.Context) (*sdkClient.Conte
 		Simulate:          c.Simulate,
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codec.InterfaceRegistry,
-	}, nil
+	}, cometRPCClient.Start()
 }

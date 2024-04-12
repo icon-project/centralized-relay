@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"reflect"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
@@ -44,7 +44,7 @@ func configShowCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config show --home %s
-$ %s cfg list`, appName, defaultHome, appName)),
+$ %s cfg list`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, err := cmd.Flags().GetString(flagHome)
 			if err != nil {
@@ -71,7 +71,7 @@ $ %s cfg list`, appName, defaultHome, appName)),
 			case yml && jsn:
 				return fmt.Errorf("can't pass both --json and --yaml, must pick one")
 			case jsn:
-				out, err := json.Marshal(a.config.Wrapped())
+				out, err := jsoniter.Marshal(a.config.Wrapped())
 				if err != nil {
 					return err
 				}
@@ -100,7 +100,7 @@ func configInitCmd(a *appState) *cobra.Command {
 		Args:    withUsage(cobra.NoArgs),
 		Example: strings.TrimSpace(fmt.Sprintf(`
 $ %s config init --home %s
-$ %s cfg i`, appName, defaultHome, appName)),
+$ %s cfg i`, appName, a.homePath, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := os.MkdirAll(a.homePath, os.ModePerm); err != nil {
 				return err
@@ -144,12 +144,11 @@ type Config struct {
 	Chains relayer.Chains `yaml:"chains" json:"chains"`
 }
 
-func (c *Config) Save(dir string) error {
+func (c *Config) Save(cfgPath string) error {
 	out, err := yaml.Marshal(c.Wrapped())
 	if err != nil {
 		return err
 	}
-	cfgPath := path.Join(dir, "config.yaml")
 	return os.WriteFile(cfgPath, out, 0o600)
 }
 
@@ -183,7 +182,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
-		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID, os.Getenv("AWS_PROFILE"))
+		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID)
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +263,7 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 	m := map[string]any{
 		"icon": reflect.TypeOf(icon.Config{}),
 	}
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := jsoniter.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
 
@@ -274,12 +273,12 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 		provCfg = reflect.New(ty).Interface().(provider.Config)
 	}
 
-	valueBytes, err := json.Marshal(m["value"])
+	valueBytes, err := jsoniter.Marshal(m["value"])
 	if err != nil {
 		return nil, err
 	}
 
-	return provCfg, json.Unmarshal(valueBytes, &provCfg)
+	return provCfg, jsoniter.Unmarshal(valueBytes, &provCfg)
 }
 
 // Note: chainId and chainName is basically the same

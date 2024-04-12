@@ -1,36 +1,52 @@
 project_name: centralised-relay
+env:
+  - CGO_ENABLED=1
 builds:
   - id: darwin-amd64
     main: ./main.go
-    binary: crly
+    hooks:
+      pre:
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/v2.0.0/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
     goos:
       - darwin
     goarch:
       - amd64
     env:
       - CC=o64-clang
-      - CXX=o64-clang++
+      - CGO_LDFLAGS=-L/lib
     flags:
       - -mod=readonly
+      - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -linkmode=external
+    tags:
+      - static_wasm
   - id: darwin-arm64
     main: ./main.go
-    binary: centralized-rly
+    hooks:
+      pre:
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/v2.0.0/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
     goos:
       - darwin
     goarch:
       - arm64
     env:
       - CC=oa64-clang
-      - CXX=oa64-clang++
+      - CGO_LDFLAGS=-L/lib
     flags:
       - -mod=readonly
+      - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -linkmode=external
+    tags:
+      - static_wasm
   - id: linux-amd64
     main: ./main.go
-    binary: centralized-rly
+    hooks:
+      pre:
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/v2.0.0/libwasmvm_muslc.x86_64.a -O /usr/lib/x86_64-linux-gnu/libwasmvm_muslc.a
     goos:
       - linux
     goarch:
@@ -40,22 +56,35 @@ builds:
       - CXX=x86_64-linux-gnu-g++
     flags:
       - -mod=readonly
+      - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -linkmode=external
+      - -extldflags '-Wl,-z,muldefs -lm'
+    tags:
+      - muslc
+      - netgo
   - id: linux-arm64
     main: ./main.go
-    binary: centralized-rly
+    hooks:
+      pre:
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/v2.0.0/libwasmvm_muslc.aarch64.a -O /usr/lib/aarch64-linux-gnu/libwasmvm_muslc.a
     goos:
       - linux
     goarch:
       - arm64
     env:
       - CC=aarch64-linux-gnu-gcc
-      - CXX=aarch64-linux-gnu-g++
     flags:
       - -mod=readonly
+      - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/v2/cmd.VERSION={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -linkmode=external
+      - -extldflags "-static"
+    tags:
+      - muslc
+      - netgo
 
 archives:
   - id: golang-cross
@@ -74,4 +103,4 @@ checksum:
 
 release:
   prerelease: auto
-  draft: true
+  draft: false

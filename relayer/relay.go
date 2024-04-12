@@ -24,7 +24,6 @@ var (
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
 	prefixFinalityStore = "finality"
-	prefixXcallStore    = "xcall"
 )
 
 // main start loop
@@ -174,24 +173,11 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 
 func (r *Relayer) flushMessages(ctx context.Context) {
 	r.log.Debug("flushing messages from db to cache")
-	count, err := r.messageStore.TotalCount()
-	if err != nil {
-		r.log.Warn("error occured when querying total failed delivery message")
-	}
-	if count == 0 {
-		r.log.Debug("no message to flushout")
-		return
-	}
-
 	for _, chain := range r.chains {
 		nId := chain.Provider.NID()
 		messages, err := r.getActiveMessagesFromStore(nId, maxFlushMessage)
 		if err != nil {
 			chain.log.Warn("error occured when query messagesFromStore", zap.Error(err))
-			continue
-		}
-
-		if len(messages) == 0 {
 			continue
 		}
 		chain.log.Debug("flushing messages", zap.Int("message count", len(messages)))
@@ -206,9 +192,9 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 
 // TODO: optimize the logic
 func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*types.RouteMessage, error) {
-	activeMessages := make([]*types.RouteMessage, 0)
+	var activeMessages []*types.RouteMessage
 
-	p := store.NewPagination().GetAll()
+	p := store.NewPagination().WithLimit(uint(maxMessages))
 	msgs, err := r.messageStore.GetMessages(nId, p)
 	if err != nil {
 		return nil, err
@@ -217,22 +203,19 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages int) ([]*ty
 		if !m.IsStale() {
 			activeMessages = append(activeMessages, m)
 		}
-		if len(activeMessages) > maxMessages {
-			break
-		}
 	}
 	return activeMessages, nil
 }
 
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
-		for _, message := range src.MessageCache.Messages {
+		for key, message := range src.MessageCache.Messages {
 			switch message.EventType {
 			case events.EmitMessage:
 				dst, err := r.FindChainRuntime(message.Dst)
 				if err != nil {
 					r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
 
@@ -240,21 +223,25 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					continue
 				}
 
+				message.ToggleProcessing()
+
 				// if message reached delete the message
-				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
+				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
+					r.log.Error("error occured when checking message received", zap.Error(err))
 					continue
 				}
 
 				// if message is received we can remove the message from db
 				if messageReceived {
 					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
 				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
 				if ok := src.shouldExecuteCall(ctx, message); ok {
+					message.ToggleProcessing()
 					go r.ExecuteCall(ctx, message, src)
 				}
 			}
@@ -307,12 +294,10 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 	return chains
 }
 
-func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
-	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
-		// note: it is ok if err is not checked
-		dst := dst
-		src := src
-		routeMessage, ok := src.MessageCache.Messages[*key]
+// callback function
+func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
+	return func(key *types.MessageKey, response *types.TxResponse, err error) {
+		routeMessage, ok := src.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
@@ -343,13 +328,12 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		}
 		r.HandleMessageFailed(routeMessage, dst, src)
 	}
+}
 
-	// setting before message is processed
-	m.SetIsProcessing(true)
+func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
-
-	if err := dst.Provider.Route(ctx, m.Message, callback); err != nil {
-		dst.log.Error("message routing failed", zap.Stringp("src", &m.Src), zap.Stringp("event_type", &m.EventType), zap.Error(err))
+	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
+		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
 	}
 }
@@ -371,14 +355,13 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 			}
 			return
 		}
-		routeMessage, ok := dst.MessageCache.Messages[*key]
+		routeMessage, ok := dst.MessageCache.Get(key)
 		if !ok {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
 		r.HandleMessageFailed(routeMessage, dst, dst)
 	}
-	msg.SetIsProcessing(true)
 	msg.IncrementRetry()
 	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
@@ -387,9 +370,9 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
-	routeMessage.SetIsProcessing(false)
-
-	if routeMessage.GetRetry() != 0 && routeMessage.GetRetry()%types.MaxTxRetry == 0 {
+	routeMessage.ToggleProcessing()
+	routeMessage.AddNextTry()
+	if routeMessage.GetRetry()%types.MaxTxRetry == 0 || routeMessage.GetRetry() >= types.MaxTxRetry {
 		// save to db
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))

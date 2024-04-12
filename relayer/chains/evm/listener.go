@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -26,6 +27,13 @@ const (
 type BnOptions struct {
 	StartHeight uint64
 	Concurrency uint64
+}
+
+type bnq struct {
+	h     uint64
+	v     *types.BlockNotification
+	err   error
+	retry int
 }
 
 func (r *Provider) latestHeight() uint64 {
@@ -45,10 +53,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
-	heightTicker := time.NewTicker(BlockInterval)
+	heightTicker := time.NewTicker(p.cfg.BlockInterval)
 	defer heightTicker.Stop()
 
-	heightPoller := time.NewTicker(p.cfg.BlockInterval)
+	heightPoller := time.NewTicker(BlockHeightPollInterval)
 	defer heightPoller.Stop()
 
 	nonceTicker := time.NewTicker(3 * time.Minute)
@@ -74,12 +82,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latest++
 
 		case <-heightPoller.C:
-			if height := p.latestHeight(); height > latest {
-				latest = height
-				if next > latest {
-					// TODO:
-					p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
-				}
+			height := p.latestHeight()
+			latest = height
+			if next > latest {
+				time.Sleep(p.cfg.BlockInterval)
+				p.log.Debug("receiveLoop: skipping; ", zap.Uint64("latest", latest), zap.Uint64("next", next))
 			}
 		case <-nonceTicker.C:
 			addr := common.HexToAddress(p.cfg.Address)
@@ -118,15 +125,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 		default:
 			if next >= latest {
-				time.Sleep(10 * time.Millisecond)
 				continue
-			}
-
-			type bnq struct {
-				h     uint64
-				v     *types.BlockNotification
-				err   error
-				retry int
 			}
 
 			qch := make(chan *bnq, cap(bnch))
@@ -262,16 +261,52 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 		)
 	}
 
-	// priority1: lastsaveheight from db
-	if lastSavedHeight != 0 && lastSavedHeight < latestQueryHeight {
-		return lastSavedHeight, nil
-	}
-
-	// priority2: startHeight from config
+	// priority1: startHeight from config
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestQueryHeight {
 		return p.cfg.StartHeight, nil
 	}
 
+	// priority2: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestQueryHeight {
+		return lastSavedHeight, nil
+	}
+
 	// priority3: latest height
 	return latestQueryHeight, nil
+}
+
+// Subscribe listens to new blocks and sends them to the channel
+func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo) {
+	ch := make(chan ethTypes.Log)
+	sub, err := p.client.Subscribe(ctx, p.blockReq, ch)
+	if err != nil {
+		p.log.Error("failed to subscribe", zap.Error(err))
+		return
+	}
+	defer sub.Unsubscribe()
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("evm listener: context done")
+			return
+		case log := <-ch:
+			message, err := p.getRelayMessageFromLog(log)
+			if err != nil {
+				p.log.Error("failed to get relay message from log", zap.Error(err))
+				continue
+			}
+			p.log.Info("Detected eventlog",
+				zap.String("target_network", message.Dst),
+				zap.Uint64("sn", message.Sn),
+				zap.String("event_type", message.EventType),
+				zap.String("tx_hash", log.TxHash.String()),
+				zap.Uint64("block_number", log.BlockNumber),
+			)
+			blockInfo := &relayertypes.BlockInfo{
+				Height:   log.BlockNumber,
+				Messages: []*relayertypes.Message{message},
+			}
+			blockInfoChan <- blockInfo
+		}
+	}
 }

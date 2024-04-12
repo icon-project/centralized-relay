@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	CodeTypeOK uint32 = 0
-	ChainType         = "cosmos"
+	CodeTypeOK  uint32 = 0
+	CodeTypeErr uint32 = 1
+	ChainType          = "cosmos"
 )
 
 var (

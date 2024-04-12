@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -20,14 +19,14 @@ func callParamsWithHeight(height types.HexInt) CallParamOption {
 	}
 }
 
-func (ip *Provider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
+func (p *Provider) prepareCallParams(methodName string, address string, param map[string]interface{}, options ...CallParamOption) *types.CallParam {
 	callData := &types.CallData{
 		Method: methodName,
 		Params: param,
 	}
 
 	callParam := &types.CallParam{
-		FromAddress: types.Address(fmt.Sprintf("hx%s", strings.Repeat("0", 40))),
+		FromAddress: types.Address(p.cfg.Address),
 		ToAddress:   types.Address(address),
 		DataType:    "call",
 		Data:        callData,

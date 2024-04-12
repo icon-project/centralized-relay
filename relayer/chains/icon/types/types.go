@@ -333,3 +333,19 @@ type RecvMessage struct {
 	ConnSn HexInt   `json:"_connSn"`
 	Msg    HexBytes `json:"msg"`
 }
+
+type SetAdmin struct {
+	Relayer string `json:"_relayer"`
+}
+
+type RevertMessage struct {
+	Sn HexInt `json:"_sn"`
+}
+
+type ClaimFee struct{}
+
+type SetFee struct {
+	NetworkID string `json:"networkId"`
+	MsgFee    HexInt `json:"messageFee"`
+	ResFee    HexInt `json:"responseFee"`
+}

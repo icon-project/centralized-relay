@@ -42,6 +42,25 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
+	case events.SetAdmin:
+		msg := &types.SetAdmin{
+			Relayer: message.Src,
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetAdmin), nil
+	case events.RevertMessage:
+		msg := &types.RevertMessage{
+			Sn: types.NewHexInt(int64(message.Sn)),
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRevertMessage), nil
+	case events.ClaimFee:
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), nil, MethodClaimFees), nil
+	case events.SetFee:
+		msg := &types.SetFee{
+			NetworkID: message.Src,
+			MsgFee:    types.NewHexInt(int64(message.Sn)),
+			ResFee:    types.NewHexInt(int64(message.ReqID)),
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
@@ -54,9 +73,9 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 
 	txParam := types.TransactionParam{
 		Version:     types.NewHexInt(JsonrpcApiVersion),
-		FromAddress: types.Address(wallet.Address().String()),
+		FromAddress: types.NewAddress(wallet.Address().Bytes()),
 		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(int64(p.cfg.NetworkID)),
+		NetworkID:   types.NewHexInt(p.cfg.NetworkID),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -116,7 +135,7 @@ func (p *Provider) WaitForTxResult(
 
 	_, txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {
-		p.log.Error("Failed to get txn result", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
+		p.log.Error("get txn result failed", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)
 		return
 	}
@@ -130,7 +149,7 @@ func (p *Provider) WaitForTxResult(
 
 	status, err := txRes.Status.Int()
 	if status != 1 {
-		err = fmt.Errorf("transaction failed")
+		err = fmt.Errorf("error: %s", err)
 		callback(messageKey, res, err)
 		p.LogFailedTx(method, txRes, err)
 		return
@@ -143,11 +162,11 @@ func (p *Provider) WaitForTxResult(
 func (p *Provider) LogSuccessTx(method string, result *types.TransactionResult) {
 	stepUsed, err := result.StepUsed.Value()
 	if err != nil {
-		p.log.Error("Failed to get step used", zap.Error(err))
+		p.log.Error("failed to get step used", zap.Error(err))
 	}
 	height, err := result.BlockHeight.Value()
 	if err != nil {
-		p.log.Error("Failed to get block height", zap.Error(err))
+		p.log.Error("failed to get block height", zap.Error(err))
 	}
 
 	p.log.Info("transaction success",
@@ -164,8 +183,7 @@ func (p *Provider) LogFailedTx(method string, result *types.TransactionResult, e
 	stepUsed, _ := result.StepUsed.Value()
 	height, _ := result.BlockHeight.Value()
 
-	p.log.Info("Failed Transaction",
-		zap.String("chain_id", p.NID()),
+	p.log.Info("transaction failed",
 		zap.String("method", method),
 		zap.String("tx_hash", string(result.TxHash)),
 		zap.Int64("height", height),

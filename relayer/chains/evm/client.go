@@ -27,12 +27,15 @@ const (
 	DefaultGetTransactionResultPollingInterval = time.Millisecond * 500
 )
 
-func newClient(ctx context.Context, connectionContract, XcallContract common.Address, url string, l *zap.Logger) (IClient, error) {
-	clrpc, err := rpc.Dial(url)
+func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
+	clrpc, err := rpc.Dial(rpcUrl)
 	if err != nil {
 		return nil, err
 	}
-	cleth := ethclient.NewClient(clrpc)
+	cleth, err := ethclient.DialContext(ctx, websocketUrl)
+	if err != nil {
+		return nil, err
+	}
 
 	connection, err := bridgeContract.NewConnection(connectionContract, cleth)
 	if err != nil {
@@ -91,9 +94,8 @@ type IClient interface {
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
-
-	// transaction
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
+	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
 
 	// abiContract for connection
 	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
@@ -102,10 +104,14 @@ type IClient interface {
 	MessageReceived(opts *bind.CallOpts, srcNetwork string, _connSn *big.Int) (bool, error)
 	SetAdmin(opts *bind.TransactOpts, newAdmin common.Address) (*ethTypes.Transaction, error)
 	RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
+	GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error)
+	SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error)
+	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
 	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
+	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
 func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
@@ -285,4 +291,29 @@ func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byt
 
 func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
 	return c.eth.EstimateGas(ctx, msg)
+}
+
+// GetFee
+func (c *Client) GetFee(opts *bind.CallOpts, networkID string) (*big.Int, error) {
+	return c.connection.GetFee(opts, networkID, true)
+}
+
+// SetFee
+func (c *Client) SetFee(opts *bind.TransactOpts, src string, msg, res *big.Int) (*ethTypes.Transaction, error) {
+	return c.connection.SetFee(opts, src, msg, res)
+}
+
+// ClaimFee
+func (c *Client) ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error) {
+	return c.connection.ClaimFees(opts)
+}
+
+// ExecuteRollback
+func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error) {
+	return c.xcall.ExecuteRollback(opts, sn)
+}
+
+// Subscribe
+func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error) {
+	return c.eth.SubscribeFilterLogs(ctx, q, ch)
 }

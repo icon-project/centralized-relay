@@ -21,7 +21,7 @@ type Config struct {
 	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
 	BlockInterval string                         `json:"block-interval" yaml:"block-interval"`
 	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID     uint                           `json:"network-id" yaml:"network-id"`
+	NetworkID     int64                          `json:"network-id" yaml:"network-id"`
 	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
 	NID           string                         `json:"nid" yaml:"nid"`
 	StepMin       int64                          `json:"step-min" yaml:"step-min"`
@@ -162,6 +162,83 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	}
 	if txr.Status != types.NewHexInt(1) {
 		return fmt.Errorf("SetAdmin: failed to set admin: %s", txr.TxHash)
+	}
+	return nil
+}
+
+// GetFee
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	callParam := p.prepareCallParams(MethodGetFee, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
+		"to":       networkID,
+		"response": types.NewHexInt(1),
+	})
+
+	var status types.HexInt
+	if err := p.client.Call(callParam, &status); err != nil {
+		return 0, fmt.Errorf("GetFee: %v", err)
+	}
+	fee, err := status.BigInt()
+	if err != nil {
+		return 0, fmt.Errorf("GetFee: %v", err)
+	}
+	return fee.Uint64(), nil
+}
+
+// SetFees
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	callParam := map[string]interface{}{
+		"networkId":   networkID,
+		"messageFee":  types.NewHexInt(int64(msgFee)),
+		"responseFee": types.NewHexInt(int64(resFee)),
+	}
+
+	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetFee)
+	txHash, err := p.SendTransaction(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("SetFee: %v", err)
+	}
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		fmt.Println("SetFee: WaitForResults: %v", err)
+		return fmt.Errorf("SetFee: WaitForResults: %v", err)
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("SetFee: failed to claim fees: %s", txr.TxHash)
+	}
+	return nil
+}
+
+// ClaimFees
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), map[string]interface{}{}, MethodClaimFees)
+	txHash, err := p.SendTransaction(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("ClaimFees: %v", err)
+	}
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return fmt.Errorf("ClaimFees: WaitForResults: %v", err)
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("ClaimFees: failed to claim fees: %s", txr.TxHash)
+	}
+	return nil
+}
+
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+	params := map[string]interface{}{"_sn": types.NewHexInt(int64(sn))}
+	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.XcallContract]), params, MethodExecuteRollback)
+	txHash, err := p.SendTransaction(ctx, message)
+	if err != nil {
+		return err
+	}
+	_, txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
+	if err != nil {
+		return err
+	}
+	if txr.Status != types.NewHexInt(1) {
+		return fmt.Errorf("failed: %s", txr.TxHash)
 	}
 	return nil
 }

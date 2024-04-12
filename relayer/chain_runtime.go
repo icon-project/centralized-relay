@@ -31,10 +31,6 @@ func NewChainRuntime(log *zap.Logger, chain *Chain) (*ChainRuntime, error) {
 }
 
 func (r *ChainRuntime) mergeMessages(ctx context.Context, messages []*types.Message) {
-	if len(messages) == 0 {
-		return
-	}
-
 	for _, m := range messages {
 		routeMessage := types.NewRouteMessage(m)
 		r.MessageCache.Add(routeMessage)
@@ -52,7 +48,7 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	if routeMessage.GetIsProcessing() {
+	if routeMessage.IsProcessing() {
 		return false
 	}
 
@@ -70,5 +66,5 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 }
 
 func (r *ChainRuntime) shouldExecuteCall(ctx context.Context, msg *types.RouteMessage) bool {
-	return !msg.GetIsProcessing()
+	return !msg.IsProcessing()
 }

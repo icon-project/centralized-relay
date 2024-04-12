@@ -1,25 +1,22 @@
 FROM --platform=$BUILDPLATFORM golang:alpine AS build-env
 
-RUN apk add --update --no-cache make git musl-dev gcc binutils-gold
+RUN apk add --update --no-cache make musl-dev gcc binutils-gold
 
 ARG BUILDPLATFORM=arm64
 ARG TARGETPLATFORM=arm64
-ARG COSMWASM_VERSION=1.5.0
+ARG COSMWASM_VERSION=2.0.0
 
 RUN wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.aarch64.a -O /usr/lib/libwasmvm.aarch64.a && \
     wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.x86_64.a -O /usr/lib/libwasmvm.x86_64.a
 
-
 COPY . .
-COPY rootCA/ /usr/local/share/ca-certificates/
-RUN chmod 644 /usr/local/share/ca-certificates/ && update-ca-certificates
 RUN LDFLAGS='-linkmode external -extldflags "-static"' make install
 
 RUN if [ -d "/go/bin/linux_${TARGETPLATFORM}" ]; then mv /go/bin/linux_${TARGETPLATFORM}/* /go/bin/; fi
 
 
 # Use minimal busybox from infra-toolkit image for final scratch image
-FROM --platform=$BUILDPLATFORM ghcr.io/strangelove-ventures/infra-toolkit:v0.0.6 AS busybox-min
+FROM --platform=$BUILDPLATFORM ghcr.io/strangelove-ventures/infra-toolkit:v0.0.8 AS busybox-min
 RUN addgroup --gid 1000 -S relayer && adduser --uid 100 -S relayer -G relayer
 
 # Use ln and rm from full featured busybox for assembling final image
@@ -51,7 +48,7 @@ RUN ln sh pwd && \
     rm ln rm
 
 # Install chain binaries
-COPY --from=build-env /go/bin/crly /bin/centralized-rly
+COPY --from=build-env /go/bin/centralized-relay /bin
 
 # Install trusted CA certificates
 COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
@@ -67,5 +64,4 @@ USER relayer
 
 WORKDIR /home/relayer
 
-
-CMD ["/bin/centralized-rly"]
+CMD ["/bin/centralized-relay"]

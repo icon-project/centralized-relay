@@ -2,6 +2,9 @@ package wasm
 
 import (
 	"context"
+	"strconv"
+
+	jsoniter "github.com/json-iterator/go"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -39,6 +42,9 @@ type IClient interface {
 	GetKey(uid string) (*keyring.Record, error)
 	GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error)
 	SetAddress(account sdkTypes.AccAddress) sdkTypes.AccAddress
+	Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error)
+	Unsubscribe(ctx context.Context, _, query string) error
+	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
 }
 
 type Client struct {
@@ -200,4 +206,33 @@ func (c *Client) QuerySmartContract(ctx context.Context, address string, queryDa
 		Address:   address,
 		QueryData: queryData,
 	})
+}
+
+// GetFee returns the fee set for the network
+func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error) {
+	res, err := c.QuerySmartContract(ctx, addr, queryData)
+	if err != nil {
+		return 0, err
+	}
+
+	var feeStr string
+
+	if err := jsoniter.Unmarshal(res.Data, &feeStr); err != nil {
+		return 0, err
+	}
+	fee, err := strconv.ParseUint(feeStr, 10, strconv.IntSize)
+	if err != nil {
+		return 0, err
+	}
+	return fee, nil
+}
+
+// Subscribe
+func (c *Client) Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error) {
+	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "client", query)
+}
+
+// Unsubscribe
+func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
+	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "client", query)
 }

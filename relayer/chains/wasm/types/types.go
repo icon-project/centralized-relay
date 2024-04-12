@@ -21,7 +21,11 @@ type TxSearchParam struct {
 func (param *TxSearchParam) BuildQuery() string {
 	startHeight := &Query{
 		Field: "tx.height", Value: param.StartHeight,
-		Operator: QueryOperator.Eq,
+		Operator: QueryOperator.Gte,
+	}
+	endHeight := &Query{
+		Field: "tx.height", Value: param.EndHeight,
+		Operator: QueryOperator.Lte,
 	}
 
 	var attribQueries []QueryExpression
@@ -37,7 +41,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	finalQuery := &CompositeQuery{
 		Or:      false,
-		Queries: []QueryExpression{startHeight, eventQuery},
+		Queries: []QueryExpression{startHeight, endHeight, eventQuery},
 	}
 
 	return finalQuery.GetQuery()
@@ -81,4 +85,10 @@ type SubscribeOpts struct {
 	Height  uint64
 	Address string
 	Method  string
+}
+
+// HightRange is a struct to represent a range of heights
+type HeightRange struct {
+	Start uint64
+	End   uint64
 }

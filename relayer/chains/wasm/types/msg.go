@@ -1,9 +1,10 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
+
+	jsoniter "github.com/json-iterator/go"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -48,7 +49,7 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 	return &ExecRecvMsg{
 		RecvMessage: &ReceiveMessage{
 			SrcNetwork: message.Src,
-			ConnSn:     fmt.Sprintf("%d", message.Sn),
+			ConnSn:     strconv.FormatUint(message.Sn, 10),
 			Msg:        hexstr.NewFromByte(message.Data),
 		},
 	}
@@ -58,7 +59,7 @@ func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
 	exec := &ExecMessage{
 		ReqID: strconv.FormatUint(message.ReqID, 10),
 	}
-	if err := json.Unmarshal(message.Data, &exec.Data); err != nil {
+	if err := jsoniter.Unmarshal(message.Data, &exec.Data); err != nil {
 		return nil
 	}
 	return &ExecExecMsg{
@@ -79,13 +80,13 @@ type ExecRevertMessge struct {
 }
 
 type RevertMessage struct {
-	Sn uint64 `json:"sn"`
+	Sn string `json:"sn"`
 }
 
 func NewExecRevertMsg(message *relayTypes.Message) *ExecRevertMessge {
 	return &ExecRevertMessge{
 		ExecMessage: &RevertMessage{
-			Sn: message.Sn,
+			Sn: fmt.Sprintf("%d", message.Sn),
 		},
 	}
 }
@@ -103,6 +104,76 @@ func NewExecSetAdmin(address string) *ExecSetAdmin {
 	return &ExecSetAdmin{
 		SetAdmin: &SetAdmin{
 			Address: address,
+		},
+	}
+}
+
+// ClaimFee
+type ClaimFee struct{}
+
+type ExecClaimFee struct {
+	ClaimFee *ClaimFee `json:"claim_fees"`
+}
+
+func NewExecClaimFee() *ExecClaimFee {
+	return &ExecClaimFee{
+		ClaimFee: &ClaimFee{},
+	}
+}
+
+// SetFee
+type SetFee struct {
+	NetworkID   string `json:"network_id"`
+	MessageFee  string `json:"message_fee"`
+	ResponseFee string `json:"response_fee"`
+}
+
+type ExecSetFee struct {
+	SetFee *SetFee `json:"set_fee"`
+}
+
+func NewExecSetFee(networkID string, msgFee, resFee uint64) *ExecSetFee {
+	return &ExecSetFee{
+		SetFee: &SetFee{
+			NetworkID:   networkID,
+			MessageFee:  strconv.FormatUint(msgFee, 10),
+			ResponseFee: strconv.FormatUint(resFee, 10),
+		},
+	}
+}
+
+// GetFee
+type ExecGetFee struct {
+	GetFee *GetFee `json:"get_fee"`
+}
+
+type GetFee struct {
+	NetworkID string `json:"nid"`
+	Response  bool   `json:"response"`
+}
+
+func NewExecGetFee(networkID string, response bool) *ExecGetFee {
+	return &ExecGetFee{
+		GetFee: &GetFee{
+			NetworkID: networkID,
+			Response:  response,
+		},
+	}
+}
+
+// ExecuteRollback
+type ExecExecuteRollback struct {
+	ExecuteRollback *ExecuteRollback `json:"execute_rollback"`
+}
+
+type ExecuteRollback struct {
+	Sn string `json:"sn"`
+}
+
+func NewExecExecuteRollback(sn uint64) *ExecExecuteRollback {
+	return &ExecExecuteRollback{
+		ExecuteRollback: &ExecuteRollback{
+			Sn: strconv.FormatUint(sn, 10),
 		},
 	}
 }

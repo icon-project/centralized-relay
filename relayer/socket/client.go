@@ -1,9 +1,10 @@
 package socket
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
 )
@@ -16,6 +17,9 @@ const (
 	EventPruneDB        Event = "PruneDB"
 	EventRevertMessage  Event = "RevertMessage"
 	EventError          Event = "Error"
+	EventGetFee         Event = "GetFee"
+	EventSetFee         Event = "SetFee"
+	EventClaimFee       Event = "ClaimFee"
 )
 
 var (
@@ -41,12 +45,12 @@ func NewClient() (*Client, error) {
 
 // send sends message to socket
 func (c *Client) send(event Event, req interface{}) error {
-	data, err := json.Marshal(req)
+	data, err := jsoniter.Marshal(req)
 	if err != nil {
 		return err
 	}
 	msg := &Message{Event: event, Data: data}
-	payload, err := json.Marshal(msg)
+	payload, err := jsoniter.Marshal(msg)
 	if err != nil {
 		return err
 	}
@@ -58,13 +62,13 @@ func (c *Client) send(event Event, req interface{}) error {
 
 // read and parse message from socket
 func (c *Client) read() (interface{}, error) {
-	buf := make([]byte, 1024*10)
+	buf := make([]byte, 1024*100)
 	nr, err := c.conn.Read(buf)
 	if err != nil {
 		return nil, err
 	}
 	msg := new(Message)
-	if err := json.Unmarshal(buf[:nr], msg); err != nil {
+	if err := jsoniter.Unmarshal(buf[:nr], msg); err != nil {
 		return nil, err
 	}
 	return c.parseEvent(msg)
@@ -75,36 +79,60 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 	switch msg.Event {
 	case EventGetBlock:
 		var res []*ResGetBlock
-		if err := json.Unmarshal(msg.Data, &res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, &res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventGetMessageList:
 		res := new(ResMessageList)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventRelayMessage:
 		res := new(ResRelayMessage)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventMessageRemove:
 		res := new(ResMessageRemove)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventPruneDB:
 		res := new(ResPruneDB)
-		if err := json.Unmarshal(msg.Data, res); err != nil {
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
 	case EventError:
 		return nil, ErrUnknown
+	case EventRevertMessage:
+		res := new(ResRevertMessage)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventGetFee:
+		res := new(ResGetFee)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventSetFee:
+		res := new(ResSetFee)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventClaimFee:
+		res := new(ResClaimFee)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
 	default:
 		return nil, ErrUnknownEvent
 	}
@@ -210,6 +238,57 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 		return nil, err
 	}
 	res, ok := data.(*ResRevertMessage)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// GetFee sends GetFee event to socket
+func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFee, error) {
+	req := &ReqGetFee{Chain: chain, Network: network, Response: isReponse}
+	if err := c.send(EventGetFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResGetFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// SetFee sends SetFee event to socket
+func (c *Client) SetFee(chain, network string, msgFee, resFee uint64) (*ResSetFee, error) {
+	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
+	if err := c.send(EventSetFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResSetFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+// ClaimFee sends ClaimFee event to socket
+func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
+	req := &ReqClaimFee{Chain: chain}
+	if err := c.send(EventClaimFee, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResClaimFee)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
 	}

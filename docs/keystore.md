@@ -5,7 +5,7 @@ The `keystore` command is used to manage your Ethereum keystore.
 ## Usage
 
 ```bash
-centralized-rly keystore <command> [options]
+centralized-relay keystore <command> [options]
 
 Commands:
   create    Create a keystore
@@ -21,7 +21,7 @@ Options:
 ### `create`
 
 ```bash
-keytore create [flags]
+keystore create [flags]
 
 Flags:
   -c, --chain string       The chain for which to create the keystore
@@ -60,17 +60,17 @@ Flags:
 ### Create a keystore
 
 ```bash
-centralized-rly keystore create --chain=0x2.icon --password=12345678
+centralized-relay keystore create --chain=0x2.icon --password=12345678
 ```
 
 ### Import a keystore
 
 ```bash
-centralized-rly keystore import --chain=0x2.icon --keystore=./keystore.json --password=12345678
+centralized-relay keystore import --chain=0x2.icon --keystore=./keystore.json --password=12345678
 ```
 
 ### Use a keystore
 
 ```bash
-centralized-rly keystore use --chain=0x2.icon --address=0x1234567890
+centralized-relay keystore use --chain=0x2.icon --address=0x1234567890
 ```

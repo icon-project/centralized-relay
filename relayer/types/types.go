@@ -5,13 +5,16 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
-	MaxTxRetry         uint8 = 5
+	MaxTxRetry         uint8 = 10
+	StaleMarkCount           = MaxTxRetry * 3
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
+	RetryInterval            = 5 * time.Second
 )
 
 type BlockInfo struct {
@@ -41,10 +44,10 @@ func (c ContractConfigMap) Validate() error {
 	for _, contract := range SupportedContracts {
 		val, ok := (c)[contract]
 		if !ok {
-			return fmt.Errorf("contract %s not configured", contract)
+			continue
 		}
 		if val == "" {
-			return fmt.Errorf("contract %s address is empty", contract)
+			continue
 		}
 	}
 	return nil
@@ -56,15 +59,14 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry        uint8
-	IsProcessing bool
+	Retry      uint8
+	Processing bool
+	LastTry    time.Time
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
-		Message:      m,
-		Retry:        0,
-		IsProcessing: false,
+		Message: m,
 	}
 }
 
@@ -74,23 +76,29 @@ func (r *RouteMessage) GetMessage() *Message {
 
 func (r *RouteMessage) IncrementRetry() {
 	r.Retry++
+	r.AddNextTry()
+}
+
+func (r *RouteMessage) ToggleProcessing() {
+	r.Processing = !r.Processing
 }
 
 func (r *RouteMessage) GetRetry() uint8 {
 	return r.Retry
 }
 
-func (r *RouteMessage) SetIsProcessing(isProcessing bool) {
-	r.IsProcessing = isProcessing
+// ResetLastTry resets the last try time to the current time plus the retry interval
+func (r *RouteMessage) AddNextTry() {
+	r.LastTry = time.Now().Add(RetryInterval)
 }
 
-func (r *RouteMessage) GetIsProcessing() bool {
-	return r.IsProcessing
+func (r *RouteMessage) IsProcessing() bool {
+	return r.Processing || !(r.LastTry.IsZero() || r.LastTry.Before(time.Now()))
 }
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.Retry >= MaxTxRetry
+	return r.Retry >= StaleMarkCount
 }
 
 type TxResponseFunc func(key *MessageKey, response *TxResponse, err error)
@@ -132,12 +140,13 @@ func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyW
 
 type MessageCache struct {
 	Messages map[MessageKey]*RouteMessage
-	sync.Mutex
+	*sync.RWMutex
 }
 
 func NewMessageCache() *MessageCache {
 	return &MessageCache{
 		Messages: make(map[MessageKey]*RouteMessage),
+		RWMutex:  new(sync.RWMutex),
 	}
 }
 
@@ -157,13 +166,21 @@ func (m *MessageCache) Remove(key *MessageKey) {
 	delete(m.Messages, *key)
 }
 
+// Get returns the message from the cache
+func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
+	m.RLock()
+	defer m.RUnlock()
+	msg, ok := m.Messages[*key]
+	return msg, ok
+}
+
 type Coin struct {
 	Denom  string
 	Amount uint64
 }
 
 func NewCoin(denom string, amount uint64) *Coin {
-	return &Coin{denom, amount}
+	return &Coin{strings.ToLower(denom), amount}
 }
 
 func (c *Coin) String() string {
@@ -171,17 +188,10 @@ func (c *Coin) String() string {
 }
 
 func (c *Coin) Calculate() string {
-	coin := strings.ToLower(c.Denom)
 	balance := new(big.Float).SetUint64(c.Amount)
-	amount := new(big.Float)
-	switch coin {
-	case "icx":
-		amount = amount.Quo(balance, big.NewFloat(1e18))
-	case "eth":
-		amount = new(big.Float).Quo(balance, big.NewFloat(1e18))
-	}
+	amount := balance.Quo(balance, big.NewFloat(1e18))
 	value, _ := amount.Float64()
-	return fmt.Sprintf("%f%s", value, coin)
+	return fmt.Sprintf("%.18f %s", value, c.Denom)
 }
 
 type TransactionObject struct {

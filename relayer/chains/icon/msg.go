@@ -1,7 +1,7 @@
 package icon
 
 import (
-	"encoding/json"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 )
@@ -19,7 +19,7 @@ func (m *IconMessage) Type() string {
 }
 
 func (m *IconMessage) MsgBytes() ([]byte, error) {
-	return json.Marshal(m.Params)
+	return jsoniter.Marshal(m.Params)
 }
 
 func (p *Provider) NewIconMessage(address types.Address, msg interface{}, method string) *IconMessage {

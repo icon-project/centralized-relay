@@ -7,8 +7,9 @@ import (
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
+	"go.uber.org/zap"
 )
 
 const (
@@ -44,12 +45,12 @@ type EventsList struct {
 	Events []Event `json:"events"`
 }
 
-func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.Message, error) {
-	var messages []*providerTypes.Message
+func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.Message, error) {
+	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {
 		case EventTypeWasmMessage:
-			msg := &providerTypes.Message{
+			msg := &relayerTypes.Message{
 				EventType: events.EmitMessage,
 				Src:       p.NID(),
 			}
@@ -75,48 +76,48 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*providerTypes.
 			}
 			messages = append(messages, msg)
 		case EventTypeWasmCallMessage:
-			msg := &providerTypes.Message{
+			msg := &relayerTypes.Message{
 				EventType: events.CallMessage,
 				Dst:       p.NID(),
 			}
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.Atoi(attr.Value)
+					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse reqId from event")
 					}
-					msg.ReqID = uint64(reqID)
+					msg.ReqID = reqID
 				case EventAttrKeyData:
 					msg.Data = []byte(attr.Value)
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.Atoi(attr.Value)
+					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
-					msg.Sn = uint64(sn)
+					msg.Sn = sn
 				}
 			}
 			messages = append(messages, msg)
+		default:
+			p.logger.Debug("unknown event type", zap.String("type", ev.Type))
 		}
 	}
 	return messages, nil
 }
 
 // EventSigToEventType converts event signature to event type
-func (p *ProviderConfig) eventMap() map[string]providerTypes.EventMap {
-	eventMap := make(map[string]providerTypes.EventMap, len(p.Contracts))
+func (p *ProviderConfig) eventMap() map[string]relayerTypes.EventMap {
+	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
+		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
 		switch contractName {
-		case providerTypes.XcallContract:
-			event.SigType = map[string]string{addr: events.CallMessage}
-		case providerTypes.ConnectionContract:
-			event.SigType = map[string]string{
-				addr: events.EmitMessage,
-			}
+		case relayerTypes.XcallContract:
+			event.SigType = map[string]string{EventTypeWasmCallMessage: events.CallMessage}
+		case relayerTypes.ConnectionContract:
+			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
 		}
 		eventMap[addr] = event
 	}
@@ -135,7 +136,7 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 	return ""
 }
 
-func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]providerTypes.EventMap) []sdkTypes.Event {
+func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
 	for addr, contract := range eventMap {

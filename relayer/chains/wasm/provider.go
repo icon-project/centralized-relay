@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -21,7 +20,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/centralized-relay/utils/concurrency"
+	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
 
@@ -107,11 +106,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	}
 
 	heightTicker := time.NewTicker(p.cfg.BlockInterval)
-	heightPoller := time.NewTicker(time.Minute)
-	sequenceTicker := time.NewTicker(3 * time.Minute)
+	heightPoller := time.NewTicker(time.Minute * 5)
 	defer heightTicker.Stop()
 	defer heightPoller.Stop()
-	defer sequenceTicker.Stop()
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
@@ -123,22 +120,15 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			height, err := p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to query latest height", zap.Error(err))
-				heightPoller.Reset(time.Second * 3)
 				continue
 			}
 			latestHeight = height
-			heightPoller.Reset(time.Minute)
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-sequenceTicker.C:
-			if err := p.handleSequence(ctx); err != nil {
-				p.logger.Error("failed to update sequence", zap.Error(err))
-			}
 		default:
-			if startHeight < latestHeight {
+			if startHeight+1 < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
-				endHeight := p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
-				startHeight = endHeight
+				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
 	}
@@ -155,7 +145,6 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
-
 	return nil
 }
 
@@ -169,9 +158,9 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	var contract string
 
 	switch message.EventType {
-	case events.EmitMessage, events.RevertMessage, events.SetAdmin:
+	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	case events.CallMessage:
+	case events.CallMessage, events.ExecuteRollback:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
@@ -191,19 +180,14 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 			if mmErr := p.handleSequence(ctx); mmErr != nil {
 				return nil, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
+			return p.sendMessage(ctx, msgs...)
 		}
-		return nil, err
 	}
-	return res, nil
+	return res, err
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	res, err := p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
 func (p *Provider) handleSequence(ctx context.Context) error {
@@ -275,7 +259,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
-		if txWaitRes.Error != nil {
+		if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
 			p.logTxFailed(txWaitRes.Error, txHash)
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
@@ -318,58 +302,61 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 	txResChan := make(chan *types.TxResultChan)
 	go func(txRes chan *types.TxResultChan) {
 		defer close(txRes)
-		httpClient, err := p.client.HTTP(p.cfg.RpcUrl)
-		if err != nil {
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
-			}
-			return
-		}
-		if err := httpClient.Start(); err != nil {
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: err,
-			}
-			return
-		}
-		defer httpClient.Stop()
 
 		newCtx, cancel := context.WithTimeout(ctx, maxWaitInterval)
 		defer cancel()
 
 		query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
-		resultEventChan, err := httpClient.Subscribe(newCtx, "tx-result-waiter", query)
+		resultEventChan, err := p.client.Subscribe(newCtx, "tx-result-waiter", query)
 		if err != nil {
 			txRes <- &types.TxResultChan{
 				TxResult: nil, Error: err,
 			}
 			return
 		}
+		defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
 
-		select {
-		case <-ctx.Done():
-			txRes <- &types.TxResultChan{
-				TxResult: nil, Error: ctx.Err(),
-			}
-			return
-		case e := <-resultEventChan:
-			eventDataJSON, err := json.Marshal(e.Data)
-			if err != nil {
-				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
-				}
+		for {
+			select {
+			case <-ctx.Done():
 				return
-			}
+			case e := <-resultEventChan:
+				eventDataJSON, err := jsoniter.Marshal(e.Data)
+				if err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+							Code:   relayTypes.Failed,
+						}, Error: err,
+					}
+					return
+				}
 
-			txWaitRes := new(types.TxResultWaitResponse)
-			if err := json.Unmarshal(eventDataJSON, txWaitRes); err != nil {
-				txRes <- &types.TxResultChan{
-					TxResult: nil, Error: err,
+				txWaitRes := new(types.TxResultWaitResponse)
+				if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
+					txRes <- &types.TxResultChan{
+						TxResult: &relayTypes.TxResponse{
+							TxHash: txHash,
+							Code:   relayTypes.Failed,
+						}, Error: err,
+					}
+					return
 				}
-				return
-			}
-			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+				if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
+					txRes <- &types.TxResultChan{
+						Error: fmt.Errorf(txWaitRes.Result.Log),
+						TxResult: &relayTypes.TxResponse{
+							Height:    txWaitRes.Height,
+							TxHash:    txHash,
+							Codespace: txWaitRes.Result.Codespace,
+							Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
+							Data:      string(txWaitRes.Result.Data),
+						},
+					}
+					return
+				}
+
 				txRes <- &types.TxResultChan{
-					Error: fmt.Errorf(txWaitRes.Result.Log),
 					TxResult: &relayTypes.TxResponse{
 						Height:    txWaitRes.Height,
 						TxHash:    txHash,
@@ -379,16 +366,6 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 					},
 				}
 				return
-			}
-
-			txRes <- &types.TxResultChan{
-				TxResult: &relayTypes.TxResponse{
-					Height:    txWaitRes.Height,
-					TxHash:    txHash,
-					Codespace: txWaitRes.Result.Codespace,
-					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-					Data:      string(txWaitRes.Result.Data),
-				},
 			}
 		}
 	}(txResChan)
@@ -402,7 +379,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 			ConnSn:     strconv.FormatUint(key.Sn, 10),
 		},
 	}
-	rawQueryMsg, err := json.Marshal(queryMsg)
+	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
 	if err != nil {
 		return false, err
 	}
@@ -414,7 +391,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 	}
 
 	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	return receiptMsgRes.Status, json.Unmarshal(res.Data, &receiptMsgRes.Status)
+	return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
@@ -425,7 +402,7 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.C
 	}
 	return &relayTypes.Coin{
 		Denom:  coin.Denom,
-		Amount: coin.Amount.Uint64(),
+		Amount: coin.Amount.BigInt().Uint64(),
 	}, nil
 }
 
@@ -438,11 +415,15 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	msgs, err := p.fetchBlockMessages(ctx, &heightStream{messageKey.Height, messageKey.Height})
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
 	if err != nil {
 		return nil, err
 	}
-	return msgs, nil
+	var messages []*relayTypes.Message
+	for _, block := range blocks {
+		messages = append(messages, block.Messages...)
+	}
+	return messages, nil
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
@@ -450,34 +431,69 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	msg := relayTypes.Message{
+	msg := &relayTypes.Message{
 		Sn:        sn.Uint64(),
 		EventType: events.RevertMessage,
 	}
-	_, err := p.call(ctx, &msg)
+	_, err := p.call(ctx, msg)
 	return err
 }
 
-func (p *Provider) SetAdmin(ctx context.Context, address string) error {
-	execMsg := types.NewExecSetAdmin(address)
-	rawMsg, err := json.Marshal(execMsg)
+// SetFee
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee uint64) error {
+	msg := &relayTypes.Message{
+		Src:       networkdID,
+		Sn:        msgFee,
+		ReqID:     resFee,
+		EventType: events.SetFee,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// ClaimFee
+func (p *Provider) ClaimFee(ctx context.Context) error {
+	msg := &relayTypes.Message{
+		EventType: events.ClaimFee,
+	}
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// GetFee returns the fee for the given networkID
+// responseFee is used to determine if the fee should be returned
+func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
+	getFee := types.NewExecGetFee(networkID, responseFee)
+	data, err := jsoniter.Marshal(getFee)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.Wallet().String(),
-		Contract: p.cfg.Contracts[relayTypes.ConnectionContract],
-		Msg:      rawMsg,
+	return p.client.GetFee(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], data)
+}
+
+func (p *Provider) SetAdmin(ctx context.Context, address string) error {
+	msg := &relayTypes.Message{
+		Src:       address,
+		EventType: events.SetAdmin,
 	}
-	msgs := []sdkTypes.Msg{msg}
-	_, err = p.sendMessage(ctx, msgs...)
+	_, err := p.call(ctx, msg)
+	return err
+}
+
+// ExecuteRollback
+func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
+	msg := &relayTypes.Message{
+		Sn:        sn.Uint64(),
+		EventType: events.ExecuteRollback,
+	}
+	_, err := p.call(ctx, msg)
 	return err
 }
 
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	startHeight := lastSavedHeight
-	if p.cfg.StartHeight > 0 {
-		startHeight = p.cfg.StartHeight
+	if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
+		return p.cfg.StartHeight, nil
 	}
 
 	if startHeight > latestHeight {
@@ -491,30 +507,25 @@ func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64,
 	return latestHeight, nil
 }
 
-type heightStream struct {
-	Start uint64
-	End   uint64
-}
-
-func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *heightStream {
-	heightChan := make(chan *heightStream)
-	go func(fromHeight, toHeight uint64, heightChan chan *heightStream) {
+func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *types.HeightRange {
+	heightChan := make(chan *types.HeightRange)
+	go func(fromHeight, toHeight uint64, heightChan chan *types.HeightRange) {
 		defer close(heightChan)
-		for fromHeight <= toHeight {
+		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &heightStream{Start: fromHeight, End: fromHeight}:
-				fromHeight++
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
+				fromHeight += 2
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
 	return heightChan
 }
 
-func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *heightStream) <-chan interface{} {
+func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *types.HeightRange) <-chan interface{} {
 	blockInfoStream := make(chan interface{})
-	go func(blockInfoChan chan interface{}, heightChan <-chan *heightStream) {
+	go func(blockInfoChan chan interface{}, heightChan <-chan *types.HeightRange) {
 		defer close(blockInfoChan)
 		for {
 			select {
@@ -528,9 +539,8 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 							p.logger.Error("failed to fetch block messages", zap.Error(err), zap.Any("height", height))
 							time.Sleep(time.Second * 3)
 						} else {
-							blockInfoChan <- &relayTypes.BlockInfo{
-								Height:   height.End,
-								Messages: messages,
+							for _, message := range messages {
+								blockInfoChan <- message
 							}
 							break
 						}
@@ -542,8 +552,8 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 	return blockInfoStream
 }
 
-func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStream) ([]*relayTypes.Message, error) {
-	perPage := 20
+func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
+	perPage := 25
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
 		EndHeight:   heightInfo.End,
@@ -559,21 +569,21 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, search types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
-			search.Events = append(search.Events, event)
-			res, err := p.client.TxSearch(ctx, search)
+			searchParam.Events = append(searchParam.Events, event)
+			res, err := p.client.TxSearch(ctx, searchParam)
 			if err != nil {
 				errorChan <- err
 				return
 			}
 			if res.TotalCount > perPage {
 				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					search.Page = &i
+					searchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
 					if err != nil {
 						errorChan <- err
-						continue
+						return
 					}
 					res.Txs = append(res.Txs, resNext.Txs...)
 				}
@@ -585,18 +595,18 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *heightStr
 			messages.Txs = append(messages.Txs, msgs.Txs...)
 			messages.TotalCount += msgs.TotalCount
 		case err := <-errorChan:
-			return nil, err
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
 		}
 	}
 	wg.Wait()
 	return p.getMessagesFromTxList(messages.Txs)
 }
 
-func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.Message, error) {
-	var messages []*relayTypes.Message
+func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
+	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
 		var eventsList []*EventsList
-		if err := json.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
+		if err := jsoniter.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
 			return nil, err
 		}
 
@@ -613,8 +623,11 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 					zap.Uint64("sn", msg.Sn),
 					zap.String("event_type", msg.EventType),
 				)
-				messages = append(messages, msg)
 			}
+			messages = append(messages, &relayTypes.BlockInfo{
+				Height:   uint64(resultTx.Height),
+				Messages: msgs,
+			})
 		}
 	}
 	return messages, nil
@@ -624,27 +637,35 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	switch message.EventType {
 	case events.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
-		return json.Marshal(rcvMsg)
+		return jsoniter.Marshal(rcvMsg)
 	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
-		return json.Marshal(execMsg)
+		return jsoniter.Marshal(execMsg)
 	case events.RevertMessage:
-		execMsg := types.NewExecRevertMsg(message)
-		return json.Marshal(execMsg)
+		revertMsg := types.NewExecRevertMsg(message)
+		return jsoniter.Marshal(revertMsg)
 	case events.SetAdmin:
-		execMsg := types.NewExecSetAdmin(message.Dst)
-		return json.Marshal(execMsg)
+		setAdmin := types.NewExecSetAdmin(message.Dst)
+		return jsoniter.Marshal(setAdmin)
+	case events.ClaimFee:
+		claimFee := types.NewExecClaimFee()
+		return jsoniter.Marshal(claimFee)
+	case events.SetFee:
+		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
+		return jsoniter.Marshal(setFee)
+	case events.ExecuteRollback:
+		executeRollback := types.NewExecExecuteRollback(message.Sn)
+		return jsoniter.Marshal(executeRollback)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
 }
 
-func (p *Provider) getNumOfPipelines(startHeight, latestHeight uint64) int {
-	diff := latestHeight - startHeight + 1 // since both heights are inclusive
-	if int(diff) < runtime.NumCPU() {
-		return int(diff)
+func (p *Provider) getNumOfPipelines(diff int) int {
+	if diff <= runtime.NumCPU() {
+		return diff
 	}
-	return runtime.NumCPU()
+	return runtime.NumCPU() / 2
 }
 
 func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) uint64 {
@@ -653,16 +674,32 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	numOfPipelines := p.getNumOfPipelines(fromHeight, toHeight)
-	pipelines := make([]<-chan interface{}, numOfPipelines)
+	diff := int(toHeight-fromHeight) / 2
 
+	numOfPipelines := p.getNumOfPipelines(diff)
+	wg := &sync.WaitGroup{}
 	for i := 0; i < numOfPipelines; i++ {
-		pipelines[i] = p.getBlockInfoStream(ctx, done, heightStream)
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
+			defer wg.Done()
+			for heightRange := range heightStream {
+				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+				if err != nil {
+					p.logger.Error("failed to fetch block messages", zap.Error(err))
+					continue
+				}
+				var messages []*relayTypes.Message
+				for _, block := range blockInfo {
+					messages = append(messages, block.Messages...)
+				}
+				blockInfoChan <- &relayTypes.BlockInfo{
+					Height:   heightRange.End,
+					Messages: messages,
+				}
+			}
+		}(wg, heightStream)
 	}
-
-	for bn := range concurrency.Take(done, concurrency.FanIn(done, pipelines...), int(toHeight-fromHeight)) {
-		blockInfoChan <- bn.(*relayTypes.BlockInfo)
-	}
+	wg.Wait()
 	return toHeight + 1
 }
 
@@ -703,16 +740,16 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			return ctx.Err()
 		case e := <-resultEventChan:
 			p.logger.Info("event received")
-			eventDataJSON, err := json.Marshal(e.Data)
+			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
 				p.logger.Error("failed to marshal event data", zap.Error(err))
 				continue
 			}
 			eventsList := &struct {
 				Height uint64  `json:"height"`
-				Events []Event `json:"events"`
+				Events []Event `json:"logs"`
 			}{}
-			if err := json.Unmarshal(eventDataJSON, eventsList); err != nil {
+			if err := jsoniter.Unmarshal(eventDataJSON, eventsList); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
