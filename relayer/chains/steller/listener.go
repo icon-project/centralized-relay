@@ -1,8 +1,11 @@
 package steller
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
@@ -10,6 +13,7 @@ import (
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
+	xdr "github.com/stellar/go-xdr/xdr3"
 	"go.uber.org/zap"
 )
 
@@ -20,7 +24,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 		return err
 	}
 
-	lastSavedLedgerSeq = 1066354
+	// lastSavedLedgerSeq = 1066354
 
 	latestSeq := latestLedger.Sequence
 
@@ -61,11 +65,10 @@ func (p *Provider) runLedgerQuery(blockInfoChan chan *relayertypes.BlockInfo, fr
 
 	seqStream := p.getLedgerSeqStream(done, fromSeq, toSeq)
 
-	// numOfPipelines := int(toSeq - fromSeq + 1)
-	// if numOfPipelines > runtime.NumCPU() {
-	// 	numOfPipelines = runtime.NumCPU()
-	// }
-	numOfPipelines := 1
+	numOfPipelines := int(toSeq - fromSeq + 1)
+	if numOfPipelines > runtime.NumCPU() {
+		numOfPipelines = runtime.NumCPU()
+	}
 
 	pipelines := make([]<-chan interface{}, numOfPipelines)
 
@@ -193,50 +196,44 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		}
 
 		for _, mapItem := range *scMap {
-			key, ok := mapItem.Key.GetStr()
-			if !ok {
-				break
+			valBytes, err := mapItem.Val.MarshalBinary()
+			if err != nil {
+				return nil, err
 			}
-			switch key {
+			decoder := xdr.NewDecoder(bytes.NewBuffer(valBytes))
+			switch mapItem.Key.String() {
 			case "sn":
-				val, ok := mapItem.Val.GetU64()
-				if !ok {
-					break
-				}
-				msg.Sn = uint64(val)
-			case "reqId":
-				val, ok := mapItem.Val.GetU64()
-				if !ok {
-					break
-				}
-				msg.ReqID = uint64(val)
-			case "src":
-				val, ok := mapItem.Val.GetStr()
-				if !ok {
-					break
-				}
-				msg.Src = string(val)
-			case "dst":
-				val, ok := mapItem.Val.GetStr()
-				if !ok {
-					break
-				}
-				msg.Dst = string(val)
-			case "data":
-				val, ok := mapItem.Val.GetStr()
-				if !ok {
-					break
-				}
-				data, err := hex.DecodeString(string(val))
+				intVal, _, err := decoder.DecodeInt()
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to decode sn: %v", err)
+				}
+				msg.Sn = uint64(intVal)
+			case "reqId":
+				intVal, _, err := decoder.DecodeInt()
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode reqId: %v", err)
+				}
+				msg.ReqID = uint64(intVal)
+			case "src":
+				msg.Src = mapItem.Val.String()
+			case "dst":
+				msg.Dst = mapItem.Val.String()
+			case "data":
+				data, err := hex.DecodeString(mapItem.Val.String())
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode data: %v", err)
 				}
 				msg.Data = data
 			}
 		}
 
-		messages = append(messages, msg)
+		//skip invalid message
+		if msg.Sn == 0 || msg.Src == "" || msg.Dst == "" {
+			p.log.Warn("detected invalid message: ", zap.Any("msg", msg))
+			continue
+		}
 
+		messages = append(messages, msg)
 	}
 
 	return messages, nil
