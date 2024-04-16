@@ -56,6 +56,8 @@ COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
 # Install relayer user
 COPY --from=busybox-min /etc/passwd /etc/passwd
 COPY --from=busybox-min --chown=100:1000 /home/relayer /home/relayer
+COPY --from=busybox-min --chown=100:1000 /tmp /tmp
+
 
 USER relayer
 
