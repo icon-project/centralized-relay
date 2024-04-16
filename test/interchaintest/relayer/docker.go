@@ -456,6 +456,7 @@ func (r *DockerRelayer) Bind() []string {
 	path, _ := os.Getwd()
 	testfolder := filepath.Dir(path)
 	rlyKeystorePath := testfolder + "/relayer/data/keystore"
+	rlyKeystoreAwsPath := testfolder + "/relayer/aws"
 
 	_, err := os.Stat(path)
 	if err != nil {
@@ -466,6 +467,7 @@ func (r *DockerRelayer) Bind() []string {
 	return []string{
 		r.volumeName + ":" + r.HomeDir(),
 		rlyKeystorePath + ":" + "/home/relayer/.centralized-relay/keystore",
+		rlyKeystoreAwsPath + ":" + "/home/relayer/.aws",
 	}
 }
 

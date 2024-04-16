@@ -107,7 +107,7 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	s.startRelayerFn = func(relayer ibc.Relayer) error {
 		env := []string{}
 		if s.cfg.RelayerConfig.KMS_URL != "" {
-			env = append(env, fmt.Sprintf("%s=%s", "LOCAL_KMS_ENDPOINT", s.cfg.RelayerConfig.KMS_URL))
+			env = append(env, fmt.Sprintf("%s=%s", "AWS_ENDPOINT_URL", s.cfg.RelayerConfig.KMS_URL))
 		}
 		if err := relayer.StartRelayer(ctx, eRep, env); err != nil {
 			return fmt.Errorf("failed to start relayer: %s", err)

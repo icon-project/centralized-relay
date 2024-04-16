@@ -4,19 +4,20 @@ chains:
     environment: local
     contracts_path: "$BASE_PATH/artifacts/archway"
     config_path: "$BASE_PATH/test/chains/cosmos/data"
-    rpc_uri: https://docker.for.mac.host.internal:443/archway
+    rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc
     relay_wallet: archway1x394ype3x8nt9wz0j78m8c8kcezpslrcnvs6ef
-    grpc_uri: docker.for.mac.host.internal:443
-    cert_path: /Users/birusainju/centralized-relay/rootCA/
-    keystore_file: fd
+    grpc_uri: tt.net.solidwallet.io:443
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/birusainju/centralized-relay/rootCA/
+    keystore_file: relayer
     chain_config:
       type: wasm
       name: archway
-      chain_id: localnet
+      chain_id: localnet-1
       bin: archwayd
       image:
-        repository: archwaynetwork/archwayd
-        version: sha-8f53ac8
+        repository: ghcr.io/archway-network/archwayd-dev
+        version: v6.0.1-amd64
         uid_gid: ""
       bech32_prefix: archway
       denom: arch
@@ -33,13 +34,14 @@ chains:
   - name: icon
     version: "3"
     environment: local
-    rpc_uri: https://docker.for.mac.host.internal/icon/api/v3/
+    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
     keystore_file: godwallet.json
     keystore_password: gochain
     relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
     contracts_path: "$BASE_PATH/artifacts/icon"
     config_path: "$BASE_PATH/test/chains/icon/data"
-    cert_path: /Users/birusainju/centralized-relay/rootCA/
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/birusainju/centralized-relay/rootCA/
     chain_config:
       type: icon
       name: icon
@@ -57,7 +59,8 @@ chains:
   - name: foundry
     version: "3"
     environment: local
-    rpc_uri: https://docker.for.mac.host.internal/evm
+    rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
+    websocket_uri: wss://docker.for.mac.host.internal/evm
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
     chain_config:
@@ -84,4 +87,5 @@ relayer:
     image: centralized-relay
     tag: latest
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
+    # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
