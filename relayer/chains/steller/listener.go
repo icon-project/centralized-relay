@@ -18,13 +18,10 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	//Todo
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
 		return err
 	}
-
-	// lastSavedLedgerSeq = 1066354
 
 	latestSeq := latestLedger.Sequence
 
@@ -52,7 +49,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 		default:
 			if startSeq < latestSeq {
 				p.log.Info("Query started.", zap.Uint64("from-seq", startSeq), zap.Uint64("to-seq", latestSeq))
-				p.runLedgerQuery(blockInfo, startSeq, latestSeq)
+				for _, seqBatch := range getSeqBatches(startSeq, latestSeq, types.LedgerSeqBatchSize) {
+					p.runLedgerQuery(blockInfo, seqBatch.FromSeq, seqBatch.ToSeq)
+					p.log.Info("Query completed.", zap.Uint64("from-seq", seqBatch.FromSeq), zap.Uint64("to-seq", seqBatch.ToSeq))
+				}
 				startSeq = latestSeq + 1
 			}
 		}
@@ -63,7 +63,7 @@ func (p *Provider) runLedgerQuery(blockInfoChan chan *relayertypes.BlockInfo, fr
 	done := make(chan interface{})
 	defer close(done)
 
-	seqStream := p.getLedgerSeqStream(done, fromSeq, toSeq)
+	seqStream := getLedgerSeqStream(done, fromSeq, toSeq)
 
 	numOfPipelines := int(toSeq - fromSeq + 1)
 	if numOfPipelines > runtime.NumCPU() {
@@ -84,9 +84,12 @@ func (p *Provider) runLedgerQuery(blockInfoChan chan *relayertypes.BlockInfo, fr
 		}
 	}
 
-	sorter.Sort(blockInfoList, func(p1, p2 relayertypes.BlockInfo) bool {
-		return p1.Height < p2.Height //ascending order
-	})
+	sorter.Sort(
+		blockInfoList,
+		func(p1, p2 relayertypes.BlockInfo) bool {
+			return p1.Height < p2.Height //ascending order
+		},
+	)
 
 	for _, blockInfo := range blockInfoList {
 		blockInfoChan <- &relayertypes.BlockInfo{
@@ -95,7 +98,20 @@ func (p *Provider) runLedgerQuery(blockInfoChan chan *relayertypes.BlockInfo, fr
 	}
 }
 
-func (p *Provider) getLedgerSeqStream(done <-chan interface{}, fromSeq, toSeq uint64) <-chan uint64 {
+func getSeqBatches(fromSeq, toSeq, batchSize uint64) []types.LedgerSeqBatch {
+	seqBatches := []types.LedgerSeqBatch{}
+	seq := fromSeq
+	for seq+batchSize <= toSeq {
+		seqBatches = append(seqBatches, types.LedgerSeqBatch{FromSeq: seq, ToSeq: seq + batchSize - 1})
+		seq = seq + batchSize
+	}
+	if seq <= toSeq {
+		seqBatches = append(seqBatches, types.LedgerSeqBatch{FromSeq: seq, ToSeq: toSeq})
+	}
+	return seqBatches
+}
+
+func getLedgerSeqStream(done <-chan interface{}, fromSeq, toSeq uint64) <-chan uint64 {
 	seqStream := make(chan uint64)
 	seq := fromSeq
 	go func() {
@@ -161,6 +177,7 @@ func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([
 	for _, msg := range messages {
 		p.log.Info("detected event log:", zap.Any("event", *msg))
 	}
+	p.log.Debug("query successful", zap.Uint64("ledger-seq", ledgerSeq))
 	return messages, err
 }
 

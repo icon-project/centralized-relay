@@ -1,23 +1,91 @@
 package steller
 
 import (
-	"encoding/hex"
-	"fmt"
 	"testing"
 
-	"github.com/stellar/go/strkey"
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBase58(t *testing.T) {
-	hexString := "70e9bcd9996297b6e5efd00ed53dd3459d920c4d883023f9a661b513470f75af"
+func TestGetSeqBatches(t *testing.T) {
+	done := make(chan interface{})
+	defer close(done)
 
-	// Decode hexadecimal string into bytes
-	hexBytes, err := hex.DecodeString(hexString)
-	assert.NoError(t, err)
+	type testCase struct {
+		name                      string
+		fromSeq, toSeq, batchSize uint64
+		expected                  []types.LedgerSeqBatch
+	}
 
-	val, err := strkey.Encode(strkey.VersionByteContract, hexBytes)
-	assert.NoError(t, err)
+	testCases := []testCase{
+		{
+			name:      "case-0",
+			fromSeq:   1,
+			toSeq:     1,
+			batchSize: 1,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 1},
+			},
+		},
+		{
+			name:      "case-1",
+			fromSeq:   1,
+			toSeq:     2,
+			batchSize: 1,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 1},
+				{FromSeq: 2, ToSeq: 2},
+			},
+		},
+		{
+			name:      "case-2",
+			fromSeq:   1,
+			toSeq:     4,
+			batchSize: 2,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 2},
+				{FromSeq: 3, ToSeq: 4},
+			},
+		},
+		{
+			name:      "case-3",
+			fromSeq:   1,
+			toSeq:     4,
+			batchSize: 3,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 3},
+				{FromSeq: 4, ToSeq: 4},
+			},
+		},
+		{
+			name:      "case-4",
+			fromSeq:   1,
+			toSeq:     4,
+			batchSize: 4,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 4},
+			},
+		},
+		{
+			name:      "case-5",
+			fromSeq:   1,
+			toSeq:     4,
+			batchSize: 5,
+			expected: []types.LedgerSeqBatch{
+				{FromSeq: 1, ToSeq: 4},
+			},
+		},
+	}
 
-	fmt.Println("Result: ", val)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(subTest *testing.T) {
+			// batchStream := getLedgerSeqBatchStream(done, testCase.fromSeq, testCase.toSeq, testCase.batchSize)
+			// batches := []types.LedgerSeqBatch{}
+			// for batch := range batchStream {
+			// 	batches = append(batches, batch)
+			// }
+			batches := getSeqBatches(testCase.fromSeq, testCase.toSeq, testCase.batchSize)
+			assert.Equal(subTest, testCase.expected, batches)
+		})
+	}
 }
