@@ -79,11 +79,6 @@ func TestGetSeqBatches(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(subTest *testing.T) {
-			// batchStream := getLedgerSeqBatchStream(done, testCase.fromSeq, testCase.toSeq, testCase.batchSize)
-			// batches := []types.LedgerSeqBatch{}
-			// for batch := range batchStream {
-			// 	batches = append(batches, batch)
-			// }
 			batches := getSeqBatches(testCase.fromSeq, testCase.toSeq, testCase.batchSize)
 			assert.Equal(subTest, testCase.expected, batches)
 		})
