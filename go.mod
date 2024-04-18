@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/CosmWasm/wasmd v0.50.0
 	github.com/avast/retry-go/v4 v4.5.1
-	github.com/cometbft/cometbft v0.38.2
+	github.com/cometbft/cometbft v0.38.6
 	github.com/cosmos/cosmos-sdk v0.50.2
 	github.com/docker/docker v23.0.1+incompatible
 	github.com/docker/go-connections v0.4.0
