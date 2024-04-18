@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/stellar/go/keypair"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +17,7 @@ type Provider struct {
 	cfg    *Config
 	client IClient
 	kms    kms.KMS
+	wallet *keypair.Full
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
