@@ -8,7 +8,7 @@ require (
 	github.com/avast/retry-go/v4 v4.5.1
 	github.com/cometbft/cometbft v0.38.2
 	github.com/cosmos/cosmos-sdk v0.50.2
-	github.com/docker/docker v23.0.1+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum/go-ethereum v1.13.14
 	github.com/gofrs/flock v0.8.1
