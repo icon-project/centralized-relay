@@ -60,7 +60,7 @@ chains:
     version: "3"
     environment: local
     rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
-    websocket_uri: wss://docker.for.mac.host.internal/evm
+    websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
     chain_config:
