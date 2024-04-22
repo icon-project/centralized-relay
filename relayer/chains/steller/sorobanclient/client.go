@@ -38,6 +38,20 @@ func New(rpcUrl string, httpCl *http.Client) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) SimulateTransaction(txnXdr string) (*TxSimulationResult, error) {
+	simResult := &TxSimulationResult{}
+	if err := c.CallContext(
+		context.Background(),
+		simResult,
+		"simulateTransaction",
+		txnXdr,
+	); err != nil {
+		return nil, err
+	}
+
+	return simResult, nil
+}
+
 func (c *Client) GetLatestLedger(ctx context.Context) (*LatestLedgerResponse, error) {
 	ledgerRes := &LatestLedgerResponse{}
 	if err := c.CallContext(ctx, ledgerRes, "getLatestLedger"); err != nil {

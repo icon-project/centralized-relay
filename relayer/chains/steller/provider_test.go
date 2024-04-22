@@ -1,11 +1,39 @@
 package steller
 
 import (
+	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
+	"github.com/stellar/go/strkey"
+	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestContractHash(t *testing.T) {
+	contractID := "CBYOTPGZTFRJPNXF57IA5VJ52NCZ3EQMJWEDAI7ZUZQ3KE2HB5227SDD"
+	// cidBytes, err := base32.StdEncoding.DecodeString(contractID)
+	// assert.NoError(t, err)
+
+	contractHash, err := strkey.Decode(strkey.VersionByteContract, contractID)
+	assert.NoError(t, err)
+
+	fmt.Println("Generated Hash: ", hex.EncodeToString(contractHash))
+}
+
+func TestScVal(t *testing.T) {
+	// var scStr xdr.ScString
+
+	data := xdr.ScBytes([]byte("hello"))
+
+	dst := xdr.ScVal{
+		Type:  xdr.ScValTypeScvBytes,
+		Bytes: &data,
+	}
+
+	fmt.Println("Data: ", dst.String())
+}
 
 func TestGetSeqBatches(t *testing.T) {
 	done := make(chan interface{})

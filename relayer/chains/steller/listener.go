@@ -18,6 +18,15 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
+	go func() {
+		if err := p.RestoreKeystore(ctx); err != nil {
+			p.log.Error("error restoring keystore: ", zap.Error(err))
+		}
+		if err := p.Route(ctx, nil, nil); err != nil {
+			p.log.Error("error sending tx: ", zap.Error(err))
+		}
+	}()
+
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
 		return err
