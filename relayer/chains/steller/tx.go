@@ -8,7 +8,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/txnbuild"
@@ -122,7 +121,7 @@ func (p *Provider) sendTransaction(fn func(param *txnbuild.TransactionParams)) (
 		return nil, err
 	}
 
-	tx, err = tx.Sign(network.TestNetworkPassphrase, p.wallet)
+	tx, err = tx.Sign(p.cfg.NetworkPassphrase, p.wallet)
 	if err != nil {
 		return nil, err
 	}

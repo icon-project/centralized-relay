@@ -14,18 +14,19 @@ import (
 )
 
 type Config struct {
-	ChainID       string                         `yaml:"chain-id"`
-	ChainName     string                         `yaml:"-"`
-	HorizonUrl    string                         `yaml:"horizon-url"`
-	SorobanUrl    string                         `yaml:"soroban-url"`
-	Address       string                         `yaml:"address"`
-	Contracts     relayertypes.ContractConfigMap `yaml:"contracts"`
-	NID           string                         `json:"nid" yaml:"nid"`
-	HomeDir       string                         `yaml:"home-dir"`
-	GasPrice      uint64                         `yaml:"gas-price"`
-	GasMin        uint64                         `yaml:"gas-min"`
-	GasLimit      uint64                         `yaml:"gas-limit"`
-	BlockInterval time.Duration                  `yaml:"block-interval"`
+	ChainID           string                         `yaml:"chain-id"`
+	ChainName         string                         `yaml:"-"`
+	HorizonUrl        string                         `yaml:"horizon-url"`
+	SorobanUrl        string                         `yaml:"soroban-url"`
+	Address           string                         `yaml:"address"`
+	Contracts         relayertypes.ContractConfigMap `yaml:"contracts"`
+	NID               string                         `json:"nid" yaml:"nid"`
+	HomeDir           string                         `yaml:"home-dir"`
+	GasPrice          uint64                         `yaml:"gas-price"`
+	GasMin            uint64                         `yaml:"gas-min"`
+	GasLimit          uint64                         `yaml:"gas-limit"`
+	BlockInterval     time.Duration                  `yaml:"block-interval"`
+	NetworkPassphrase string                         `yaml:"network-passphrase"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
