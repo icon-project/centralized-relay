@@ -19,10 +19,14 @@ import (
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
 	go func() {
+		time.Sleep(5 * time.Second)
 		if err := p.RestoreKeystore(ctx); err != nil {
 			p.log.Error("error restoring keystore: ", zap.Error(err))
 		}
-		if err := p.Route(ctx, nil, nil); err != nil {
+		if err := p.Route(ctx, &relayertypes.Message{
+			Dst:  "icon",
+			Data: []byte("hello"),
+		}, nil); err != nil {
 			p.log.Error("error sending tx: ", zap.Error(err))
 		}
 	}()

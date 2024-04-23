@@ -22,3 +22,13 @@ type LedgerSeqBatch struct {
 	FromSeq uint64
 	ToSeq   uint64
 }
+
+type ScMessage struct {
+	Dst           xdr.ScString
+	Src           xdr.ScString
+	Sn            xdr.Uint64
+	Data          xdr.ScBytes
+	MessageHeight xdr.Uint64
+	EventType     xdr.ScString
+	ReqID         xdr.Uint64
+}

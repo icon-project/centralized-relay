@@ -38,13 +38,14 @@ func New(rpcUrl string, httpCl *http.Client) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) SimulateTransaction(txnXdr string) (*TxSimulationResult, error) {
+func (c *Client) SimulateTransaction(txnXdr string, resourceCfg *ResourceConfig) (*TxSimulationResult, error) {
 	simResult := &TxSimulationResult{}
 	if err := c.CallContext(
 		context.Background(),
 		simResult,
 		"simulateTransaction",
 		txnXdr,
+		resourceCfg,
 	); err != nil {
 		return nil, err
 	}

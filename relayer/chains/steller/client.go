@@ -38,7 +38,7 @@ func NewClient(hClient *horizonclient.Client, srbClient *sorobanclient.Client) I
 }
 
 func (cl *Client) SimulateTransaction(txXDR string) (*sorobanclient.TxSimulationResult, error) {
-	return cl.soroban.SimulateTransaction(txXDR)
+	return cl.soroban.SimulateTransaction(txXDR, nil)
 }
 
 func (cl *Client) SubmitTransactionXDR(txXDR string) (horizon.Transaction, error) {
