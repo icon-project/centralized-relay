@@ -3,8 +3,8 @@ package steller
 import (
 	"context"
 	"fmt"
+	"strconv"
 
-	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -14,22 +14,110 @@ import (
 	"github.com/stellar/go/xdr"
 )
 
-func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
-	contractHash, err := strkey.Decode(strkey.VersionByteContract, addr)
+func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
+	callArgs, err := p.newContractCallArgs(*message)
+	if err != nil {
+		return err
+	}
+
+	txRes, err := p.sendCallTransaction(*callArgs)
+
+	cbTxResp := &relayertypes.TxResponse{}
+	if txRes != nil {
+		cbTxResp.Height = int64(txRes.Ledger)
+		cbTxResp.TxHash = txRes.Hash
+	}
+
+	var cbErr error
+	if err != nil {
+		cbErr = err
+	} else if txRes != nil && !txRes.Successful {
+		cbErr = fmt.Errorf("failed to send call transaction")
+	}
+
+	callback(message.MessageKey(), cbTxResp, cbErr)
+
+	return nil
+}
+
+func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizon.Transaction, error) {
+	p.txmut.Lock()
+	defer p.txmut.Unlock()
+
+	callOp := txnbuild.InvokeHostFunction{
+		HostFunction: xdr.HostFunction{
+			Type:           xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
+			InvokeContract: &callArgs,
+		},
+	}
+
+	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sourceAccount.IncrementSequenceNumber(); err != nil {
+		return nil, err
+	}
+
+	txParam := txnbuild.TransactionParams{
+		SourceAccount:        &sourceAccount,
+		IncrementSequenceNum: false,
+		Operations:           []txnbuild.Operation{&callOp},
+		BaseFee:              txnbuild.MinBaseFee,
+		Preconditions: txnbuild.Preconditions{
+			TimeBounds: txnbuild.NewTimeout(300),
+		},
+	}
+
+	simtx, err := txnbuild.NewTransaction(txParam)
+	if err != nil {
+		return nil, err
+	}
+	simtxe, err := simtx.Base64()
+	if err != nil {
+		return nil, err
+	}
+	simres, err := p.client.SimulateTransaction(simtxe)
 	if err != nil {
 		return nil, err
 	}
 
-	scContractAddr, err := xdr.NewScAddress(xdr.ScAddressTypeScAddressTypeContract, xdr.Hash(contractHash))
+	var sorobanTxnData xdr.SorobanTransactionData
+	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
+		return nil, err
+	}
+
+	callOp.Ext = xdr.TransactionExt{
+		V:           1,
+		SorobanData: &sorobanTxnData,
+	}
+
+	minResourceFee, err := strconv.Atoi(simres.MinResourceFee)
 	if err != nil {
 		return nil, err
 	}
 
-	return &scContractAddr, nil
+	txParam.BaseFee = int64(minResourceFee) + int64(p.cfg.MaxInclusionFee)
+
+	tx, err := txnbuild.NewTransaction(txParam)
+	if err != nil {
+		return nil, err
+	}
+	tx, err = tx.Sign(p.cfg.NetworkPassphrase, p.wallet)
+	if err != nil {
+		return nil, err
+	}
+	txe, err := tx.Base64()
+	if err != nil {
+		return nil, err
+	}
+	txRes, err := p.client.SubmitTransactionXDR(txe)
+
+	return &txRes, err
 }
 
 func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeContractArgs, error) {
-	scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract]) //Todo change to xcall contract
+	scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
 	if err != nil {
 		return nil, err
 	}
@@ -70,113 +158,20 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 		}, nil
 		// return nil, fmt.Errorf("invalid message type")
 	}
-
 }
 
-func (p *Provider) simulateTransaction(op txnbuild.Operation) (*sorobanclient.TxSimulationResult, error) {
-	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
-	if err != nil {
-		return nil, err
-	}
-	tx, err := txnbuild.NewTransaction(txnbuild.TransactionParams{
-		SourceAccount:        &sourceAccount,
-		IncrementSequenceNum: true,
-		BaseFee:              txnbuild.MinBaseFee,
-		Operations:           []txnbuild.Operation{op},
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewTimeout(300),
-		},
-	})
+func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
+	contractHash, err := strkey.Decode(strkey.VersionByteContract, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	txe, err := tx.Base64()
+	scContractAddr, err := xdr.NewScAddress(xdr.ScAddressTypeScAddressTypeContract, xdr.Hash(contractHash))
 	if err != nil {
 		return nil, err
 	}
 
-	return p.client.SimulateTransaction(txe)
-}
-
-func (p *Provider) sendTransaction(fn func(param *txnbuild.TransactionParams)) (*horizon.Transaction, error) {
-	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
-	if err != nil {
-		return nil, err
-	}
-
-	txParam := txnbuild.TransactionParams{
-		SourceAccount:        &sourceAccount,
-		IncrementSequenceNum: true,
-		BaseFee:              txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewTimeout(300),
-		},
-	}
-
-	fn(&txParam)
-
-	tx, err := txnbuild.NewTransaction(txParam)
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err = tx.Sign(p.cfg.NetworkPassphrase, p.wallet)
-	if err != nil {
-		return nil, err
-	}
-
-	txe, err := tx.Base64()
-	if err != nil {
-		return nil, err
-	}
-
-	txRes, err := p.client.SubmitTransactionXDR(txe)
-	if err != nil {
-		return nil, err
-	}
-
-	return &txRes, nil
-}
-
-func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
-	callArgs, err := p.newContractCallArgs(*message)
-	if err != nil {
-		return err
-	}
-	callOp := txnbuild.InvokeHostFunction{
-		HostFunction: xdr.HostFunction{
-			Type:           xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
-			InvokeContract: callArgs,
-		},
-	}
-
-	simres, err := p.simulateTransaction(&callOp)
-	if err != nil {
-		return err
-	}
-
-	var sorobanTxnData xdr.SorobanTransactionData
-	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
-		return err
-	}
-
-	callOp.Ext = xdr.TransactionExt{
-		V:           1,
-		SorobanData: &sorobanTxnData,
-	}
-
-	txRes, err := p.sendTransaction(func(param *txnbuild.TransactionParams) {
-		param.Operations = []txnbuild.Operation{&callOp}
-		param.BaseFee = 4074165
-	})
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("\nTx Resp: %+v\n", txRes)
-
-	return nil
+	return &scContractAddr, nil
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayertypes.Receipt, error) {

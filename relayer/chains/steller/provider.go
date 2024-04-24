@@ -3,6 +3,7 @@ package steller
 import (
 	"context"
 	"math/big"
+	"sync"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -18,6 +19,7 @@ type Provider struct {
 	client IClient
 	kms    kms.KMS
 	wallet *keypair.Full
+	txmut  *sync.Mutex
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {

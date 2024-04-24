@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
@@ -22,9 +23,7 @@ type Config struct {
 	Contracts         relayertypes.ContractConfigMap `yaml:"contracts"`
 	NID               string                         `json:"nid" yaml:"nid"`
 	HomeDir           string                         `yaml:"home-dir"`
-	GasPrice          uint64                         `yaml:"gas-price"`
-	GasMin            uint64                         `yaml:"gas-min"`
-	GasLimit          uint64                         `yaml:"gas-limit"`
+	MaxInclusionFee   uint64                         `yaml:"max-inclusion-fee"` // in stroop: the smallest unit of a lumen, one ten-millionth of a lumen (.0000001 XLM).
 	BlockInterval     time.Duration                  `yaml:"block-interval"`
 	NetworkPassphrase string                         `yaml:"network-passphrase"`
 }
@@ -55,6 +54,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		log:    logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
 		cfg:    pc,
 		client: client,
+		txmut:  &sync.Mutex{},
 	}, nil
 }
 
