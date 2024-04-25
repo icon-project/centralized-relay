@@ -10,7 +10,6 @@ import (
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/strkey"
-	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
 )
 
@@ -19,7 +18,7 @@ type IClient interface {
 
 	SubmitTransactionXDR(txXDR string) (horizon.Transaction, error)
 
-	SubmitTransaction(tx *txnbuild.Transaction) (horizon.Transaction, error)
+	GetTransaction(txHash string) (horizon.Transaction, error)
 
 	AccountDetail(addr string) (horizon.Account, error)
 
@@ -45,8 +44,8 @@ func (cl *Client) SubmitTransactionXDR(txXDR string) (horizon.Transaction, error
 	return cl.horizon.SubmitTransactionXDR(txXDR)
 }
 
-func (cl *Client) SubmitTransaction(tx *txnbuild.Transaction) (horizon.Transaction, error) {
-	return cl.horizon.SubmitTransaction(tx)
+func (cl *Client) GetTransaction(txHash string) (horizon.Transaction, error) {
+	return cl.horizon.TransactionDetail(txHash)
 }
 
 func (cl *Client) AccountDetail(addr string) (horizon.Account, error) {

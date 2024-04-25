@@ -1,13 +1,16 @@
 package steller
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	xdr3 "github.com/stellar/go-xdr/xdr3"
 	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/txnbuild"
@@ -174,12 +177,71 @@ func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
 	return &scContractAddr, nil
 }
 
-func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayertypes.Receipt, error) {
-	//Todo
-	return nil, nil
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayertypes.Receipt, error) {
+	tx, err := p.client.GetTransaction(txHash)
+	if err != nil {
+		return nil, err
+	}
+	return &relayertypes.Receipt{
+		TxHash: txHash,
+		Height: uint64(tx.Ledger),
+		Status: tx.Successful,
+	}, nil
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
 	//Todo
 	return false, nil
+}
+
+func (p *Provider) QueryContract(callArgs xdr.InvokeContractArgs, dest interface{}) error {
+	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
+	if err != nil {
+		return err
+	}
+
+	callOp := txnbuild.InvokeHostFunction{
+		SourceAccount: sourceAccount.AccountID,
+		HostFunction: xdr.HostFunction{
+			Type:           xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
+			InvokeContract: &callArgs,
+		},
+	}
+
+	txParam := txnbuild.TransactionParams{
+		SourceAccount: &sourceAccount,
+		Operations:    []txnbuild.Operation{&callOp},
+		Preconditions: txnbuild.Preconditions{
+			TimeBounds: txnbuild.NewTimeout(300),
+		},
+	}
+
+	queryTx, err := txnbuild.NewTransaction(txParam)
+	if err != nil {
+		return err
+	}
+	queryTxe, err := queryTx.Base64()
+	if err != nil {
+		return err
+	}
+
+	queryRes, err := p.client.SimulateTransaction(queryTxe)
+	if err != nil {
+		return err
+	}
+
+	for _, callResult := range queryRes.Results {
+		fmt.Println("XDR string: ", callResult.Xdr)
+		resBytes, err := base64.StdEncoding.DecodeString(callResult.Xdr)
+		if err != nil {
+			return err
+		}
+		if _, err := xdr3.Unmarshal(bytes.NewReader(resBytes), dest); err != nil {
+			return err
+		} else {
+			break
+		}
+	}
+
+	return nil
 }

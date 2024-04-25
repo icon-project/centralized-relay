@@ -13,28 +13,34 @@ import (
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
-	xdr "github.com/stellar/go-xdr/xdr3"
+	xdr3 "github.com/stellar/go-xdr/xdr3"
+	"github.com/stellar/go/xdr"
 	"go.uber.org/zap"
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
 	go func() { //Todo remove: used temporarily for testing purpose only
-		time.Sleep(5 * time.Second)
+		// time.Sleep(5 * time.Second)
 		if err := p.RestoreKeystore(ctx); err != nil {
 			p.log.Error("error restoring keystore: ", zap.Error(err))
 		}
-		if err := p.Route(ctx, &relayertypes.Message{
-			Dst:  "icon",
-			Data: []byte("hello"),
-		}, func(key *relayertypes.MessageKey, response *relayertypes.TxResponse, err error) {
-			if err != nil {
-				p.log.Info("message relay failed", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash), zap.Error(err))
-			} else {
-				p.log.Info("message relay successfull", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash))
-			}
-		}); err != nil {
-			p.log.Error("error sending tx: ", zap.Error(err))
+		if err := p.QueryContract(xdr.InvokeContractArgs{}, nil); err != nil {
+			p.log.Error("error querying contract: ", zap.Error(err))
 		}
+
+		// if err := p.Route(ctx, &relayertypes.Message{
+		// 	Dst:  "icon",
+		// 	Data: []byte("hello"),
+		// }, func(key *relayertypes.MessageKey, response *relayertypes.TxResponse, err error) {
+		// 	if err != nil {
+		// 		p.log.Info("message relay failed", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash), zap.Error(err))
+		// 	} else {
+		// 		p.log.Info("message relay successfull", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash))
+		// 	}
+		// }); err != nil {
+		// 	p.log.Error("error sending tx: ", zap.Error(err))
+		// }
+
 	}()
 
 	latestLedger, err := p.client.GetLatestLedger(ctx)
@@ -236,7 +242,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 			if err != nil {
 				return nil, err
 			}
-			decoder := xdr.NewDecoder(bytes.NewBuffer(valBytes))
+			decoder := xdr3.NewDecoder(bytes.NewBuffer(valBytes))
 			switch mapItem.Key.String() {
 			case "sn":
 				intVal, _, err := decoder.DecodeInt()
