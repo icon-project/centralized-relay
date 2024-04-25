@@ -3,6 +3,7 @@ package steller
 import (
 	"context"
 	"math/big"
+	"strconv"
 	"sync"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
@@ -90,16 +91,32 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {
-	//Todo
-	return nil, nil
+	account, err := p.client.AccountDetail(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	var amt uint64
+	for _, bal := range account.Balances {
+		balance, err := strconv.Atoi(bal.Balance)
+		if err != nil {
+			return nil, err
+		} else {
+			amt = uint64(balance)
+			break
+		}
+	}
+
+	return &relayertypes.Coin{
+		Denom:  "XLM",
+		Amount: amt,
+	}, nil
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayertypes.Message) (bool, error) {
-	//Todo
 	return true, nil
 }
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
-	//Todo
 	return true, nil
 }
