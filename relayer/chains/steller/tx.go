@@ -190,11 +190,34 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	//Todo
-	return false, nil
+	connAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+	if err != nil {
+		return false, err
+	}
+	stellerMsg := types.StellerMsg{
+		Message: relayertypes.Message{
+			Sn:  key.Sn,
+			Src: key.Src,
+		},
+	}
+	callArgs := xdr.InvokeContractArgs{
+		ContractAddress: *connAddr,
+		FunctionName:    xdr.ScSymbol("getReceipts"),
+		Args: []xdr.ScVal{
+			stellerMsg.ScvSn(),
+			stellerMsg.ScvSrc(),
+		},
+	}
+
+	var isReceived bool
+	if err := p.queryContract(callArgs, &isReceived); err != nil {
+		return false, err
+	}
+
+	return isReceived, nil
 }
 
-func (p *Provider) QueryContract(callArgs xdr.InvokeContractArgs, dest interface{}) error {
+func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest interface{}) error {
 	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
 	if err != nil {
 		return err
@@ -231,7 +254,6 @@ func (p *Provider) QueryContract(callArgs xdr.InvokeContractArgs, dest interface
 	}
 
 	for _, callResult := range queryRes.Results {
-		fmt.Println("XDR string: ", callResult.Xdr)
 		resBytes, err := base64.StdEncoding.DecodeString(callResult.Xdr)
 		if err != nil {
 			return err

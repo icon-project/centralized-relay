@@ -14,20 +14,15 @@ import (
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
 	xdr3 "github.com/stellar/go-xdr/xdr3"
-	"github.com/stellar/go/xdr"
 	"go.uber.org/zap"
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return fmt.Errorf("failed to restore key: %w", err)
+	}
 	go func() { //Todo remove: used temporarily for testing purpose only
 		// time.Sleep(5 * time.Second)
-		if err := p.RestoreKeystore(ctx); err != nil {
-			p.log.Error("error restoring keystore: ", zap.Error(err))
-		}
-		if err := p.QueryContract(xdr.InvokeContractArgs{}, nil); err != nil {
-			p.log.Error("error querying contract: ", zap.Error(err))
-		}
-
 		// if err := p.Route(ctx, &relayertypes.Message{
 		// 	Dst:  "icon",
 		// 	Data: []byte("hello"),
