@@ -8,7 +8,7 @@ chains:
     relay_wallet: archway1x394ype3x8nt9wz0j78m8c8kcezpslrcnvs6ef
     grpc_uri: tt.net.solidwallet.io:443
     # for testing with local chains with self signed certs
-    # cert_path: /Users/birusainju/centralized-relay/rootCA/
+    # cert_path: /Users/home/centralized-relay/rootCA/
     keystore_file: relayer
     chain_config:
       type: wasm
@@ -41,7 +41,7 @@ chains:
     contracts_path: "$BASE_PATH/artifacts/icon"
     config_path: "$BASE_PATH/test/chains/icon/data"
     # for testing with local chains with self signed certs
-    # cert_path: /Users/birusainju/centralized-relay/rootCA/
+    # cert_path: /Users/home/centralized-relay/rootCA/
     chain_config:
       type: icon
       name: icon
@@ -85,7 +85,7 @@ chains:
       dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
 relayer:
     image: centralized-relay
-    tag: latest
+    tag: event-subscription
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
