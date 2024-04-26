@@ -21,6 +21,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return fmt.Errorf("failed to restore key: %w", err)
 	}
+	// p.QueryLastMessage()
+
 	go func() { //Todo remove: used temporarily for testing purpose only
 		// time.Sleep(5 * time.Second)
 		// if err := p.Route(ctx, &relayertypes.Message{
@@ -35,7 +37,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 		// }); err != nil {
 		// 	p.log.Error("error sending tx: ", zap.Error(err))
 		// }
-
 	}()
 
 	latestLedger, err := p.client.GetLatestLedger(ctx)
@@ -44,6 +45,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	}
 
 	latestSeq := latestLedger.Sequence
+
+	fmt.Println("last saved Seq: ", lastSavedLedgerSeq)
 
 	startSeq := latestSeq
 	if lastSavedLedgerSeq != 0 && lastSavedLedgerSeq < latestSeq {

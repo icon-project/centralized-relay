@@ -44,8 +44,9 @@ func (c *Client) SimulateTransaction(txnXdr string, resourceCfg *ResourceConfig)
 		context.Background(),
 		simResult,
 		"simulateTransaction",
-		txnXdr,
-		resourceCfg,
+		map[string]interface{}{
+			"transaction": txnXdr,
+		},
 	); err != nil {
 		return nil, err
 	}
@@ -55,18 +56,18 @@ func (c *Client) SimulateTransaction(txnXdr string, resourceCfg *ResourceConfig)
 
 func (c *Client) GetLatestLedger(ctx context.Context) (*LatestLedgerResponse, error) {
 	ledgerRes := &LatestLedgerResponse{}
-	if err := c.CallContext(ctx, ledgerRes, "getLatestLedger"); err != nil {
+	if err := c.CallContext(ctx, ledgerRes, "getLatestLedger", nil); err != nil {
 		return nil, err
 	}
 	return ledgerRes, nil
 }
 
-func (c *Client) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (c *Client) CallContext(ctx context.Context, result interface{}, method string, params interface{}) error {
 	if result != nil && reflect.TypeOf(result).Kind() != reflect.Ptr {
 		return fmt.Errorf("call result parameter must be pointer or nil interface: %v", result)
 	}
 
-	msg, err := c.newMessage(method, args...)
+	msg, err := c.newMessage(method, params)
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ func (c *Client) CallContext(ctx context.Context, result interface{}, method str
 	return json.Unmarshal(respmsg.Result, result)
 }
 
-func (c *Client) newMessage(method string, paramsIn ...interface{}) (*jsonRPCRequest, error) {
+func (c *Client) newMessage(method string, paramsIn interface{}) (*jsonRPCRequest, error) {
 	msg := &jsonRPCRequest{Version: jsonRPCVersion, ID: c.nextID(), Method: method}
 	if paramsIn != nil { // prevent sending "params":null
 		var err error

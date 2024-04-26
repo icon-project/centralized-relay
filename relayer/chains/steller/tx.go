@@ -209,15 +209,15 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		},
 	}
 
-	var isReceived bool
+	var isReceived types.ScvBool
 	if err := p.queryContract(callArgs, &isReceived); err != nil {
 		return false, err
 	}
 
-	return isReceived, nil
+	return bool(isReceived), nil
 }
 
-func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest interface{}) error {
+func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScValConverter) error {
 	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
 	if err != nil {
 		return err
@@ -258,12 +258,32 @@ func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest interface
 		if err != nil {
 			return err
 		}
-		if _, err := xdr3.Unmarshal(bytes.NewReader(resBytes), dest); err != nil {
+		var scVal xdr.ScVal
+		if _, err := xdr3.Unmarshal(bytes.NewReader(resBytes), &scVal); err != nil {
 			return err
 		} else {
+			if err := dest.Convert(scVal); err != nil {
+				return err
+			}
 			break
 		}
 	}
 
 	return nil
+}
+
+// Todo used for temporary purpose only: need to remove
+func (p *Provider) QueryLastMessage() {
+	connAddr, _ := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+	callArgs := xdr.InvokeContractArgs{
+		ContractAddress: *connAddr,
+		FunctionName:    xdr.ScSymbol("get_last_message"),
+	}
+
+	nm := types.NewMessage{}
+	if err := p.queryContract(callArgs, &nm); err != nil {
+		fmt.Println("Error occurred: ", err)
+	}
+
+	fmt.Printf("\ngot new message: %+v\n", nm)
 }
