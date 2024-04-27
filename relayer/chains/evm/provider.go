@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -170,26 +169,14 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *Provider) WaitForResults(ctx context.Context, txHash common.Hash) (*coreTypes.Receipt, error) {
-	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
-	var retryCounter uint8
-	for {
-		defer ticker.Stop()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-			if retryCounter >= providerTypes.MaxTxRetry {
-				return nil, fmt.Errorf("max retry reached for tx %s", txHash.String())
-			}
-			retryCounter++
-			txr, err := p.client.TransactionReceipt(ctx, txHash)
-			if err == ethereum.NotFound {
-				continue
-			}
-			return txr, err
-		}
+func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
+	defer cancel()
+	txr, err := p.client.WaitForTransactionMined(ctx, tx)
+	if err != nil {
+		return nil, err
 	}
+	return txr, nil
 }
 
 func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
@@ -261,7 +248,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 		return err
 	}
 	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin}, providerTypes.MaxTxRetry)
-	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -285,7 +272,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	if err != nil {
 		return err
 	}
-	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -308,7 +295,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -334,7 +321,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	if err != nil {
 		return err
 	}
-	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -367,7 +354,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 	if err != nil {
 		return err
 	}
-	receipt, err := p.WaitForResults(ctx, tx.Hash())
+	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
 	}

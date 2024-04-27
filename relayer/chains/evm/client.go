@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	RPCCallRetry                               = 5
-	MaxGasPriceInceremtRetry                   = 5
-	GasPriceRatio                              = 10.0
-	DefaultGetTransactionResultPollingInterval = time.Second * 3
+	RPCCallRetry             = 5
+	MaxGasPriceInceremtRetry = 5
+	GasPriceRatio            = 10.0
+	DefaultMinedTimeout      = time.Second * 60
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
@@ -91,6 +91,7 @@ type IClient interface {
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
+	WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
@@ -136,6 +137,15 @@ func (cl *Client) TransactionByHash(ctx context.Context, blockHash common.Hash) 
 
 func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
 	return cl.eth.TransactionReceipt(ctx, txHash)
+}
+
+// Wait for the transaction to be mined
+func (cl *Client) WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
+	receipt, err := bind.WaitMined(ctx, cl.eth, tx)
+	if err != nil {
+		return nil, err
+	}
+	return receipt, nil
 }
 
 func (cl *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
