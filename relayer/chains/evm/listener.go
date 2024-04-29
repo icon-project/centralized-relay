@@ -208,10 +208,11 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
 	diff := int(currentHeight - startHeight)
-	if diff <= runtime.NumCPU() {
+	cpu := runtime.NumCPU()
+	if diff <= cpu {
 		return diff
 	}
-	return runtime.NumCPU()
+	return cpu
 }
 
 func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) (uint64, error) {

@@ -133,7 +133,7 @@ func (p *Provider) WaitForTxResult(
 		TxHash: tx.Hash().String(),
 	}
 
-	txReceipts, err := p.WaitForResults(ctx, tx.Hash())
+	txReceipts, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		p.log.Error("failed to get tx result",
 			zap.String("hash", res.TxHash),
