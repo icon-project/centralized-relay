@@ -151,15 +151,7 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			},
 		}, nil
 	default:
-		return &xdr.InvokeContractArgs{ //temporarily used for testing
-			ContractAddress: *scConnAddr,
-			FunctionName:    xdr.ScSymbol("new_message"),
-			Args: []xdr.ScVal{
-				stellerMsg.ScvDst(),
-				stellerMsg.ScvData(),
-			},
-		}, nil
-		// return nil, fmt.Errorf("invalid message type")
+		return nil, fmt.Errorf("invalid message type")
 	}
 }
 
@@ -270,20 +262,4 @@ func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScV
 	}
 
 	return nil
-}
-
-// Todo used for temporary purpose only: need to remove
-func (p *Provider) QueryLastMessage() {
-	connAddr, _ := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
-	callArgs := xdr.InvokeContractArgs{
-		ContractAddress: *connAddr,
-		FunctionName:    xdr.ScSymbol("get_last_message"),
-	}
-
-	nm := types.NewMessage{}
-	if err := p.queryContract(callArgs, &nm); err != nil {
-		fmt.Println("Error occurred: ", err)
-	}
-
-	fmt.Printf("\ngot new message: %+v\n", nm)
 }

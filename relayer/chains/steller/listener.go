@@ -21,23 +21,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return fmt.Errorf("failed to restore key: %w", err)
 	}
-	// p.QueryLastMessage()
-
-	go func() { //Todo remove: used temporarily for testing purpose only
-		// time.Sleep(5 * time.Second)
-		// if err := p.Route(ctx, &relayertypes.Message{
-		// 	Dst:  "icon",
-		// 	Data: []byte("hello"),
-		// }, func(key *relayertypes.MessageKey, response *relayertypes.TxResponse, err error) {
-		// 	if err != nil {
-		// 		p.log.Info("message relay failed", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash), zap.Error(err))
-		// 	} else {
-		// 		p.log.Info("message relay successfull", zap.String("src", "steller"), zap.String("dst", "icon"), zap.Int64("height", response.Height), zap.String("hash", response.TxHash))
-		// 	}
-		// }); err != nil {
-		// 	p.log.Error("error sending tx: ", zap.Error(err))
-		// }
-	}()
 
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
@@ -45,8 +28,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	}
 
 	latestSeq := latestLedger.Sequence
-
-	fmt.Println("last saved Seq: ", lastSavedLedgerSeq)
 
 	startSeq := latestSeq
 	if lastSavedLedgerSeq != 0 && lastSavedLedgerSeq < latestSeq {
@@ -210,8 +191,6 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		var eventType string
 		for _, topic := range ev.Body.V0.Topics {
 			switch topic.String() {
-			case "new_message": //used only for testing; need to remove
-				eventType = "new_message"
 			case "emitMessage":
 				eventType = relayerevents.EmitMessage
 			case "callMessage":
