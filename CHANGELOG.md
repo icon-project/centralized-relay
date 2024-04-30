@@ -125,3 +125,15 @@ Move the encrypted wallet passphrase to the new location:
 ### Removed
 
 - Height sync is no longer necessary.
+
+## [1.2.1] - 2024-04-30
+
+### Fixed
+
+- Websocket connection disconnect issue with icon chain
+- Use `eth_gasPrice` for the gas price calculation all the time
+- Other improvements and bug fixes
+
+### Removed
+
+- Icon redunant polling code

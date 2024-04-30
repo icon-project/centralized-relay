@@ -11,7 +11,6 @@ import (
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
