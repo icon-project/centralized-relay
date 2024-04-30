@@ -11,7 +11,7 @@ import (
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -562,14 +562,14 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 
 	var (
 		wg           sync.WaitGroup
-		messages     coretypes.ResultTxSearch
-		messagesChan = make(chan *coretypes.ResultTxSearch)
+		messages     coreTypes.ResultTxSearch
+		messagesChan = make(chan *coreTypes.ResultTxSearch)
 		errorChan    = make(chan error)
 	)
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coretypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
 			searchParam.Events = append(searchParam.Events, event)
 			res, err := p.client.TxSearch(ctx, searchParam)
