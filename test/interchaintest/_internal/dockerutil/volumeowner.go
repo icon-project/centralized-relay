@@ -62,6 +62,7 @@ func SetVolumeOwner(ctx context.Context, opts VolumeOwnerOptions) error {
 			AutoRemove: true,
 		},
 		nil, // No networking necessary.
+		nil,
 		containerName,
 	)
 	if err != nil {
