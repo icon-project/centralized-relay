@@ -2,6 +2,7 @@ package chains
 
 import (
 	"context"
+
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
@@ -23,8 +24,8 @@ type Chain interface {
 	FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error)
 	BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error)
 	GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error)
-	SetupXCall(ctx context.Context, keyName string) error
-	SetupConnection(ctx context.Context, keyName string, target Chain) error
+	SetupXCall(ctx context.Context) error
+	SetupConnection(ctx context.Context, target Chain) error
 	FindTargetXCallMessage(ctx context.Context, target Chain, height uint64, to string) (*XCallResponse, error)
 	SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error)
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)

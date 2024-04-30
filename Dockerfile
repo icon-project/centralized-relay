@@ -10,10 +10,10 @@ RUN wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSIO
     wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.x86_64.a -O /usr/lib/libwasmvm.x86_64.a
 
 COPY . .
-
 RUN LDFLAGS='-linkmode external -extldflags "-static"' make install
 
 RUN if [ -d "/go/bin/linux_${TARGETPLATFORM}" ]; then mv /go/bin/linux_${TARGETPLATFORM}/* /go/bin/; fi
+
 
 # Use minimal busybox from infra-toolkit image for final scratch image
 FROM --platform=$BUILDPLATFORM ghcr.io/strangelove-ventures/infra-toolkit:v0.0.8 AS busybox-min
@@ -56,6 +56,8 @@ COPY --from=busybox-min /etc/ssl/cert.pem /etc/ssl/cert.pem
 # Install relayer user
 COPY --from=busybox-min /etc/passwd /etc/passwd
 COPY --from=busybox-min --chown=100:1000 /home/relayer /home/relayer
+COPY --from=busybox-min --chown=100:1000 /tmp /tmp
+
 
 USER relayer
 

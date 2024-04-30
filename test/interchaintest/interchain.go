@@ -3,6 +3,10 @@ package interchaintest
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/docker/docker/client"
 	setup "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/chains"
@@ -11,9 +15,6 @@ import (
 	"github.com/icon-project/centralized-relay/test/interchaintest/testreporter"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 // Interchain represents a full IBC network, encompassing a collection of
@@ -45,7 +46,7 @@ type Interchain struct {
 }
 
 type interchainLink struct {
-	chains [2]chains.Chain
+	chains []chains.Chain
 }
 
 // NewInterchain returns a new Interchain.
@@ -131,7 +132,7 @@ func (ic *Interchain) AddRelayer(relayer ibc.Relayer, name string) *Interchain {
 // and the name of the path to create.
 type InterchainLink struct {
 	// Chains involved.
-	Chain1, Chain2 chains.Chain
+	Chains []chains.Chain
 
 	// Relayer to use for link.
 	Relayer ibc.Relayer
@@ -140,21 +141,21 @@ type InterchainLink struct {
 // AddLink adds the given link to the Interchain.
 // If any validation fails, AddLink panics.
 func (ic *Interchain) AddLink(link InterchainLink) *Interchain {
-	if _, exists := ic.chains[link.Chain1]; !exists {
-		cfg := link.Chain1.Config()
+	if _, exists := ic.chains[link.Chains[0]]; !exists {
+		cfg := link.Chains[0].Config()
 		panic(fmt.Errorf("chain with name=%s and id=%s was never added to Interchain", cfg.Name, cfg.ChainID))
 	}
-	if _, exists := ic.chains[link.Chain2]; !exists {
-		cfg := link.Chain2.Config()
+	if _, exists := ic.chains[link.Chains[1]]; !exists {
+		cfg := link.Chains[1].Config()
 		panic(fmt.Errorf("chain with name=%s and id=%s was never added to Interchain", cfg.Name, cfg.ChainID))
 	}
 	if _, exists := ic.relayers[link.Relayer]; !exists {
 		panic(fmt.Errorf("relayer %v was never added to Interchain", link.Relayer))
 	}
 
-	if link.Chain1 == link.Chain2 {
-		panic(fmt.Errorf("chains must be different (both were %v)", link.Chain1))
-	}
+	// if link.Chain1 == link.Chain2 {
+	// 	panic(fmt.Errorf("chains must be different (both were %v)", link.Chain1))
+	// }
 
 	key := relayerPath{
 		Relayer: link.Relayer,
@@ -165,7 +166,7 @@ func (ic *Interchain) AddLink(link InterchainLink) *Interchain {
 	}
 
 	ic.links[key] = interchainLink{
-		chains: [2]chains.Chain{link.Chain1, link.Chain2},
+		chains: link.Chains,
 	}
 	return ic
 }
@@ -207,20 +208,20 @@ func (ic *Interchain) BuildChains(ctx context.Context, rep *testreporter.Relayer
 		return fmt.Errorf("failed to initialize chains: %w", err)
 	}
 
-	err := ic.generateRelayerWallets(ctx) // Build the relayer wallet mapping.
-	if err != nil {
-		return err
-	}
+	// err := ic.generateRelayerWallets(ctx) // Build the relayer wallet mapping.
+	// if err != nil {
+	// 	return err
+	// }
 
-	walletAmounts, err := ic.genesisWalletAmounts(ctx)
-	if err != nil {
-		// Error already wrapped with appropriate detail.
-		return err
-	}
+	// walletAmounts, err := ic.genesisWalletAmounts(ctx)
+	// if err != nil {
+	// 	// Error already wrapped with appropriate detail.
+	// 	return err
+	// }
 
-	if err := ic.cs.Start(ctx, opts.TestName, walletAmounts); err != nil {
-		return fmt.Errorf("failed to start chains: %w", err)
-	}
+	// if err := ic.cs.Start(ctx, opts.TestName, walletAmounts); err != nil {
+	// 	return fmt.Errorf("failed to start chains: %w", err)
+	// }
 
 	if err := ic.cs.TrackBlocks(ctx, opts.TestName, opts.BlockDatabaseFile, opts.GitSha); err != nil {
 		return fmt.Errorf("failed to track blocks: %w", err)
@@ -229,7 +230,7 @@ func (ic *Interchain) BuildChains(ctx context.Context, rep *testreporter.Relayer
 	return nil
 }
 
-func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter, opts InterchainBuildOptions) error {
+func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter, opts InterchainBuildOptions, kmsId string) error {
 	// Possible optimization: each relayer could be configured concurrently.
 	// But we are only testing with a single relayer so far, so we don't need this yet.
 	config := ibc.RelayerConfig{
@@ -238,30 +239,32 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 			Timeout        string `yaml:"timeout"`
 			Memo           string `yaml:"memo"`
 			LightCacheSize int    `yaml:"light-cache-size"`
+			KMSKeyID       string `yaml:"kms-key-id"`
 		}{
 			ApiListenAddr:  5183,
 			Timeout:        "10s",
 			Memo:           "",
 			LightCacheSize: 20,
+			KMSKeyID:       kmsId,
 		},
 		Chains: make(map[string]interface{}),
 	}
 	for r, nodes := range ic.relayerChains() {
 		for _, c := range nodes {
 			chainName := ic.chains[c]
-			wallet := ic.relayerWallets[relayerChain{R: r, C: c}]
-			content, _ := c.GetRelayConfig(ctx, r.HomeDir()+"/.centralized-relay", wallet.KeyName())
+			// wallet := ic.relayerWallets[relayerChain{R: r, C: c}]
+			content, _ := c.GetRelayConfig(ctx, r.HomeDir()+"/.centralized-relay", "wallet.KeyName()")
 			chainConfig := make(map[string]interface{})
 			_ = yaml.Unmarshal(content, &chainConfig)
 			config.Chains[chainName] = chainConfig
-			key, err := r.GetKeystore(c.Config().Type, wallet)
-			if err != nil {
-				return fmt.Errorf("failed to get keystore %s for chain %s: %w", ic.relayers[r], chainName, err)
-			}
+			// key, err := r.GetKeystore(c.Config().Type, wallet)
+			// if err != nil {
+			// 	return fmt.Errorf("failed to get keystore %s for chain %s: %w", ic.relayers[r], chainName, err)
+			// }
 
-			if err := r.RestoreKeystore(ctx, key, c.Config().ChainID, wallet.KeyName()); err != nil {
-				return fmt.Errorf("failed to restore key to relayer %s for chain %s: %w", ic.relayers[r], chainName, err)
-			}
+			// if err := r.RestoreKeystore(ctx, key, c.Config().ChainID, wallet.KeyName()); err != nil {
+			// 	return fmt.Errorf("failed to restore key to relayer %s for chain %s: %w", ic.relayers[r], chainName, err)
+			// }
 
 		}
 	}
@@ -364,10 +367,14 @@ func (ic *Interchain) relayerChains() map[ibc.Relayer][]chains.Chain {
 	for rp, link := range ic.links {
 		r := rp.Relayer
 		if uniq[r] == nil {
-			uniq[r] = make(map[chains.Chain]struct{}, 2) // Adding at least 2 chains per relayer.
+			uniq[r] = make(map[chains.Chain]struct{}, 4) // Adding at least 2 chains per relayer.
 		}
-		uniq[r][link.chains[0]] = struct{}{}
-		uniq[r][link.chains[1]] = struct{}{}
+		for _, chain := range link.chains {
+			uniq[r][chain] = struct{}{}
+		}
+		// uniq[r][link.chains[0]] = struct{}{}
+		// uniq[r][link.chains[1]] = struct{}{}
+		// uniq[r][link.chains[2]] = struct{}{}
 	}
 
 	// Then convert the sets to slices.

@@ -3,22 +3,23 @@ package icon
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/icon-project/centralized-relay/test/chains"
 	icontypes "github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
-	"sync"
 )
 
 type WebSocketListener struct {
 	height       uint64
 	contract     string
-	chain        *IconLocalnet
+	chain        *IconRemotenet
 	Shutdown     chan struct{}
 	Events       []map[string][]string
 	eventMapLock sync.RWMutex
 	wg           sync.WaitGroup
 }
 
-func NewIconEventListener(c *IconLocalnet, contract string) *WebSocketListener {
+func NewIconEventListener(c *IconRemotenet, contract string) *WebSocketListener {
 	height, _ := c.Height(context.Background())
 	return &WebSocketListener{
 		chain:    c,
@@ -46,10 +47,10 @@ func (w *WebSocketListener) FindEvent(filters chains.Filter) (chains.Event, erro
 		return nil, err
 	}
 	intHeight, _ := event.Height.Int()
-	block, _ := w.chain.getFullNode().Client.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
+	block, _ := w.chain.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
 	i, _ := event.Index.Int()
 	tx := block.NormalTransactions[i]
-	trResult, _ := w.chain.getFullNode().TransactionResult(ctx, string(tx.TxHash))
+	trResult, _ := w.chain.TransactionResult(ctx, string(tx.TxHash))
 	eventIndex, _ := event.Events[0].Int()
 
 	var result = make(chains.Event)

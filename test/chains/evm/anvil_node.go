@@ -8,6 +8,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -29,13 +37,6 @@ import (
 	"github.com/icza/dyno"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
-	"math/big"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -111,7 +112,7 @@ func (an *AnvilNode) CreateNodeContainer(ctx context.Context, additionalGenesisW
 		},
 	}
 
-	cc, err := an.DockerClient.ContainerCreate(ctx, containerConfig.Config, containerConfig.HostConfig, containerConfig.NetworkingConfig, an.Name())
+	cc, err := an.DockerClient.ContainerCreate(ctx, containerConfig.Config, containerConfig.HostConfig, containerConfig.NetworkingConfig, nil, an.Name())
 	if err != nil {
 		an.log.Error("Failed to create container", zap.Error(err))
 		return err
@@ -371,6 +372,7 @@ func (an *AnvilNode) DeployContract(ctx context.Context, contractPath, key strin
 
 	address, tx, _, err := bind.DeployContract(auth, contractABI, bytecode, &an.Client, params...)
 	if err != nil {
+		fmt.Println(auth, fromAddress)
 		fmt.Printf("error while deploying contract :: %w", err)
 		return common.Address{}, err
 	}
@@ -522,14 +524,11 @@ func (an *AnvilNode) GetChainConfig(ctx context.Context, rlyHome string, keyName
 	config := &centralized.EVMRelayerChainConfig{
 		Type: "evm",
 		Value: centralized.EVMRelayerChainConfigValue{
-			NID:             an.Chain.Config().ChainID,
-			RPCURL:          an.Chain.GetRPCAddress(),
-			StartHeight:     0,
-			Keystore:        fmt.Sprintf("%s/keys/%s/%s", rlyHome, an.Chain.Config().ChainID, keyName),
-			Password:        keyName,
-			GasPrice:        gasPrice.Int64(),
-			GasLimit:        2000000,
-			ContractAddress: an.Chain.GetContractAddress("connection"), //cfg.ConfigFileOverrides["xcall-connection"].(string),
+			NID:         an.Chain.Config().ChainID,
+			RPCURL:      an.Chain.GetRPCAddress(),
+			StartHeight: 0,
+			GasPrice:    gasPrice.Int64(),
+			GasLimit:    2000000,
 		},
 	}
 	return yaml.Marshal(config)
