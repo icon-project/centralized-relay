@@ -13,11 +13,15 @@ import (
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
-	xdr "github.com/stellar/go-xdr/xdr3"
+	xdr3 "github.com/stellar/go-xdr/xdr3"
 	"go.uber.org/zap"
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return fmt.Errorf("failed to restore key: %w", err)
+	}
+
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
 		return err
@@ -187,8 +191,6 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		var eventType string
 		for _, topic := range ev.Body.V0.Topics {
 			switch topic.String() {
-			case "new_message": //used only for testing; need to remove
-				eventType = "new_message"
 			case "emitMessage":
 				eventType = relayerevents.EmitMessage
 			case "callMessage":
@@ -217,7 +219,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 			if err != nil {
 				return nil, err
 			}
-			decoder := xdr.NewDecoder(bytes.NewBuffer(valBytes))
+			decoder := xdr3.NewDecoder(bytes.NewBuffer(valBytes))
 			switch mapItem.Key.String() {
 			case "sn":
 				intVal, _, err := decoder.DecodeInt()

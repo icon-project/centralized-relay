@@ -8,11 +8,20 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	"github.com/stellar/go/clients/horizonclient"
+	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/xdr"
 )
 
 type IClient interface {
+	SimulateTransaction(txXDR string) (*sorobanclient.TxSimulationResult, error)
+
+	SubmitTransactionXDR(txXDR string) (horizon.Transaction, error)
+
+	GetTransaction(txHash string) (horizon.Transaction, error)
+
+	AccountDetail(addr string) (horizon.Account, error)
+
 	GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error)
 
 	FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error)
@@ -25,6 +34,22 @@ type Client struct {
 
 func NewClient(hClient *horizonclient.Client, srbClient *sorobanclient.Client) IClient {
 	return &Client{horizon: hClient, soroban: srbClient}
+}
+
+func (cl *Client) SimulateTransaction(txXDR string) (*sorobanclient.TxSimulationResult, error) {
+	return cl.soroban.SimulateTransaction(txXDR, nil)
+}
+
+func (cl *Client) SubmitTransactionXDR(txXDR string) (horizon.Transaction, error) {
+	return cl.horizon.SubmitTransactionXDR(txXDR)
+}
+
+func (cl *Client) GetTransaction(txHash string) (horizon.Transaction, error) {
+	return cl.horizon.TransactionDetail(txHash)
+}
+
+func (cl *Client) AccountDetail(addr string) (horizon.Account, error) {
+	return cl.horizon.AccountDetail(horizonclient.AccountRequest{AccountID: addr})
 }
 
 func (cl *Client) GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error) {
