@@ -22,7 +22,6 @@ type Chain interface {
 	GetLastBlock(ctx context.Context) (context.Context, error)
 	GetBlockByHeight(ctx context.Context) (context.Context, error)
 	FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error)
-	BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error)
 	GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error)
 	SetupXCall(ctx context.Context) error
 	SetupConnection(ctx context.Context, target Chain) error
@@ -35,12 +34,7 @@ type Chain interface {
 	FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error)
 	GetContractAddress(key string) string
 	DeployXCallMockApp(ctx context.Context, keyName string, connections []XCallConnection) error
-	PauseNode(context.Context) error
-	UnpauseNode(context.Context) error
 	InitEventListener(ctx context.Context, contract string) EventListener
-
-	BackupConfig() ([]byte, error)
-	RestoreConfig([]byte) error
 }
 
 func GetEnvOrDefault(key, defaultValue string) string {

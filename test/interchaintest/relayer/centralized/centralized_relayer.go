@@ -52,6 +52,19 @@ type ICONRelayerChainConfigValue struct {
 	StepLimit     int64             `yaml:"step-limit"`
 }
 
+type SUIRelayerChainConfigValue struct {
+	NID           string            `yaml:"nid"`
+	RPCURL        string            `yaml:"rpc-url"`
+	StartHeight   int               `yaml:"start-height"`
+	NetworkID     int               `yaml:"network-id"`
+	Contracts     map[string]string `yaml:"contracts"`
+	BlockInterval string            `yaml:"block-interval"`
+	Address       string            `yaml:"address"`
+	FinalityBlock uint64            `yaml:"finality-block"`
+	StepMin       int64             `yaml:"step-min"`
+	StepLimit     int64             `yaml:"step-limit"`
+}
+
 type EVMRelayerChainConfigValue struct {
 	NID           string            `yaml:"nid"`
 	RPCURL        string            `yaml:"rpc-url"`
@@ -103,6 +116,11 @@ type EVMRelayerChainConfig struct {
 type CosmosRelayerChainConfig struct {
 	Type  string                        `json:"type"`
 	Value CosmosRelayerChainConfigValue `json:"value"`
+}
+
+type SUIRelayerChainConfig struct {
+	Type  string                     `json:"type"`
+	Value SUIRelayerChainConfigValue `json:"value"`
 }
 
 const (
