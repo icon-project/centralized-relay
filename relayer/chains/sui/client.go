@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
@@ -279,10 +280,10 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, di
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
 		for _, ev := range txRes.Events {
-			if ev.PackageId.String() == packageID {
+			if strings.Contains(ev.Type, packageID) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
-					Checkpoint: txRes.Checkpoint.Decimal().String(),
+					Checkpoint: txRes.Checkpoint.Uint64(),
 				})
 			}
 		}

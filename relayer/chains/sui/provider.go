@@ -2,6 +2,7 @@ package sui
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/coming-chat/go-sui/v2/account"
@@ -13,16 +14,19 @@ import (
 )
 
 var (
-	MethodClaimFee      = "methodClaimFee"
-	MethodGetReceipt    = "methodGetReceipt"
-	MethodSetFee        = "methodSetFee"
-	MethodGetFee        = "methodGetFee"
-	MethodRevertMessage = "methodRevertMessage"
+	MethodClaimFee      = "claim_fees"
+	MethodGetReceipt    = "get_receipt"
+	MethodSetFee        = "set_fee"
+	MethodGetFee        = "get_fee"
+	MethodRevertMessage = "revert_message"
 	MethodSetAdmin      = "setAdmin"
-	ConnectionModule    = "donuts_with_events"
-	XcallModule         = "xcall_donuts_with_events"
-	MethodRecvMessage   = "methodRecvMessage"
-	MethodExecuteCall   = "methodExecuteCall"
+	MethodRecvMessage   = "receive_message"
+	MethodExecuteCall   = "execute_call"
+
+	ConnectionModule = "centralized_connection"
+	EntryModule      = "centralized_entry"
+	XcallModule      = "xcall"
+	DappModule       = "mock_dapp"
 )
 
 type Provider struct {
@@ -76,16 +80,15 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	//Todo
-	return nil, nil
+	return nil, fmt.Errorf("method not implemented")
 }
 
 // SetAdmin transfers the ownership of sui connection module to new address
-func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
-	//Todo
+func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 	suiMessage := p.NewSuiMessage([]interface{}{
-		admin,
-	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetAdmin)
+		p.cfg.XcallStorageID,
+		adminAddr,
+	}, p.cfg.XcallPkgID, EntryModule, MethodSetAdmin)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
@@ -93,7 +96,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	suiMessage := p.NewSuiMessage([]interface{}{
 		sn,
-	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodRevertMessage)
+	}, p.cfg.XcallPkgID, EntryModule, MethodRevertMessage)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
@@ -102,7 +105,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	suiMessage := p.NewSuiMessage([]interface{}{
 		networkID,
 		responseFee,
-	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodGetFee)
+	}, p.cfg.XcallPkgID, EntryModule, MethodGetFee)
 	fee, err := p.GetReturnValuesFromCall(ctx, suiMessage)
 	if err != nil {
 		return 0, err
@@ -112,17 +115,20 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
 	suiMessage := p.NewSuiMessage([]interface{}{
+		p.cfg.XcallStorageID,
 		networkID,
 		msgFee,
 		resFee,
-	}, p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodSetFee)
+	}, p.cfg.XcallPkgID, EntryModule, MethodSetFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	suiMessage := p.NewSuiMessage([]interface{}{},
-		p.cfg.Contracts[types.ConnectionContract], ConnectionModule, MethodClaimFee)
+	suiMessage := p.NewSuiMessage([]interface{}{
+		p.cfg.XcallStorageID,
+	},
+		p.cfg.XcallPkgID, EntryModule, MethodClaimFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }

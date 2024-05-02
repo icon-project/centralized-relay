@@ -2,11 +2,16 @@ package sui
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
+	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"go.uber.org/zap"
 )
 
@@ -38,23 +43,97 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 			return ctx.Err()
 		case txDigests, ok := <-txDigestsStream:
 			if ok {
-				p.log.Debug("executing query",
+				p.log.Info("executing query",
 					zap.Any("from-checkpoint", txDigests.FromCheckpoint),
 					zap.Any("to-checkpoint", txDigests.ToCheckpoint),
-					zap.Any("tx-digests", txDigests.Digests),
+					// zap.Any("tx-digests", txDigests.Digests),
 				)
 
-				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.cfg.PackageID, txDigests.Digests)
+				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.cfg.XcallPkgID, txDigests.Digests)
 				if err != nil {
 					p.log.Error("failed to query events", zap.Error(err))
 				}
 
-				for _, event := range eventResponse {
-					p.log.Info("detected event log", zap.Any("event", event))
+				blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+				if err != nil {
+					p.log.Error("failed to parse messages from events", zap.Error(err))
+				}
+
+				for _, blockMsg := range blockInfoList {
+					blockStream <- &blockMsg
 				}
 			}
 		}
 	}
+}
+
+func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]relayertypes.BlockInfo, error) {
+	checkpointMessages := make(map[uint64][]*relayertypes.Message)
+	for _, ev := range events {
+		msg, err := p.parseMessageFromEvent(ev)
+		if err != nil {
+			return nil, err
+		}
+		p.log.Info("Detected event log: ",
+			zap.Uint64("checkpoint", msg.MessageHeight),
+			zap.String("event-type", msg.EventType),
+			zap.Uint64("sn", msg.Sn),
+			zap.String("dst", msg.Dst),
+			zap.Any("data", hex.EncodeToString(msg.Data)),
+		)
+		if _, ok := checkpointMessages[ev.Checkpoint]; ok {
+			checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
+		}
+	}
+
+	var blockInfoList []relayertypes.BlockInfo
+	for checkpoint, messages := range checkpointMessages {
+		blockInfoList = append(blockInfoList, relayertypes.BlockInfo{
+			Height:   checkpoint,
+			Messages: messages,
+		})
+	}
+
+	sorter.Sort(blockInfoList, func(bi1, bi2 relayertypes.BlockInfo) bool {
+		return bi1.Height < bi2.Height //ascending order
+	})
+
+	return blockInfoList, nil
+}
+
+func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.Message, error) {
+	msg := relayertypes.Message{
+		MessageHeight: ev.Checkpoint,
+		Src:           p.cfg.NID,
+	}
+
+	eventBytes, err := json.Marshal(ev.ParsedJson)
+	if err != nil {
+		return nil, err
+	}
+
+	switch ev.Type {
+	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"):
+		msg.EventType = relayerEvents.EmitMessage
+		var emitEvent types.EmitEvent
+		if err := json.Unmarshal(eventBytes, &emitEvent); err != nil {
+			return nil, err
+		}
+		sn, err := strconv.Atoi(emitEvent.Sn)
+		if err != nil {
+			return nil, err
+		}
+		msg.Sn = uint64(sn)
+		msg.Data = emitEvent.Msg
+		msg.Dst = emitEvent.To
+
+	default:
+		return nil, fmt.Errorf("invalid event type")
+	}
+
+	msg.Src = p.cfg.NID
+
+	return &msg, nil
 }
 
 // GenerateTxDigests forms the packets of txDigests from the list of checkpoint responses such that each packet

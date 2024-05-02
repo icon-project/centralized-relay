@@ -23,7 +23,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayerTypes.Messag
 	suiMessage := p.NewSuiMessage([]interface{}{
 		key.Src,
 		key.Sn,
-	}, p.cfg.Contracts[relayerTypes.ConnectionContract], ConnectionModule, MethodGetReceipt)
+	}, p.cfg.XcallPkgID, ConnectionModule, MethodGetReceipt)
 	msgReceived, err := p.GetReturnValuesFromCall(ctx, suiMessage)
 	if err != nil {
 		return false, err

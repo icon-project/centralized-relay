@@ -31,17 +31,20 @@ func (p *Provider) MakeSuiMessage(message *providerTypes.Message) (*SuiMessage, 
 	switch message.EventType {
 	case events.EmitMessage:
 		callParams := []interface{}{
+			p.cfg.XcallStorageID,
 			message.Src,
 			message.Sn,
 			message.Data,
 		}
-		return p.NewSuiMessage(callParams, p.cfg.Contracts[providerTypes.ConnectionContract], ConnectionModule, MethodRecvMessage), nil
+		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, ConnectionModule, MethodRecvMessage), nil
 	case events.CallMessage:
 		callParams := []interface{}{
+			p.cfg.DappStateID,
+			p.cfg.XcallStorageID,
 			message.ReqID,
 			message.Data,
 		}
-		return p.NewSuiMessage(callParams, p.cfg.Contracts[providerTypes.XcallContract], XcallModule, MethodExecuteCall), nil
+		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, DappModule, MethodExecuteCall), nil
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
@@ -53,7 +56,6 @@ func (p *Provider) GetReturnValuesFromCall(ctx context.Context, msg *SuiMessage)
 		return &types.SuiTransactionBlockResponse{}, err
 	}
 	return p.client.QueryContract(ctx, msg, wallet.Address, p.cfg.GasLimit)
-
 }
 
 func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types.SuiTransactionBlockResponse, error) {

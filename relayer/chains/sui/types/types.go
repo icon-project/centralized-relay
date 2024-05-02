@@ -57,10 +57,16 @@ type TxDigests struct {
 
 type EventResponse struct {
 	cctypes.SuiEvent
-	Checkpoint string
+	Checkpoint uint64
 }
 
 type SuiMultiGetTransactionBlocksRequest struct {
 	Digests []string                                   `json:"digests"`
 	Options cctypes.SuiTransactionBlockResponseOptions `json:"options"`
+}
+
+type EmitEvent struct {
+	Sn  string `json:"conn_sn"`
+	Msg []byte `json:"msg"`
+	To  string `json:"to"`
 }
