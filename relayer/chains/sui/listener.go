@@ -25,7 +25,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, 
 	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
 		startCheckpointSeq = lastSavedCheckpointSeq
 	}
-
 	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 
@@ -43,13 +42,13 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 			return ctx.Err()
 		case txDigests, ok := <-txDigestsStream:
 			if ok {
-				p.log.Info("executing query",
+				p.log.Debug("executing query",
 					zap.Any("from-checkpoint", txDigests.FromCheckpoint),
 					zap.Any("to-checkpoint", txDigests.ToCheckpoint),
-					// zap.Any("tx-digests", txDigests.Digests),
+					zap.Any("tx-digests", txDigests.Digests),
 				)
 
-				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.cfg.XcallPkgID, txDigests.Digests)
+				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), txDigests.Digests)
 				if err != nil {
 					p.log.Error("failed to query events", zap.Error(err))
 				}
@@ -59,11 +58,19 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 					p.log.Error("failed to parse messages from events", zap.Error(err))
 				}
 
+				fmt.Printf("\nBlock Info List: %+v\n", blockInfoList)
+
 				for _, blockMsg := range blockInfoList {
 					blockStream <- &blockMsg
 				}
 			}
 		}
+	}
+}
+
+func (p *Provider) allowedEventTypes() []string {
+	return []string{
+		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"),
 	}
 }
 
@@ -81,9 +88,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			zap.String("dst", msg.Dst),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
-		if _, ok := checkpointMessages[ev.Checkpoint]; ok {
-			checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
-		}
+		checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
 	}
 
 	var blockInfoList []relayertypes.BlockInfo
@@ -111,6 +116,8 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("\nEvent Received: %+v\n", ev)
 
 	switch ev.Type {
 	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"):

@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
+	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
@@ -39,7 +39,7 @@ type IClient interface {
 	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
 
 	GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error)
-	GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error)
+	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
 }
 
 type Client struct {
@@ -264,7 +264,7 @@ func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpoi
 	return &paginatedRes, nil
 }
 
-func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error) {
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error) {
 	txnBlockResponses := []*types.SuiTransactionBlockResponse{}
 
 	if err := c.rpc.CallContext(
@@ -280,7 +280,7 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, di
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
 		for _, ev := range txRes.Events {
-			if strings.Contains(ev.Type, packageID) {
+			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
 					Checkpoint: txRes.Checkpoint.Uint64(),
