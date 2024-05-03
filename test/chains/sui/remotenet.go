@@ -46,43 +46,16 @@ const (
 	xcallAdmin                                = "xcall-admin"
 	xcallStorage                              = "xcall-storage"
 	sui_rlp_path                              = "libs/sui_rlp"
+	adminCap                                  = "AdminCap"
+	witnessCarrier                            = "WitnessCarrier"
+	storage                                   = "Storage"
 )
 
-type MoveTomlConfig struct {
-	Package         map[string]string     `toml:"package"`
-	Dependencies    map[string]Dependency `toml:"dependencies"`
-	Addresses       map[string]string     `toml:"addresses"`
-	DevDependencies map[string]Dependency `toml:"dev-dependencies"`
-	DevAddresses    map[string]string     `toml:"dev-addresses"`
-}
-
-type Dependency struct {
-	Git    string `toml:"git,omitempty"`
-	Subdir string `toml:"subdir,omitempty"`
-	Rev    string `toml:"rev,omitempty"`
-	Local  string `toml:"local,omitempty"`
-}
-
-type DepoymentInfo struct {
-	PackageId string
-	AdminCap  string
-	Storage   string
-	Witness   string
-}
-
-type PackageInfo struct {
-	Modules      []string `json:"modules"`
-	Dependencies []string `json:"dependencies"`
-	Digest       []int    `json:"digest"`
-}
-
 func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
-
 	suiClient, err := suisdkClient.Dial(testconfig.RPCUri)
 	if err != nil {
 		panic("error connecting sui rpc")
 	}
-
 	return &SuiRemotenet{
 		testName:     testName,
 		cfg:          chainConfig,
@@ -140,13 +113,13 @@ func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (con
 		if changes.Data.Published != nil {
 			depoymentInfo.PackageId = changes.Data.Published.PackageId.String()
 		}
-		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "AdminCap") {
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, adminCap) {
 			depoymentInfo.AdminCap = changes.Data.Created.ObjectId.String()
 		}
-		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "Storage") {
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, storage) {
 			depoymentInfo.Storage = changes.Data.Created.ObjectId.String()
 		}
-		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "WitnessCarrier") {
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, witnessCarrier) {
 			depoymentInfo.Witness = changes.Data.Created.ObjectId.String()
 		}
 	}
@@ -272,20 +245,6 @@ func (an *SuiRemotenet) FindCallMessage(ctx context.Context, startHeight uint64,
 	}
 	jsonData := (event.ParsedJson.(map[string]interface{}))
 	return jsonData["req_id"].(string), jsonData["data"].(string), nil
-}
-
-type FieldFilter struct {
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-}
-
-type MoveEventModule struct {
-	Package string `json:"package"`
-	Module  string `json:"module"`
-}
-
-type MoveEvent struct {
-	MoveEventModule MoveEventModule `json:"MoveEventModule"`
 }
 
 func (an *SuiRemotenet) getEvent(ctx context.Context) (*types.SuiEvent, error) {
@@ -423,7 +382,7 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	config := &centralized.SUIRelayerChainConfig{
-		Type: "icon",
+		Type: "sui",
 		Value: centralized.SUIRelayerChainConfigValue{
 			NID:           an.Config().ChainID,
 			RPCURL:        an.GetRPCAddress(),

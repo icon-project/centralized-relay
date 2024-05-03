@@ -29,6 +29,44 @@ func (c *SuiRemotenet) OverrideConfig(key string, value any) {
 	c.cfg.ConfigFileOverrides[key] = value
 }
 
-type ResultEvent struct {
-	Events map[string][]string `json:"events"`
+type MoveTomlConfig struct {
+	Package         map[string]string     `toml:"package"`
+	Dependencies    map[string]Dependency `toml:"dependencies"`
+	Addresses       map[string]string     `toml:"addresses"`
+	DevDependencies map[string]Dependency `toml:"dev-dependencies"`
+	DevAddresses    map[string]string     `toml:"dev-addresses"`
+}
+
+type Dependency struct {
+	Git    string `toml:"git,omitempty"`
+	Subdir string `toml:"subdir,omitempty"`
+	Rev    string `toml:"rev,omitempty"`
+	Local  string `toml:"local,omitempty"`
+}
+
+type DepoymentInfo struct {
+	PackageId string
+	AdminCap  string
+	Storage   string
+	Witness   string
+}
+
+type PackageInfo struct {
+	Modules      []string `json:"modules"`
+	Dependencies []string `json:"dependencies"`
+	Digest       []int    `json:"digest"`
+}
+
+type FieldFilter struct {
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}
+
+type MoveEventModule struct {
+	Package string `json:"package"`
+	Module  string `json:"module"`
+}
+
+type MoveEvent struct {
+	MoveEventModule MoveEventModule `json:"MoveEventModule"`
 }
