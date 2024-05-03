@@ -1,0 +1,8 @@
+keystore:
+  File: /root/.sui/sui_config/sui.keystore
+envs:
+  - alias: devnet
+    rpc: "https://fullnode.devnet.sui.io:443"
+    ws: ~  
+active_env: devnet
+active_address: "0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21"

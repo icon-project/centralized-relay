@@ -22,27 +22,46 @@ import (
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
+	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
+	"github.com/pelletier/go-toml/v2"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	suiCurrencyType                               = "0x2::sui::SUI"
-	pickMethod                                    = 1
-	baseSuiFee                                    = 1000
-	suiStringType                                 = "0x1::string::String"
-	suiU64                                        = "u64"
-	suiBool                                       = "bool"
-	moveCall            suisdkClient.UnsafeMethod = "moveCall"
-	publish             suisdkClient.UnsafeMethod = "publish"
-	queryEvents         suisdkClient.SuiXMethod   = "queryEvents"
-	callGasBudget                                 = 5000000
-	deployGasBudget                               = "500000000"
-	deployGasBudgetUint                           = 500000000
+	suiCurrencyType                           = "0x2::sui::SUI"
+	pickMethod                                = 1
+	baseSuiFee                                = 1000
+	suiStringType                             = "0x1::string::String"
+	suiU64                                    = "u64"
+	suiBool                                   = "bool"
+	moveCall        suisdkClient.UnsafeMethod = "moveCall"
+	publish         suisdkClient.UnsafeMethod = "publish"
+	queryEvents     suisdkClient.SuiXMethod   = "queryEvents"
+	callGasBudget                             = 5000000
+	deployGasBudget                           = "500000000"
+	xcallAdmin                                = "xcall-admin"
+	xcallStorage                              = "xcall-storage"
+	sui_rlp_path                              = "libs/sui_rlp"
 )
+
+type MoveTomlConfig struct {
+	Package         map[string]string     `toml:"package"`
+	Dependencies    map[string]Dependency `toml:"dependencies"`
+	Addresses       map[string]string     `toml:"addresses"`
+	DevDependencies map[string]Dependency `toml:"dev-dependencies"`
+	DevAddresses    map[string]string     `toml:"dev-addresses"`
+}
+
+type Dependency struct {
+	Git    string `toml:"git,omitempty"`
+	Subdir string `toml:"subdir,omitempty"`
+	Rev    string `toml:"rev,omitempty"`
+	Local  string `toml:"local,omitempty"`
+}
 
 type DepoymentInfo struct {
 	PackageId string
@@ -61,7 +80,7 @@ func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.Chai
 
 	suiClient, err := suisdkClient.Dial(testconfig.RPCUri)
 	if err != nil {
-		fmt.Println(err)
+		panic("error connecting sui rpc")
 	}
 
 	return &SuiRemotenet{
@@ -102,63 +121,17 @@ func (an *SuiRemotenet) CreateKey(ctx context.Context, keyName string) error {
 
 // DeployContract implements chains.Chain.
 func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
-
-	// an.client.Publish(ctx, move_types.AccountAddress{})
-	walletAddress, err := move_types.NewAccountAddressHex(an.testconfig.RelayWalletAddress)
+	filePath := "/xcall/" + keyName
+	stdout, _, err := an.ExecBin(ctx, "sui", "client", "publish", filePath, "--gas-budget", deployGasBudget, "--json")
 	if err != nil {
 		return ctx, err
 	}
-	walletAccount, err := account.NewAccountWithKeystore(an.testconfig.KeystorePassword)
+	var resp *types.SuiTransactionBlockResponse
+	err = json.Unmarshal(stdout, &resp)
 	if err != nil {
 		return ctx, err
 	}
-	gasCoin := an.getGasCoinId(ctx, an.testconfig.RelayWalletAddress, deployGasBudgetUint)
-	file, err := os.Open(an.filepath[keyName] + ".json")
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-	defer file.Close()
-
-	// Read the file content
-	data, err := io.ReadAll(file)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-
-	// Define a variable to hold the parsed JSON data
-	var packageInfo PackageInfo
-
-	// Unmarshal the JSON data into the struct
-	err = json.Unmarshal(data, &packageInfo)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-	var compiledModules []*lib.Base64Data
-	var dependencies []move_types.AccountAddress
-	for _, pkgB64 := range packageInfo.Modules {
-		b64d, _ := lib.NewBase64Data(pkgB64)
-		compiledModules = append(compiledModules, b64d)
-	}
-	for _, dependent := range packageInfo.Dependencies {
-		dependency, _ := move_types.NewAccountAddressHex(dependent)
-		dependencies = append(dependencies, *dependency)
-	}
-	var txnMetadata types.TransactionBytes
-	err = an.client.CallContext(ctx, &txnMetadata, publish, walletAddress, compiledModules, dependencies, gasCoin.CoinObjectId, deployGasBudget)
-	if err != nil {
-		return ctx, err
-	}
-	signature, err := walletAccount.SignSecureWithoutEncode(txnMetadata.TxBytes, sui_types.DefaultIntent())
-	if err != nil {
-		return nil, err
-	}
-	signatures := []any{signature}
-
-	resp, err := an.CommitTx(ctx, walletAccount, txnMetadata.TxBytes, signatures)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println("Txn created with digest", resp.Digest, " and status is ", resp.Effects.Data.IsSuccess())
+	an.log.Info("Deploy completed ", zap.Any("txDigest", resp.Digest), zap.Any("status", resp.Effects.Data.IsSuccess()))
 	if resp.Effects.Data.V1.Status.Status != "success" {
 		return nil, fmt.Errorf("error while committing tx : %s", resp.Effects.Data.V1.Status.Error)
 	}
@@ -178,72 +151,80 @@ func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (con
 		}
 	}
 	return context.WithValue(ctx, "objId", depoymentInfo), nil
-	// return ctx, fmt.Errorf("no published module found")
 }
 
 // DeployXCallMockApp implements chains.Chain.
 func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	// ctx, err := an.DeployContract(ctx, "dapp")
-	// if err != nil {
-	// 	return err
-	// }
-	// deploymentInfo := ctx.Value("objId").(DepoymentInfo)
-	// an.IBCAddresses[dappKey] = deploymentInfo.PackageId
-	// an.IBCAddresses[dappKey+"-witness"] = deploymentInfo.Witness
-	// fmt.Println("Setup dapp at ", deploymentInfo.PackageId, deploymentInfo.AdminCap, deploymentInfo.Storage, deploymentInfo.Witness)
-
-	an.IBCAddresses[dappKey] = "0xabc5036e9504ee4d1a15a60e063560ee95a684af78859f762f470deeb5af1fb6"
-	an.IBCAddresses[dappKey+"-witness"] = "0x84dac1a3a85b74d7dbb84feefd85aefa7413b01b72fe44d910a214ba953f3815"
+	ctx, err := an.DeployContract(ctx, "mock_dapp")
+	if err != nil {
+		return err
+	}
+	deploymentInfo := ctx.Value("objId").(DepoymentInfo)
+	an.IBCAddresses[dappKey] = deploymentInfo.PackageId
+	an.IBCAddresses[dappKey+"-witness"] = deploymentInfo.Witness
+	an.log.Info("setup Dapp completed ", zap.Any("pacckageId", deploymentInfo.PackageId), zap.Any("witness", deploymentInfo.Witness))
 
 	// register xcall
-	// params := []interface{}{
-	// 	an.IBCAddresses["xcall-storage"],
-	// 	an.IBCAddresses[dappKey+"-witness"],
-	// }
-	// msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "register_xcall")
-	// resp, err := an.callContract(ctx, msg)
-	// for _, changes := range resp.ObjectChanges {
-	// 	if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
-	// 		an.IBCAddresses[dappKey+"-state"] = changes.Data.Created.ObjectId.String()
-	// 	}
-	// }
-	// if err != nil {
-	// 	return err
-	// }
-	an.IBCAddresses[dappKey+"-state"] = "0x80351bbd13c4107b523b93ca5cd793d0167b284470ccb1357f7cd60b78369e63"
+	params := []interface{}{
+		an.IBCAddresses[xcallStorage],
+		an.IBCAddresses[dappKey+"-witness"],
+	}
+	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "register_xcall")
+	resp, err := an.callContract(ctx, msg)
+	for _, changes := range resp.ObjectChanges {
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
+			an.IBCAddresses[dappKey+"-state"] = changes.Data.Created.ObjectId.String()
+		}
+	}
+	an.log.Info("register xcall completed ", zap.Any("dapp-state", an.IBCAddresses[dappKey+"-state"]))
+	if err != nil {
+		return err
+	}
 	// add connections
-	// for _, connection := range connections {
-	// 	fmt.Println("connections passed are ", connection)
-	// 	// connections passed are  {connection emv.local 0x47c05BCCA7d57c87083EB4e586007530eE4539e9 0}
-	// 	// Connection    string Nid           string Destination   string TimeoutHeight int `default:"100"`
-	// 	params = []interface{}{
-	// 		an.IBCAddresses[dappKey+"-state"],
-	// 		connection.Nid,
-	// 		"centralized",
-	// 		connection.Destination,
-	// 	}
-	// 	fmt.Println("params are", params)
-	// 	msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "add_connection")
-	// 	resp, err = an.callContract(ctx, msg)
-	// 	for _, changes := range resp.ObjectChanges {
-	// 		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
-	// 			an.IBCAddresses[dappKey+connection.Connection+"-state"] = changes.Data.Created.ObjectId.String()
-	// 		}
-	// 	}
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	for _, connection := range connections {
+		// connections passed are  {connection emv.local 0x47c05BCCA7d57c87083EB4e586007530eE4539e9 0}
+		// Connection    string Nid           string Destination   string TimeoutHeight int `default:"100"`
+		params = []interface{}{
+			an.IBCAddresses[dappKey+"-state"],
+			connection.Nid,
+			"centralized",
+			connection.Destination,
+		}
+		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "add_connection")
+		resp, err = an.callContract(ctx, msg)
+		for _, changes := range resp.ObjectChanges {
+			if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
+				an.IBCAddresses[dappKey+connection.Connection+"-state"] = changes.Data.Created.ObjectId.String()
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
+}
+
+func (an *SuiRemotenet) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
+	return an.Exec(ctx, command, nil)
 }
 
 // Exec implements chains.Chain.
 // Subtle: this method shadows the method (*CosmosChain).Exec of SuiRemotenet.CosmosChain.
 func (an *SuiRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
-	panic("unimplemented")
+	job := dockerutil.NewImage(an.log, an.DockerClient, an.Network, an.testName, an.cfg.Images[0].Repository, an.cfg.Images[0].Version)
+
+	bindPaths := []string{
+		an.testconfig.ContractsPath + ":/xcall",
+		an.testconfig.ConfigPath + ":/root/.sui/sui_config/",
+	}
+	opts := dockerutil.ContainerOptions{
+		Binds: bindPaths,
+	}
+	res := job.Run(ctx, cmd, opts)
+	return res.Stdout, res.Stderr, res.Err
 }
 
 // ExecuteCall implements chains.Chain.
@@ -315,7 +296,6 @@ func (an *SuiRemotenet) getEvent(ctx context.Context) (*types.SuiEvent, error) {
 			Module:  "main",
 		},
 	}
-	fmt.Println(query)
 	var resp types.EventPage
 	err := an.client.CallContext(ctx, &resp, queryEvents, query, nil, limit, true)
 
@@ -340,50 +320,16 @@ func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 	for {
 		select {
 		case <-timeout:
-			fmt.Println("Timeout reached, exiting...")
 			return nil, fmt.Errorf("failed to find eventLog")
 		case <-ticker.C:
-			fmt.Println("Fetching data...")
 			data, err := an.getEvent(ctx)
 			if err != nil {
-				fmt.Println("Error fetching data:", err)
 				continue
 			}
 			return data, nil
 		}
 	}
 	// // wss not working in devnet/testnet due to limited wss connections
-	// endpoint := an.GetHostRPCAddress()
-	// client, err := rpchttp.New(endpoint, "/websocket")
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// err = client.Start()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer client.Stop()
-	// ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	// defer cancel()
-	// query := strings.Join([]string{"tm.event = 'Tx'",
-	// 	fmt.Sprintf("tx.height >= %d ", startHeight),
-	// 	"message.module = 'wasm'",
-	// 	fmt.Sprintf("wasm._contract_address = '%s'", an.IBCAddresses["xcall"]),
-	// 	index,
-	// }, " AND ")
-	// channel, err := client.Subscribe(ctx, "suix_subscribeEvent", query)
-	// if err != nil {
-	// 	fmt.Println("error subscribint to channel")
-	// 	return nil, err
-	// }
-
-	// select {
-	// case event := <-channel:
-	// 	return &event, nil
-	// case <-ctx.Done():
-	// 	return nil, fmt.Errorf("failed to find eventLog")
-	// }
 }
 
 // FindCallResponse implements chains.Chain.
@@ -396,8 +342,7 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	fmt.Println("Finding msg with sn ", sn, "in target chain", an.cfg.ChainID+"/"+an.IBCAddresses[dappKey], to, sn)
-	//Finding msg with sn  3 in target chain sui.local/0xabc5036e9504ee4d1a15a60e063560ee95a684af78859f762f470deeb5af1fb6 0x15BB2cc3Ea43ab2658F7AaecEb78A9d3769BE3cb 3
+	an.log.Info("Finding xcall msg ", zap.Any("sn", sn), zap.Any("target_chain", an.cfg.ChainID+"/"+an.IBCAddresses[dappKey]))
 	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
@@ -427,10 +372,14 @@ func (an *SuiRemotenet) GetBlockByHeight(ctx context.Context) (context.Context, 
 
 // GetContractAddress implements chains.Chain.
 func (an *SuiRemotenet) GetContractAddress(key string) string {
+	if key == "connection" {
+		key = "xcall"
+	}
 	value, exist := an.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
 	}
+
 	return value
 }
 
@@ -542,7 +491,7 @@ func (an *SuiRemotenet) SendPacketXCall(ctx context.Context, keyName string, _to
 	coinId := an.getAnotherGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget, gasFeeCoin)
 	params := []interface{}{
 		an.IBCAddresses[dappKey+"-state"],
-		an.IBCAddresses["xcall-storage"],
+		an.IBCAddresses[xcallStorage],
 		coinId.CoinObjectId,
 		_to,
 		data,
@@ -568,12 +517,9 @@ func (an *SuiRemotenet) findSn(tx *types.SuiTransactionBlockResponse, eType stri
 
 // SetupConnection implements chains.Chain.
 func (an *SuiRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
-	if an.IBCAddresses["xcall-storage"] != "" {
-		return nil
-	}
 	params := []interface{}{
-		an.IBCAddresses["xcall-storage"],
-		an.IBCAddresses["xcall-admin"],
+		an.IBCAddresses[xcallStorage],
+		an.IBCAddresses[xcallAdmin],
 		"sui",
 		"centralized",
 	}
@@ -604,25 +550,68 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Txn created with ID ", resp.Digest, " and success status ", resp.Effects.Data.IsSuccess())
+	an.log.Info("Txn created", zap.Any("ID", resp.Digest), zap.Any("status", resp.Effects.Data.IsSuccess()))
 	return resp, nil
 }
 
 // SetupXCall implements chains.Chain.
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
-	an.IBCAddresses["xcall"] = "0x27af2f7325cc23fd7e6f3f6d1c39ad496b272a001b4b6cce48de98414035cd8b"
-	an.IBCAddresses["xcall-admin"] = "0x812cc9ff2a8b048a45abbad36087dac8fbabd07a5434a114a4d54fa405bb68a3"
-	an.IBCAddresses["xcall-storage"] = "0x55261c639aadcc5d54efb4a86cb38e1a364bedb822ba49e0e703d18db8c7dcf5"
+	//deploy rlp
+	ctx, err := an.DeployContract(ctx, sui_rlp_path)
+	if err != nil {
+		return err
+	}
+	deploymentInfo := ctx.Value("objId").(DepoymentInfo)
+	err = an.updateTomlFile(sui_rlp_path, deploymentInfo.PackageId)
+	if err != nil {
+		return err
+	}
+
+	// deploy xcall
+	ctx, err = an.DeployContract(ctx, "xcall")
+	if err != nil {
+		return err
+	}
+	deploymentInfo = ctx.Value("objId").(DepoymentInfo)
+	an.IBCAddresses["xcall"] = deploymentInfo.PackageId
+	an.IBCAddresses[xcallAdmin] = deploymentInfo.AdminCap
+	an.IBCAddresses[xcallStorage] = deploymentInfo.Storage
+	err = an.updateTomlFile("xcall", deploymentInfo.PackageId)
+	if err != nil {
+		return err
+	}
+	an.log.Info("setup xcall completed ", zap.Any("packageId", deploymentInfo.PackageId), zap.Any("admin", deploymentInfo.AdminCap), zap.Any("storage", deploymentInfo.Storage))
 	return nil
-	// ctx, err := an.DeployContract(ctx, "xcall")
-	// if err != nil {
-	// 	return err
-	// }
-	// deploymentInfo := ctx.Value("objId").(DepoymentInfo)
-	// an.IBCAddresses["xcall"] = deploymentInfo.PackageId
-	// an.IBCAddresses["xcall-admin"] = deploymentInfo.AdminCap
-	// an.IBCAddresses["xcall-storage"] = deploymentInfo.Storage
-	// fmt.Printf("Setup xcall at  %s with admin %s and storage %s", deploymentInfo.PackageId, deploymentInfo.AdminCap, deploymentInfo.Storage)
+}
+
+func (an *SuiRemotenet) updateTomlFile(keyName, deployedPackageId string) error {
+	var cfg MoveTomlConfig
+	filePath := an.testconfig.ContractsPath + "/" + keyName
+	file, err := os.Open(filePath + "/Move.toml")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	moveConfig, err := io.ReadAll(file)
+	if err != nil {
+		return err
+	}
+	err = toml.Unmarshal(moveConfig, &cfg)
+	if err != nil {
+		return err
+	}
+	pkgName := cfg.Package["name"]
+	cfg.Addresses[pkgName] = deployedPackageId
+	cfg.Package["published-at"] = deployedPackageId
+	b, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filePath+"/Move.toml", b, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start implements chains.Chain.
