@@ -6,19 +6,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest"
-	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
-	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
-	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
-	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
-	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest"
+	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
+	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
+	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
+	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
+	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
+	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon"
+	"gopkg.in/yaml.v3"
 
 	"github.com/icza/dyno"
 
@@ -53,7 +55,7 @@ var ContainerEnvs = [9]string{
 	"ICON_CONFIG=/goloop/data/icon_config.json",
 }
 
-type IconNode struct {
+type IconRemoteNode struct {
 	VolumeName   string
 	Index        int
 	Chain        chains.Chain
@@ -69,12 +71,13 @@ type IconNode struct {
 	Validator   bool
 	lock        sync.Mutex
 	Address     string
+	testconfig  *testconfig.Chain
 }
 
-type IconNodes []*IconNode
+type IconNodes []*IconRemoteNode
 
 // Name of the test node container
-func (in *IconNode) Name() string {
+func (in *IconRemoteNode) Name() string {
 	var nodeType string
 	if in.Validator {
 		nodeType = "val"
@@ -85,7 +88,7 @@ func (in *IconNode) Name() string {
 }
 
 // Create Node Container with ports exposed and published for host to communicate with
-func (in *IconNode) CreateNodeContainer(ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
+func (in *IconRemoteNode) CreateNodeContainer(ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
 	imageRef := in.Image.Ref()
 	testBasePath := os.Getenv(chains.BASE_PATH)
 	binds := in.Bind()
@@ -110,7 +113,7 @@ func (in *IconNode) CreateNodeContainer(ctx context.Context, additionalGenesisWa
 			},
 		},
 	}
-	cc, err := in.DockerClient.ContainerCreate(ctx, containerConfig.Config, containerConfig.HostConfig, containerConfig.NetworkingConfig, in.Name())
+	cc, err := in.DockerClient.ContainerCreate(ctx, containerConfig.Config, containerConfig.HostConfig, containerConfig.NetworkingConfig, nil, in.Name())
 	if err != nil {
 		in.log.Error("Failed to create container", zap.Error(err))
 		return err
@@ -128,7 +131,7 @@ func (in *IconNode) CreateNodeContainer(ctx context.Context, additionalGenesisWa
 	return nil
 }
 
-func (in *IconNode) CopyConfig(ctx context.Context, err error, cc container.ContainerCreateCreatedBody) {
+func (in *IconRemoteNode) CopyConfig(ctx context.Context, err error, cc container.CreateResponse) {
 	fileName := fmt.Sprintf("%s/test/chains/icon/data/config.json", os.Getenv(chains.BASE_PATH))
 
 	config, err := interchaintest.GetLocalFileContent(fileName)
@@ -138,7 +141,7 @@ func (in *IconNode) CopyConfig(ctx context.Context, err error, cc container.Cont
 	}
 	err = in.CopyFileToContainer(context.WithValue(ctx, "file-header", header), config, cc.ID, "/goloop/data/")
 }
-func (in *IconNode) CopyFileToContainer(ctx context.Context, content []byte, containerID, target string) error {
+func (in *IconRemoteNode) CopyFileToContainer(ctx context.Context, content []byte, containerID, target string) error {
 	header := ctx.Value("file-header").(map[string]string)
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
@@ -161,7 +164,7 @@ func (in *IconNode) CopyFileToContainer(ctx context.Context, content []byte, con
 	return nil
 }
 
-func (in *IconNode) modifyGenesisToAddGenesisAccount(ctx context.Context, containerID string, additionalGenesisWallets ...ibc.WalletAmount) error {
+func (in *IconRemoteNode) modifyGenesisToAddGenesisAccount(ctx context.Context, containerID string, additionalGenesisWallets ...ibc.WalletAmount) error {
 	g := make(map[string]interface{})
 	fileName := fmt.Sprintf("%s/test/chains/icon/data/genesis.json", os.Getenv(chains.BASE_PATH))
 
@@ -197,19 +200,19 @@ func (in *IconNode) modifyGenesisToAddGenesisAccount(ctx context.Context, contai
 	return err
 }
 
-func (in *IconNode) HostName() string {
+func (in *IconRemoteNode) HostName() string {
 	return dockerutil.CondenseHostName(in.Name())
 }
 
-func (in *IconNode) Bind() []string {
+func (in *IconRemoteNode) Bind() []string {
 	return []string{fmt.Sprintf("%s:%s", in.VolumeName, in.HomeDir())}
 }
 
-func (in *IconNode) HomeDir() string {
+func (in *IconRemoteNode) HomeDir() string {
 	return path.Join("/var/icon-chain", in.Chain.Config().Name)
 }
 
-func (in *IconNode) StartContainer(ctx context.Context) error {
+func (in *IconRemoteNode) StartContainer(ctx context.Context) error {
 	if err := dockerutil.StartContainer(ctx, in.DockerClient, in.ContainerID); err != nil {
 		return err
 	}
@@ -227,33 +230,40 @@ func (in *IconNode) StartContainer(ctx context.Context) error {
 	return nil
 }
 
-func (in *IconNode) logger() *zap.Logger {
+func (in *IconRemoteNode) logger() *zap.Logger {
 	return in.log.With(
 		zap.String("chain_id", in.Chain.Config().ChainID),
 		zap.String("test", in.TestName),
 	)
 }
 
-func (in *IconNode) Exec(ctx context.Context, cmd []string, env []string) ([]byte, []byte, error) {
+func (in *IconRemoteNode) Exec(ctx context.Context, cmd []string, env []string) ([]byte, []byte, error) {
 	job := dockerutil.NewImage(in.logger(), in.DockerClient, in.NetworkID, in.TestName, chains.GetEnvOrDefault(GOLOOP_IMAGE_ENV, GOLOOP_IMAGE), chains.GetEnvOrDefault(GOLOOP_IMAGE_TAG_ENV, GOLOOP_IMAGE_TAG))
 	opts := dockerutil.ContainerOptions{
-		Env:   env,
-		Binds: in.Bind(),
+		Binds: []string{
+			in.testconfig.ContractsPath + ":/contracts",
+			in.testconfig.ConfigPath + ":/goloop/data",
+		},
+		Env: ContainerEnvs[:],
 	}
+	// opts := dockerutil.ContainerOptions{
+	// 	Env:   env,
+	// 	Binds: in.Bind(),
+	// }
 	res := job.Run(ctx, cmd, opts)
 	return res.Stdout, res.Stderr, res.Err
 }
 
-func (in *IconNode) BinCommand(command ...string) []string {
+func (in *IconRemoteNode) BinCommand(command ...string) []string {
 	command = append([]string{in.Chain.Config().Bin}, command...)
 	return command
 }
 
-func (in *IconNode) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
+func (in *IconRemoteNode) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
 	return in.Exec(ctx, in.BinCommand(command...), nil)
 }
 
-func (in *IconNode) GetBlockByHeight(ctx context.Context, height int64) (string, error) {
+func (in *IconRemoteNode) GetBlockByHeight(ctx context.Context, height int64) (string, error) {
 	in.lock.Lock()
 	defer in.lock.Unlock()
 	uri := "http://" + in.HostRPCPort + "/api/v3"
@@ -264,7 +274,7 @@ func (in *IconNode) GetBlockByHeight(ctx context.Context, height int64) (string,
 	return string(block), err
 }
 
-func (in *IconNode) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
+func (in *IconRemoteNode) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
 	var flag = true
 	if flag {
 		time.Sleep(3 * time.Second)
@@ -288,18 +298,18 @@ func (in *IconNode) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, e
 	return txs, nil
 }
 
-func (in *IconNode) Height(ctx context.Context) (uint64, error) {
+func (in *IconRemoteNode) Height(ctx context.Context) (uint64, error) {
 	res, err := in.Client.GetLastBlock()
 	return uint64(res.Height), err
 }
 
-func (in *IconNode) GetBalance(ctx context.Context, address string) (int64, error) {
+func (in *IconRemoteNode) GetBalance(ctx context.Context, address string) (int64, error) {
 	addr := icontypes.AddressParam{Address: icontypes.Address(address)}
 	bal, err := in.Client.GetBalance(&addr)
 	return bal.Int64(), err
 }
 
-func (in *IconNode) DeployContract(ctx context.Context, scorePath, keystorePath, initMessage string) (string, error) {
+func (in *IconRemoteNode) DeployContract(ctx context.Context, scorePath, keystorePath, initMessage string) (string, error) {
 	// Write Contract file to Docker volume
 	_, score := filepath.Split(scorePath)
 	if err := in.CopyFile(ctx, scorePath, score); err != nil {
@@ -327,7 +337,7 @@ func (in *IconNode) DeployContract(ctx context.Context, scorePath, keystorePath,
 }
 
 // Get Transaction result when hash is provided after executing a transaction
-func (in *IconNode) TransactionResult(ctx context.Context, hash string) (*icontypes.TransactionResult, error) {
+func (in *IconRemoteNode) TransactionResult(ctx context.Context, hash string) (*icontypes.TransactionResult, error) {
 	uri := fmt.Sprintf("http://%s:9080/api/v3", in.Name()) //"http://" + in.HostRPCPort + "/api/v3"
 	out, _, err := in.ExecBin(ctx, "rpc", "txresult", hash, "--uri", uri)
 	if err != nil {
@@ -338,7 +348,7 @@ func (in *IconNode) TransactionResult(ctx context.Context, hash string) (*iconty
 }
 
 // ExecTx executes a transaction, waits for 2 blocks if successful, then returns the tx hash.
-func (in *IconNode) ExecTx(ctx context.Context, initMessage string, filePath string, keystorePath string, command ...string) (string, error) {
+func (in *IconRemoteNode) ExecTx(ctx context.Context, initMessage string, filePath string, keystorePath string, command ...string) (string, error) {
 	var output string
 	in.lock.Lock()
 	defer in.lock.Unlock()
@@ -351,7 +361,7 @@ func (in *IconNode) ExecTx(ctx context.Context, initMessage string, filePath str
 
 // TxCommand is a helper to retrieve a full command for broadcasting a tx
 // with the chain node binary.
-func (in *IconNode) TxCommand(ctx context.Context, initMessage, filePath, keystorePath string, command ...string) []string {
+func (in *IconRemoteNode) TxCommand(ctx context.Context, initMessage, filePath, keystorePath string, command ...string) []string {
 	// get password from pathname as pathname will have the password prefixed. ex - Alice.Json
 	_, key := filepath.Split(keystorePath)
 	fileName := strings.Split(key, ".")
@@ -380,7 +390,7 @@ func (in *IconNode) TxCommand(ctx context.Context, initMessage, filePath, keysto
 // For example, if chain node binary is `gaiad`, and desired command is `gaiad keys show key1`,
 // pass ("keys", "show", "key1") for command to return the full command.
 // Will include additional flags for node URL, home directory, and chain ID.
-func (in *IconNode) NodeCommand(command ...string) []string {
+func (in *IconRemoteNode) NodeCommand(command ...string) []string {
 	command = in.BinCommand(command...)
 	return append(command,
 		"--uri", fmt.Sprintf("http://%s:9080/api/v3", in.Name()), //fmt.Sprintf("http://%s/api/v3", in.HostRPCPort),
@@ -391,7 +401,7 @@ func (in *IconNode) NodeCommand(command ...string) []string {
 // CopyFile adds a file from the host filesystem to the docker filesystem
 // relPath describes the location of the file in the docker volume relative to
 // the home directory
-func (tn *IconNode) CopyFile(ctx context.Context, srcPath, dstPath string) error {
+func (tn *IconRemoteNode) CopyFile(ctx context.Context, srcPath, dstPath string) error {
 	content, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
@@ -402,12 +412,12 @@ func (tn *IconNode) CopyFile(ctx context.Context, srcPath, dstPath string) error
 // WriteFile accepts file contents in a byte slice and writes the contents to
 // the docker filesystem. relPath describes the location of the file in the
 // docker volume relative to the home directory
-func (tn *IconNode) WriteFile(ctx context.Context, content []byte, relPath string) error {
+func (tn *IconRemoteNode) WriteFile(ctx context.Context, content []byte, relPath string) error {
 	fw := dockerutil.NewFileWriter(tn.logger(), tn.DockerClient, tn.TestName)
 	return fw.WriteFile(ctx, tn.VolumeName, relPath, content)
 }
 
-func (in *IconNode) QueryContract(ctx context.Context, scoreAddress, methodName, params string) ([]byte, error) {
+func (in *IconRemoteNode) QueryContract(ctx context.Context, scoreAddress, methodName, params string) ([]byte, error) {
 	uri := fmt.Sprintf("http://%s:9080/api/v3", in.Name())
 	var args = []string{"rpc", "call", "--to", scoreAddress, "--method", methodName, "--uri", uri}
 	if params != "" {
@@ -424,15 +434,15 @@ func (in *IconNode) QueryContract(ctx context.Context, scoreAddress, methodName,
 	return out, nil
 }
 
-func (in *IconNode) RestoreKeystore(ctx context.Context, ks []byte, keyName string) error {
+func (in *IconRemoteNode) RestoreKeystore(ctx context.Context, ks []byte, keyName string) error {
 	return in.WriteFile(ctx, ks, keyName+".json")
 }
 
-func (in *IconNode) ExecuteContract(ctx context.Context, scoreAddress, methodName, keyStorePath, params string) (string, error) {
+func (in *IconRemoteNode) ExecuteContract(ctx context.Context, scoreAddress, methodName, keyStorePath, params string) (string, error) {
 	return in.ExecCallTx(ctx, scoreAddress, methodName, keyStorePath, params)
 }
 
-func (in *IconNode) ExecCallTx(ctx context.Context, scoreAddress, methodName, keystorePath, params string) (string, error) {
+func (in *IconRemoteNode) ExecCallTx(ctx context.Context, scoreAddress, methodName, keystorePath, params string) (string, error) {
 	var output string
 	in.lock.Lock()
 	defer in.lock.Unlock()
@@ -443,7 +453,7 @@ func (in *IconNode) ExecCallTx(ctx context.Context, scoreAddress, methodName, ke
 	return output, json.Unmarshal(stdout, &output)
 }
 
-func (in *IconNode) ExecCallTxCommand(ctx context.Context, scoreAddress, methodName, keystorePath, params string) []string {
+func (in *IconRemoteNode) ExecCallTxCommand(ctx context.Context, scoreAddress, methodName, keystorePath, params string) []string {
 	// get password from pathname as pathname will have the password prefixed. ex - Alice.Json
 	_, key := filepath.Split(keystorePath)
 	fileName := strings.Split(key, ".")
@@ -473,7 +483,7 @@ func (in *IconNode) ExecCallTxCommand(ctx context.Context, scoreAddress, methodN
 	return in.NodeCommand(command...)
 }
 
-func (in *IconNode) GetDebugTrace(ctx context.Context, hash icontypes.HexBytes) (*DebugTrace, error) {
+func (in *IconRemoteNode) GetDebugTrace(ctx context.Context, hash icontypes.HexBytes) (*DebugTrace, error) {
 	uri := fmt.Sprintf("http://%s:9080/api/v3d", in.Name())
 	out, _, err := in.ExecBin(ctx, "debug", "trace", string(hash), "--uri", uri)
 	if err != nil {
@@ -484,18 +494,15 @@ func (in *IconNode) GetDebugTrace(ctx context.Context, hash icontypes.HexBytes) 
 
 }
 
-func (in *IconNode) GetChainConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
+func (in *IconRemoteNode) GetChainConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
 
 	config := &centralized.ICONRelayerChainConfig{
 		Type: "icon",
 		Value: centralized.ICONRelayerChainConfigValue{
-			NID:             in.Chain.Config().ChainID,
-			RPCURL:          in.Chain.GetRPCAddress(),
-			StartHeight:     0,
-			Keystore:        fmt.Sprintf("%s/keys/%s/%s", rlyHome, in.Chain.Config().ChainID, keyName),
-			Password:        keyName,
-			NetworkID:       0x3,
-			ContractAddress: in.Chain.GetContractAddress("connection"),
+			NID:         in.Chain.Config().ChainID,
+			RPCURL:      in.Chain.GetRPCAddress(),
+			StartHeight: 0,
+			NetworkID:   0x3,
 		},
 	}
 	return yaml.Marshal(config)

@@ -5,14 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
-	"path"
 	"strings"
+
+	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 
 	"github.com/icon-project/centralized-relay/test/chains"
 )
 
-func (c *IconLocalnet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, string) {
+func (c *IconRemotenet) getExecuteParam(ctx context.Context, methodName string, params map[string]interface{}) (string, string) {
 	if strings.Contains(methodName, chains.BindPort) {
 		_params, _ := json.Marshal(map[string]interface{}{
 			"portId":        params["port_id"],
@@ -32,7 +32,7 @@ func (c *IconLocalnet) getExecuteParam(ctx context.Context, methodName string, p
 	return methodName, string(_params)
 }
 
-func (c *IconLocalnet) GetQueryParam(method string, params map[string]interface{}) Query {
+func (c *IconRemotenet) GetQueryParam(method string, params map[string]interface{}) Query {
 	var query Query
 	switch method {
 	case chains.HasPacketReceipt:
@@ -101,7 +101,7 @@ func (c *IconLocalnet) GetQueryParam(method string, params map[string]interface{
 	return query
 }
 
-func (c *IconLocalnet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
+func (c *IconRemotenet) getInitParams(ctx context.Context, contractName string, initMsg map[string]interface{}) string {
 	if contractName == "mockdapp" {
 		updatedInit, _ := json.Marshal(map[string]string{
 			"ibcHandler": initMsg["ibc_host"].(string),
@@ -112,7 +112,7 @@ func (c *IconLocalnet) getInitParams(ctx context.Context, contractName string, i
 	return ""
 }
 
-func (c *IconLocalnet) SetAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
+func (c *IconRemotenet) SetAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
 	var admins chains.Admins
 	executeMethodName := "setAdmin"
 	if strings.ToLower(keyName) == "null" {
@@ -139,7 +139,7 @@ func (c *IconLocalnet) SetAdminParams(ctx context.Context, methodaName, keyName 
 
 }
 
-func (c *IconLocalnet) UpdateAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
+func (c *IconRemotenet) UpdateAdminParams(ctx context.Context, methodaName, keyName string) (context.Context, string, string) {
 	var admins chains.Admins
 	executeMethodName := "updateAdmin"
 	if strings.ToLower(keyName) == "null" {
@@ -166,22 +166,23 @@ func (c *IconLocalnet) UpdateAdminParams(ctx context.Context, methodaName, keyNa
 
 }
 
-func (c *IconLocalnet) CheckForKeyStore(ctx context.Context, keyName string) ibc.Wallet {
-	// Check if 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore file exists for given keyname if not create a 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore file
-	jsonFile := keyName + ".json"
-	ksPath := path.Join(c.HomeDir(), jsonFile)
-	_, _, err := c.getFullNode().Exec(ctx, []string{"cat", ksPath}, nil)
-	if err == nil {
-		c.keystorePath = ksPath
-		return nil
-	}
-	address, privateKey, _ := c.createKeystore(ctx, keyName)
+func (c *IconRemotenet) CheckForKeyStore(ctx context.Context, keyName string) ibc.Wallet {
+	panic("not implemented")
+	// // Check if 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore file exists for given keyname if not create a 6123f953784d27e0729bc7a640d6ad8f04ed6710.keystore file
+	// jsonFile := keyName + ".json"
+	// ksPath := path.Join(c.HomeDir(), jsonFile)
+	// _, _, err := c.Exec(ctx, []string{"cat", ksPath}, nil)
+	// if err == nil {
+	// 	c.keystorePath = ksPath
+	// 	return nil
+	// }
+	// address, privateKey, _ := c.createKeystore(ctx, keyName)
 
-	wallet := NewWallet(keyName, []byte(address), privateKey, c.cfg)
-	c.Wallets[keyName] = wallet
+	// wallet := NewWallet(keyName, []byte(address), privateKey, c.cfg)
+	// c.Wallets[keyName] = wallet
 
-	fmt.Printf("Address of %s is: %s\n", keyName, wallet.FormattedAddress())
-	c.keystorePath = ksPath
+	// fmt.Printf("Address of %s is: %s\n", keyName, wallet.FormattedAddress())
+	// c.keystorePath = ksPath
 
-	return wallet
+	// return wallet
 }

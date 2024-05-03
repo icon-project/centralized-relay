@@ -1,7 +1,6 @@
 package icon
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -135,17 +134,17 @@ func (c *Client) Call(p *types.CallParam, r interface{}) error {
 	return err
 }
 
-func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.HexBytes, *types.TransactionResult, error) {
+func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashParam) (*types.TransactionResult, error) {
 	ticker := time.NewTicker(DefaultGetTransactionResultPollingInterval)
 	var retryCounter uint8
 	for {
 		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
-			return &thp.Hash, nil, ctx.Err()
+			return nil, ctx.Err()
 		case <-ticker.C:
 			if retryCounter >= providerTypes.MaxTxRetry {
-				return nil, nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
+				return nil, fmt.Errorf("max retry reached for tx %s", thp.Hash)
 			}
 			retryCounter++
 			txr, err := c.GetTransactionResult(thp)
@@ -157,9 +156,8 @@ func (c *Client) WaitForResults(ctx context.Context, thp *types.TransactionHashP
 						continue
 					}
 				}
-				return &thp.Hash, txr, err
 			}
-			return &thp.Hash, txr, nil
+			return txr, err
 		}
 	}
 }
@@ -183,14 +181,6 @@ func (c *Client) GetBlockByHeight(p *types.BlockHeightParam) (*types.Block, erro
 func (c *Client) GetBlockHeaderBytesByHeight(p *types.BlockHeightParam) ([]byte, error) {
 	var result []byte
 	if _, err := c.Do("icx_getBlockHeaderByHeight", p, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *Client) GetVotesByHeight(p *types.BlockHeightParam) ([]byte, error) {
-	var result []byte
-	if _, err := c.Do("icx_getVotesByHeight", p, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -249,12 +239,12 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 	})
 }
 
-func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
+func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
 	resp := &types.EventNotification{}
 	return c.Monitor(ctx, "/event", p, resp, func(conn *websocket.Conn, v interface{}) error {
 		switch t := v.(type) {
 		case *types.EventNotification:
-			if err := cb(conn, t); err != nil {
+			if err := cb(t); err != nil {
 				c.log.Debug(fmt.Sprintf("MonitorEvent callback return err:%+v", err))
 			}
 		case error:
@@ -281,6 +271,9 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
 	}
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	})
 	if err := cb(conn, types.WSEventInit); err != nil {
 		return err
 	}
@@ -423,23 +416,6 @@ func (c *Client) GetBlockHeaderByHeight(height int64) (*types.BlockHeader, error
 		return nil, err
 	}
 	return &blockHeader, nil
-}
-
-func (c *Client) GetValidatorsByHash(hash common.HexHash) ([]common.Address, error) {
-	data, err := c.GetDataByHash(&types.DataHashParam{Hash: types.NewHexBytes(hash.Bytes())})
-	if err != nil {
-		return nil, errors.Wrapf(err, "GetDataByHash; %v", err)
-	}
-	if !bytes.Equal(hash, crypto.SHA3Sum256(data)) {
-		return nil, errors.Errorf(
-			"invalid data: hash=%v, data=%v", hash, common.HexBytes(data))
-	}
-	var validators []common.Address
-	_, err = codec.BC.UnmarshalFromBytes(data, &validators)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Unmarshal Validators: %v", err)
-	}
-	return validators, nil
 }
 
 func (c *Client) GetBalance(param *types.AddressParam) (*big.Int, error) {

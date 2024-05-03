@@ -85,48 +85,52 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	suiMessage := p.NewSuiMessage([]interface{}{
-		p.cfg.XcallStorageID,
-		adminAddr,
+	suiMessage := p.NewSuiMessage([]SuiCallArg{
+		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+		{Type: CallArgPure, Val: adminAddr},
 	}, p.cfg.XcallPkgID, EntryModule, MethodSetAdmin)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	suiMessage := p.NewSuiMessage([]interface{}{
-		sn,
+	suiMessage := p.NewSuiMessage([]SuiCallArg{
+		{Type: CallArgPure, Val: sn},
 	}, p.cfg.XcallPkgID, EntryModule, MethodRevertMessage)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	suiMessage := p.NewSuiMessage([]interface{}{
-		networkID,
-		responseFee,
+	suiMessage := p.NewSuiMessage([]SuiCallArg{
+		{Type: CallArgPure, Val: networkID},
+		{Type: CallArgPure, Val: responseFee},
 	}, p.cfg.XcallPkgID, EntryModule, MethodGetFee)
-	fee, err := p.GetReturnValuesFromCall(ctx, suiMessage)
+	var fee uint64
+	wallet, err := p.Wallet()
 	if err != nil {
-		return 0, err
+		return fee, err
 	}
-	return fee.(uint64), nil
+	if err := p.client.QueryContract(ctx, suiMessage, wallet.Address, p.cfg.GasLimit, &fee); err != nil {
+		return fee, err
+	}
+	return fee, nil
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
-	suiMessage := p.NewSuiMessage([]interface{}{
-		p.cfg.XcallStorageID,
-		networkID,
-		msgFee,
-		resFee,
+	suiMessage := p.NewSuiMessage([]SuiCallArg{
+		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+		{Type: CallArgPure, Val: networkID},
+		{Type: CallArgPure, Val: msgFee},
+		{Type: CallArgPure, Val: resFee},
 	}, p.cfg.XcallPkgID, EntryModule, MethodSetFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	suiMessage := p.NewSuiMessage([]interface{}{
-		p.cfg.XcallStorageID,
+	suiMessage := p.NewSuiMessage([]SuiCallArg{
+		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 	},
 		p.cfg.XcallPkgID, EntryModule, MethodClaimFee)
 	_, err := p.SendTransaction(ctx, suiMessage)

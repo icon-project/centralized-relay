@@ -181,6 +181,7 @@ func (image *Image) createContainer(ctx context.Context, containerName, hostName
 				image.networkID: {},
 			},
 		},
+		nil,
 		containerName,
 	)
 	if err != nil {
@@ -344,8 +345,11 @@ func (c *Container) Stop(timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 
-	stopOptions := time.Second * 1
-	err := c.image.client.ContainerStop(ctx, c.containerID, &stopOptions)
+	stopTimeout := int(1)
+	options := container.StopOptions{
+		Timeout: &stopTimeout,
+	}
+	err := c.image.client.ContainerStop(ctx, c.containerID, options)
 	if err != nil {
 		// Only return the error if it didn't match an already stopped, or a missing container.
 		if !(errdefs.IsNotModified(err) || errdefs.IsNotFound(err)) {

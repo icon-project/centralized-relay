@@ -37,6 +37,10 @@ install: go.sum
 	@echo "installing centralized-relay binary..."
 	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
 
+
+e2e-test:
+	@go test -v ./test/e2e -testify.m TestE2E_all
+
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.1
 COSMWASM_VERSION      ?= v2.0.0

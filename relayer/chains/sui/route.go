@@ -30,32 +30,24 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 func (p *Provider) MakeSuiMessage(message *providerTypes.Message) (*SuiMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		callParams := []interface{}{
-			p.cfg.XcallStorageID,
-			message.Src,
-			message.Sn,
-			message.Data,
+		callParams := []SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: message.Src},
+			{Type: CallArgPure, Val: message.Sn},
+			{Type: CallArgPure, Val: message.Data},
 		}
 		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, ConnectionModule, MethodRecvMessage), nil
 	case events.CallMessage:
-		callParams := []interface{}{
-			p.cfg.DappStateID,
-			p.cfg.XcallStorageID,
-			message.ReqID,
-			message.Data,
+		callParams := []SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.DappStateID},
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: message.ReqID},
+			{Type: CallArgPure, Val: message.Data},
 		}
 		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, DappModule, MethodExecuteCall), nil
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
-}
-
-func (p *Provider) GetReturnValuesFromCall(ctx context.Context, msg *SuiMessage) (any, error) {
-	wallet, err := p.Wallet()
-	if err != nil {
-		return &types.SuiTransactionBlockResponse{}, err
-	}
-	return p.client.QueryContract(ctx, msg, wallet.Address, p.cfg.GasLimit)
 }
 
 func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types.SuiTransactionBlockResponse, error) {

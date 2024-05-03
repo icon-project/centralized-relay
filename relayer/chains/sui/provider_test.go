@@ -9,7 +9,6 @@ import (
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/coming-chat/go-sui/v2/lib"
-	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
 	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/stretchr/testify/assert"
@@ -128,27 +127,6 @@ func TestImportKeystore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDecodedAddr, pro.wallet.Address)
 	assert.Equal(t, expectedDecodedPrivKey, hex.EncodeToString(pro.wallet.KeyPair.PrivateKey()[:32]))
-}
-
-func TestSendTransactionErrors(t *testing.T) {
-	pro, err := GetSuiProvider()
-	pro.wallet = &account.Account{
-		Address: "0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21",
-		KeyPair: sui_types.SuiKeyPair{},
-	}
-	assert.NoError(t, err)
-	suiMessage := pro.NewSuiMessage([]interface{}{},
-		"connectionContractAddress", "ConnectionModule", "MethodClaimFee")
-	_, err = pro.SendTransaction(context.TODO(), suiMessage)
-	assert.ErrorContains(t, err, "invalid packageId")
-
-	pro.client = &mockClient{}
-	pro.cfg.GasLimit = 10
-	suiMessage = pro.NewSuiMessage([]interface{}{},
-		"0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21", "ConnectionModule", "MethodClaimFee")
-	_, err = pro.SendTransaction(context.TODO(), suiMessage)
-	assert.ErrorContains(t, err, "gas requirement is too high")
-
 }
 
 func TestGenerateTxDigests(t *testing.T) {

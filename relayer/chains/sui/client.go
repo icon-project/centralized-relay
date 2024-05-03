@@ -27,6 +27,9 @@ const (
 	suiU64                                    = "u64"
 	suiBool                                   = "bool"
 	moveCall        suisdkClient.UnsafeMethod = "moveCall"
+
+	CallArgPure   = "pure"
+	CallArgObject = "object"
 )
 
 type IClient interface {
@@ -36,10 +39,12 @@ type IClient interface {
 	ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error)
 	CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
 	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
-	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
+	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64, resPtr interface{}) error
 
 	GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error)
 	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
+
+	GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error)
 }
 
 type Client struct {
@@ -52,6 +57,10 @@ func NewClient(rpcClient *suisdkClient.Client, l *zap.Logger) *Client {
 		rpc: rpcClient,
 		log: l,
 	}
+}
+
+func (c Client) GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error) {
+	return c.rpc.GetObject(ctx, objID, options)
 }
 
 func (c Client) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
@@ -97,7 +106,7 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	typeArgs := []string{}
 	var stringParams []interface{}
 	for _, s := range suiMessage.Params {
-		stringParams = append(stringParams, fmt.Sprint(s))
+		stringParams = append(stringParams, fmt.Sprint(s.Val))
 	}
 	if stringParams == nil {
 		stringParams = make([]interface{}, 0)
@@ -153,34 +162,95 @@ func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.S
 	return txBlock, err
 }
 
-// convert native params to bcs encoded params
-func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
+func (cl *Client) paramsToCallArgs(params []SuiCallArg) ([]sui_types.CallArg, error) {
 	var callArgs []sui_types.CallArg
-	for _, param := range suiMessage.Params {
-		byteParam, err := bcs.Marshal(param)
-		if err != nil {
-			return nil, err
+	for _, p := range params {
+		switch p.Type {
+		case CallArgObject:
+			arg, err := cl.getCallArgObject(p.Val.(string))
+			if err != nil {
+				return nil, err
+			}
+			callArgs = append(callArgs, *arg)
+		case CallArgPure:
+			arg, err := cl.getCallArgPure(p.Val)
+			if err != nil {
+				return nil, err
+			}
+			callArgs = append(callArgs, *arg)
+		default:
+			return nil, fmt.Errorf("invalid call arg type")
 		}
-		callArgs = append(callArgs, sui_types.CallArg{
-			Pure: &byteParam,
-		})
 	}
 	return callArgs, nil
 }
-func (cl *Client) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
+
+func (cl *Client) getCallArgPure(arg interface{}) (*sui_types.CallArg, error) {
+	byteParam, err := bcs.Marshal(arg)
+	if err != nil {
+		return nil, err
+	}
+	return &sui_types.CallArg{
+		Pure: &byteParam,
+	}, nil
+}
+
+func (cl *Client) getCallArgObject(arg string) (*sui_types.CallArg, error) {
+	objectId, err := sui_types.NewAddressFromHex(arg)
+	if err != nil {
+		return nil, err
+	}
+	object, err := cl.GetObject(context.Background(), *objectId, &types.SuiObjectDataOptions{
+		ShowType: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %v", err)
+	}
+
+	objRef := object.Data.Reference()
+
+	// return &sui_types.CallArg{
+	// 	Object: &sui_types.ObjectArg{
+	// 		ImmOrOwnedObject: &objRef,
+	// 	},
+	// }, nil
+	return &sui_types.CallArg{
+		Object: &sui_types.ObjectArg{
+			SharedObject: &struct {
+				Id                   sui_types.ObjectID
+				InitialSharedVersion sui_types.SequenceNumber
+				Mutable              bool
+			}{
+				Id:                   objRef.ObjectId,
+				InitialSharedVersion: 944734,
+				Mutable:              true,
+			},
+		},
+	}, nil
+}
+
+func (cl *Client) QueryContract(
+	ctx context.Context,
+	suiMessage *SuiMessage,
+	address string,
+	gasBudget uint64,
+	resPtr interface{},
+) error {
 	builder := sui_types.NewProgrammableTransactionBuilder()
 	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	senderAddress, err := move_types.NewAccountAddressHex(address)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	callArgs, err := paramsToCallArgs(suiMessage)
+
+	callArgs, err := cl.paramsToCallArgs(suiMessage.Params)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
 	err = builder.MoveCall(
 		*packageId,
 		move_types.Identifier(suiMessage.Module),
@@ -189,63 +259,39 @@ func (cl *Client) QueryContract(ctx context.Context, suiMessage *SuiMessage, add
 		callArgs,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	transaction := builder.Finish()
-	bcsBytes, err := bcs.Marshal(transaction)
+	bcsBytes, err := bcs.Marshal(builder.Finish())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	txBytes := append([]byte{0}, bcsBytes...)
 	b64Data, err := lib.NewBase64Data(base64.StdEncoding.EncodeToString(txBytes))
 	if err != nil {
-		return nil, err
+		return err
 	}
+
 	res, err := cl.rpc.DevInspectTransactionBlock(context.Background(), *senderAddress, *b64Data, nil, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
 	if res.Error != nil {
-		return nil, fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
+		return fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
 	}
-	result := (res.Results[0].ReturnValues[0]).([]interface{})
-	resultType := result[1]
-	byteSlice, ok := result[0].([]interface{})
-	if !ok {
-		return nil, err
-	}
-	return extractResult(resultType, byteSlice, result[0])
-}
-
-func extractResult(resultType interface{}, byteSlice []interface{}, defResult interface{}) (any, error) {
-	switch resultType {
-	case suiU64:
-		reverseUint8Array(byteSlice)
-		var result uint64
-		for _, v := range byteSlice {
-			result = (result << 8) | uint64(v.(float64))
+	if len(res.Results) > 0 && len(res.Results[0].ReturnValues) > 0 {
+		returnVal := res.Results[0].ReturnValues[0]
+		byteSlice, ok := returnVal.([]byte)
+		if !ok {
+			return err
 		}
-		return result, nil
-	case suiStringType:
-		byteSlice = byteSlice[1:]
-		valueSlice := make([]byte, len(byteSlice))
-
-		for i, v := range byteSlice {
-			valueSlice[i] = byte(v.(float64))
+		if _, err := bcs.Unmarshal(byteSlice, resPtr); err != nil {
+			return err
 		}
-		return string(valueSlice), nil
-	case suiBool:
-		boolValue := byteSlice[0].(float64)
-		return boolValue == 1, nil
-	default:
-		return defResult, nil
+		return nil
 	}
-}
 
-func reverseUint8Array(arr []interface{}) {
-	for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
-		arr[i], arr[j] = arr[j], arr[i]
-	}
+	return fmt.Errorf("got empty result")
 }
 
 func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
