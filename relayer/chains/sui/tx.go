@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 
+	"github.com/fardream/go-bcs/bcs"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -20,10 +21,14 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayerTypes.MessageKey) (bool, error) {
+	snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(key.Sn))
+	if err != nil {
+		return false, err
+	}
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: key.Src},
-		{Type: CallArgPure, Val: key.Sn},
+		{Type: CallArgPure, Val: snU128},
 	}, p.cfg.XcallPkgID, EntryModule, MethodGetReceipt)
 	var msgReceived bool
 	wallet, err := p.Wallet()

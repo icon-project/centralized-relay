@@ -201,30 +201,34 @@ func (cl *Client) getCallArgObject(arg string) (*sui_types.CallArg, error) {
 		return nil, err
 	}
 	object, err := cl.GetObject(context.Background(), *objectId, &types.SuiObjectDataOptions{
-		ShowType: true,
+		ShowType:  true,
+		ShowOwner: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
 	}
 
+	if object.Data.Owner != nil && object.Data.Owner.Shared != nil {
+		return &sui_types.CallArg{
+			Object: &sui_types.ObjectArg{
+				SharedObject: &struct {
+					Id                   sui_types.ObjectID
+					InitialSharedVersion sui_types.SequenceNumber
+					Mutable              bool
+				}{
+					Id:                   object.Data.ObjectId,
+					InitialSharedVersion: *object.Data.Owner.Shared.InitialSharedVersion,
+					Mutable:              true,
+				},
+			},
+		}, nil
+	}
+
 	objRef := object.Data.Reference()
 
-	// return &sui_types.CallArg{
-	// 	Object: &sui_types.ObjectArg{
-	// 		ImmOrOwnedObject: &objRef,
-	// 	},
-	// }, nil
 	return &sui_types.CallArg{
 		Object: &sui_types.ObjectArg{
-			SharedObject: &struct {
-				Id                   sui_types.ObjectID
-				InitialSharedVersion sui_types.SequenceNumber
-				Mutable              bool
-			}{
-				Id:                   objRef.ObjectId,
-				InitialSharedVersion: 944734,
-				Mutable:              true,
-			},
+			ImmOrOwnedObject: &objRef,
 		},
 	}, nil
 }
