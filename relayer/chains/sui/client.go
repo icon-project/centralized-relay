@@ -21,7 +21,6 @@ import (
 
 const (
 	suiCurrencyType                           = "0x2::sui::SUI"
-	pickMethod                                = 1
 	baseSuiFee                                = 1000
 	suiStringType                             = "0x1::string::String"
 	suiU64                                    = "u64"
@@ -98,11 +97,17 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	if err != nil {
 		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
 	}
-	coinId := cl.getGasCoinId(ctx, address, gasBudget)
-	coinAddress, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
-	if err != nil {
-		return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
+
+	coinId, _ := cl.getGasCoinId(ctx, address, gasBudget)
+	var coinAddress move_types.AccountAddress
+	if coinId != nil {
+		coinAddr, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
+		if err != nil {
+			return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
+		}
+		coinAddress = *coinAddr
 	}
+
 	typeArgs := []string{}
 	var stringParams []interface{}
 	for _, s := range suiMessage.Params {
@@ -136,23 +141,20 @@ func (cl *Client) CommitTx(ctx context.Context, wallet *account.Account, txBytes
 	}, types.TxnRequestTypeWaitForLocalExecution)
 }
 
-func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) *types.Coin {
+func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) (*types.Coin, error) {
 	accountAddress, err := move_types.NewAccountAddressHex(addr)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting account address sender %s", addr), zap.Error(err))
-		return nil
+		return nil, err
 	}
 	result, err := c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting gas coins for address %s", addr), zap.Error(err))
-		return nil
+		return nil, err
 	}
-	_, t, err := result.PickSUICoinsWithGas(big.NewInt(baseSuiFee), gasCost, pickMethod)
+	_, coin, err := result.PickSUICoinsWithGas(big.NewInt(baseSuiFee), gasCost, types.PickBigger)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting gas coins with enough gas for address %s", addr), zap.Error(err))
-		return nil
+		return nil, err
 	}
-	return t
+	return coin, nil
 }
 
 func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {

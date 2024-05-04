@@ -7,6 +7,7 @@ import (
 	"cosmossdk.io/errors"
 	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
+	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -30,18 +31,26 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 func (p *Provider) MakeSuiMessage(message *providerTypes.Message) (*SuiMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
+		snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.Sn))
+		if err != nil {
+			return nil, err
+		}
 		callParams := []SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgPure, Val: message.Src},
-			{Type: CallArgPure, Val: message.Sn},
+			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: message.Data},
 		}
-		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, ConnectionModule, MethodRecvMessage), nil
+		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, EntryModule, MethodRecvMessage), nil
 	case events.CallMessage:
+		reqIdU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.ReqID))
+		if err != nil {
+			return nil, err
+		}
 		callParams := []SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.DappStateID},
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-			{Type: CallArgPure, Val: message.ReqID},
+			{Type: CallArgPure, Val: reqIdU128},
 			{Type: CallArgPure, Val: message.Data},
 		}
 		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, DappModule, MethodExecuteCall), nil
