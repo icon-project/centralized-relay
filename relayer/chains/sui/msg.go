@@ -9,10 +9,10 @@ type SuiCallArg struct {
 	Type string
 }
 type SuiMessage struct {
-	Params          []SuiCallArg
-	Method          string
-	PackageObjectId string
-	Module          string
+	Params    []SuiCallArg
+	Method    string
+	PackageId string
+	Module    string
 }
 
 func (m *SuiMessage) Type() string {
@@ -25,9 +25,9 @@ func (m *SuiMessage) MsgBytes() ([]byte, error) {
 
 func (p *Provider) NewSuiMessage(params []SuiCallArg, packageId, module, method string) *SuiMessage {
 	return &SuiMessage{
-		Params:          params,
-		PackageObjectId: packageId,
-		Module:          module,
-		Method:          method,
+		Params:    params,
+		PackageId: packageId,
+		Module:    module,
+		Method:    method,
 	}
 }

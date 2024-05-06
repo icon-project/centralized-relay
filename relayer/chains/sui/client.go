@@ -93,7 +93,7 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	if err != nil {
 		return &types.TransactionBytes{}, fmt.Errorf("error getting account address sender: %w", err)
 	}
-	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
+	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageId)
 	if err != nil {
 		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
 	}
@@ -109,12 +109,9 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 	}
 
 	typeArgs := []string{}
-	var stringParams []interface{}
-	for _, s := range suiMessage.Params {
-		stringParams = append(stringParams, fmt.Sprint(s.Val))
-	}
-	if stringParams == nil {
-		stringParams = make([]interface{}, 0)
+	var args []interface{}
+	for _, param := range suiMessage.Params {
+		args = append(args, param.Val)
 	}
 
 	resp := types.TransactionBytes{}
@@ -127,7 +124,7 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 		suiMessage.Module,
 		suiMessage.Method,
 		typeArgs,
-		stringParams,
+		args,
 		coinAddress,
 		types.NewSafeSuiBigInt(gasBudget),
 		"DevInspect",
@@ -158,7 +155,11 @@ func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) 
 }
 
 func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
-	txBlock, err := cl.rpc.GetTransactionBlock(ctx, lib.Base58(txDigest), types.SuiTransactionBlockResponseOptions{
+	b58Digest, err := lib.NewBase58(txDigest)
+	if err != nil {
+		return nil, err
+	}
+	txBlock, err := cl.rpc.GetTransactionBlock(ctx, *b58Digest, types.SuiTransactionBlockResponseOptions{
 		ShowEffects: true,
 	})
 	return txBlock, err
@@ -243,7 +244,7 @@ func (cl *Client) QueryContract(
 	resPtr interface{},
 ) error {
 	builder := sui_types.NewProgrammableTransactionBuilder()
-	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
+	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageId)
 	if err != nil {
 		return err
 	}

@@ -27,6 +27,8 @@ var (
 	EntryModule      = "centralized_entry"
 	XcallModule      = "xcall"
 	DappModule       = "mock_dapp"
+
+	suiCurrencyDenom = "SUI"
 )
 
 type Provider struct {
@@ -135,4 +137,20 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		p.cfg.XcallPkgID, EntryModule, MethodClaimFee)
 	_, err := p.SendTransaction(ctx, suiMessage)
 	return err
+}
+
+func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {
+	balance, err := p.client.GetTotalBalance(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &relayertypes.Coin{Amount: balance, Denom: suiCurrencyDenom}, nil
+}
+
+func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayertypes.Message) (bool, error) {
+	return true, nil
+}
+
+func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
+	return true, nil
 }
