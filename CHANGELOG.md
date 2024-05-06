@@ -133,7 +133,14 @@ Move the encrypted wallet passphrase to the new location:
 - Websocket connection disconnect issue with icon chain
 - Use `eth_gasPrice` for the gas price calculation all the time
 - Other improvements and bug fixes
+- Use block mined timeout instead of polling when waiting for transcation
 
 ### Removed
 
 - Icon redunant polling code
+
+## [1.2.2] - 2024-05-01
+
+### Fixed
+
+- Avoid nonce increment when fixing the nonce error while sending the transaction
