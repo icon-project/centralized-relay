@@ -34,7 +34,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
+	tx, err := p.SendTransaction(ctx, opts, message, MaxTxFixtures)
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
@@ -78,7 +78,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	case events.SetFee:
 		tx, err = p.client.SetFee(opts, message.Src, big.NewInt(int64(message.Sn)), big.NewInt(int64(message.ReqID)))
 	case events.ExecuteRollback:
-		tx, err = p.client.ExecuteRollback(opts, big.NewInt(0).SetUint64(message.Sn))
+		tx, err = p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}

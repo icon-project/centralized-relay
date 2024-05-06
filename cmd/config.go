@@ -175,6 +175,9 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	// build providers for each chain
 	chains := make(relayer.Chains)
 	for chainName, pcfg := range c.ProviderConfigs {
+		if !pcfg.Value.(provider.Config).Enabled() {
+			continue
+		}
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
 			a.homePath, a.debug, chainName,
@@ -204,8 +207,9 @@ type ProviderConfigs map[string]*ProviderConfigWrapper
 
 // ProviderConfigWrapper is an intermediary type for parsing arbitrary ProviderConfigs from json files and writing to json/yaml files
 type ProviderConfigWrapper struct {
-	Type  string          `yaml:"type"  json:"type"`
-	Value provider.Config `yaml:"value" json:"value"`
+	Type     string          `yaml:"type"  json:"type"`
+	Disabled bool            `yaml:"disabled" json:"disabled"`
+	Value    provider.Config `yaml:"value" json:"value"`
 }
 
 // ProviderConfigYAMLWrapper is an intermediary type for parsing arbitrary ProviderConfigs from yaml files
@@ -218,8 +222,9 @@ type ProviderConfigYAMLWrapper struct {
 // NOTE: Add new ProviderConfig types in the map here with the key set equal to the type of ChainProvider (e.g. cosmos, substrate, etc.)
 func (pcw *ProviderConfigWrapper) UnmarshalJSON(data []byte) error {
 	customTypes := map[string]reflect.Type{
-		"icon": reflect.TypeOf(icon.Config{}),
-		"evm":  reflect.TypeOf(evm.Config{}),
+		"icon":   reflect.TypeOf(icon.Config{}),
+		"evm":    reflect.TypeOf(evm.Config{}),
+		"cosmos": reflect.TypeOf(wasm.Config{}),
 	}
 	val, err := UnmarshalJSONProviderConfig(data, customTypes)
 	if err != nil {
@@ -250,7 +255,7 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 	case "evm":
 		iw.Value = new(evm.Config)
 	case "cosmos":
-		iw.Value = new(wasm.ProviderConfig)
+		iw.Value = new(wasm.Config)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}
@@ -261,7 +266,9 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 // UnmarshalJSONProviderConfig contains the custom unmarshalling logic for ProviderConfig structs
 func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Type) (any, error) {
 	m := map[string]any{
-		"icon": reflect.TypeOf(icon.Config{}),
+		"icon":   reflect.TypeOf(icon.Config{}),
+		"evm":    reflect.TypeOf(evm.Config{}),
+		"cosmos": reflect.TypeOf(wasm.Config{}),
 	}
 	if err := jsoniter.Unmarshal(data, &m); err != nil {
 		return nil, err
@@ -287,8 +294,9 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 	providers := make(ProviderConfigs)
 	for _, chain := range c.Chains {
 		pcfgw := &ProviderConfigWrapper{
-			Type:  chain.ChainProvider.Type(),
-			Value: chain.ChainProvider.Config(),
+			Type:     chain.ChainProvider.Type(),
+			Disabled: !chain.ChainProvider.Config().Enabled(),
+			Value:    chain.ChainProvider.Config(),
 		}
 		providers[chain.ChainProvider.Name()] = pcfgw
 	}

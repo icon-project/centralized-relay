@@ -25,7 +25,7 @@ type CodecConfig struct {
 	TxConfig          client.TxConfig
 }
 
-func GetCodecConfig(pc *ProviderConfig) *CodecConfig {
+func GetCodecConfig(pc *Config) *CodecConfig {
 	// Set the global configuration for address prefixes
 	config := sdkTypes.GetConfig()
 

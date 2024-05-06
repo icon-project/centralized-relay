@@ -26,6 +26,7 @@ type Config struct {
 	StepMin       int64                          `json:"step-min" yaml:"step-min"`
 	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
 	HomeDir       string                         `json:"-" yaml:"-"`
+	Disabled      bool                           `json:"disabled" yaml:"disabled"`
 }
 
 // NewProvider returns new Icon provider
@@ -67,6 +68,11 @@ func (p *Config) SetWallet(addr string) {
 
 func (p *Config) GetWallet() string {
 	return p.Address
+}
+
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
 }
 
 type Provider struct {

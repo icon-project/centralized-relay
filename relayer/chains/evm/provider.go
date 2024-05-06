@@ -36,7 +36,8 @@ var (
 	MethodGetFee        = "getFee"
 
 	// Xcall contract
-	MethodExecuteCall = "executeCall"
+	MethodExecuteCall     = "executeCall"
+	MethodExecuteRollback = "executeRollback"
 )
 
 type Config struct {
@@ -46,14 +47,13 @@ type Config struct {
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
-	GasPrice       uint64                          `json:"gas-price" yaml:"gas-price"`
 	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
 	NID            string                          `json:"nid" yaml:"nid"`
 	HomeDir        string                          `json:"-" yaml:"-"`
+	Disabled       bool                            `json:"disabled" yaml:"disabled"`
 }
 
 type Provider struct {
@@ -132,6 +132,11 @@ func (p *Config) GetWallet() string {
 	return p.Address
 }
 
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
+}
+
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
 	return nil
@@ -150,12 +155,13 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Wallet() (*keystore.Key, error) {
+	ctx := context.Background()
 	if p.wallet == nil {
-		if err := p.RestoreKeystore(context.Background()); err != nil {
+		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
 		if p.NonceTracker.Get(p.wallet.Address) == nil {
-			nonce, err := p.client.NonceAt(context.Background(), p.wallet.Address, nil)
+			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -172,11 +178,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
 	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
 	defer cancel()
-	txr, err := p.client.WaitForTransactionMined(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-	return txr, nil
+	return p.client.WaitForTransactionMined(ctx, tx)
 }
 
 func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {

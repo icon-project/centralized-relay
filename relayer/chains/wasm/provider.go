@@ -25,7 +25,7 @@ import (
 
 type Provider struct {
 	logger    *zap.Logger
-	cfg       *ProviderConfig
+	cfg       *Config
 	client    IClient
 	kms       kms.KMS
 	wallet    sdkTypes.AccountI
@@ -225,11 +225,12 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 		WithSequence(seq)
 
 	if txf.SimulateAndExecute() {
-		_, adjusted, err := p.client.EstimateGas(txf, msgs...)
+		tx, adjusted, err := p.client.EstimateGas(txf, msgs...)
 		if err != nil {
 			return nil, err
 		}
 		txf = txf.WithGas(adjusted)
+		fmt.Println(tx.GasInfo)
 	}
 
 	if txf.Gas() < p.cfg.MinGasAmount {

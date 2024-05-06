@@ -231,12 +231,12 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 
 // Subscribe
 func (c *Client) Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error) {
-	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "client", query)
+	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "subscribe", query)
 }
 
 // Unsubscribe
 func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
-	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "client", query)
+	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "unsubscribe", query)
 }
 
 // IsConnected returns if the client is connected to the network

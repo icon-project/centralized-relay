@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type ProviderConfig struct {
+type Config struct {
 	RpcUrl  string `json:"rpc-url" yaml:"rpc-url"`
 	GrpcUrl string `json:"grpc-url" yaml:"grpc-url"`
 	ChainID string `json:"chain-id" yaml:"chain-id"`
@@ -53,9 +53,10 @@ type ProviderConfig struct {
 	FinalityBlock uint64 `json:"finality-block" yaml:"finality-block"`
 
 	ChainName string `json:"-" yaml:"-"`
+	Disabled  bool   `json:"disabled" yaml:"disabled"`
 }
 
-func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
+func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
 	pc.HomeDir = homePath
 	pc.ChainName = chainName
 
@@ -90,15 +91,15 @@ func (pc *ProviderConfig) NewProvider(ctx context.Context, log *zap.Logger, home
 	}, nil
 }
 
-func (pc *ProviderConfig) SetWallet(addr string) {
+func (pc *Config) SetWallet(addr string) {
 	pc.Address = addr
 }
 
-func (pc *ProviderConfig) GetWallet() string {
+func (pc *Config) GetWallet() string {
 	return pc.Address
 }
 
-func (pc *ProviderConfig) Validate() error {
+func (pc *Config) Validate() error {
 	if pc.ChainName == "" {
 		return fmt.Errorf("chain-name cannot be empty")
 	}
@@ -109,11 +110,16 @@ func (pc *ProviderConfig) Validate() error {
 	return nil
 }
 
-func (pc *ProviderConfig) sanitize() (*ProviderConfig, error) {
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
+}
+
+func (pc *Config) sanitize() (*Config, error) {
 	return pc, nil
 }
 
-func (c *ProviderConfig) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
+func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
 	codec := GetCodecConfig(c)
 
 	keyRing, err := keyring.New(
