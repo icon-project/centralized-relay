@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"cosmossdk.io/errors"
 	"github.com/coming-chat/go-sui/v2/sui_types"
@@ -22,7 +23,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	}
 	messageKey := message.MessageKey()
 	txRes, err := p.SendTransaction(ctx, suiMessage)
-	go p.executeRouteCallBack(*txRes, messageKey, suiMessage.Method, callback, err)
+	go p.executeRouteCallBack(txRes, messageKey, suiMessage.Method, callback, err)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction in sui")
 	}
@@ -88,14 +89,14 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types
 	return txnResp, err
 }
 
-func (p *Provider) executeRouteCallBack(txRes types.SuiTransactionBlockResponse, messageKey *relayertypes.MessageKey, method string, callback relayertypes.TxResponseFunc, err error) {
+func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse, messageKey *relayertypes.MessageKey, method string, callback relayertypes.TxResponseFunc, err error) {
 	// if error occurred before txn processing
-	if err != nil || txRes.Digest == nil {
+	if err != nil || txRes == nil || txRes.Digest == nil {
 		if err == nil {
 			err = fmt.Errorf("txn execution failed; received empty tx digest")
 		}
-		callback(messageKey, nil, err)
-		p.log.Error("failed to execute transaction", zap.Error(err))
+		callback(messageKey, &relayertypes.TxResponse{}, err)
+		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method))
 		return
 	}
 
@@ -106,8 +107,18 @@ func (p *Provider) executeRouteCallBack(txRes types.SuiTransactionBlockResponse,
 	txnData, err := p.client.GetTransaction(context.Background(), txRes.Digest.String())
 	if err != nil {
 		callback(messageKey, res, err)
-		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("tx_hash", txRes.Digest.String()))
+		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
 		return
+	}
+
+	if txnData.Checkpoint == nil {
+		time.Sleep(1 * time.Second) //time to wait until tx is included in some checkpoint
+		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
+		if err != nil {
+			callback(messageKey, res, err)
+			p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+			return
+		}
 	}
 
 	// assign tx successful height
@@ -118,6 +129,7 @@ func (p *Provider) executeRouteCallBack(txRes types.SuiTransactionBlockResponse,
 		callback(messageKey, res, err)
 		p.log.Info("failed transaction",
 			zap.Any("message-key", messageKey),
+			zap.String("method", method),
 			zap.String("tx_hash", txRes.Digest.String()),
 			zap.Int64("height", txnData.Checkpoint.Int64()),
 			zap.Error(err),
@@ -128,6 +140,7 @@ func (p *Provider) executeRouteCallBack(txRes types.SuiTransactionBlockResponse,
 	callback(messageKey, res, nil)
 	p.log.Info("successful transaction",
 		zap.Any("message-key", messageKey),
+		zap.String("method", method),
 		zap.String("tx_hash", txRes.Digest.String()),
 		zap.Int64("height", txnData.Checkpoint.Int64()),
 	)

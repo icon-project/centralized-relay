@@ -333,6 +333,7 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
 		for _, ev := range txRes.Events {
+			fmt.Printf("\nReceived Event: %+v\n", ev)
 			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,

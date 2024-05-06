@@ -70,3 +70,10 @@ type EmitEvent struct {
 	Msg []byte `json:"msg"`
 	To  string `json:"to"`
 }
+
+type CallMsgEvent struct {
+	ReqId string `json:"req_id"`
+	Data  []byte `json:"data"`
+	Sn    string `json:"sn"`
+	To    string `json:"to"`
+}

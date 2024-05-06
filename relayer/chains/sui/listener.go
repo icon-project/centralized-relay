@@ -71,6 +71,7 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 func (p *Provider) allowedEventTypes() []string {
 	return []string{
 		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"),
+		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "main", "CallMessage"),
 	}
 }
 
@@ -133,6 +134,20 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Sn = uint64(sn)
 		msg.Data = emitEvent.Msg
 		msg.Dst = emitEvent.To
+
+	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "main", "CallMessage"):
+		msg.EventType = relayerEvents.CallMessage
+		var callMsgEvent types.CallMsgEvent
+		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
+			return nil, err
+		}
+		sn, err := strconv.Atoi(callMsgEvent.Sn)
+		if err != nil {
+			return nil, err
+		}
+		msg.Sn = uint64(sn)
+		msg.Data = callMsgEvent.Data
+		msg.Dst = callMsgEvent.To
 
 	default:
 		return nil, fmt.Errorf("invalid event type")
