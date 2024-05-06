@@ -19,7 +19,7 @@ var (
 	MethodSetFee        = "set_fee"
 	MethodGetFee        = "get_fee"
 	MethodRevertMessage = "revert_message"
-	MethodSetAdmin      = "setAdmin"
+	MethodSetAdmin      = "set_admin"
 	MethodRecvMessage   = "receive_message"
 	MethodExecuteCall   = "execute_call"
 
