@@ -21,8 +21,6 @@ type Config struct {
 	XcallStorageID string `yaml:"xcall-storage-id"`
 	DappStateID    string `yaml:"dapp-state-id"`
 	HomeDir        string `yaml:"home-dir"`
-	GasPrice       uint64 `yaml:"gas-price"`
-	GasMin         uint64 `yaml:"gas-min"`
 	GasLimit       uint64 `yaml:"gas-limit"`
 }
 
