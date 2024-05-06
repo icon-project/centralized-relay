@@ -2,11 +2,15 @@ package sui
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"time"
 
 	"cosmossdk.io/errors"
+	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/move_types"
 	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
 	"github.com/fardream/go-bcs/bcs"
@@ -21,9 +25,14 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	if err != nil {
 		return err
 	}
-	messageKey := message.MessageKey()
-	txRes, err := p.SendTransaction(ctx, suiMessage)
-	go p.executeRouteCallBack(txRes, messageKey, suiMessage.Method, callback, err)
+
+	txBytes, err := p.prepareTxMoveCall(suiMessage)
+	if err != nil {
+		return err
+	}
+
+	txRes, err := p.SendTransaction(ctx, txBytes)
+	go p.executeRouteCallBack(txRes, message.MessageKey(), suiMessage.Method, callback, err)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction in sui")
 	}
@@ -72,16 +81,172 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 	}
 }
 
-func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types.SuiTransactionBlockResponse, error) {
+func (p *Provider) preparePTB(msg *SuiMessage) (lib.Base64Data, error) {
+	builder := sui_types.NewProgrammableTransactionBuilder()
+	packageId, err := move_types.NewAccountAddressHex(msg.PackageId)
+	if err != nil {
+		return nil, err
+	}
+
+	callArgs, err := p.paramsToCallArgs(msg.Params)
+	if err != nil {
+		return nil, err
+	}
+
+	err = builder.MoveCall(
+		*packageId,
+		move_types.Identifier(msg.Module),
+		move_types.Identifier(msg.Method),
+		[]move_types.TypeTag{},
+		callArgs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	bcsBytes, err := bcs.Marshal(builder.Finish())
+	if err != nil {
+		return nil, err
+	}
+	txBytes := append([]byte{0}, bcsBytes...)
+	b64Data, err := lib.NewBase64Data(base64.StdEncoding.EncodeToString(txBytes))
+	if err != nil {
+		return nil, err
+	}
+	return *b64Data, nil
+}
+
+func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
+	if _, err := p.Wallet(); err != nil {
+		return nil, err
+	}
+	accountAddress, err := move_types.NewAccountAddressHex(p.wallet.Address)
+	if err != nil {
+		return nil, fmt.Errorf("error getting account address sender: %w", err)
+	}
+	packageId, err := move_types.NewAccountAddressHex(msg.PackageId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid packageId: %w", err)
+	}
+
+	coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get coins: %w", err)
+	}
+	_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(5000), p.cfg.GasLimit, types.PickBigger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pick coin: %w", err)
+	}
+
+	var coinAddress *move_types.AccountAddress
+	if coin != nil {
+		coinAddr, err := move_types.NewAccountAddressHex(coin.CoinObjectId.String())
+		if err != nil {
+			return nil, fmt.Errorf("error getting gas coinid : %w", err)
+		}
+		coinAddress = coinAddr
+	}
+
+	typeArgs := []string{}
+	var args []interface{}
+	for _, param := range msg.Params {
+		args = append(args, param.Val)
+	}
+
+	res, err := p.client.MoveCall(
+		context.Background(),
+		*accountAddress,
+		*packageId,
+		msg.Module,
+		msg.Method,
+		typeArgs,
+		args,
+		coinAddress,
+		types.NewSafeSuiBigInt(p.cfg.GasLimit),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return res.TxBytes, nil
+}
+
+func (p *Provider) paramsToCallArgs(params []SuiCallArg) ([]sui_types.CallArg, error) {
+	var callArgs []sui_types.CallArg
+	for _, param := range params {
+		switch param.Type {
+		case CallArgObject:
+			arg, err := p.getCallArgObject(param.Val.(string))
+			if err != nil {
+				return nil, err
+			}
+			callArgs = append(callArgs, *arg)
+		case CallArgPure:
+			arg, err := p.getCallArgPure(param.Val)
+			if err != nil {
+				return nil, err
+			}
+			callArgs = append(callArgs, *arg)
+		default:
+			return nil, fmt.Errorf("invalid call arg type")
+		}
+	}
+	return callArgs, nil
+}
+
+func (p *Provider) getCallArgPure(arg interface{}) (*sui_types.CallArg, error) {
+	byteParam, err := bcs.Marshal(arg)
+	if err != nil {
+		return nil, err
+	}
+	return &sui_types.CallArg{
+		Pure: &byteParam,
+	}, nil
+}
+
+func (p *Provider) getCallArgObject(arg string) (*sui_types.CallArg, error) {
+	objectId, err := sui_types.NewAddressFromHex(arg)
+	if err != nil {
+		return nil, err
+	}
+	object, err := p.client.GetObject(context.Background(), *objectId, &types.SuiObjectDataOptions{
+		ShowType:  true,
+		ShowOwner: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %v", err)
+	}
+
+	if object.Data.Owner != nil && object.Data.Owner.Shared != nil {
+		return &sui_types.CallArg{
+			Object: &sui_types.ObjectArg{
+				SharedObject: &struct {
+					Id                   sui_types.ObjectID
+					InitialSharedVersion sui_types.SequenceNumber
+					Mutable              bool
+				}{
+					Id:                   object.Data.ObjectId,
+					InitialSharedVersion: *object.Data.Owner.Shared.InitialSharedVersion,
+					Mutable:              true,
+				},
+			},
+		}, nil
+	}
+
+	objRef := object.Data.Reference()
+
+	return &sui_types.CallArg{
+		Object: &sui_types.ObjectArg{
+			ImmOrOwnedObject: &objRef,
+		},
+	}, nil
+}
+
+func (p *Provider) SendTransaction(ctx context.Context, txBytes lib.Base64Data) (*types.SuiTransactionBlockResponse, error) {
 	wallet, err := p.Wallet()
 	if err != nil {
 		return nil, err
 	}
-	txnMetadata, err := p.client.ExecuteContract(ctx, msg, wallet.Address, p.cfg.GasLimit)
-	if err != nil {
-		return nil, err
-	}
-	dryRunResp, gasRequired, err := p.client.EstimateGas(ctx, txnMetadata.TxBytes)
+
+	dryRunResp, gasRequired, err := p.client.SimulateTx(ctx, txBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed estimating gas: %w", err)
 	}
@@ -91,12 +256,12 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types
 	if !dryRunResp.Effects.Data.IsSuccess() {
 		return nil, fmt.Errorf(dryRunResp.Effects.Data.V1.Status.Error)
 	}
-	signature, err := wallet.SignSecureWithoutEncode(txnMetadata.TxBytes, sui_types.DefaultIntent())
+	signature, err := wallet.SignSecureWithoutEncode(txBytes, sui_types.DefaultIntent())
 	if err != nil {
 		return nil, err
 	}
 	signatures := []any{signature}
-	txnResp, err := p.client.CommitTx(ctx, wallet, txnMetadata.TxBytes, signatures)
+	txnResp, err := p.client.ExecuteTx(ctx, wallet, txBytes, signatures)
 
 	return txnResp, err
 }
@@ -186,8 +351,15 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	if err != nil {
 		return msgReceived, err
 	}
-	if err := p.client.QueryContract(ctx, suiMessage, wallet.Address, p.cfg.GasLimit, &msgReceived); err != nil {
+
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
 		return msgReceived, err
 	}
+
+	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &msgReceived); err != nil {
+		return msgReceived, err
+	}
+
 	return msgReceived, nil
 }

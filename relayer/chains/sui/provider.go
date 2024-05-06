@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -91,16 +92,29 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: adminAddr},
 	}, p.cfg.XcallPkgID, EntryModule, MethodSetAdmin)
-	_, err := p.SendTransaction(ctx, suiMessage)
-	return err
+
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
+		return err
+	}
+	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgPure, Val: sn},
 	}, p.cfg.XcallPkgID, EntryModule, MethodRevertMessage)
-	_, err := p.SendTransaction(ctx, suiMessage)
-	return err
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
+		return err
+	}
+	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
@@ -113,21 +127,32 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	if err != nil {
 		return fee, err
 	}
-	if err := p.client.QueryContract(ctx, suiMessage, wallet.Address, p.cfg.GasLimit, &fee); err != nil {
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
+		return fee, err
+	}
+	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &fee); err != nil {
 		return fee, err
 	}
 	return fee, nil
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	fee := strconv.Itoa(int(msgFee))
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: networkID},
-		{Type: CallArgPure, Val: msgFee},
-		{Type: CallArgPure, Val: resFee},
+		{Type: CallArgPure, Val: fee},
+		{Type: CallArgPure, Val: fee},
 	}, p.cfg.XcallPkgID, EntryModule, MethodSetFee)
-	_, err := p.SendTransaction(ctx, suiMessage)
-	return err
+	txBytes, err := p.prepareTxMoveCall(suiMessage)
+	if err != nil {
+		return err
+	}
+	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
@@ -135,8 +160,14 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 	},
 		p.cfg.XcallPkgID, EntryModule, MethodClaimFee)
-	_, err := p.SendTransaction(ctx, suiMessage)
-	return err
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
+		return err
+	}
+	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {
