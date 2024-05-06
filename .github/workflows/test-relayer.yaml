@@ -1,0 +1,66 @@
+name: Test Relayer Locally - Icon/Archway
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  relay-local-deployment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      # Install and setup go
+      - name: Set up Go 1.22.2
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.22.2
+
+      # setup gopath
+      - name: Set PATH
+        run: |
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'  # Use the desired Python version
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      # Build relay 
+      - name: Build relayer
+        run: make install
+
+      # Install goloop
+      - name: Install goloop
+        run: go install github.com/icon-project/goloop/cmd/goloop@latest
+
+      
+      # Install local kms
+      - name: setup local kms
+        run: |
+          docker run -p 8080:8080 \
+            --mount type=bind,source="$(pwd)"/init,target=/init nsmithuk/local-kms
+           
+      - name: configure aws dummy credentials
+        run: | 
+      - name: configure keystore
+        run: |
+            AWS_ENDPOINT_URL=http://localhost:8080 centralized-relay keystore init
+
+      - name: start relay
+        env:
+            ANSIBLE_HOST_KEY_CHECKING: false 
+        working-directory: scripts/ansible_deploy
+        run: |
+            ansible-playbook deploy.yml
+
+                              
