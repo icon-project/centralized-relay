@@ -44,6 +44,8 @@ type IClient interface {
 	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
 
 	GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error)
+
+	GetCoins(ctx context.Context, accountAddress string) (types.Coins, error)
 }
 
 type Client struct {
@@ -60,6 +62,14 @@ func NewClient(rpcClient *suisdkClient.Client, l *zap.Logger) *Client {
 
 func (c Client) GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error) {
 	return c.rpc.GetObject(ctx, objID, options)
+}
+
+func (c Client) GetCoins(ctx context.Context, addr string) (types.Coins, error) {
+	accountAddress, err := move_types.NewAccountAddressHex(addr)
+	if err != nil {
+		return nil, err
+	}
+	return c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
 }
 
 func (c Client) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
@@ -98,8 +108,11 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
 	}
 
-	coinId, _ := cl.getGasCoinId(ctx, address, gasBudget)
-	var coinAddress move_types.AccountAddress
+	coinId, err := cl.getGasCoinId(ctx, address, gasBudget)
+	if err != nil {
+		cl.log.Error("failed to get gas coin id:", zap.Error(err))
+	}
+	var coinAddress interface{}
 	if coinId != nil {
 		coinAddr, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
 		if err != nil {
@@ -127,7 +140,6 @@ func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, a
 		args,
 		coinAddress,
 		types.NewSafeSuiBigInt(gasBudget),
-		"DevInspect",
 	)
 }
 
@@ -333,7 +345,6 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
 		for _, ev := range txRes.Events {
-			fmt.Printf("\nReceived Event: %+v\n", ev)
 			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,

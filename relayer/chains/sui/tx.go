@@ -49,12 +49,23 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		if err != nil {
 			return nil, err
 		}
+
+		coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
+		if err != nil {
+			return nil, err
+		}
+		coin, err := coins.PickCoinNoLess(p.cfg.GasLimit)
+		if err != nil {
+			return nil, err
+		}
 		callParams := []SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.DappStateID},
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: coin.CoinObjectId.String()},
 			{Type: CallArgPure, Val: reqIdU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
+
 		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, DappModule, MethodExecuteCall), nil
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
@@ -86,6 +97,7 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *SuiMessage) (*types
 	}
 	signatures := []any{signature}
 	txnResp, err := p.client.CommitTx(ctx, wallet, txnMetadata.TxBytes, signatures)
+
 	return txnResp, err
 }
 

@@ -58,8 +58,6 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 					p.log.Error("failed to parse messages from events", zap.Error(err))
 				}
 
-				fmt.Printf("\nBlock Info List: %+v\n", blockInfoList)
-
 				for _, blockMsg := range blockInfoList {
 					blockStream <- &blockMsg
 				}
@@ -87,6 +85,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			zap.String("event-type", msg.EventType),
 			zap.Uint64("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
+			zap.Uint64("req-id", msg.ReqID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
 		checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
@@ -117,8 +116,6 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("\nEvent Received: %+v\n", ev)
 
 	switch ev.Type {
 	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"):
