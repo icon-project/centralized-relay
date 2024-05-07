@@ -3,7 +3,6 @@ package sui
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"slices"
 	"strconv"
 
@@ -124,22 +123,6 @@ func (cl *Client) ExecuteTx(ctx context.Context, wallet *account.Account, txByte
 		ShowEffects: true,
 		ShowEvents:  true,
 	}, types.TxnRequestTypeWaitForLocalExecution)
-}
-
-func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) (*types.Coin, error) {
-	accountAddress, err := move_types.NewAccountAddressHex(addr)
-	if err != nil {
-		return nil, err
-	}
-	result, err := c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
-	if err != nil {
-		return nil, err
-	}
-	_, coin, err := result.PickSUICoinsWithGas(big.NewInt(baseSuiFee), gasCost, types.PickBigger)
-	if err != nil {
-		return nil, err
-	}
-	return coin, nil
 }
 
 func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
