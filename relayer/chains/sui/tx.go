@@ -59,6 +59,10 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
+		if _, err := p.Wallet(); err != nil {
+			return nil, err
+		}
+
 		coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
 		if err != nil {
 			return nil, err
@@ -248,7 +252,7 @@ func (p *Provider) SendTransaction(ctx context.Context, txBytes lib.Base64Data) 
 
 	dryRunResp, gasRequired, err := p.client.SimulateTx(ctx, txBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed estimating gas: %w", err)
+		return nil, fmt.Errorf("failed simulating tx: %w", err)
 	}
 	if gasRequired > int64(p.cfg.GasLimit) {
 		return nil, fmt.Errorf("gas requirement is too high: %d", gasRequired)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -138,7 +137,13 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
-	fee := strconv.Itoa(int(msgFee))
+	// fee, err := types.NewUint64FromBigInt(bcs.NewBigIntFromUint64(msgFee))
+	// if err != nil {
+	// 	return err
+	// }
+
+	fee := fmt.Sprint(msgFee)
+
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: networkID},
