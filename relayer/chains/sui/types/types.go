@@ -74,6 +74,4 @@ type EmitEvent struct {
 type CallMsgEvent struct {
 	ReqId string `json:"req_id"`
 	Data  []byte `json:"data"`
-	Sn    string `json:"sn"`
-	To    string `json:"to"`
 }

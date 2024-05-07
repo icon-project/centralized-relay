@@ -138,13 +138,12 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
 			return nil, err
 		}
-		sn, err := strconv.Atoi(callMsgEvent.Sn)
+		msg.Data = callMsgEvent.Data
+		reqID, err := strconv.Atoi(callMsgEvent.ReqId)
 		if err != nil {
 			return nil, err
 		}
-		msg.Sn = uint64(sn)
-		msg.Data = callMsgEvent.Data
-		msg.Dst = callMsgEvent.To
+		msg.ReqID = uint64(reqID)
 
 	default:
 		return nil, fmt.Errorf("invalid event type")

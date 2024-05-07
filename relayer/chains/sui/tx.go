@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"cosmossdk.io/errors"
@@ -54,11 +55,6 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, EntryModule, MethodRecvMessage), nil
 	case events.CallMessage:
-		reqIdU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.ReqID))
-		if err != nil {
-			return nil, err
-		}
-
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
 		}
@@ -67,7 +63,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		if err != nil {
 			return nil, err
 		}
-		coin, err := coins.PickCoinNoLess(p.cfg.GasLimit)
+		_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(int64(suiBaseFee)), p.cfg.GasLimit, types.PickBigger)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +71,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgObject, Val: p.cfg.DappStateID},
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-			{Type: CallArgPure, Val: reqIdU128},
+			{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
 
@@ -132,24 +128,6 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		return nil, fmt.Errorf("invalid packageId: %w", err)
 	}
 
-	coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get coins: %w", err)
-	}
-	_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(5000), p.cfg.GasLimit, types.PickBigger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pick coin: %w", err)
-	}
-
-	var coinAddress *move_types.AccountAddress
-	if coin != nil {
-		coinAddr, err := move_types.NewAccountAddressHex(coin.CoinObjectId.String())
-		if err != nil {
-			return nil, fmt.Errorf("error getting gas coinid : %w", err)
-		}
-		coinAddress = coinAddr
-	}
-
 	typeArgs := []string{}
 	var args []interface{}
 	for _, param := range msg.Params {
@@ -164,7 +142,7 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		msg.Method,
 		typeArgs,
 		args,
-		coinAddress,
+		nil,
 		types.NewSafeSuiBigInt(p.cfg.GasLimit),
 	)
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 
 const (
 	suiCurrencyType                           = "0x2::sui::SUI"
-	baseSuiFee                                = 1000
 	suiStringType                             = "0x1::string::String"
 	suiU64                                    = "u64"
 	suiBool                                   = "bool"

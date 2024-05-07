@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -29,6 +30,7 @@ var (
 	DappModule       = "mock_dapp"
 
 	suiCurrencyDenom = "SUI"
+	suiBaseFee       = 1000
 )
 
 type Provider struct {
@@ -137,26 +139,24 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
-	// fee, err := types.NewUint64FromBigInt(bcs.NewBigIntFromUint64(msgFee))
-	// if err != nil {
-	// 	return err
-	// }
-
-	fee := fmt.Sprint(msgFee)
-
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: networkID},
-		{Type: CallArgPure, Val: fee},
-		{Type: CallArgPure, Val: fee},
+		{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
+		{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
 	}, p.cfg.XcallPkgID, EntryModule, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
 	}
-	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+	res, err := p.SendTransaction(ctx, txBytes)
+	if err != nil {
 		return err
 	}
+	p.log.Info("set fee txn successful",
+		zap.String("network-id", networkID),
+		zap.String("tx-hash", res.Digest.String()),
+	)
 	return nil
 }
 
@@ -165,13 +165,17 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 	},
 		p.cfg.XcallPkgID, EntryModule, MethodClaimFee)
-	txBytes, err := p.preparePTB(suiMessage)
+	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
 	}
-	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+	res, err := p.SendTransaction(ctx, txBytes)
+	if err != nil {
 		return err
 	}
+	p.log.Info("claim fee txn successful",
+		zap.String("tx-hash", res.Digest.String()),
+	)
 	return nil
 }
 
