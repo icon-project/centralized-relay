@@ -150,12 +150,22 @@ func (cl *Client) QueryContract(ctx context.Context, senderAddr string, txBytes 
 		return fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
 	}
 	if len(res.Results) > 0 && len(res.Results[0].ReturnValues) > 0 {
-		returnVal := res.Results[0].ReturnValues[0]
-		byteSlice, ok := returnVal.([]byte)
-		if !ok {
-			return err
+		returnValues := res.Results[0].ReturnValues[0]
+		returnResult := returnValues.([]interface{})[0]
+
+		if _, ok := returnResult.([]byte); ok {
+			if _, err := bcs.Unmarshal([]byte(returnResult.([]byte)), resPtr); err != nil {
+				return err
+			}
+			return nil
 		}
-		if _, err := bcs.Unmarshal(byteSlice, resPtr); err != nil {
+
+		resultBytes := []byte{}
+		for _, el := range returnResult.([]interface{}) {
+			resultBytes = append(resultBytes, byte(el.(float64)))
+		}
+
+		if _, err := bcs.Unmarshal(resultBytes, resPtr); err != nil {
 			return err
 		}
 		return nil

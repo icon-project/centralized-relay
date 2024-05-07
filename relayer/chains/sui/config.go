@@ -20,6 +20,7 @@ type Config struct {
 	DappPkgID      string `yaml:"dapp-package-id"`
 	XcallStorageID string `yaml:"xcall-storage-id"`
 	DappStateID    string `yaml:"dapp-state-id"`
+	FeeBagID       string `yaml:"fee-bag-id"`
 	HomeDir        string `yaml:"home-dir"`
 	GasLimit       uint64 `yaml:"gas-limit"`
 }
