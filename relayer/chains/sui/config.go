@@ -13,7 +13,6 @@ type Config struct {
 	ChainID        string `yaml:"chain-id"`
 	ChainName      string `yaml:"-"`
 	RPCUrl         string `yaml:"rpc-url"`
-	WsUrl          string `yaml:"ws-url"`
 	Address        string `yaml:"address"`
 	NID            string `json:"nid" yaml:"nid"`
 	XcallPkgID     string `yaml:"xcall-package-id"`
