@@ -58,7 +58,8 @@ func (cl *Client) GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLed
 
 func (cl *Client) FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error) {
 	req := horizonclient.TransactionRequest{
-		ForLedger: uint(eventFilter.LedgerSeq),
+		ForLedger:     uint(eventFilter.LedgerSeq),
+		IncludeFailed: false,
 	}
 	txnPage, err := cl.horizon.Transactions(req)
 	if err != nil {

@@ -3,7 +3,7 @@ package types
 import "github.com/stellar/go/xdr"
 
 const (
-	ChainType          = "steller"
+	ChainType          = "stellar"
 	LedgerSeqBatchSize = 50 // the number of ledger sequences to query concurrently for listener
 )
 

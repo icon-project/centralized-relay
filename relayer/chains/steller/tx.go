@@ -22,13 +22,16 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	if err != nil {
 		return err
 	}
-
 	txRes, err := p.sendCallTransaction(*callArgs)
-
 	cbTxResp := &relayertypes.TxResponse{}
+	responseCode := relayertypes.Failed
+	if txRes != nil && txRes.Successful {
+		responseCode = relayertypes.Success
+	}
 	if txRes != nil {
 		cbTxResp.Height = int64(txRes.Ledger)
 		cbTxResp.TxHash = txRes.Hash
+		cbTxResp.Code = responseCode
 	}
 
 	var cbErr error
@@ -46,14 +49,12 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizon.Transaction, error) {
 	p.txmut.Lock()
 	defer p.txmut.Unlock()
-
 	callOp := txnbuild.InvokeHostFunction{
 		HostFunction: xdr.HostFunction{
 			Type:           xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
 			InvokeContract: &callArgs,
 		},
 	}
-
 	sourceAccount, err := p.client.AccountDetail(p.wallet.Address())
 	if err != nil {
 		return nil, err
@@ -61,7 +62,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	if _, err := sourceAccount.IncrementSequenceNumber(); err != nil {
 		return nil, err
 	}
-
 	txParam := txnbuild.TransactionParams{
 		SourceAccount:        &sourceAccount,
 		IncrementSequenceNum: false,
@@ -84,7 +84,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	if err != nil {
 		return nil, err
 	}
-
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
 		return nil, err
@@ -94,12 +93,27 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		V:           1,
 		SorobanData: &sorobanTxnData,
 	}
-
+	var auth []xdr.SorobanAuthorizationEntry
+	for _, res := range simres.Results {
+		var decodedRes xdr.ScVal
+		err := xdr.SafeUnmarshalBase64(res.Xdr, &decodedRes)
+		if err != nil {
+			return nil, err
+		}
+		for _, authBase64 := range res.Auth {
+			var authEntry xdr.SorobanAuthorizationEntry
+			err = xdr.SafeUnmarshalBase64(authBase64, &authEntry)
+			if err != nil {
+				return nil, err
+			}
+			auth = append(auth, authEntry)
+		}
+	}
+	callOp.Auth = auth
 	minResourceFee, err := strconv.Atoi(simres.MinResourceFee)
 	if err != nil {
 		return nil, err
 	}
-
 	txParam.BaseFee = int64(minResourceFee) + int64(p.cfg.MaxInclusionFee)
 
 	tx, err := txnbuild.NewTransaction(txParam)
@@ -115,7 +129,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	txRes, err := p.client.SubmitTransactionXDR(txe)
-
 	return &txRes, err
 }
 
@@ -137,8 +150,8 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("recv_message"),
 			Args: []xdr.ScVal{
-				stellerMsg.ScvSn(),
 				stellerMsg.ScvSrc(),
+				stellerMsg.ScvSn(),
 				stellerMsg.ScvData(),
 			},
 		}, nil
@@ -148,6 +161,84 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			FunctionName:    xdr.ScSymbol("execute_call"),
 			Args: []xdr.ScVal{
 				stellerMsg.ScvReqID(),
+				stellerMsg.ScvData(),
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("invalid message type")
+	}
+}
+
+func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...interface{}) (*xdr.InvokeContractArgs, error) {
+	scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
+	if err != nil {
+		return nil, err
+	}
+	scConnAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+	if err != nil {
+		return nil, err
+	}
+
+	stellerMsg := types.StellerMsg{Message: msg}
+
+	switch msg.EventType {
+	case evtypes.GetFee:
+		rollBackVal := params[0].(bool)
+		rollbackParam := xdr.ScVal{
+			Type: xdr.ScValTypeScvBool,
+			B:    &rollBackVal,
+		}
+		src := &xdr.ScVec{}
+		sources := xdr.ScVal{
+			Type: xdr.ScValTypeScvVec,
+			Vec:  &src,
+		}
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scXcallAddr,
+			FunctionName:    xdr.ScSymbol("get_fee"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSrc(),
+				rollbackParam,
+				sources,
+			},
+		}, nil
+	case evtypes.SetFee:
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scConnAddr,
+			FunctionName:    xdr.ScSymbol("set_fee"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSrc(),
+				stellerMsg.ScvSn(),
+				stellerMsg.ScvReqID(),
+			},
+		}, nil
+	case evtypes.SetAdmin:
+		adminAddress := stellerMsg.Src
+		acc := xdr.MustAddressPtr(adminAddress)
+		adminAddressVal := xdr.ScVal{
+			Type: xdr.ScValTypeScvAddress,
+			Address: &xdr.ScAddress{
+				AccountId: acc,
+			},
+		}
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scXcallAddr,
+			FunctionName:    xdr.ScSymbol("set_admin"),
+			Args: []xdr.ScVal{
+				adminAddressVal,
+			},
+		}, nil
+	case evtypes.ClaimFee:
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scConnAddr,
+			FunctionName:    xdr.ScSymbol("claim_fees"),
+		}, nil
+	case evtypes.RevertMessage:
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scXcallAddr,
+			FunctionName:    xdr.ScSymbol("revert_message"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSn(),
 			},
 		}, nil
 	default:
@@ -194,10 +285,10 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	}
 	callArgs := xdr.InvokeContractArgs{
 		ContractAddress: *connAddr,
-		FunctionName:    xdr.ScSymbol("getReceipts"),
+		FunctionName:    xdr.ScSymbol("get_receipt"),
 		Args: []xdr.ScVal{
-			stellerMsg.ScvSn(),
 			stellerMsg.ScvSrc(),
+			stellerMsg.ScvSn(),
 		},
 	}
 
@@ -239,12 +330,10 @@ func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScV
 	if err != nil {
 		return err
 	}
-
 	queryRes, err := p.client.SimulateTransaction(queryTxe)
 	if err != nil {
 		return err
 	}
-
 	for _, callResult := range queryRes.Results {
 		resBytes, err := base64.StdEncoding.DecodeString(callResult.Xdr)
 		if err != nil {

@@ -10,7 +10,10 @@ type StellerMsg struct {
 }
 
 func (m StellerMsg) ScvSn() xdr.ScVal {
-	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU64, xdr.Uint64(m.Sn))
+	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, xdr.UInt128Parts{
+		Hi: xdr.Uint64(0),
+		Lo: xdr.Uint64(m.Sn),
+	})
 	return scVal
 }
 
@@ -20,7 +23,10 @@ func (m StellerMsg) ScvMessageHeight() xdr.ScVal {
 }
 
 func (m StellerMsg) ScvReqID() xdr.ScVal {
-	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU64, xdr.Uint64(m.ReqID))
+	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, xdr.UInt128Parts{
+		Hi: xdr.Uint64(0),
+		Lo: xdr.Uint64(m.ReqID),
+	})
 	return scVal
 }
 
