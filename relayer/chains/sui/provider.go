@@ -145,7 +145,6 @@ func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee b
 		return 0, err
 	}
 
-	fmt.Println("Admin address: ", adminAddr.String())
 	return 0, nil
 }
 
