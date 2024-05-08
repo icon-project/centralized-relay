@@ -8,8 +8,6 @@ import (
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/coming-chat/go-sui/v2/move_types"
-	"github.com/coming-chat/go-sui/v2/sui_types"
-	suitypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -116,13 +114,17 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
 		{Type: CallArgPure, Val: sn},
 	}, p.cfg.XcallPkgID, EntryModule, MethodRevertMessage)
-	txBytes, err := p.preparePTB(suiMessage)
+	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
 	}
-	if _, err := p.SendTransaction(ctx, txBytes); err != nil {
+	res, err := p.SendTransaction(ctx, txBytes)
+	if err != nil {
 		return err
 	}
+	p.log.Info("revert message txn successful",
+		zap.String("tx-hash", res.Digest.String()),
+	)
 	return nil
 }
 
@@ -147,33 +149,12 @@ func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee b
 	return 0, nil
 }
 
-func (p *Provider) getFeeBag(ctx context.Context) (*move_types.AccountAddress, error) {
-	xcall, err := move_types.NewAccountAddressHex(p.cfg.XcallStorageID)
-	if err != nil {
-		return nil, err
-	}
-	obj, err := p.client.GetObject(ctx, *xcall, &suitypes.SuiObjectDataOptions{
-		ShowContent: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	connState := obj.Data.Content.Data.MoveObject.Fields.(map[string]interface{})["connection_states"]
-	bagId := connState.(map[string]interface{})["fields"].(map[string]interface{})["id"].(map[string]interface{})["id"].(string)
-	return sui_types.NewAddressFromHex(bagId)
-}
-
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	feeBag, err := p.getFeeBag(ctx)
-	if err != nil {
-		return 0, err
-	}
 	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: feeBag.String()},
+		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: networkID},
 		{Type: CallArgPure, Val: responseFee},
-	}, p.cfg.XcallPkgID, ConnectionModule, MethodGetFee)
+	}, p.cfg.XcallPkgID, EntryModule, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
