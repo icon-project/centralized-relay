@@ -207,9 +207,8 @@ type ProviderConfigs map[string]*ProviderConfigWrapper
 
 // ProviderConfigWrapper is an intermediary type for parsing arbitrary ProviderConfigs from json files and writing to json/yaml files
 type ProviderConfigWrapper struct {
-	Type     string          `yaml:"type"  json:"type"`
-	Disabled bool            `yaml:"disabled" json:"disabled"`
-	Value    provider.Config `yaml:"value" json:"value"`
+	Type  string          `yaml:"type"  json:"type"`
+	Value provider.Config `yaml:"value" json:"value"`
 }
 
 // ProviderConfigYAMLWrapper is an intermediary type for parsing arbitrary ProviderConfigs from yaml files
@@ -294,9 +293,8 @@ func (c *Config) Wrapped() *ConfigOutputWrapper {
 	providers := make(ProviderConfigs)
 	for _, chain := range c.Chains {
 		pcfgw := &ProviderConfigWrapper{
-			Type:     chain.ChainProvider.Type(),
-			Disabled: !chain.ChainProvider.Config().Enabled(),
-			Value:    chain.ChainProvider.Config(),
+			Type:  chain.ChainProvider.Type(),
+			Value: chain.ChainProvider.Config(),
 		}
 		providers[chain.ChainProvider.Name()] = pcfgw
 	}
