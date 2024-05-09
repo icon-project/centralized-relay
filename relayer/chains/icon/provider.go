@@ -25,12 +25,16 @@ type Config struct {
 	NID           string                         `json:"nid" yaml:"nid"`
 	StepMin       int64                          `json:"step-min" yaml:"step-min"`
 	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
+	StepBuffer    int                            `json:"step-buffer" yaml:"step-buffer"`
 	HomeDir       string                         `json:"-" yaml:"-"`
 }
 
 // NewProvider returns new Icon provider
 func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if err := c.sanitize(); err != nil {
 		return nil, err
 	}
 
@@ -58,6 +62,13 @@ func (c *Config) Validate() error {
 	// TODO: contractaddress validation
 	// TODO: account should have some balance no balance then use another accoutn
 
+	return nil
+}
+
+func (c *Config) sanitize() error {
+	if c.StepBuffer == 0 {
+		c.StepBuffer = 10
+	}
 	return nil
 }
 
