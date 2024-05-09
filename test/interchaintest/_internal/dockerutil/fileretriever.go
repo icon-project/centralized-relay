@@ -55,6 +55,7 @@ func (r *FileRetriever) SingleFileContent(ctx context.Context, volumeName, relPa
 			AutoRemove: true,
 		},
 		nil, // No networking necessary.
+		nil,
 		containerName,
 	)
 	if err != nil {

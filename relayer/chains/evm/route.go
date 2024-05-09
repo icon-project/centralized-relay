@@ -20,6 +20,7 @@ const (
 	ErrUnKnown            = "unknown"
 	ErrMaxTried           = "max tried"
 	ErrNonceTooLow        = "nonce too low"
+	ErrNonceTooHigh       = "nonce too high"
 )
 
 // this will be executed in go route
@@ -37,9 +38,8 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
-	go p.WaitForTxResult(ctx, tx, messageKey, callback)
 	p.NonceTracker.Inc(p.wallet.Address)
-	return nil
+	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 
 func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
@@ -84,31 +84,21 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	}
 	if err != nil {
 		switch p.parseErr(err, maxRetry > 0) {
-		case ErrorLessGas:
-			p.log.Info(ErrorLessGas, zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-			// GasPriceRatio (10%) percent increment
-			opts.GasPrice = big.NewInt(0).Add(opts.GasPrice, big.NewInt(0).Div(opts.GasPrice, big.NewInt(GasPriceRatio)))
-		case ErrorLimitLessThanGas:
-			p.log.Info("gasfee low", zap.Uint64("gas_price", opts.GasPrice.Uint64()))
-			// get gas price parsing error message
-			startIndex := strings.Index(err.Error(), "baseFee: ")
-			endIndex := strings.Index(err.Error(), "(supplied gas")
-			baseGasPrice := err.Error()[startIndex+len("baseFee: ") : endIndex-1]
-			gasPrice, ok := big.NewInt(0).SetString(baseGasPrice, 0)
-			if !ok {
-				gasPrice, err = p.client.SuggestGasPrice(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get gas price: %w", err)
-				}
+		case ErrorLessGas, ErrorLimitLessThanGas:
+			p.log.Info("gasfee low", zap.Error(err))
+			gasPrice, err := p.client.SuggestGasPrice(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get gas price: %w", err)
 			}
 			opts.GasPrice = gasPrice
-		case ErrNonceTooLow:
-			p.log.Info("nonce too low", zap.Uint64("nonce", opts.Nonce.Uint64()))
+		case ErrNonceTooLow, ErrNonceTooHigh:
+			p.log.Info("nonce mismatch", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Error(err))
 			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
 			if err != nil {
 				return nil, err
 			}
 			opts.Nonce = nonce
+			p.NonceTracker.Set(p.wallet.Address, nonce)
 		default:
 			return nil, err
 		}
@@ -118,43 +108,35 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	return tx, err
 }
 
-func (p *Provider) WaitForTxResult(
-	ctx context.Context,
-	tx *types.Transaction,
-	message *providerTypes.MessageKey,
-	callback providerTypes.TxResponseFunc,
-) {
+func (p *Provider) WaitForTxResult(ctx context.Context, tx *types.Transaction, m *providerTypes.MessageKey, callback providerTypes.TxResponseFunc) error {
 	if callback == nil {
 		// no point to wait for result if callback is nil
-		return
+		return nil
 	}
 
 	res := &providerTypes.TxResponse{
 		TxHash: tx.Hash().String(),
 	}
 
-	txReceipts, err := p.WaitForResults(ctx, tx.Hash())
+	txReceipts, err := p.WaitForResults(ctx, tx)
 	if err != nil {
-		p.log.Error("failed to get tx result",
-			zap.String("hash", res.TxHash),
-			zap.Any("message", message),
-			zap.Error(err))
-		callback(message, res, err)
-		return
+		p.log.Error("failed to get tx result", zap.String("hash", res.TxHash), zap.Any("message", m), zap.Error(err))
+		callback(m, res, err)
+		return err
 	}
 
 	res.Height = txReceipts.BlockNumber.Int64()
 
-	status := txReceipts.Status
-	if status != 1 {
+	if txReceipts.Status != types.ReceiptStatusSuccessful {
 		err = fmt.Errorf("transaction failed to execute")
-		callback(message, res, err)
-		p.LogFailedTx(message, txReceipts, err)
-		return
+		callback(m, res, err)
+		p.LogFailedTx(m, txReceipts, err)
+		return err
 	}
 	res.Code = providerTypes.Success
-	callback(message, res, nil)
-	p.LogSuccessTx(message, txReceipts)
+	callback(m, res, nil)
+	p.LogSuccessTx(m, txReceipts)
+	return nil
 }
 
 func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *types.Receipt) {
@@ -184,6 +166,8 @@ func (p *Provider) parseErr(err error, shouldParse bool) string {
 		return ErrorLessGas
 	case strings.Contains(msg, ErrNonceTooLow):
 		return ErrNonceTooLow
+	case strings.Contains(msg, ErrNonceTooHigh):
+		return ErrNonceTooHigh
 	default:
 		return ErrUnKnown
 	}

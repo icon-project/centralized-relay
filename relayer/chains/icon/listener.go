@@ -2,20 +2,14 @@ package icon
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/common"
-	"github.com/icon-project/goloop/common/codec"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-)
-
-const (
-	maxRetires = 5
 )
 
 type btpBlockResponse struct {
@@ -35,24 +29,14 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
-// TODO: check for balance and if the balance is low show info balance is low
-// starting listener
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
-	errCh := make(chan error)                                            // error channel
-	reconnectCh := make(chan struct{}, 1)                                // reconnect channel
-	btpBlockNotifCh := make(chan *types.BlockNotification, 100)          // block notification channel
-	btpBlockRespCh := make(chan *btpBlockResponse, cap(btpBlockNotifCh)) // block result channel
+	errCh := make(chan error)             // error channel
+	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
 		select {
 		case reconnectCh <- struct{}{}:
 		default:
-		}
-		for len(btpBlockRespCh) > 0 || len(btpBlockNotifCh) > 0 {
-			select {
-			case <-btpBlockRespCh: // clear block result channel
-			case <-btpBlockNotifCh: // clear block notification channel
-			}
 		}
 	}
 
@@ -65,12 +49,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 	// subscribe to monitor block
 	reconnect()
 
-	blockReq := &types.BlockRequest{
-		Height:       types.NewHexInt(int64(processedheight)),
-		EventFilters: p.GetMonitorEventFilters(),
+	eventReq := &types.EventRequest{
+		Height:           types.NewHexInt(processedheight),
+		EventFilter:      p.GetMonitorEventFilters(),
+		Logs:             types.NewHexInt(1),
+		ProgressInterval: types.NewHexInt(15),
 	}
 
-loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,16 +65,40 @@ loop:
 
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
-
 			go func(ctx context.Context, cancel context.CancelFunc) {
-				blockReq.Height = types.NewHexInt(int64(processedheight))
-				p.log.Debug("try to reconnect from", zap.Int64("height", processedheight))
-				err := p.client.MonitorBlock(ctx, blockReq, func(conn *websocket.Conn, v *types.BlockNotification) error {
+				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
-						btpBlockNotifCh <- v
+						p.log.Debug("event notification received", zap.Any("event", v))
+						if v.Progress != "" {
+							height, err := v.Progress.Value()
+							if err != nil {
+								p.log.Error("failed to get progress height", zap.Error(err))
+								return err
+							}
+							if height > 0 {
+								eventReq.Height = types.NewHexInt(height + 1)
+							}
+							return nil
+						}
+						msgs, err := p.parseMessageEvent(v)
+						if err != nil {
+							p.log.Error("failed to parse message event", zap.Error(err))
+							return err
+						}
+						for _, msg := range msgs {
+							p.log.Info("Detected eventlog",
+								zap.Uint64("height", msg.MessageHeight),
+								zap.String("target_network", msg.Dst),
+								zap.Uint64("sn", msg.Sn),
+								zap.String("event_type", msg.EventType),
+							)
+							incoming <- &providerTypes.BlockInfo{
+								Messages: msgs,
+								Height:   msg.MessageHeight,
+							}
+						}
 					}
-					return nil
-				}, func(conn *websocket.Conn) {
+					return err
 				}, func(conn *websocket.Conn, err error) {})
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
@@ -97,199 +106,10 @@ loop:
 					}
 					time.Sleep(time.Second * 5)
 					reconnect()
-					p.log.Warn("error occured during monitor block", zap.Error(err))
+					p.log.Warn("error occured during monitor event", zap.Error(err))
 				}
 			}(ctxMonitorBlock, cancelMonitorBlock)
-		case br := <-btpBlockRespCh:
-			for ; br != nil; processedheight++ {
-				p.log.Debug("block notification received", zap.Int64("height", int64(processedheight)))
-
-				// note: because of monitorLoop height should be subtract by 1
-				height := br.Height - 1
-
-				messages := p.parseMessagesFromEventlogs(p.log, br.EventLogs, uint64(height))
-
-				// TODO: check for the concurrency
-				incoming <- &providerTypes.BlockInfo{
-					Messages: messages,
-					Height:   uint64(height),
-				}
-
-				if br = nil; len(btpBlockRespCh) > 0 {
-					br = <-btpBlockRespCh
-				}
-			}
-			// remove unprocessed blockResponses
-			for len(btpBlockRespCh) > 0 {
-				<-btpBlockRespCh
-			}
-
-		default:
-			select {
-			default:
-			case bn := <-btpBlockNotifCh:
-				requestCh := make(chan *btpBlockRequest, cap(btpBlockNotifCh))
-				for i := int64(0); bn != nil; i++ {
-					height, err := bn.Height.Value()
-
-					if err != nil {
-						return err
-					} else if height != processedheight+i {
-						p.log.Warn("Reconnect: missing block notification",
-							zap.Int64("got", height),
-							zap.Int64("expected", processedheight+i),
-						)
-						reconnect()
-						continue loop
-					}
-
-					requestCh <- &btpBlockRequest{
-						height:  height,
-						hash:    bn.Hash,
-						indexes: bn.Indexes,
-						events:  bn.Events,
-						retry:   providerTypes.MaxTxRetry,
-					}
-					if bn = nil; len(btpBlockNotifCh) > 0 && len(requestCh) < cap(requestCh) {
-						bn = <-btpBlockNotifCh
-					}
-				}
-
-				brs := make([]*btpBlockResponse, 0, len(requestCh))
-				for request := range requestCh {
-					switch {
-					case request.err != nil:
-						if request.retry > 0 {
-							request.retry--
-							request.response, request.err = nil, nil
-							requestCh <- request
-							continue
-						}
-						p.log.Info("Request error ",
-							zap.Any("height", request.height),
-							zap.Error(request.err))
-						brs = append(brs, nil)
-						if len(brs) == cap(brs) {
-							close(requestCh)
-						}
-					case request.response != nil:
-						brs = append(brs, request.response)
-						if len(brs) == cap(brs) {
-							close(requestCh)
-						}
-					default:
-						go p.handleBlockRequest(request, requestCh)
-					}
-				}
-				// filter nil
-				_brs, brs := brs, brs[:0]
-				for _, v := range _brs {
-					if v != nil {
-						brs = append(brs, v)
-					}
-				}
-
-				// sort and forward notifications
-				if len(brs) > 0 {
-					sort.SliceStable(brs, func(i, j int) bool {
-						return brs[i].Height < brs[j].Height
-					})
-					for i, d := range brs {
-						if d.Height == processedheight+int64(i) {
-							btpBlockRespCh <- d
-						}
-					}
-				}
-
-			}
 		}
-	}
-}
-
-func (p *Provider) handleBlockRequest(request *btpBlockRequest, requestCh chan *btpBlockRequest) {
-	defer func() {
-		requestCh <- request
-	}()
-
-	if request.response == nil {
-		request.response = &btpBlockResponse{}
-	}
-	request.response.Height = request.height
-	request.response.Hash, request.err = request.hash.Value()
-	if request.err != nil {
-		request.err = errors.Wrapf(request.err,
-			"invalid hash: height=%v, hash=%v, %v", request.height, request.hash, request.err)
-		return
-	}
-
-	containsEventlogs := len(request.indexes) > 0 && len(request.events) > 0
-	if containsEventlogs {
-		blockHeader, err := p.client.GetBlockHeaderByHeight(request.height)
-		if err != nil {
-			request.err = errors.Wrapf(request.err, "getBlockHeader: %v", err)
-			return
-		}
-
-		var receiptHash types.BlockHeaderResult
-		_, err = codec.RLP.UnmarshalFromBytes(blockHeader.Result, &receiptHash)
-		if err != nil {
-			request.err = errors.Wrapf(err, "BlockHeaderResult.UnmarshalFromBytes: %v", err)
-			return
-		}
-
-		var eventlogs []*types.EventLog
-		for id := 0; id < len(request.indexes); id++ {
-			for i, index := range request.indexes[id] {
-				proof := &types.ProofEventsParam{
-					Index:     index,
-					BlockHash: request.hash,
-					Events:    request.events[id][i],
-				}
-
-				proofs, err := p.client.GetProofForEvents(proof)
-				if err != nil {
-					request.err = errors.Wrapf(err, "GetProofForEvents: %v", err)
-					return
-
-				}
-
-				// Processing receipt index
-				serializedReceipt, err := MptProve(index, proofs[0], receiptHash.ReceiptHash)
-				if err != nil {
-					request.err = errors.Wrapf(err, "MPTProve Receipt: %v", err)
-					return
-
-				}
-				var result types.TxResult
-				_, err = codec.RLP.UnmarshalFromBytes(serializedReceipt, &result)
-				if err != nil {
-					request.err = errors.Wrapf(err, "Unmarshal Receipt: %v", err)
-					return
-				}
-
-				for j := 0; j < len(proof.Events); j++ {
-					serializedEventLog, err := MptProve(proof.Events[j], proofs[j+1], common.HexBytes(result.EventLogsHash))
-					if err != nil {
-						request.err = errors.Wrapf(err, "event.MPTProve: %v", err)
-						return
-					}
-					el := new(types.EventLog)
-					_, err = codec.RLP.UnmarshalFromBytes(serializedEventLog, el)
-					if err != nil {
-						request.err = errors.Wrapf(err, "event.UnmarshalFromBytes: %v", err)
-						return
-					}
-					p.log.Info("Detected eventlog",
-						zap.Int64("height", request.height),
-						zap.String("target_network", string(el.Indexed[1])),
-						zap.ByteString("sn", el.Indexed[2]),
-						zap.String("event_type", p.GetEventName(string(el.Indexed[0]))),
-					)
-					eventlogs = append(eventlogs, el)
-				}
-			}
-		}
-		request.response.EventLogs = eventlogs
 	}
 }
 
@@ -306,14 +126,14 @@ func (p *Provider) StartFromHeight(ctx context.Context, lastSavedHeight uint64) 
 		)
 	}
 
-	// priority2: lastsaveheight from db
-	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		return int64(lastSavedHeight), nil
-	}
-
 	// priority1: startHeight from config
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < latestHeight {
 		return int64(p.cfg.StartHeight), nil
+	}
+
+	// priority2: lastsaveheight from db
+	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
+		return int64(lastSavedHeight), nil
 	}
 
 	// priority3: latest height

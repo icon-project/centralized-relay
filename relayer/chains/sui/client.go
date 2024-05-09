@@ -2,9 +2,8 @@ package sui
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"math/big"
+	"slices"
 	"strconv"
 
 	"github.com/coming-chat/go-sui/v2/account"
@@ -20,25 +19,40 @@ import (
 
 const (
 	suiCurrencyType                           = "0x2::sui::SUI"
-	pickMethod                                = 1
-	baseSuiFee                                = 1000
 	suiStringType                             = "0x1::string::String"
 	suiU64                                    = "u64"
 	suiBool                                   = "bool"
 	moveCall        suisdkClient.UnsafeMethod = "moveCall"
+
+	CallArgPure   = "pure"
+	CallArgObject = "object"
 )
 
 type IClient interface {
 	GetLatestCheckpointSeq(ctx context.Context) (uint64, error)
 	GetTotalBalance(ctx context.Context, addr string) (uint64, error)
-	EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error)
-	ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error)
-	CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
+	SimulateTx(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error)
+	ExecuteTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error)
 	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
-	QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error)
+	QueryContract(ctx context.Context, senderAddr string, txBytes lib.Base64Data, resPtr interface{}) error
 
 	GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error)
-	GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error)
+	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
+
+	GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error)
+
+	GetCoins(ctx context.Context, accountAddress string) (types.Coins, error)
+
+	MoveCall(
+		ctx context.Context,
+		signer move_types.AccountAddress,
+		packageId move_types.AccountAddress,
+		module, function string,
+		typeArgs []string,
+		arguments []any,
+		gas *move_types.AccountAddress,
+		gasBudget types.SafeSuiBigInt[uint64],
+	) (*types.TransactionBytes, error)
 }
 
 type Client struct {
@@ -51,6 +65,31 @@ func NewClient(rpcClient *suisdkClient.Client, l *zap.Logger) *Client {
 		rpc: rpcClient,
 		log: l,
 	}
+}
+
+func (c Client) MoveCall(
+	ctx context.Context,
+	signer move_types.AccountAddress,
+	packageId move_types.AccountAddress,
+	module, function string,
+	typeArgs []string,
+	arguments []any,
+	gas *move_types.AccountAddress,
+	gasBudget types.SafeSuiBigInt[uint64],
+) (*types.TransactionBytes, error) {
+	return c.rpc.MoveCall(ctx, signer, packageId, module, function, typeArgs, arguments, gas, gasBudget)
+}
+
+func (c Client) GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error) {
+	return c.rpc.GetObject(ctx, objID, options)
+}
+
+func (c Client) GetCoins(ctx context.Context, addr string) (types.Coins, error) {
+	accountAddress, err := move_types.NewAccountAddressHex(addr)
+	if err != nil {
+		return nil, err
+	}
+	return c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
 }
 
 func (c Client) GetLatestCheckpointSeq(ctx context.Context) (uint64, error) {
@@ -73,178 +112,66 @@ func (c *Client) GetTotalBalance(ctx context.Context, addr string) (uint64, erro
 	return res.TotalBalance.BigInt().Uint64(), nil
 }
 
-// Returns dry run result of txn with gas and status response
-func (cl *Client) EstimateGas(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error) {
+func (cl *Client) SimulateTx(ctx context.Context, txBytes lib.Base64Data) (*types.DryRunTransactionBlockResponse, int64, error) {
 	dryrunResult, err := cl.rpc.DryRunTransaction(ctx, txBytes)
 	return dryrunResult, dryrunResult.Effects.Data.GasFee(), err
 }
 
-func (cl *Client) ExecuteContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (*types.TransactionBytes, error) {
-	accountAddress, err := move_types.NewAccountAddressHex(address)
-	if err != nil {
-		return &types.TransactionBytes{}, fmt.Errorf("error getting account address sender: %w", err)
-	}
-	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
-	if err != nil {
-		return &types.TransactionBytes{}, fmt.Errorf("invalid packageId: %w", err)
-	}
-	coinId := cl.getGasCoinId(ctx, address, gasBudget)
-	coinAddress, err := move_types.NewAccountAddressHex(coinId.CoinObjectId.String())
-	if err != nil {
-		return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
-	}
-	typeArgs := []string{}
-	var stringParams []interface{}
-	for _, s := range suiMessage.Params {
-		stringParams = append(stringParams, fmt.Sprint(s))
-	}
-	if stringParams == nil {
-		stringParams = make([]interface{}, 0)
-	}
-
-	resp := types.TransactionBytes{}
-	return &resp, cl.rpc.CallContext(
-		ctx,
-		&resp,
-		moveCall,
-		*accountAddress,
-		packageId,
-		suiMessage.Module,
-		suiMessage.Method,
-		typeArgs,
-		stringParams,
-		coinAddress,
-		types.NewSafeSuiBigInt(gasBudget),
-		"DevInspect",
-	)
-}
-
-func (cl *Client) CommitTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error) {
+func (cl *Client) ExecuteTx(ctx context.Context, wallet *account.Account, txBytes lib.Base64Data, signatures []any) (*types.SuiTransactionBlockResponse, error) {
 	return cl.rpc.ExecuteTransactionBlock(ctx, txBytes, signatures, &types.SuiTransactionBlockResponseOptions{
 		ShowEffects: true,
 		ShowEvents:  true,
 	}, types.TxnRequestTypeWaitForLocalExecution)
 }
 
-func (c *Client) getGasCoinId(ctx context.Context, addr string, gasCost uint64) *types.Coin {
-	accountAddress, err := move_types.NewAccountAddressHex(addr)
-	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting account address sender %s", addr), zap.Error(err))
-		return nil
-	}
-	result, err := c.rpc.GetSuiCoinsOwnedByAddress(ctx, *accountAddress)
-	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting gas coins for address %s", addr), zap.Error(err))
-		return nil
-	}
-	_, t, err := result.PickSUICoinsWithGas(big.NewInt(baseSuiFee), gasCost, pickMethod)
-	if err != nil {
-		c.log.Error(fmt.Sprintf("error getting gas coins with enough gas for address %s", addr), zap.Error(err))
-		return nil
-	}
-	return t
-}
-
 func (cl *Client) GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error) {
-	txBlock, err := cl.rpc.GetTransactionBlock(ctx, lib.Base58(txDigest), types.SuiTransactionBlockResponseOptions{
+	b58Digest, err := lib.NewBase58(txDigest)
+	if err != nil {
+		return nil, err
+	}
+	txBlock, err := cl.rpc.GetTransactionBlock(ctx, *b58Digest, types.SuiTransactionBlockResponseOptions{
 		ShowEffects: true,
 	})
 	return txBlock, err
 }
 
-// convert native params to bcs encoded params
-func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
-	var callArgs []sui_types.CallArg
-	for _, param := range suiMessage.Params {
-		byteParam, err := bcs.Marshal(param)
-		if err != nil {
-			return nil, err
-		}
-		callArgs = append(callArgs, sui_types.CallArg{
-			Pure: &byteParam,
-		})
-	}
-	return callArgs, nil
-}
-func (cl *Client) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
-	builder := sui_types.NewProgrammableTransactionBuilder()
-	packageId, err := move_types.NewAccountAddressHex(suiMessage.PackageObjectId)
+func (cl *Client) QueryContract(ctx context.Context, senderAddr string, txBytes lib.Base64Data, resPtr interface{}) error {
+	senderAddress, err := move_types.NewAccountAddressHex(senderAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	senderAddress, err := move_types.NewAccountAddressHex(address)
+
+	res, err := cl.rpc.DevInspectTransactionBlock(context.Background(), *senderAddress, txBytes, nil, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	callArgs, err := paramsToCallArgs(suiMessage)
-	if err != nil {
-		return nil, err
-	}
-	err = builder.MoveCall(
-		*packageId,
-		move_types.Identifier(suiMessage.Module),
-		move_types.Identifier(suiMessage.Method),
-		[]move_types.TypeTag{},
-		callArgs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	transaction := builder.Finish()
-	bcsBytes, err := bcs.Marshal(transaction)
-	if err != nil {
-		return nil, err
-	}
-	txBytes := append([]byte{0}, bcsBytes...)
-	b64Data, err := lib.NewBase64Data(base64.StdEncoding.EncodeToString(txBytes))
-	if err != nil {
-		return nil, err
-	}
-	res, err := cl.rpc.DevInspectTransactionBlock(context.Background(), *senderAddress, *b64Data, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+
 	if res.Error != nil {
-		return nil, fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
+		return fmt.Errorf("error occurred while calling sui contract: %s", *res.Error)
 	}
-	result := (res.Results[0].ReturnValues[0]).([]interface{})
-	resultType := result[1]
-	byteSlice, ok := result[0].([]interface{})
-	if !ok {
-		return nil, err
-	}
-	return extractResult(resultType, byteSlice, result[0])
-}
+	if len(res.Results) > 0 && len(res.Results[0].ReturnValues) > 0 {
+		returnValues := res.Results[0].ReturnValues[0]
+		returnResult := returnValues.([]interface{})[0]
 
-func extractResult(resultType interface{}, byteSlice []interface{}, defResult interface{}) (any, error) {
-	switch resultType {
-	case suiU64:
-		reverseUint8Array(byteSlice)
-		var result uint64
-		for _, v := range byteSlice {
-			result = (result << 8) | uint64(v.(float64))
+		if _, ok := returnResult.([]byte); ok {
+			if _, err := bcs.Unmarshal([]byte(returnResult.([]byte)), resPtr); err != nil {
+				return err
+			}
+			return nil
 		}
-		return result, nil
-	case suiStringType:
-		byteSlice = byteSlice[1:]
-		valueSlice := make([]byte, len(byteSlice))
 
-		for i, v := range byteSlice {
-			valueSlice[i] = byte(v.(float64))
+		resultBytes := []byte{}
+		for _, el := range returnResult.([]interface{}) {
+			resultBytes = append(resultBytes, byte(el.(float64)))
 		}
-		return string(valueSlice), nil
-	case suiBool:
-		boolValue := byteSlice[0].(float64)
-		return boolValue == 1, nil
-	default:
-		return defResult, nil
-	}
-}
 
-func reverseUint8Array(arr []interface{}) {
-	for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
-		arr[i], arr[j] = arr[j], arr[i]
+		if _, err := bcs.Unmarshal(resultBytes, resPtr); err != nil {
+			return err
+		}
+		return nil
 	}
+
+	return fmt.Errorf("got empty result")
 }
 
 func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
@@ -263,7 +190,7 @@ func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpoi
 	return &paginatedRes, nil
 }
 
-func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error) {
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error) {
 	txnBlockResponses := []*types.SuiTransactionBlockResponse{}
 
 	if err := c.rpc.CallContext(
@@ -279,10 +206,10 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, packageID string, di
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
 		for _, ev := range txRes.Events {
-			if ev.PackageId.String() == packageID {
+			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
-					Checkpoint: txRes.Checkpoint.Decimal().String(),
+					Checkpoint: txRes.Checkpoint.Uint64(),
 				})
 			}
 		}
