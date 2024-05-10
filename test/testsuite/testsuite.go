@@ -101,6 +101,10 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	if err := s.SetupXCall(ctx); err != nil {
 		return nil, err
 	}
+	portId := "transfer"
+	if err := s.DeployXCallMockApp(ctx, portId); err != nil {
+		return nil, err
+	}
 
 	if err := ic.BuildRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID); err != nil {
 		return nil, err
@@ -124,7 +128,6 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
 	createdChains := s.GetChains()
-	// chainA, chainB := createdChains[0], createdChains[1]
 	for idx, chain := range createdChains {
 		var connections []chains.XCallConnection
 		for id, cn := range createdChains {

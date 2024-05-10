@@ -26,29 +26,36 @@ import (
 	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
+	"github.com/icon-project/goloop/common/codec"
 	"github.com/pelletier/go-toml/v2"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	suiCurrencyType                           = "0x2::sui::SUI"
-	pickMethod                                = 1
-	baseSuiFee                                = 1000
-	suiStringType                             = "0x1::string::String"
-	suiU64                                    = "u64"
-	suiBool                                   = "bool"
-	moveCall        suisdkClient.UnsafeMethod = "moveCall"
-	publish         suisdkClient.UnsafeMethod = "publish"
-	queryEvents     suisdkClient.SuiXMethod   = "queryEvents"
-	callGasBudget                             = 5000000
-	deployGasBudget                           = "500000000"
-	xcallAdmin                                = "xcall-admin"
-	xcallStorage                              = "xcall-storage"
-	sui_rlp_path                              = "libs/sui_rlp"
-	adminCap                                  = "AdminCap"
-	witnessCarrier                            = "WitnessCarrier"
-	storage                                   = "Storage"
+	suiCurrencyType                             = "0x2::sui::SUI"
+	pickMethod                                  = 1
+	baseSuiFee                                  = 1000
+	suiStringType                               = "0x1::string::String"
+	suiU64                                      = "u64"
+	suiBool                                     = "bool"
+	moveCall          suisdkClient.UnsafeMethod = "moveCall"
+	publish           suisdkClient.UnsafeMethod = "publish"
+	queryEvents       suisdkClient.SuiXMethod   = "queryEvents"
+	callGasBudget                               = 5000000
+	deployGasBudget                             = "500000000"
+	xcallAdmin                                  = "xcall-admin"
+	xcallStorage                                = "xcall-storage"
+	sui_rlp_path                                = "libs/sui_rlp"
+	adminCap                                    = "AdminCap"
+	IdCapPrefix                                 = "-idcap"
+	StatePrefix                                 = "-state"
+	WitnessPrefix                               = "-witness"
+	witnessCarrier                              = "WitnessCarrier"
+	storage                                     = "Storage"
+	CentralConnModule                           = "centralized_entry"
+	MockAppModule                               = "mock_dapp"
+	RegisterXcall                               = "register_xcall"
 )
 
 func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
@@ -95,7 +102,7 @@ func (an *SuiRemotenet) CreateKey(ctx context.Context, keyName string) error {
 // DeployContract implements chains.Chain.
 func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (context.Context, error) {
 	filePath := "/xcall/" + keyName
-	stdout, _, err := an.ExecBin(ctx, "sui", "client", "publish", filePath, "--gas-budget", deployGasBudget, "--json")
+	stdout, _, err := an.ExecBin(ctx, "sui", "client", "publish", filePath, "--skip-dependency-verification", "--gas-budget", deployGasBudget, "--json")
 	if err != nil {
 		return ctx, err
 	}
@@ -130,46 +137,57 @@ func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (con
 func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	ctx, err := an.DeployContract(ctx, "mock_dapp")
+	ctx, err := an.DeployContract(ctx, MockAppModule)
 	if err != nil {
 		return err
 	}
 	deploymentInfo := ctx.Value("objId").(DepoymentInfo)
 	an.IBCAddresses[dappKey] = deploymentInfo.PackageId
-	an.IBCAddresses[dappKey+"-witness"] = deploymentInfo.Witness
-	an.log.Info("setup Dapp completed ", zap.Any("pacckageId", deploymentInfo.PackageId), zap.Any("witness", deploymentInfo.Witness))
+	an.IBCAddresses[dappKey+WitnessPrefix] = deploymentInfo.Witness
+	an.log.Info("setup Dapp completed ", zap.Any("packageId", deploymentInfo.PackageId), zap.Any("witness", deploymentInfo.Witness))
 
 	// register xcall
 	params := []interface{}{
 		an.IBCAddresses[xcallStorage],
-		an.IBCAddresses[dappKey+"-witness"],
+		an.IBCAddresses[dappKey+WitnessPrefix],
 	}
-	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "register_xcall")
+	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, RegisterXcall)
 	resp, err := an.callContract(ctx, msg)
 	for _, changes := range resp.ObjectChanges {
 		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
-			an.IBCAddresses[dappKey+"-state"] = changes.Data.Created.ObjectId.String()
+			an.IBCAddresses[dappKey+StatePrefix] = changes.Data.Created.ObjectId.String()
+			time.Sleep(2 * time.Second)
+			response, err := an.client.GetObject(ctx, changes.Data.Created.ObjectId, &types.SuiObjectDataOptions{
+				ShowContent: true,
+			})
+			if err != nil {
+				return err
+			}
+			fields := response.Data.Content.Data.MoveObject.Fields.(map[string]interface{})
+			js, _ := json.Marshal(fields)
+			var objRes ObjectResult
+			json.Unmarshal(js, &objRes)
+			an.IBCAddresses[dappKey+IdCapPrefix] = objRes.XcallCap.Fields.ID.ID
 		}
 	}
-	an.log.Info("register xcall completed ", zap.Any("dapp-state", an.IBCAddresses[dappKey+"-state"]))
+
+	an.log.Info("register xcall completed ", zap.Any("dapp-state", an.IBCAddresses[dappKey+StatePrefix]), zap.Any("dapp-state-idcap", an.IBCAddresses[dappKey+IdCapPrefix]))
 	if err != nil {
 		return err
 	}
 	// add connections
 	for _, connection := range connections {
-		// connections passed are  {connection emv.local 0x47c05BCCA7d57c87083EB4e586007530eE4539e9 0}
-		// Connection    string Nid           string Destination   string TimeoutHeight int `default:"100"`
 		params = []interface{}{
-			an.IBCAddresses[dappKey+"-state"],
+			an.IBCAddresses[dappKey+StatePrefix],
 			connection.Nid,
 			"centralized",
 			connection.Destination,
 		}
-		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "add_connection")
+		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "add_connection")
 		resp, err = an.callContract(ctx, msg)
 		for _, changes := range resp.ObjectChanges {
 			if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, "DappState") {
-				an.IBCAddresses[dappKey+connection.Connection+"-state"] = changes.Data.Created.ObjectId.String()
+				an.IBCAddresses[dappKey+connection.Connection+StatePrefix] = changes.Data.Created.ObjectId.String()
 			}
 		}
 		if err != nil {
@@ -217,11 +235,11 @@ func (an *SuiRemotenet) ExecuteRollback(ctx context.Context, sn string) (context
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	params := []interface{}{
-		an.IBCAddresses[dappKey+"-state"],
-		an.IBCAddresses["xcall-storage"],
+		an.IBCAddresses[dappKey+StatePrefix],
+		an.IBCAddresses[xcallStorage],
 		sn,
 	}
-	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "execute_rollback")
+	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "execute_rollback")
 	resp, err := an.callContract(ctx, msg)
 	if err != nil {
 		return ctx, err
@@ -237,22 +255,29 @@ func (an *SuiRemotenet) ExportState(ctx context.Context, height int64) (string, 
 
 // FindCallMessage implements chains.Chain.
 func (an *SuiRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from string, to string, sn string) (string, string, error) {
-	xCallKey := "xcall" //fmt.Sprintf("xcall-%s", testcase)
-	index := ""
-	event, err := an.FindEvent(ctx, startHeight, xCallKey, index)
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
+	xCallKey := an.GetContractAddress(dappKey) //fmt.Sprintf("xcall-%s", testcase)
+	index := sn
+	event, err := an.FindEvent(ctx, startHeight, xCallKey, index, "::main::CallMessage")
 	if err != nil {
 		return "", "", err
 	}
 	jsonData := (event.ParsedJson.(map[string]interface{}))
-	return jsonData["req_id"].(string), jsonData["data"].(string), nil
+	data := jsonData["data"].([]interface{})
+	valueSlice := make([]byte, len(data))
+	for i, v := range data {
+		valueSlice[i] = byte(v.(float64))
+	}
+	return jsonData["sn"].(string), string(valueSlice), nil
 }
 
-func (an *SuiRemotenet) getEvent(ctx context.Context) (*types.SuiEvent, error) {
+func (an *SuiRemotenet) getEvent(ctx context.Context, sn, eventType string) (*types.SuiEvent, error) {
 	limit := uint(100)
-	query := MoveEvent{
-		MoveEventModule: MoveEventModule{
+	query := MoveEventRequest{
+		MoveModule: MoveModule{
 			Package: an.IBCAddresses["xcall"],
-			Module:  "main",
+			Module:  CentralConnModule,
 		},
 	}
 	var resp types.EventPage
@@ -263,25 +288,24 @@ func (an *SuiRemotenet) getEvent(ctx context.Context) (*types.SuiEvent, error) {
 	}
 	for _, event := range resp.Data {
 		jsonData := (event.ParsedJson.(map[string]interface{}))
-		if jsonData["sn"] == "1" && strings.Contains(event.Type, "::main::CallMessage") {
+		if jsonData["sn"] == sn && strings.Contains(event.Type, eventType) {
 			return &event, nil
 		}
 	}
 	return nil, fmt.Errorf("event not found")
 }
 
-func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, index string) (*types.SuiEvent, error) {
+func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, index, eventType string) (*types.SuiEvent, error) {
 	timeout := time.After(60 * time.Second)
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	// txDigest, _ := lib.NewBase58("GUP5Z9rAhQ3Li6b54gyCFni4LJKudeB1M5BTJ4J1j2Xt")
 
 	for {
 		select {
 		case <-timeout:
 			return nil, fmt.Errorf("failed to find eventLog")
 		case <-ticker.C:
-			data, err := an.getEvent(ctx)
+			data, err := an.getEvent(ctx, index, eventType)
 			if err != nil {
 				continue
 			}
@@ -293,7 +317,18 @@ func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 
 // FindCallResponse implements chains.Chain.
 func (an *SuiRemotenet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
-	panic("unimplemented")
+
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
+	xCallKey := an.GetContractAddress(dappKey) //fmt.Sprintf("xcall-%s", testcase)
+	index := sn
+	event, err := an.FindEvent(ctx, startHeight, xCallKey, index, "::main::ResponseMessage")
+	if err != nil {
+		return "", err
+	}
+	jsonData := (event.ParsedJson.(map[string]interface{}))
+	return jsonData["sn"].(string), nil
+
 }
 
 // FindTargetXCallMessage implements chains.Chain.
@@ -301,8 +336,7 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	an.log.Info("Finding xcall msg ", zap.Any("sn", sn), zap.Any("target_chain", an.cfg.ChainID+"/"+an.IBCAddresses[dappKey]))
-	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey], to, sn)
+	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapPrefix][2:], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
@@ -332,7 +366,7 @@ func (an *SuiRemotenet) GetBlockByHeight(ctx context.Context) (context.Context, 
 // GetContractAddress implements chains.Chain.
 func (an *SuiRemotenet) GetContractAddress(key string) string {
 	if key == "connection" {
-		key = "xcall"
+		return "centralized"
 	}
 	value, exist := an.IBCAddresses[key]
 	if !exist {
@@ -379,21 +413,27 @@ func (an *SuiRemotenet) GetRPCAddress() string {
 
 // GetRelayConfig implements chains.Chain.
 func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	config := &centralized.SUIRelayerChainConfig{
 		Type: "sui",
 		Value: centralized.SUIRelayerChainConfigValue{
-			NID:           an.Config().ChainID,
-			RPCURL:        an.GetRPCAddress(),
-			StartHeight:   0,
-			NetworkID:     0x3,
-			Contracts:     contracts,
-			BlockInterval: "6s",
-			Address:       an.testconfig.RelayWalletAddress,
-			FinalityBlock: uint64(10),
-			StepMin:       25000,
-			StepLimit:     2500000,
+			NID:            an.Config().ChainID,
+			RPCURL:         an.GetRPCAddress(),
+			WebsocketUrl:   an.testconfig.WebsocketUrl,
+			XcallPkgId:     an.GetContractAddress("xcall"),
+			XcallStorageId: an.GetContractAddress(xcallStorage),
+			DappPkgId:      an.GetContractAddress(dappKey),
+			DappStateId:    an.GetContractAddress(dappKey + StatePrefix),
+			StartHeight:    0,
+			NetworkID:      0x3,
+			BlockInterval:  "0s",
+			Address:        an.testconfig.RelayWalletAddress,
+			FinalityBlock:  uint64(0),
+			GasPrice:       25000,
+			GasLimit:       2500000,
 		},
 	}
 	return yaml.Marshal(config)
@@ -448,14 +488,15 @@ func (an *SuiRemotenet) SendPacketXCall(ctx context.Context, keyName string, _to
 	}
 	gasFeeCoin := an.getGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget).CoinObjectId
 	coinId := an.getAnotherGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget, gasFeeCoin)
+	dt, _ := codec.RLP.MarshalToBytes(string(data))
 	params := []interface{}{
-		an.IBCAddresses[dappKey+"-state"],
+		an.IBCAddresses[dappKey+StatePrefix],
 		an.IBCAddresses[xcallStorage],
 		coinId.CoinObjectId,
 		_to,
-		data,
+		dt,
 	}
-	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], "mock_dapp", "send_message")
+	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "send_message")
 	resp, err := an.callContract(ctx, msg)
 	if err != nil {
 		return ctx, err
@@ -464,7 +505,6 @@ func (an *SuiRemotenet) SendPacketXCall(ctx context.Context, keyName string, _to
 }
 
 func (an *SuiRemotenet) findSn(tx *types.SuiTransactionBlockResponse, eType string) string {
-	// find better way to parse events
 	for _, event := range tx.Events {
 		if event.Type == (an.IBCAddresses["xcall"] + eType) {
 			jsonData := (event.ParsedJson.(map[string]interface{}))

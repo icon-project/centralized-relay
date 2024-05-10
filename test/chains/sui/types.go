@@ -49,6 +49,7 @@ type DepoymentInfo struct {
 	AdminCap  string
 	Storage   string
 	Witness   string
+	IdCap     string
 }
 
 type PackageInfo struct {
@@ -62,11 +63,21 @@ type FieldFilter struct {
 	Value interface{} `json:"value"`
 }
 
-type MoveEventModule struct {
+type MoveModule struct {
 	Package string `json:"package"`
 	Module  string `json:"module"`
 }
 
-type MoveEvent struct {
-	MoveEventModule MoveEventModule `json:"MoveEventModule"`
+type MoveEventRequest struct {
+	MoveModule MoveModule `json:"MoveModule"`
+}
+
+type ObjectResult struct {
+	XcallCap struct {
+		Fields struct {
+			ID struct {
+				ID string `json:"id,omitempty"`
+			} `json:"id,omitempty"`
+		} `json:"fields,omitempty"`
+	} `json:"xcall_cap,omitempty"`
 }

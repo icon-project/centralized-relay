@@ -11,6 +11,7 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/testsuite"
+	"github.com/icon-project/icon-bridge/common/codec"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,9 +22,7 @@ type XCallTestSuite struct {
 
 func (x *XCallTestSuite) TextXCall() {
 	testcase := "xcall"
-	portId := "transfer"
 	ctx := context.WithValue(context.TODO(), "testcase", testcase)
-	x.Require().NoError(x.DeployXCallMockApp(ctx, portId), "fail to deploy xcall demo dapp")
 	createdChains := x.GetChains()
 	if len(createdChains) == 3 {
 		test3Chains(ctx, createdChains, x)
@@ -171,12 +170,23 @@ func test2Chains(ctx context.Context, createdChains []chains.Chain, x *XCallTest
 	})
 }
 
+func handlePanicAndGetContractAddress(chain chains.Chain, contractName, fallbackContractName string) (address string) {
+	defer func() {
+		if r := recover(); r != nil {
+			address = chain.GetContractAddress(fallbackContractName)
+			return
+		}
+	}()
+	address = chain.GetContractAddress(contractName)
+	return address
+}
+
 func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	msg := "MessageTransferTestingWithoutRollback"
-	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
-
+	msg := "MessageTransfer"
+	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), nil)
 	result := assert.NoErrorf(t, err, "error on sending packet- %v", err)
 	if !result {
@@ -187,9 +197,10 @@ func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, ch
 	if !result {
 		return err
 	}
-	result = assert.Equal(t, msg, dataOutput)
-	if !result {
-		return err
+	mm, _ := codec.RLP.MarshalToBytes(msg)
+	byteSliceStr := fmt.Sprintf("%v", mm)
+	if msg != dataOutput && byteSliceStr != dataOutput {
+		assert.Fail(t, "Received messages are not equal")
 	}
 	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and Received:" + dataOutput + " PASSED")
 	return nil
@@ -200,7 +211,8 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "rollback"
 	rollback := "RollbackDataTesting"
-	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
+	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), []byte(rollback))
 	isSuccess := assert.NoErrorf(t, err, "error on sending packet- %v", err)
 	if !isSuccess {
@@ -225,7 +237,8 @@ func (x *XCallTestSuite) testOneWayMessageWithSize(ctx context.Context, t *testi
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	_msg := make([]byte, dataSize)
-	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
+	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	_, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, _msg, nil)
 	assert.NoError(t, err)
 }
@@ -234,7 +247,8 @@ func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Con
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	_msg := make([]byte, dataSize)
-	dst := chainB.(ibc.Chain).Config().ChainID + "/" + chainB.GetContractAddress(dappKey)
+	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	_, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, _msg, nil)
 	result := assert.Errorf(t, err, "large data transfer should failed")
 	if result {
