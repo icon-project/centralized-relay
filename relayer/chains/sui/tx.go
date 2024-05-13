@@ -21,7 +21,11 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("event-type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)))
+
 	suiMessage, err := p.MakeSuiMessage(message)
 	if err != nil {
 		return err
