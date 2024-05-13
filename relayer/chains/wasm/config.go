@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -120,13 +121,13 @@ func (pc *Config) sanitize() (*Config, error) {
 }
 
 func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
-	codec := GetCodecConfig(c)
+	codec := c.MakeCodec(moduleBasics)
 
 	keyRing, err := keyring.New(
 		c.ChainName,
 		c.KeyringBackend,
 		c.KeyringDir,
-		nil,
+		os.Stdin,
 		codec.Codec,
 		func(options *keyring.Options) {
 			options.SupportedAlgos = types.SupportedAlgorithms
@@ -142,7 +143,7 @@ func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, erro
 		return nil, err
 	}
 
-	grpcClient, err := grpc.DialContext(ctx, c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
+	grpcClient, err := grpc.DialContext(ctx, c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,7 @@ import (
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/go-bip39"
+	"github.com/cosmos/relayer/v2/relayer/codecs/ethermint"
 
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 
@@ -118,7 +119,7 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 
 func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
 	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
+	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: "inj1z32lg50k9kre0m7394klt827tsdq60a3mnd9n0"})
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,12 @@ func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.Acco
 // Create new AccountI
 func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	// create hdpath
-	kb := keyring.NewInMemory(c.ctx.Codec)
+	kb := keyring.NewInMemory(c.ctx.Codec, func(options *keyring.Options) {
+		options.SupportedAlgos = types.SupportedAlgorithms
+		options.SupportedAlgosLedger = types.SupportedAlgorithmsLedger
+	},
+		ethermint.EthSecp256k1Option(),
+	)
 	hdPath := hd.CreateHDPath(sdkTypes.CoinType, 0, 0).String()
 	bip39seed, err := bip39.NewEntropy(256)
 	if err != nil {
@@ -167,9 +173,6 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 
 // Load private key from keyring
 func (c *Client) ImportArmor(uid string, armor []byte, passphrase string) error {
-	if _, err := c.ctx.Keyring.Key(uid); err == nil {
-		return nil
-	}
 	return c.ctx.Keyring.ImportPrivKey(uid, string(armor), passphrase)
 }
 

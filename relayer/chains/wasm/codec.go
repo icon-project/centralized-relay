@@ -4,13 +4,17 @@ import (
 	"github.com/CosmWasm/wasmd/x/wasm"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
+
 	"github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/std"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+
+	"github.com/cosmos/cosmos-sdk/std"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	"github.com/cosmos/cosmos-sdk/x/bank"
+	ethermintcodecs "github.com/cosmos/relayer/v2/relayer/codecs/ethermint"
+	injectivecodecs "github.com/cosmos/relayer/v2/relayer/codecs/injective"
 )
 
 var moduleBasics = []module.AppModuleBasic{
@@ -19,40 +23,46 @@ var moduleBasics = []module.AppModuleBasic{
 	bank.AppModuleBasic{},
 }
 
-type CodecConfig struct {
+type Codec struct {
 	InterfaceRegistry types.InterfaceRegistry
-	Codec             codec.Codec
 	TxConfig          client.TxConfig
+	Codec             codec.Codec
+	Amino             *codec.LegacyAmino
 }
 
-func GetCodecConfig(pc *Config) *CodecConfig {
+func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic) Codec {
+	encodingConfig := c.makeCodecConfig()
+	std.RegisterLegacyAminoCodec(encodingConfig.Amino)
+	std.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	basicManager := module.NewBasicManager(moduleBasics...)
+	basicManager.RegisterLegacyAminoCodec(encodingConfig.Amino)
+	basicManager.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	ethermintcodecs.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	injectivecodecs.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	encodingConfig.Amino.RegisterConcrete(&injectivecodecs.PubKey{}, injectivecodecs.PubKeyName, nil)
+	encodingConfig.Amino.RegisterConcrete(&injectivecodecs.PrivKey{}, injectivecodecs.PrivKeyName, nil)
+	return encodingConfig
+}
+
+func (c *Config) makeCodecConfig() Codec {
 	// Set the global configuration for address prefixes
 	config := sdkTypes.GetConfig()
 
-	valAddrPrefix := pc.AccountPrefix + sdkTypes.PrefixValidator + sdkTypes.PrefixOperator
+	valAddrPrefix := c.AccountPrefix + sdkTypes.PrefixValidator + sdkTypes.PrefixOperator
 	valAddrPrefixPub := valAddrPrefix + sdkTypes.PrefixPublic
 
-	consensusNodeAddrPrefix := pc.AccountPrefix + sdkTypes.PrefixConsensus + sdkTypes.PrefixOperator
+	consensusNodeAddrPrefix := c.AccountPrefix + sdkTypes.PrefixConsensus + sdkTypes.PrefixOperator
 	consensusNodeAddrPrefixPub := consensusNodeAddrPrefix + sdkTypes.PrefixPublic
 
-	config.SetBech32PrefixForAccount(pc.AccountPrefix, pc.AccountPrefix+sdkTypes.PrefixPublic)
+	config.SetBech32PrefixForAccount(c.AccountPrefix, c.AccountPrefix+sdkTypes.PrefixPublic)
 	config.SetBech32PrefixForValidator(valAddrPrefix, valAddrPrefixPub)
 	config.SetBech32PrefixForConsensusNode(consensusNodeAddrPrefix, consensusNodeAddrPrefixPub)
-
-	ifr := types.NewInterfaceRegistry()
-
-	std.RegisterInterfaces(ifr)
-
-	basicManager := module.NewBasicManager(moduleBasics...)
-	basicManager.RegisterInterfaces(ifr)
-
-	cdc := codec.NewProtoCodec(ifr)
-
-	txConfig := tx.NewTxConfig(cdc, tx.DefaultSignModes)
-
-	return &CodecConfig{
-		InterfaceRegistry: ifr,
+	interfaceRegistry := types.NewInterfaceRegistry()
+	cdc := codec.NewProtoCodec(interfaceRegistry)
+	return Codec{
+		InterfaceRegistry: interfaceRegistry,
 		Codec:             cdc,
-		TxConfig:          txConfig,
+		TxConfig:          tx.NewTxConfig(cdc, tx.DefaultSignModes),
+		Amino:             codec.NewLegacyAmino(),
 	}
 }
