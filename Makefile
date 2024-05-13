@@ -106,6 +106,9 @@ install: go.sum install_libwasmvm build
 	@mv ./build/centralized-relay $(GOBIN)/centralized-relay
 	@rm -rf ./build
 
+install-dev: go.sum
+	@echo "installing centralized-relay binary..."
+	@go build -mod=readonly -ldflags '$(ldflags)' -o $(GOBIN)/centralized-relay main.go
 
 e2e-test:
 	@go test -v ./test/e2e -testify.m TestE2E_all

@@ -9,6 +9,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/solana"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -251,6 +252,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.ProviderConfig)
+	case "solana":
+		iw.Value = new(solana.Config)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}
