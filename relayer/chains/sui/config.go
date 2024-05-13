@@ -2,6 +2,7 @@ package sui
 
 import (
 	"context"
+	"sync"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -40,6 +41,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		log:    logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
 		cfg:    pc,
 		client: client,
+		txmut:  &sync.Mutex{},
 	}, nil
 }
 

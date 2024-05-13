@@ -27,6 +27,9 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return err
 	}
 
+	p.txmut.Lock()
+	defer p.txmut.Unlock()
+
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err

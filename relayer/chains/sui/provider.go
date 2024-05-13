@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/coming-chat/go-sui/v2/move_types"
@@ -41,6 +42,7 @@ type Provider struct {
 	client IClient
 	wallet *account.Account
 	kms    kms.KMS
+	txmut  *sync.Mutex
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
