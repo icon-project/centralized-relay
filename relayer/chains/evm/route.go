@@ -61,7 +61,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
 	}
 
-	opts.GasLimit = gasLimit + gasLimit*p.cfg.GasBuffer/100
+	opts.GasLimit = gasLimit + gasLimit*p.cfg.GasAdjustment/100
 
 	switch message.EventType {
 	// check estimated gas and gas price

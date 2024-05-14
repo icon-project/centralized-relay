@@ -53,7 +53,7 @@ type Config struct {
 	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
 	NID            string                          `json:"nid" yaml:"nid"`
-	GasBuffer      uint64                          `json:"gas-buffer" yaml:"gas-buffer"`
+	GasAdjustment  uint64                          `json:"gas-adjustment" yaml:"gas-adjustment"`
 	HomeDir        string                          `json:"-" yaml:"-"`
 }
 
@@ -129,8 +129,8 @@ func (p *Config) Validate() error {
 }
 
 func (p *Config) sanitize() error {
-	if p.GasBuffer == 0 {
-		p.GasBuffer = 10
+	if p.GasAdjustment == 0 {
+		p.GasAdjustment = 10
 	}
 	return nil
 }
