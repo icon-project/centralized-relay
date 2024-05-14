@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	jsoniter "github.com/json-iterator/go"
@@ -16,7 +17,6 @@ import (
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/go-bip39"
-	"github.com/cosmos/relayer/v2/relayer/codecs/ethermint"
 
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 
@@ -119,16 +119,19 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 
 func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
 	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: "inj1z32lg50k9kre0m7394klt827tsdq60a3mnd9n0"})
+	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
 
 	var account sdkTypes.AccountI
 
+	fmt.Println(c.ctx.Keyring.List())
+
 	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
 		return nil, err
 	}
+	fmt.Println(account.String())
 
 	return account, nil
 }
@@ -139,9 +142,7 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	kb := keyring.NewInMemory(c.ctx.Codec, func(options *keyring.Options) {
 		options.SupportedAlgos = types.SupportedAlgorithms
 		options.SupportedAlgosLedger = types.SupportedAlgorithmsLedger
-	},
-		ethermint.EthSecp256k1Option(),
-	)
+	})
 	hdPath := hd.CreateHDPath(sdkTypes.CoinType, 0, 0).String()
 	bip39seed, err := bip39.NewEntropy(256)
 	if err != nil {

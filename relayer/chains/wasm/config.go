@@ -121,7 +121,7 @@ func (pc *Config) sanitize() (*Config, error) {
 }
 
 func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
-	codec := c.MakeCodec(moduleBasics)
+	codec := c.MakeCodec(moduleBasics, "injective", "ethermint")
 
 	keyRing, err := keyring.New(
 		c.ChainName,
@@ -162,5 +162,6 @@ func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, erro
 		Simulate:          c.Simulate,
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codec.InterfaceRegistry,
+		LegacyAmino:       codec.Amino,
 	}, cometRPCClient.Start()
 }

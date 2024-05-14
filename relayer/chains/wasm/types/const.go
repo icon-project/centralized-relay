@@ -3,8 +3,6 @@ package types
 import (
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	"github.com/cosmos/relayer/v2/relayer/chains/cosmos/keys/sr25519"
-	"github.com/cosmos/relayer/v2/relayer/codecs/ethermint"
 	"github.com/cosmos/relayer/v2/relayer/codecs/injective"
 )
 
@@ -16,6 +14,6 @@ const (
 )
 
 var (
-	SupportedAlgorithms       = keyring.SigningAlgoList{hd.Secp256k1, sr25519.Sr25519, ethermint.EthSecp256k1, injective.EthSecp256k1}
-	SupportedAlgorithmsLedger = keyring.SigningAlgoList{hd.Secp256k1, sr25519.Sr25519, ethermint.EthSecp256k1, injective.EthSecp256k1}
+	SupportedAlgorithms       = keyring.SigningAlgoList{hd.Secp256k1, injective.EthSecp256k1}
+	SupportedAlgorithmsLedger = keyring.SigningAlgoList{hd.Secp256k1, injective.EthSecp256k1}
 )

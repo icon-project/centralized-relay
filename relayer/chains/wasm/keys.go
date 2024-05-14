@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -29,6 +30,7 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 		if strings.Contains(err.Error(), "cannot overwrite key") {
 			return nil
 		}
+		return nil
 	}
 	return nil
 }
@@ -69,6 +71,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
+	fmt.Println(armor)
 	record, err := p.client.GetKey(p.NID())
 	if err != nil {
 		return "", err
@@ -77,7 +80,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	armorCipher, err := p.kms.Encrypt(ctx, []byte((armor)))
+	armorCipher, err := p.kms.Encrypt(ctx, privFile)
 	if err != nil {
 		return "", err
 	}
