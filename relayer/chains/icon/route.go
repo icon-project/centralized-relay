@@ -94,7 +94,7 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 	}
 	// increase step limit by step buffer
 
-	steps := int64(stepVal + stepVal*p.cfg.StepBuffer/100)
+	steps := int64(stepVal + stepVal*p.cfg.StepAdjustment/100)
 
 	if steps > p.cfg.StepLimit {
 		return nil, fmt.Errorf("step limit is too high: %d", steps)

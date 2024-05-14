@@ -15,18 +15,18 @@ import (
 )
 
 type Config struct {
-	ChainName     string                         `json:"-" yaml:"-"`
-	RPCUrl        string                         `json:"rpc-url" yaml:"rpc-url"`
-	Address       string                         `json:"address" yaml:"address"`
-	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
-	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID     int64                          `json:"network-id" yaml:"network-id"`
-	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
-	NID           string                         `json:"nid" yaml:"nid"`
-	StepMin       int64                          `json:"step-min" yaml:"step-min"`
-	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
-	StepBuffer    int                            `json:"step-buffer" yaml:"step-buffer"`
-	HomeDir       string                         `json:"-" yaml:"-"`
+	ChainName      string                         `json:"-" yaml:"-"`
+	RPCUrl         string                         `json:"rpc-url" yaml:"rpc-url"`
+	Address        string                         `json:"address" yaml:"address"`
+	StartHeight    uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	Contracts      relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	NetworkID      int64                          `json:"network-id" yaml:"network-id"`
+	FinalityBlock  uint64                         `json:"finality-block" yaml:"finality-block"`
+	NID            string                         `json:"nid" yaml:"nid"`
+	StepMin        int64                          `json:"step-min" yaml:"step-min"`
+	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
+	StepAdjustment int                            `json:"step-adjustment" yaml:"step-adjustment"`
+	HomeDir        string                         `json:"-" yaml:"-"`
 }
 
 // NewProvider returns new Icon provider
@@ -66,8 +66,8 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) sanitize() error {
-	if c.StepBuffer == 0 {
-		c.StepBuffer = 10
+	if c.StepAdjustment == 0 {
+		c.StepAdjustment = 10
 	}
 	return nil
 }
