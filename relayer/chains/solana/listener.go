@@ -18,6 +18,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		startHeight = lastSavedHeight
 	}
 
+	if err := p.RestoreKeystore(ctx); err != nil {
+		p.log.Error("failed to restore keystore", zap.Error(err))
+	} else {
+		p.log.Info("key restore successful: ", zap.String("public-key", p.wallet.PublicKey().String()))
+	}
+
 	p.log.Info("started querying from height", zap.Uint64("height", startHeight))
 
 	for {
