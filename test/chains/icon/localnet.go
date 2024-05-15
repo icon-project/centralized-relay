@@ -305,6 +305,9 @@ func (in *IconRemotenet) GetBalance(ctx context.Context, address string, denom s
 }
 
 func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	if in.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	xcall := in.IBCAddresses["xcall"]
 
 	connection, err := in.DeployContractRemote(ctx, in.scorePaths["connection"], in.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+in.testconfig.RelayWalletAddress+`"}`)
@@ -322,6 +325,13 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 }
 
 func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
+	if in.testconfig.Environment == "preconfigured" {
+		testcase := ctx.Value("testcase").(string)
+		in.IBCAddresses["xcall"] = "cxea57838445bc3e6af694856b929978ad63167aed"
+		in.IBCAddresses["connection"] = "cxb85761e3f7b5852a930b3c9f7664526647b5f05a"
+		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx78cc6d823837b0031d4127627df2e8bae1d3059d"
+		return nil
+	}
 	nid := in.cfg.ChainID
 	xcall, err := in.DeployContractRemote(ctx, in.scorePaths["xcall"], in.keystorePath, `{"networkId":"`+nid+`"}`)
 	if err != nil {
@@ -333,6 +343,9 @@ func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
 }
 
 func (in *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
+	if in.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	testcase := ctx.Value("testcase").(string)
 
 	xCall := in.IBCAddresses["xcall"]
@@ -448,11 +461,6 @@ func (in *IconRemotenet) ExecuteRollback(ctx context.Context, sn string) (contex
 func (in *IconRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
-	to = strings.TrimPrefix(to, "0x")
-	parts := strings.Split(from, "/")
-	parts[0] = strings.TrimPrefix(parts[0], "0x")
-	parts[1] = strings.TrimPrefix(parts[1], "0x")
-	from = strings.Join(parts, "/")
 	index := []*string{&from, &to, &sn}
 	event, err := in.FindEvent(ctx, startHeight, "xcall", "CallMessage(str,str,int,int,bytes)", index)
 	if err != nil {

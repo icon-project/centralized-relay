@@ -375,6 +375,9 @@ func (an *EVMRemotenet) GetBalance(ctx context.Context, address string, denom st
 }
 
 func (an *EVMRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	if an.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	//testcase := ctx.Value("testcase").(string)
 	xcall := common.HexToAddress(an.IBCAddresses["xcall"])
 	// _ =an.CheckForKeyStore(ctx, keyName)
@@ -405,6 +408,13 @@ func (an *EVMRemotenet) SetupConnection(ctx context.Context, target chains.Chain
 }
 
 func (an *EVMRemotenet) SetupXCall(ctx context.Context) error {
+	if an.testconfig.Environment == "preconfigured" {
+		testcase := ctx.Value("testcase").(string)
+		an.IBCAddresses["xcall"] = "0x2538a10b7fFb1B78c890c870FC152b10be121f04"
+		an.IBCAddresses["connection"] = "0x90b97E83e22AFa2e6A96b3549A0E495D5Bae61aF"
+		an.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "0xccA9728291bC98ff4F97EF57Be3466227b0eb06C"
+		return nil
+	}
 	//testcase := ctx.Value("testcase").(string)
 	nid := an.cfg.ChainID
 	//ibcAddress :=an.IBCAddresses["ibc"]
@@ -424,6 +434,9 @@ func (an *EVMRemotenet) SetupXCall(ctx context.Context) error {
 }
 
 func (an *EVMRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
+	if an.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	testcase := ctx.Value("testcase").(string)
 	//an.CheckForKeyStore(ctx, keyName)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
