@@ -4,8 +4,12 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+type SuiCallArg struct {
+	Val  interface{}
+	Type string
+}
 type SuiMessage struct {
-	Params          []interface{}
+	Params          []SuiCallArg
 	Method          string
 	PackageObjectId string
 	Module          string
@@ -19,7 +23,7 @@ func (m *SuiMessage) MsgBytes() ([]byte, error) {
 	return jsoniter.Marshal(m.Params)
 }
 
-func (p *SuiRemotenet) NewSuiMessage(params []interface{}, packageId, module, method string) *SuiMessage {
+func (p *SuiRemotenet) NewSuiMessage(params []SuiCallArg, packageId, module, method string) *SuiMessage {
 	return &SuiMessage{
 		Params:          params,
 		PackageObjectId: packageId,

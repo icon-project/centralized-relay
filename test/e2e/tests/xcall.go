@@ -11,7 +11,6 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/testsuite"
-	"github.com/icon-project/icon-bridge/common/codec"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,152 +21,83 @@ type XCallTestSuite struct {
 
 func (x *XCallTestSuite) TextXCall() {
 	testcase := "xcall"
-	ctx := context.WithValue(context.TODO(), "testcase", testcase)
+	ctx := context.WithValue(context.Background(), "testcase", testcase)
 	createdChains := x.GetChains()
-	if len(createdChains) == 3 {
-		test3Chains(ctx, createdChains, x)
-	}
-	if len(createdChains) == 2 {
-		test2Chains(ctx, createdChains, x)
-	}
+	testChains(ctx, createdChains, x)
 
 }
-func test3Chains(ctx context.Context, createdChains []chains.Chain, x *XCallTestSuite) {
-	chainA, chainB, chainC := createdChains[0], createdChains[1], createdChains[2]
-	fmt.Println("ChainA", chainA.Config().Name)
-	fmt.Println("ChainB", chainB.Config().Name)
-	fmt.Println("ChainC", chainC.Config().Name)
-	x.T.Run("xcall one way message chainA-chainB", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainA.Config().Name, chainB.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainA, chainB)
-		assert.NoErrorf(t, err, "fail xCall one way message chainA-chainB ::%v\n ", err)
-	})
 
-	x.T.Run("xcall one way message chainB-chainA", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainB.Config().Name, chainA.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainB, chainA)
-		assert.NoErrorf(t, err, "fail xCall one way message chainB-chainA ::%v\n ", err)
-	})
-	x.T.Run("xcall one way message chainB-chainC", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainB.Config().Name, chainC.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainB, chainC)
-		assert.NoErrorf(t, err, "fail xCall one way message chainB-chainc ::%v\n ", err)
-	})
-	x.T.Run("xcall one way message chainC-chainB", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainC.Config().Name, chainB.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainC, chainB)
-		assert.NoErrorf(t, err, "fail xCall one way message chainC-chainB ::%v\n ", err)
-	})
-	x.T.Run("xcall one way message chainA-chainC", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainA.Config().Name, chainC.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainA, chainC)
-		assert.NoErrorf(t, err, "fail xCall one way message chainA-chainC ::%v\n ", err)
-	})
-	x.T.Run("xcall one way message chainC-chainA", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainC.Config().Name, chainA.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainC, chainA)
-		assert.NoErrorf(t, err, "fail xCall one way message chainC-chainA ::%v\n ", err)
-	})
-
-	x.T.Run("xcall test rollback chainA-chainB", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainA, chainB)
-		assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB ::%v\n ", err)
-
-	})
-
-	x.T.Run("2xcall test rollback chainA-chainC", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainA, chainC)
-		assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainC ::%v\n ", err)
-	})
-
-	x.T.Run("xcall test rollback chainB-chainA", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainB, chainA)
-		assert.NoErrorf(t, err, "fail xcCll rollback message chainB-chainA ::%v\n ", err)
-	})
-	x.T.Run("2xcall test rollback chainB-chainC", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainB, chainC)
-		assert.NoErrorf(t, err, "fail xcCll rollback message chainB-chainC ::%v\n ", err)
-	})
-
-	x.T.Run("xcall test rollback chainC-chainA", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainC, chainA)
-		assert.NoErrorf(t, err, "fail xcCll rollback message chainC-chainA ::%v\n ", err)
-	})
-
-	x.T.Run("2xcall test rollback chainC-chainB", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainC, chainB)
-		assert.NoErrorf(t, err, "fail xcCll rollback message chainC-chainB ::%v\n ", err)
-	})
-
-	x.T.Run("xcall test send maxSize Data: 2048 bytes", func(t *testing.T) {
-		x.T.Run("xcall test send maxSize Data: 2048 bytes A->B", func(t *testing.T) {
-			x.testOneWayMessageWithSize(ctx, t, 1200, chainA, chainB)
-		})
-		x.T.Run("xcall test send maxSize Data: 2048 bytes B->A", func(t *testing.T) {
-			x.testOneWayMessageWithSize(ctx, t, 1200, chainB, chainA)
-		})
-		x.T.Run("xcall test send maxSize Data: 2048 bytes C->A", func(t *testing.T) {
-			x.testOneWayMessageWithSize(ctx, t, 1200, chainC, chainA)
-		})
-		x.T.Run("xcall test send maxSize Data: 2048 bytes A->C", func(t *testing.T) {
-			x.testOneWayMessageWithSize(ctx, t, 1200, chainA, chainC)
-		})
-	})
-
-	x.T.Run("xcall test send maxSize Data: 2049bytes", func(t *testing.T) {
-		x.T.Run("xcall test send maxSize Data: 2049 bytes B->A", func(t *testing.T) {
-			x.testOneWayMessageWithSizeExpectingError(ctx, t, 2000, chainB, chainA)
-		})
-		x.T.Run("xcall test send maxSize Data: 2049 bytes A->B", func(t *testing.T) {
-			x.testOneWayMessageWithSizeExpectingError(ctx, t, 2100, chainA, chainB)
-		})
-		x.T.Run("xcall test send maxSize Data: 2049 bytes C->A", func(t *testing.T) {
-			x.testOneWayMessageWithSizeExpectingError(ctx, t, 2100, chainC, chainA)
-		})
-		x.T.Run("xcall test send maxSize Data: 2049 bytes A->C", func(t *testing.T) {
-			x.testOneWayMessageWithSizeExpectingError(ctx, t, 2100, chainA, chainC)
-		})
-	})
+func isInProcessedList(processedList []string, item string) bool {
+	for _, val := range processedList {
+		if val == item {
+			return true
+		}
+	}
+	return false
 }
 
-func test2Chains(ctx context.Context, createdChains []chains.Chain, x *XCallTestSuite) {
-	chainA, chainB := createdChains[0], createdChains[1]
-	fmt.Println("ChainA", chainA.Config().Name)
-	fmt.Println("ChainB", chainB.Config().Name)
-	x.T.Run("xcall one way message chainA-chainB", func(t *testing.T) {
-		fmt.Println("Sending message from src to dst", chainA.Config().Name, chainB.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainA, chainB)
-		assert.NoErrorf(t, err, "fail xCall one way message chainA-chainB ::%v\n ", err)
-	})
-	x.T.Run("xcall one way message chainB-chainA", func(t *testing.T) {
+func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestSuite) {
+	var processedList []string
+	for index, chain := range createdChains {
+		for innerIndex, innerChain := range createdChains {
+			if index != innerIndex {
+				chainFlowIdentifier := chain.Config().Name + "-" + innerChain.Config().Name
+				if !isInProcessedList(processedList, chainFlowIdentifier) {
+					processedList = append(processedList, chainFlowIdentifier)
+					chainFlowName := chain.Config().Name + "->" + innerChain.Config().Name
+					x.T.Run("xcall one way message chainA-chainB "+chainFlowName, func(t *testing.T) {
+						fmt.Println("Sending message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						err := x.testOneWayMessage(ctx, t, chain, innerChain)
+						assert.NoErrorf(t, err, "fail xCall one way message chainA-chainB( %s) ::%v\n ", chainFlowIdentifier, err)
+					})
+					x.T.Run("xcall test rollback chainA-chainB "+chainFlowName, func(t *testing.T) {
+						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						err := x.testRollback(ctx, t, chain, innerChain)
+						assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB( %s) ::%v\n ", chainFlowIdentifier, err)
+					})
 
-		fmt.Println("Sending message from src to dst", chainB.Config().Name, chainA.Config().Name)
-		err := x.testOneWayMessage(ctx, t, chainB, chainA)
-		assert.NoErrorf(t, err, "fail xCall one way message chainB-chainA ::%v\n ", err)
-	})
-	x.T.Run("2xcall test rollback chainA-chainB", func(t *testing.T) {
-		fmt.Println("Sending rollback message from src to dst", chainA.Config().Name, chainB.Config().Name)
-		err := x.testRollback(ctx, t, chainA, chainB)
-		assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB ::%v\n ", err)
-	})
+					x.T.Run("xcall test send maxSize Data: 2048 bytes A-> B "+chainFlowName, func(t *testing.T) {
+						fmt.Println("Sending allowed size data from src to dst", chain.Config().Name, innerChain.Config().Name)
+						x.testOneWayMessageWithSize(ctx, t, 1300, chain, innerChain)
+					})
 
-	x.T.Run("xcall test rollback chainB-chainA", func(t *testing.T) {
-		err := x.testRollback(ctx, t, chainB, chainA)
-		assert.NoErrorf(t, err, "fail xcCll rollback message chainB-chainA ::%v\n ", err)
-	})
+					x.T.Run("xcall test send maxSize Data: 2049bytes  "+chainFlowName, func(t *testing.T) {
+						fmt.Println("Sending more than max  size data from src to dst", chain.Config().Name, innerChain.Config().Name)
+						x.testOneWayMessageWithSizeExpectingError(ctx, t, 2000, chain, innerChain)
+					})
 
-	x.T.Run("xcall test send maxSize Data: 2048 bytes A-> B", func(t *testing.T) {
-		x.testOneWayMessageWithSize(ctx, t, 1300, chainA, chainB)
-	})
+				}
+				reverseChainFlowIdentifier := innerChain.Config().Name + "-" + chain.Config().Name
+				if !isInProcessedList(processedList, reverseChainFlowIdentifier) {
+					processedList = append(processedList, reverseChainFlowIdentifier)
+					reverseChainFlowName := innerChain.Config().Name + "->" + chain.Config().Name
+					x.T.Run("xcall one way message chainB-chainA "+reverseChainFlowName, func(t *testing.T) {
+						fmt.Println("Sending message from src to dst", innerChain.Config().Name, chain.Config().Name)
+						err := x.testOneWayMessage(ctx, t, innerChain, chain)
+						assert.NoErrorf(t, err, "fail xCall one way message chainB-chainA (%s) ::%v  \n ", reverseChainFlowIdentifier, err)
+					})
 
-	x.T.Run("xcall test send maxSize Data: 2048 bytes B-> A", func(t *testing.T) {
-		x.testOneWayMessageWithSize(ctx, t, 1300, chainB, chainA)
-	})
+					x.T.Run("xcall test rollback chainB-chainA"+reverseChainFlowName, func(t *testing.T) {
+						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						err := x.testRollback(ctx, t, innerChain, chain)
+						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
+					})
 
-	x.T.Run("xcall test send maxSize Data: 2049bytes", func(t *testing.T) {
-		x.testOneWayMessageWithSizeExpectingError(ctx, t, 2000, chainB, chainA)
-		x.testOneWayMessageWithSizeExpectingError(ctx, t, 2100, chainA, chainB)
-	})
+					x.T.Run("xcall test send maxSize Data: 2048 bytes B-> A "+reverseChainFlowName, func(t *testing.T) {
+						fmt.Println("Sending allowed size data from src to dst", innerChain.Config().Name, chain.Config().Name)
+						x.testOneWayMessageWithSize(ctx, t, 1300, innerChain, chain)
+					})
+
+					x.T.Run("xcall test send maxSize Data: 2049bytes "+reverseChainFlowName, func(t *testing.T) {
+						fmt.Println("ending more than max  size data from src to dst", innerChain.Config().Name, chain.Config().Name)
+						x.testOneWayMessageWithSizeExpectingError(ctx, t, 2000, innerChain, chain)
+					})
+
+				}
+
+			}
+		}
+	}
 }
 
 func handlePanicAndGetContractAddress(chain chains.Chain, contractName, fallbackContractName string) (address string) {
@@ -197,10 +127,9 @@ func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, ch
 	if !result {
 		return err
 	}
-	mm, _ := codec.RLP.MarshalToBytes(msg)
-	byteSliceStr := fmt.Sprintf("%v", mm)
-	if msg != dataOutput && byteSliceStr != dataOutput {
-		assert.Fail(t, "Received messages are not equal")
+	result = assert.Equal(t, msg, dataOutput)
+	if !result {
+		return err
 	}
 	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and Received:" + dataOutput + " PASSED")
 	return nil
@@ -210,9 +139,10 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "rollback"
-	rollback := "RollbackDataTesting"
+	rollback := "rollback"
 	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
+	fmt.Println("destination address is ", dAppAddress)
 	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), []byte(rollback))
 	isSuccess := assert.NoErrorf(t, err, "error on sending packet- %v", err)
 	if !isSuccess {
@@ -227,8 +157,10 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 		return err
 	}
 	time.Sleep(3 * time.Second)
-	_, err = chainA.ExecuteRollback(ctx, res.SerialNo)
+	ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
 	assert.NoErrorf(t, err, "error on excute rollback- %w", err)
+	rollbackEventFound := ctx.Value("IsRollbackEventFound")
+	assert.Equal(t, true, rollbackEventFound)
 	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
 	return err
 }
@@ -241,6 +173,7 @@ func (x *XCallTestSuite) testOneWayMessageWithSize(ctx context.Context, t *testi
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	_, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, _msg, nil)
 	assert.NoError(t, err)
+	fmt.Println("Data Transfer Testing With Message Size from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + string(_msg) + " PASSED")
 }
 
 func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Context, t *testing.T, dataSize int, chainA, chainB chains.Chain) {
@@ -265,6 +198,7 @@ func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Con
 		}
 		if result {
 			t.Logf("Test passed: %v", err)
+			fmt.Println("Data Transfer Testing With Message Size expecting error from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + string(_msg) + " PASSED")
 		} else {
 			t.Errorf("Test failed: %v", err)
 		}

@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,7 +27,6 @@ import (
 	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
-	"github.com/icon-project/goloop/common/codec"
 	"github.com/pelletier/go-toml/v2"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -56,6 +56,8 @@ const (
 	CentralConnModule                           = "centralized_entry"
 	MockAppModule                               = "mock_dapp"
 	RegisterXcall                               = "register_xcall"
+	CallArgObject                               = "object"
+	CallArgPure                                 = "pure"
 )
 
 func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
@@ -147,10 +149,11 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 	an.log.Info("setup Dapp completed ", zap.Any("packageId", deploymentInfo.PackageId), zap.Any("witness", deploymentInfo.Witness))
 
 	// register xcall
-	params := []interface{}{
-		an.IBCAddresses[xcallStorage],
-		an.IBCAddresses[dappKey+WitnessPrefix],
+	params := []SuiCallArg{
+		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
+		{Type: CallArgObject, Val: an.IBCAddresses[dappKey+WitnessPrefix]},
 	}
+
 	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, RegisterXcall)
 	resp, err := an.callContract(ctx, msg)
 	for _, changes := range resp.ObjectChanges {
@@ -177,12 +180,13 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 	}
 	// add connections
 	for _, connection := range connections {
-		params = []interface{}{
-			an.IBCAddresses[dappKey+StatePrefix],
-			connection.Nid,
-			"centralized",
-			connection.Destination,
+		params = []SuiCallArg{
+			{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StatePrefix]},
+			{Type: CallArgPure, Val: connection.Nid},
+			{Type: CallArgPure, Val: "centralized"},
+			{Type: CallArgPure, Val: connection.Destination},
 		}
+
 		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "add_connection")
 		resp, err = an.callContract(ctx, msg)
 		for _, changes := range resp.ObjectChanges {
@@ -234,10 +238,10 @@ func (an *SuiRemotenet) ExecuteRollback(ctx context.Context, sn string) (context
 
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	params := []interface{}{
-		an.IBCAddresses[dappKey+StatePrefix],
-		an.IBCAddresses[xcallStorage],
-		sn,
+	params := []SuiCallArg{
+		{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StatePrefix]},
+		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
+		{Type: CallArgPure, Val: sn},
 	}
 	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "execute_rollback")
 	resp, err := an.callContract(ctx, msg)
@@ -327,7 +331,11 @@ func (an *SuiRemotenet) FindCallResponse(ctx context.Context, startHeight uint64
 		return "", err
 	}
 	jsonData := (event.ParsedJson.(map[string]interface{}))
-	return jsonData["sn"].(string), nil
+	responseCode := jsonData["response_code"].(float64)
+	if responseCode == 1 {
+		return "0", nil
+	}
+	return strconv.FormatFloat(responseCode, 'f', -1, 64), nil
 
 }
 
@@ -336,7 +344,7 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapPrefix][2:], to, sn)
+	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapPrefix], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
@@ -428,12 +436,11 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			DappPkgId:      an.GetContractAddress(dappKey),
 			DappStateId:    an.GetContractAddress(dappKey + StatePrefix),
 			StartHeight:    0,
-			NetworkID:      0x3,
 			BlockInterval:  "0s",
 			Address:        an.testconfig.RelayWalletAddress,
 			FinalityBlock:  uint64(0),
-			GasPrice:       25000,
-			GasLimit:       2500000,
+			GasPrice:       250000,
+			GasLimit:       50000000,
 		},
 	}
 	return yaml.Marshal(config)
@@ -484,17 +491,17 @@ func (an *SuiRemotenet) SendPacketXCall(ctx context.Context, keyName string, _to
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	if rollback == nil {
 		rollback = make([]byte, 0)
-		_ = rollback
 	}
 	gasFeeCoin := an.getGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget).CoinObjectId
 	coinId := an.getAnotherGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget, gasFeeCoin)
-	dt, _ := codec.RLP.MarshalToBytes(string(data))
-	params := []interface{}{
-		an.IBCAddresses[dappKey+StatePrefix],
-		an.IBCAddresses[xcallStorage],
-		coinId.CoinObjectId,
-		_to,
-		dt,
+
+	params := []SuiCallArg{
+		{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StatePrefix]},
+		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
+		{Type: CallArgObject, Val: coinId.CoinObjectId},
+		{Type: CallArgPure, Val: _to},
+		{Type: CallArgPure, Val: "0x" + hex.EncodeToString(data)},
+		{Type: CallArgPure, Val: "0x" + hex.EncodeToString(rollback)},
 	}
 	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "send_message")
 	resp, err := an.callContract(ctx, msg)
@@ -516,11 +523,11 @@ func (an *SuiRemotenet) findSn(tx *types.SuiTransactionBlockResponse, eType stri
 
 // SetupConnection implements chains.Chain.
 func (an *SuiRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
-	params := []interface{}{
-		an.IBCAddresses[xcallStorage],
-		an.IBCAddresses[xcallAdmin],
-		"sui",
-		"centralized",
+	params := []SuiCallArg{
+		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
+		{Type: CallArgObject, Val: an.IBCAddresses[xcallAdmin]},
+		{Type: CallArgPure, Val: "sui"},
+		{Type: CallArgPure, Val: "centralized"},
 	}
 	msg := an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection")
 	_, err := an.callContract(ctx, msg)
@@ -693,12 +700,9 @@ func (an *SuiRemotenet) ExecuteContractRemote(ctx context.Context, suiMessage *S
 		return &types.TransactionBytes{}, fmt.Errorf("error getting gas coinid : %w", err)
 	}
 	typeArgs := []string{}
-	var stringParams []interface{}
-	for _, s := range suiMessage.Params {
-		stringParams = append(stringParams, fmt.Sprint(s))
-	}
-	if stringParams == nil {
-		stringParams = make([]interface{}, 0)
+	var args []interface{}
+	for _, param := range suiMessage.Params {
+		args = append(args, param.Val)
 	}
 
 	resp := types.TransactionBytes{}
@@ -711,7 +715,7 @@ func (an *SuiRemotenet) ExecuteContractRemote(ctx context.Context, suiMessage *S
 		suiMessage.Module,
 		suiMessage.Method,
 		typeArgs,
-		stringParams,
+		args,
 		coinAddress,
 		types.NewSafeSuiBigInt(gasBudget),
 		"DevInspect",

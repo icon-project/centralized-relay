@@ -549,7 +549,6 @@ func (an *EVMRemotenet) FindCallMessage(ctx context.Context, startHeight uint64,
 	event, err := an.FindEvent(ctx, startHeight, CallMessage, topics)
 
 	if err != nil {
-		fmt.Printf("Topics %v\n", topics)
 		return "", "", err
 	}
 	return event["_reqId"].(*big.Int).String(), string(event["_data"].([]byte)), nil
@@ -734,7 +733,6 @@ func (an *EVMRemotenet) QueryContract(ctx context.Context, contractAddress, meth
 	output, err := an.getFullNode().QueryContract(ctx, contractAddress, query.MethodName, string(_params))
 
 	chains.Response = output
-	fmt.Printf("Response is : %s \n", output)
 	return context.WithValue(ctx, "query-result", chains.Response), err
 
 }

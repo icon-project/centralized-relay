@@ -448,6 +448,11 @@ func (in *IconRemotenet) ExecuteRollback(ctx context.Context, sn string) (contex
 func (in *IconRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error) {
 	//testcase := ctx.Value("testcase").(string)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
+	to = strings.TrimPrefix(to, "0x")
+	parts := strings.Split(from, "/")
+	parts[0] = strings.TrimPrefix(parts[0], "0x")
+	parts[1] = strings.TrimPrefix(parts[1], "0x")
+	from = strings.Join(parts, "/")
 	index := []*string{&from, &to, &sn}
 	event, err := in.FindEvent(ctx, startHeight, "xcall", "CallMessage(str,str,int,int,bytes)", index)
 	if err != nil {
@@ -489,7 +494,7 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		Indexed:   index,
 	}
 	// Create a context with a timeout of 16 seconds.
-	_ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	_ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	// Create an event request with the given filter and start height.
@@ -512,13 +517,15 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		if err := in.IconClient.MonitorEvent(ctx, req, response, errRespose); err != nil {
 			log.Printf("MonitorEvent error: %v", err)
 		}
+		defer in.IconClient.CloseAllMonitor()
 	}(ctx, req, response, errRespose)
 
 	select {
 	case v := <-channel:
 		return v, nil
 	case <-_ctx.Done():
-		return nil, errors.New(fmt.Sprintf("timeout : Event %s not found after %d block", signature, startHeight))
+		latestHeight, _ := in.Height(ctx)
+		return nil, errors.New(fmt.Sprintf("timeout : Event %s not found after %d block to %d block ", signature, startHeight, latestHeight))
 	}
 }
 

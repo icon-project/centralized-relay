@@ -39,7 +39,7 @@ install: go.sum
 
 
 e2e-test:
-	@go test -v ./test/e2e -testify.m TestE2E_all
+	@go test -v ./test/e2e -testify.m TestE2E_all -timeout 30m
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.1
