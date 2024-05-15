@@ -11,17 +11,17 @@ import (
 )
 
 type Config struct {
-	ChainID        string `yaml:"chain-id"`
-	ChainName      string `yaml:"-"`
-	RPCUrl         string `yaml:"rpc-url"`
-	Address        string `yaml:"address"`
-	NID            string `json:"nid" yaml:"nid"`
-	XcallPkgID     string `yaml:"xcall-package-id"`
-	DappPkgID      string `yaml:"dapp-package-id"`
-	XcallStorageID string `yaml:"xcall-storage-id"`
-	DappStateID    string `yaml:"dapp-state-id"`
-	HomeDir        string `yaml:"home-dir"`
-	GasLimit       uint64 `yaml:"gas-limit"`
+	ChainID        string `yaml:"chain-id" json:"chain-id"`
+	ChainName      string `yaml:"-" json:"-"`
+	RPCUrl         string `yaml:"rpc-url" json:"rpc-url"`
+	Address        string `yaml:"address" json:"address"`
+	NID            string `yaml:"nid" json:"nid"`
+	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
+	DappPkgID      string `yaml:"dapp-package-id" json:"dapp-package-id"`
+	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
+	DappStateID    string `yaml:"dapp-state-id" json:"dapp-state-id"`
+	HomeDir        string `yaml:"home-dir" json:"home-dir"`
+	GasLimit       uint64 `yaml:"gas-limit" json:"gas-limit"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
