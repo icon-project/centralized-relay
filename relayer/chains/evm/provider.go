@@ -52,6 +52,7 @@ type Config struct {
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
 	NID            string                          `json:"nid" yaml:"nid"`
+	GasAdjustment  uint64                          `json:"gas-adjustment" yaml:"gas-adjustment"`
 	HomeDir        string                          `json:"-" yaml:"-"`
 	Disabled       bool                            `json:"disabled" yaml:"disabled"`
 }
@@ -71,6 +72,9 @@ type Provider struct {
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	if err := p.sanitize(); err != nil {
 		return nil, err
 	}
 
@@ -120,6 +124,13 @@ func (p *Provider) NID() string {
 func (p *Config) Validate() error {
 	if err := p.Contracts.Validate(); err != nil {
 		return fmt.Errorf("contracts are not valid: %s", err)
+	}
+	return nil
+}
+
+func (p *Config) sanitize() error {
+	if p.GasAdjustment == 0 {
+		p.GasAdjustment = 10
 	}
 	return nil
 }

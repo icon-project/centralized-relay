@@ -21,40 +21,29 @@ import (
 )
 
 type Config struct {
-	RpcUrl  string `json:"rpc-url" yaml:"rpc-url"`
-	GrpcUrl string `json:"grpc-url" yaml:"grpc-url"`
-	ChainID string `json:"chain-id" yaml:"chain-id"`
-	NID     string `json:"nid" yaml:"nid"`
-
-	HomeDir string `json:"home-dir" yaml:"home-dir"`
-
-	KeyringBackend string `json:"keyring-backend" yaml:"keyring-backend"`
-	KeyringDir     string `json:"keyring-dir" yaml:"keyring-dir"`
-	AccountPrefix  string `json:"account-prefix" yaml:"account-prefix"`
-
-	Contracts providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	Address   string                          `json:"address" yaml:"address"`
-
-	Denomination string `json:"denomination" yaml:"denomination"`
-
-	GasPrices     string  `json:"gas-prices" yaml:"gas-prices"`
-	GasAdjustment float64 `json:"gas-adjustment" yaml:"gas-adjustment"`
-	MinGasAmount  uint64  `json:"min-gas-amount" yaml:"min-gas-amount"`
-	MaxGasAmount  uint64  `json:"max-gas-amount" yaml:"max-gas-amount"`
-
-	TxConfirmationInterval time.Duration `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
-
-	BroadcastMode string `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
-	SignModeStr   string `json:"sign-mode" yaml:"sign-mode"`
-
-	Simulate bool `json:"simulate" yaml:"simulate"`
-
-	StartHeight uint64 `json:"start-height" yaml:"start-height"`
-
-	FinalityBlock uint64 `json:"finality-block" yaml:"finality-block"`
-
-	ChainName string `json:"-" yaml:"-"`
-	Disabled  bool   `json:"disabled" yaml:"disabled"`
+	RpcUrl                 string                          `json:"rpc-url" yaml:"rpc-url"`
+	GrpcUrl                string                          `json:"grpc-url" yaml:"grpc-url"`
+	ChainID                string                          `json:"chain-id" yaml:"chain-id"`
+	NID                    string                          `json:"nid" yaml:"nid"`
+	HomeDir                string                          `json:"home-dir" yaml:"home-dir"`
+	KeyringBackend         string                          `json:"keyring-backend" yaml:"keyring-backend"`
+	KeyringDir             string                          `json:"keyring-dir" yaml:"keyring-dir"`
+	AccountPrefix          string                          `json:"account-prefix" yaml:"account-prefix"`
+	Contracts              providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	Address                string                          `json:"address" yaml:"address"`
+	Denomination           string                          `json:"denomination" yaml:"denomination"`
+	GasPrices              string                          `json:"gas-prices" yaml:"gas-prices"`
+	GasAdjustment          float64                         `json:"gas-adjustment" yaml:"gas-adjustment"`
+	MinGasAmount           uint64                          `json:"min-gas-amount" yaml:"min-gas-amount"`
+	MaxGasAmount           uint64                          `json:"max-gas-amount" yaml:"max-gas-amount"`
+	TxConfirmationInterval time.Duration                   `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
+	BroadcastMode          string                          `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
+	SignModeStr            string                          `json:"sign-mode" yaml:"sign-mode"`
+	Simulate               bool                            `json:"simulate" yaml:"simulate"`
+	StartHeight            uint64                          `json:"start-height" yaml:"start-height"`
+	FinalityBlock          uint64                          `json:"finality-block" yaml:"finality-block"`
+	Disabled               bool                            `json:"disabled" yaml:"disabled"`
+	ChainName              string                          `json:"-" yaml:"-"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -121,7 +110,7 @@ func (pc *Config) sanitize() (*Config, error) {
 }
 
 func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
-	codec := c.MakeCodec(moduleBasics, "injective", "ethermint")
+	codec := c.MakeCodec(moduleBasics)
 
 	keyRing, err := keyring.New(
 		c.ChainName,
@@ -162,6 +151,5 @@ func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, erro
 		Simulate:          c.Simulate,
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codec.InterfaceRegistry,
-		LegacyAmino:       codec.Amino,
 	}, cometRPCClient.Start()
 }

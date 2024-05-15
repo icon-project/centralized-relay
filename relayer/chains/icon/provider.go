@@ -15,23 +15,27 @@ import (
 )
 
 type Config struct {
-	ChainName     string                         `json:"-" yaml:"-"`
-	RPCUrl        string                         `json:"rpc-url" yaml:"rpc-url"`
-	Address       string                         `json:"address" yaml:"address"`
-	StartHeight   uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
-	Contracts     relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID     int64                          `json:"network-id" yaml:"network-id"`
-	FinalityBlock uint64                         `json:"finality-block" yaml:"finality-block"`
-	NID           string                         `json:"nid" yaml:"nid"`
-	StepMin       int64                          `json:"step-min" yaml:"step-min"`
-	StepLimit     int64                          `json:"step-limit" yaml:"step-limit"`
-	HomeDir       string                         `json:"-" yaml:"-"`
-	Disabled      bool                           `json:"disabled" yaml:"disabled"`
+	ChainName      string                         `json:"-" yaml:"-"`
+	RPCUrl         string                         `json:"rpc-url" yaml:"rpc-url"`
+	Address        string                         `json:"address" yaml:"address"`
+	StartHeight    uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	Contracts      relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	NetworkID      int64                          `json:"network-id" yaml:"network-id"`
+	FinalityBlock  uint64                         `json:"finality-block" yaml:"finality-block"`
+	NID            string                         `json:"nid" yaml:"nid"`
+	StepMin        int64                          `json:"step-min" yaml:"step-min"`
+	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
+	StepAdjustment float64                        `json:"step-adjustment" yaml:"step-adjustment"`
+	Disabled       bool                           `json:"disabled" yaml:"disabled"`
+	HomeDir        string                         `json:"-" yaml:"-"`
 }
 
 // NewProvider returns new Icon provider
 func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if err := c.sanitize(); err != nil {
 		return nil, err
 	}
 
@@ -59,6 +63,13 @@ func (c *Config) Validate() error {
 	// TODO: contractaddress validation
 	// TODO: account should have some balance no balance then use another accoutn
 
+	return nil
+}
+
+func (c *Config) sanitize() error {
+	if c.StepAdjustment == 0 {
+		c.StepAdjustment = 1.0
+	}
 	return nil
 }
 

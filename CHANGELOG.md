@@ -144,3 +144,9 @@ Move the encrypted wallet passphrase to the new location:
 ### Fixed
 
 - Avoid nonce increment when fixing the nonce error while sending the transaction
+
+# [1.2.3] - 2024-05-14
+
+### Added
+
+- Gas adjustment from config
