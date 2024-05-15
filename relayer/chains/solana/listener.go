@@ -24,6 +24,20 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.log.Info("key restore successful: ", zap.String("public-key", p.wallet.PublicKey().String()))
 	}
 
+	if err := p.Route(ctx, &relayertypes.Message{
+		Dst:       "0x3.icon",
+		EventType: "sendMessage",
+		Data:      []byte("hello"),
+	}, func(key *relayertypes.MessageKey, response *relayertypes.TxResponse, err error) {
+		if err != nil {
+			p.log.Info("message route successful", zap.String("tx-hash", response.TxHash))
+		} else {
+			p.log.Error("message route failed: ", zap.String("tx-hash", response.TxHash), zap.Error(err))
+		}
+	}); err != nil {
+		p.log.Error("failed to route message: ", zap.Error(err))
+	}
+
 	p.log.Info("started querying from height", zap.Uint64("height", startHeight))
 
 	for {
