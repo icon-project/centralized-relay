@@ -240,7 +240,7 @@ func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-
 					Limit:           types.QUERY_MAX_RESULT_LIMIT,
 					DescendingOrder: false,
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				paginatedRes, err := p.client.GetCheckpoints(ctx, req)
 				if err != nil {
