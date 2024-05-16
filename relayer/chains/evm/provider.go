@@ -36,8 +36,7 @@ var (
 	MethodGetFee        = "getFee"
 
 	// Xcall contract
-	MethodExecuteCall     = "executeCall"
-	MethodExecuteRollback = "executeRollback"
+	MethodExecuteCall = "executeCall"
 )
 
 type Config struct {
@@ -59,7 +58,6 @@ type Config struct {
 
 type Provider struct {
 	client       IClient
-	verifier     IClient
 	log          *zap.Logger
 	cfg          *Config
 	StartHeight  uint64
@@ -89,18 +87,6 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
 
-	var verifierClient IClient
-
-	if p.VerifierRPCUrl != "" {
-		var err error
-		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		verifierClient = client // default to same client
-	}
-
 	// setting default finality block
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = DefaultFinalityBlock
@@ -111,7 +97,6 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
 		client:       client,
 		blockReq:     p.GetMonitorEventFilters(),
-		verifier:     verifierClient,
 		contracts:    p.eventMap(),
 		NonceTracker: types.NewNonceTracker(),
 	}, nil
@@ -130,7 +115,7 @@ func (p *Config) Validate() error {
 
 func (p *Config) sanitize() error {
 	if p.GasAdjustment == 0 {
-		p.GasAdjustment = 10
+		p.GasAdjustment = 50
 	}
 	return nil
 }

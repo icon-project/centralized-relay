@@ -7,10 +7,9 @@ import (
 )
 
 const (
-	CodeTypeOK       uint32 = 0
-	CodeTypeErr      uint32 = 1
-	ethereumCoinType        = uint32(60)
-	ChainType               = "cosmos"
+	CodeTypeOK  uint32 = 0
+	CodeTypeErr uint32 = 1
+	ChainType          = "cosmos"
 )
 
 var (

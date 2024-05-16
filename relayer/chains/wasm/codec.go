@@ -31,7 +31,6 @@ type Codec struct {
 	InterfaceRegistry types.InterfaceRegistry
 	TxConfig          client.TxConfig
 	Codec             codec.Codec
-	Amino             *codec.LegacyAmino
 }
 
 func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic, extraCodecs ...string) *Codec {

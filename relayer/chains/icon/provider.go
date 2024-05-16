@@ -25,7 +25,7 @@ type Config struct {
 	NID            string                         `json:"nid" yaml:"nid"`
 	StepMin        int64                          `json:"step-min" yaml:"step-min"`
 	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
-	StepAdjustment int                            `json:"step-adjustment" yaml:"step-adjustment"`
+	StepAdjustment int64                          `json:"step-adjustment" yaml:"step-adjustment"`
 	Disabled       bool                           `json:"disabled" yaml:"disabled"`
 	HomeDir        string                         `json:"-" yaml:"-"`
 }
@@ -68,7 +68,7 @@ func (c *Config) Validate() error {
 
 func (c *Config) sanitize() error {
 	if c.StepAdjustment == 0 {
-		c.StepAdjustment = 1.0
+		c.StepAdjustment = 50
 	}
 	return nil
 }

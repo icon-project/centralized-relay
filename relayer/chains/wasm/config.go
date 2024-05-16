@@ -101,7 +101,6 @@ func (pc *Config) Validate() error {
 	return nil
 }
 
-// Enabled returns true if the chain is enabled
 func (c *Config) Enabled() bool {
 	return !c.Disabled
 }

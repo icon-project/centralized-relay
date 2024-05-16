@@ -197,10 +197,11 @@ func (p *Provider) handleSequence(ctx context.Context) error {
 	return p.wallet.SetSequence(acc.GetSequence())
 }
 
-func (p *Provider) logTxFailed(err error, txHash string) {
+func (p *Provider) logTxFailed(err error, txHash string, code uint8) {
 	p.logger.Error("transaction failed",
 		zap.Error(err),
 		zap.String("tx_hash", txHash),
+		zap.Uint8("code", code),
 	)
 }
 
@@ -259,7 +260,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
 		if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
-			p.logTxFailed(txWaitRes.Error, txHash)
+			p.logTxFailed(txWaitRes.Error, txHash, uint8(txWaitRes.TxResult.Code))
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
 		}
