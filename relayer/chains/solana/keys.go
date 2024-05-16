@@ -2,7 +2,6 @@ package solana
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 
@@ -61,8 +60,6 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-
-	fmt.Println("Private Key: ", privateKey.String())
 
 	privateKeyEncrypted, err := p.kms.Encrypt(ctx, privateKey)
 	if err != nil {
