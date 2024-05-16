@@ -2,8 +2,8 @@ chains:
   - name: sui
     version: "3"
     environment: remote
-    rpc_uri: https://sui-devnet-endpoint.blockvision.org
-    websocket_uri: ws://fullnode.devnet.sui.io:443
+    rpc_uri: https://tt.net.solidwallet.io:443/sui-rpc
+    websocket_uri: ws://tt.net.solidwallet.io:443
     relay_wallet : 0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21
     keystore_password: ALWS4mKTtggWc8gH+a5bFLFQ0AeNbZpUdDI//3OpAVys
     contracts_path: "$BASE_PATH/artifacts/sui/xcall/contracts/sui"
