@@ -39,9 +39,14 @@ func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic, extraCodecs ...
 	std.RegisterInterfaces(encodingConfig.InterfaceRegistry)
 	basicManager := module.NewBasicManager(moduleBasics...)
 	basicManager.RegisterInterfaces(encodingConfig.InterfaceRegistry)
-	injective.RegisterInterfaces(encodingConfig.InterfaceRegistry)
-	legacy.Cdc.RegisterConcrete(&injective.PubKey{}, injective.PubKeyName, nil)
-	legacy.Cdc.RegisterConcrete(&injective.PrivKey{}, injective.PrivKeyName, nil)
+	for _, codec := range extraCodecs {
+		switch codec {
+		case "injective":
+			injective.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+			legacy.Cdc.RegisterConcrete(&injective.PubKey{}, injective.PubKeyName, nil)
+			legacy.Cdc.RegisterConcrete(&injective.PrivKey{}, injective.PrivKeyName, nil)
+		}
+	}
 	return encodingConfig
 }
 

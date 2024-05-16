@@ -43,6 +43,7 @@ type Config struct {
 	StartHeight            uint64                          `json:"start-height" yaml:"start-height"`
 	FinalityBlock          uint64                          `json:"finality-block" yaml:"finality-block"`
 	Disabled               bool                            `json:"disabled" yaml:"disabled"`
+	ExtraCodec             string                          `json:"extra-codecs" yaml:"extra-codecs"`
 	ChainName              string                          `json:"-" yaml:"-"`
 }
 
@@ -110,7 +111,7 @@ func (pc *Config) sanitize() (*Config, error) {
 }
 
 func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
-	codec := c.MakeCodec(moduleBasics)
+	codec := c.MakeCodec(moduleBasics, c.ExtraCodec)
 
 	keyRing, err := keyring.New(
 		c.ChainName,
@@ -132,7 +133,7 @@ func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, erro
 		return nil, err
 	}
 
-	grpcClient, err := grpc.DialContext(ctx, c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+	grpcClient, err := grpc.NewClient(c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
 		return nil, err
 	}
