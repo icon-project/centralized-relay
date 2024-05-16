@@ -98,7 +98,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 				return nil, err
 			}
 			opts.Nonce = nonce
-			p.NonceTracker.Set(p.wallet.Address, nonce.Add(nonce, big.NewInt(1)))
+			p.NonceTracker.Set(p.wallet.Address, nonce)
 		default:
 			return nil, err
 		}
