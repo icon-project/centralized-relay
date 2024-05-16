@@ -42,7 +42,7 @@ const (
 	moveCall          suisdkClient.UnsafeMethod = "moveCall"
 	publish           suisdkClient.UnsafeMethod = "publish"
 	queryEvents       suisdkClient.SuiXMethod   = "queryEvents"
-	callGasBudget                               = 5000000
+	callGasBudget                               = 500000000
 	deployGasBudget                             = "500000000"
 	xcallAdmin                                  = "xcall-admin"
 	xcallStorage                                = "xcall-storage"
@@ -442,7 +442,7 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			BlockInterval:  "0s",
 			Address:        an.testconfig.RelayWalletAddress,
 			FinalityBlock:  uint64(0),
-			GasPrice:       250000,
+			GasPrice:       4000000,
 			GasLimit:       50000000,
 		},
 	}
@@ -497,7 +497,6 @@ func (an *SuiRemotenet) SendPacketXCall(ctx context.Context, keyName string, _to
 	}
 	gasFeeCoin := an.getGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget).CoinObjectId
 	coinId := an.getAnotherGasCoinId(ctx, an.testconfig.RelayWalletAddress, callGasBudget, gasFeeCoin)
-
 	params := []SuiCallArg{
 		{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StateSuffix]},
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
@@ -554,6 +553,12 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 		return nil, err
 	}
 	an.log.Info("Txn created", zap.Any("ID", resp.Digest), zap.Any("status", resp.Effects.Data.IsSuccess()))
+	if !resp.Effects.Data.IsSuccess() {
+		if strings.Contains(resp.Effects.Data.V1.Status.Error, "send_call_inner") {
+			return resp, fmt.Errorf("MaxDataSizeExceeded")
+		}
+		return resp, fmt.Errorf("txn execution failed")
+	}
 	return resp, nil
 }
 

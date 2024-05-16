@@ -27,7 +27,7 @@ func (x *XCallTestSuite) TextXCall() {
 
 }
 
-func isInProcessedList(processedList []string, item string) bool {
+func isInList(processedList []string, item string) bool {
 	for _, val := range processedList {
 		if val == item {
 			return true
@@ -42,7 +42,7 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 		for innerIndex, innerChain := range createdChains {
 			if index != innerIndex {
 				chainFlowIdentifier := chain.Config().Name + "-" + innerChain.Config().Name
-				if !isInProcessedList(processedList, chainFlowIdentifier) {
+				if !isInList(processedList, chainFlowIdentifier) {
 					processedList = append(processedList, chainFlowIdentifier)
 					chainFlowName := chain.Config().Name + "->" + innerChain.Config().Name
 					x.T.Run("xcall one way message chainA-chainB "+chainFlowName, func(t *testing.T) {
@@ -68,7 +68,7 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 
 				}
 				reverseChainFlowIdentifier := innerChain.Config().Name + "-" + chain.Config().Name
-				if !isInProcessedList(processedList, reverseChainFlowIdentifier) {
+				if !isInList(processedList, reverseChainFlowIdentifier) {
 					processedList = append(processedList, reverseChainFlowIdentifier)
 					reverseChainFlowName := innerChain.Config().Name + "->" + chain.Config().Name
 					x.T.Run("xcall one way message chainB-chainA "+reverseChainFlowName, func(t *testing.T) {
@@ -92,7 +92,6 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 						fmt.Println("ending more than max  size data from src to dst", innerChain.Config().Name, chain.Config().Name)
 						x.testOneWayMessageWithSizeExpectingError(ctx, t, 2000, innerChain, chain)
 					})
-
 				}
 
 			}
@@ -114,7 +113,7 @@ func handlePanicAndGetContractAddress(chain chains.Chain, contractName, fallback
 func (x *XCallTestSuite) testOneWayMessage(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) error {
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	msg := "MessageTransfer"
+	msg := "MessageTransferTestingWithoutRollback"
 	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
 	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), nil)
@@ -139,10 +138,9 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "rollback"
-	rollback := "rollback"
+	rollback := "rollbackData"
 	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
-	fmt.Println("destination address is ", dAppAddress)
 	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), []byte(rollback))
 	isSuccess := assert.NoErrorf(t, err, "error on sending packet- %v", err)
 	if !isSuccess {
@@ -171,9 +169,12 @@ func (x *XCallTestSuite) testOneWayMessageWithSize(ctx context.Context, t *testi
 	_msg := make([]byte, dataSize)
 	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
-	_, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, _msg, nil)
-	assert.NoError(t, err)
-	fmt.Println("Data Transfer Testing With Message Size from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + string(_msg) + " PASSED")
+	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, _msg, nil)
+	assert.NoErrorf(t, err, "error on sending packet- %v", err)
+	assert.NotEmpty(t, res.RequestID, "retrieved requestId should not be empty")
+	if err == nil {
+		fmt.Println("Data Transfer Testing With Message Size from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + string(_msg) + " PASSED")
+	}
 }
 
 func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Context, t *testing.T, dataSize int, chainA, chainB chains.Chain) {

@@ -175,9 +175,6 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
 	time.Sleep(5 * time.Second)
 	connectionAddress, err := c.InstantiateContractRemote(ctx, connectionCodeId, `{"denom":"`+denom+`","xcall_address":"`+xcall+`","relayer":"`+c.testconfig.RelayWalletAddress+`"}`, true, c.GetCommonArgs()...)
 
@@ -185,16 +182,6 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 		return err
 	}
 	c.IBCAddresses["connection"] = connectionAddress
-	// methodName := "set_fee"
-	// _, err = c.ExecuteContract(ctx, connectionAddress, keyName, methodName, map[string]interface{}{
-	// 	"network_id":   target.Config().ChainID,
-	// 	"message_fee":  "0x0",
-	// 	"response_fee": "0x0",
-	// },
-	// )
-	// if err != nil {
-	// 	return err
-	// }
 	return nil
 }
 
