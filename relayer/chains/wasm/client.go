@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	jsoniter "github.com/json-iterator/go"
@@ -126,13 +125,9 @@ func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.Acco
 
 	var account sdkTypes.AccountI
 
-	fmt.Println(c.ctx.Keyring.List())
-
 	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
 		return nil, err
 	}
-	fmt.Println(account.String())
-
 	return account, nil
 }
 

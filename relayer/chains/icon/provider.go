@@ -25,7 +25,7 @@ type Config struct {
 	NID            string                         `json:"nid" yaml:"nid"`
 	StepMin        int64                          `json:"step-min" yaml:"step-min"`
 	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
-	StepAdjustment float64                        `json:"step-adjustment" yaml:"step-adjustment"`
+	StepAdjustment int                            `json:"step-adjustment" yaml:"step-adjustment"`
 	Disabled       bool                           `json:"disabled" yaml:"disabled"`
 	HomeDir        string                         `json:"-" yaml:"-"`
 }
