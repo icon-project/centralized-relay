@@ -150,3 +150,15 @@ Move the encrypted wallet passphrase to the new location:
 ### Added
 
 - Gas adjustment from config
+
+## [1.2.4] - 2024-05-17
+
+### Added
+
+- Support for the injective chain
+
+### Fixed
+
+- Gas Estimation for the evm chain
+- Cosmos sdk global config bech32 prefixes
+- Other improvements and bug fixes
