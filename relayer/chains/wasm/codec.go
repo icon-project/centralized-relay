@@ -1,16 +1,24 @@
 package wasm
 
 import (
+	"sync"
+
 	"github.com/CosmWasm/wasmd/x/wasm"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
+
 	"github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/std"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+
+	"github.com/cosmos/cosmos-sdk/std"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+
+	"github.com/cosmos/cosmos-sdk/codec/legacy"
+
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	"github.com/cosmos/cosmos-sdk/x/bank"
+	"github.com/cosmos/relayer/v2/relayer/codecs/injective"
 )
 
 var moduleBasics = []module.AppModuleBasic{
@@ -19,40 +27,50 @@ var moduleBasics = []module.AppModuleBasic{
 	bank.AppModuleBasic{},
 }
 
-type CodecConfig struct {
+var sdkConfigMutex sync.Mutex
+
+type Codec struct {
 	InterfaceRegistry types.InterfaceRegistry
-	Codec             codec.Codec
 	TxConfig          client.TxConfig
+	Codec             codec.Codec
+	cfg               *sdkTypes.Config
 }
 
-func GetCodecConfig(pc *ProviderConfig) *CodecConfig {
-	// Set the global configuration for address prefixes
-	config := sdkTypes.GetConfig()
-
-	valAddrPrefix := pc.AccountPrefix + sdkTypes.PrefixValidator + sdkTypes.PrefixOperator
-	valAddrPrefixPub := valAddrPrefix + sdkTypes.PrefixPublic
-
-	consensusNodeAddrPrefix := pc.AccountPrefix + sdkTypes.PrefixConsensus + sdkTypes.PrefixOperator
-	consensusNodeAddrPrefixPub := consensusNodeAddrPrefix + sdkTypes.PrefixPublic
-
-	config.SetBech32PrefixForAccount(pc.AccountPrefix, pc.AccountPrefix+sdkTypes.PrefixPublic)
-	config.SetBech32PrefixForValidator(valAddrPrefix, valAddrPrefixPub)
-	config.SetBech32PrefixForConsensusNode(consensusNodeAddrPrefix, consensusNodeAddrPrefixPub)
-
-	ifr := types.NewInterfaceRegistry()
-
-	std.RegisterInterfaces(ifr)
-
+func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic, extraCodecs ...string) *Codec {
+	encodingConfig := c.makeCodecConfig()
+	std.RegisterInterfaces(encodingConfig.InterfaceRegistry)
 	basicManager := module.NewBasicManager(moduleBasics...)
-	basicManager.RegisterInterfaces(ifr)
-
-	cdc := codec.NewProtoCodec(ifr)
-
-	txConfig := tx.NewTxConfig(cdc, tx.DefaultSignModes)
-
-	return &CodecConfig{
-		InterfaceRegistry: ifr,
-		Codec:             cdc,
-		TxConfig:          txConfig,
+	basicManager.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	for _, codec := range extraCodecs {
+		switch codec {
+		case "injective":
+			injective.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+			legacy.Cdc.RegisterConcrete(&injective.PubKey{}, injective.PubKeyName, nil)
+			legacy.Cdc.RegisterConcrete(&injective.PrivKey{}, injective.PrivKeyName, nil)
+		}
 	}
+	return encodingConfig
+}
+
+func (c *Config) makeCodecConfig() *Codec {
+	interfaceRegistry := types.NewInterfaceRegistry()
+	cdc := codec.NewProtoCodec(interfaceRegistry)
+	return &Codec{
+		InterfaceRegistry: interfaceRegistry,
+		Codec:             cdc,
+		TxConfig:          tx.NewTxConfig(cdc, tx.DefaultSignModes),
+	}
+}
+
+func (c *Provider) SetSDKContext() func() {
+	return SetSDKConfigContext(c.cfg.AccountPrefix)
+}
+
+func SetSDKConfigContext(prefix string) func() {
+	sdkConfigMutex.Lock()
+	sdkConf := sdkTypes.GetConfig()
+	sdkConf.SetBech32PrefixForAccount(prefix, prefix+"pub")
+	sdkConf.SetBech32PrefixForValidator(prefix+"valoper", prefix+"valoperpub")
+	sdkConf.SetBech32PrefixForConsensusNode(prefix+"valcons", prefix+"valconspub")
+	return sdkConfigMutex.Unlock
 }

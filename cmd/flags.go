@@ -30,7 +30,7 @@ func flushIntervalFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
 }
 
 func freshFlag(v *viper.Viper, cmd *cobra.Command) *cobra.Command {
-	cmd.Flags().Bool(flagFresh, false, "whether to clear db and tart fresh")
+	cmd.Flags().Bool(flagFresh, false, "whether to clear db and start fresh")
 	if err := v.BindPFlag(flagFresh, cmd.Flags().Lookup(flagFresh)); err != nil {
 		panic(err)
 	}

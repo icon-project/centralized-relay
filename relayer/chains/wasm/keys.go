@@ -29,6 +29,7 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 		if strings.Contains(err.Error(), "cannot overwrite key") {
 			return nil
 		}
+		return err
 	}
 	return nil
 }
@@ -77,7 +78,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
-	armorCipher, err := p.kms.Encrypt(ctx, []byte((armor)))
+	armorCipher, err := p.kms.Encrypt(ctx, []byte(armor))
 	if err != nil {
 		return "", err
 	}

@@ -46,20 +46,18 @@ type Config struct {
 	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
 	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
 	Address        string                          `json:"address" yaml:"address"`
-	GasPrice       uint64                          `json:"gas-price" yaml:"gas-price"`
 	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
 	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
 	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	Concurrency    uint64                          `json:"concurrency" yaml:"concurrency"`
 	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
 	NID            string                          `json:"nid" yaml:"nid"`
 	GasAdjustment  uint64                          `json:"gas-adjustment" yaml:"gas-adjustment"`
 	HomeDir        string                          `json:"-" yaml:"-"`
+	Disabled       bool                            `json:"disabled" yaml:"disabled"`
 }
 
 type Provider struct {
 	client       IClient
-	verifier     IClient
 	log          *zap.Logger
 	cfg          *Config
 	StartHeight  uint64
@@ -89,18 +87,6 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
 
-	var verifierClient IClient
-
-	if p.VerifierRPCUrl != "" {
-		var err error
-		verifierClient, err = newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		verifierClient = client // default to same client
-	}
-
 	// setting default finality block
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = DefaultFinalityBlock
@@ -111,7 +97,6 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
 		client:       client,
 		blockReq:     p.GetMonitorEventFilters(),
-		verifier:     verifierClient,
 		contracts:    p.eventMap(),
 		NonceTracker: types.NewNonceTracker(),
 	}, nil
@@ -130,7 +115,7 @@ func (p *Config) Validate() error {
 
 func (p *Config) sanitize() error {
 	if p.GasAdjustment == 0 {
-		p.GasAdjustment = 10
+		p.GasAdjustment = 5
 	}
 	return nil
 }
@@ -141,6 +126,11 @@ func (p *Config) SetWallet(addr string) {
 
 func (p *Config) GetWallet() string {
 	return p.Address
+}
+
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
 }
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
@@ -161,12 +151,13 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Wallet() (*keystore.Key, error) {
+	ctx := context.Background()
 	if p.wallet == nil {
-		if err := p.RestoreKeystore(context.Background()); err != nil {
+		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
 		if p.NonceTracker.Get(p.wallet.Address) == nil {
-			nonce, err := p.client.NonceAt(context.Background(), p.wallet.Address, nil)
+			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -183,11 +174,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
 	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
 	defer cancel()
-	txr, err := p.client.WaitForTransactionMined(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-	return txr, nil
+	return p.client.WaitForTransactionMined(ctx, tx)
 }
 
 func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
@@ -388,9 +375,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodRecvMessage, message.Src, message.Sn, message.Data)
+		sn := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodRecvMessage, message.Src, sn, message.Data)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.SetAdmin:
@@ -400,7 +388,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		data, err := abi.Pack(MethodSetAdmin, message.Src)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.RevertMessage:
@@ -408,9 +396,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodRevertMessage, message.Sn)
+		sn := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodRevertMessage, sn)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.ClaimFee:
@@ -420,7 +409,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		data, err := abi.Pack(MethodClaimFees)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.SetFee:
@@ -428,9 +417,11 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
+		sn := new(big.Int).SetUint64(message.Sn)
+		reqID := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodSetFee, message.Src, sn, reqID)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.CallMessage, events.ExecuteRollback:
@@ -438,9 +429,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
+		reqID := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodExecuteCall, reqID, message.Data)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])

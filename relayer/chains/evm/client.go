@@ -21,10 +21,9 @@ import (
 )
 
 const (
-	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 5
-	GasPriceRatio            = 10.0
-	DefaultMinedTimeout      = time.Second * 60
+	RPCCallRetry        = 5
+	MaxTxFixtures       = 5
+	DefaultMinedTimeout = time.Second * 60
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
@@ -65,10 +64,9 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 
 // grouped rpc api clients
 type Client struct {
-	log      *zap.Logger
-	rpc      *rpc.Client
-	eth      *ethclient.Client
-	verifier *Client
+	log *zap.Logger
+	rpc *rpc.Client
+	eth *ethclient.Client
 	// evm chain ID
 	EVMChainID *big.Int
 	connection *bridgeContract.Connection
@@ -92,8 +90,6 @@ type IClient interface {
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error)
-	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
-	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
 	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error)
@@ -121,14 +117,6 @@ func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumbe
 		return nil, err
 	}
 	return new(big.Int).SetUint64(nonce), nil
-}
-
-func (cl *Client) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
-	return cl.eth.TransactionCount(ctx, blockHash)
-}
-
-func (cl *Client) TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error) {
-	return cl.eth.TransactionInBlock(ctx, blockHash, index)
 }
 
 func (cl *Client) TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error) {

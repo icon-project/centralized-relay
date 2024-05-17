@@ -109,7 +109,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 }
 
 // EventSigToEventType converts event signature to event type
-func (p *ProviderConfig) eventMap() map[string]relayerTypes.EventMap {
+func (p *Config) eventMap() map[string]relayerTypes.EventMap {
 	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
 		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
@@ -136,7 +136,7 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 	return ""
 }
 
-func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
+func (p *Config) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
 	for addr, contract := range eventMap {

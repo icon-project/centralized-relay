@@ -34,7 +34,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
+	tx, err := p.SendTransaction(ctx, opts, message, MaxTxFixtures)
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
@@ -61,25 +61,26 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
 	}
 
-	opts.GasLimit = gasLimit + gasLimit*p.cfg.GasAdjustment/100
+	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
+
+	p.log.Info("gas info", zap.Uint64("gas_limit", opts.GasLimit), zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 
 	switch message.EventType {
-	// check estimated gas and gas price
 	case events.EmitMessage:
-		tx, err = p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
+		tx, err = p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
 	case events.CallMessage:
-		tx, err = p.client.ExecuteCall(opts, big.NewInt(0).SetUint64(message.ReqID), message.Data)
+		tx, err = p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
 		tx, err = p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		tx, err = p.client.RevertMessage(opts, big.NewInt(int64(message.Sn)))
+		tx, err = p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
 	case events.ClaimFee:
 		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
-		tx, err = p.client.SetFee(opts, message.Src, big.NewInt(int64(message.Sn)), big.NewInt(int64(message.ReqID)))
+		tx, err = p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
 	case events.ExecuteRollback:
-		tx, err = p.client.ExecuteRollback(opts, big.NewInt(0).SetUint64(message.Sn))
+		tx, err = p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
@@ -145,6 +146,7 @@ func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *type
 		zap.Any("message-key", message),
 		zap.String("tx_hash", receipt.TxHash.String()),
 		zap.Int64("height", receipt.BlockNumber.Int64()),
+		zap.Uint64("gas_used", receipt.GasUsed),
 	)
 }
 
@@ -152,6 +154,8 @@ func (p *Provider) LogFailedTx(messageKey *providerTypes.MessageKey, result *typ
 	p.log.Info("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),
+		zap.Uint64("gas_used", result.GasUsed),
+		zap.Uint("tx_index", result.TransactionIndex),
 		zap.Error(err),
 	)
 }

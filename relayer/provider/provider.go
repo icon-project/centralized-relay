@@ -14,6 +14,7 @@ type Config interface {
 	SetWallet(string)
 	GetWallet() string
 	Validate() error
+	Enabled() bool
 }
 
 type ChainQuery interface {
