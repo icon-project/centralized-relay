@@ -27,6 +27,8 @@ var moduleBasics = []module.AppModuleBasic{
 	bank.AppModuleBasic{},
 }
 
+var sdkConfigMutex sync.Mutex
+
 type Codec struct {
 	InterfaceRegistry types.InterfaceRegistry
 	TxConfig          client.TxConfig
@@ -60,16 +62,10 @@ func (c *Config) makeCodecConfig() *Codec {
 	}
 }
 
-var sdkConfigMutex sync.Mutex
-
-// SetSDKContext sets the SDK config to the proper bech32 prefixes.
-// Don't use this unless you know what you're doing.
-// TODO: :dagger: :knife: :chainsaw: remove this function
 func (c *Provider) SetSDKContext() func() {
 	return SetSDKConfigContext(c.cfg.AccountPrefix)
 }
 
-// SetSDKContext sets the SDK config to the given bech32 prefixes
 func SetSDKConfigContext(prefix string) func() {
 	sdkConfigMutex.Lock()
 	sdkConf := sdkTypes.GetConfig()
