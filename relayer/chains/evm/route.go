@@ -63,7 +63,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 
 	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
 
-	p.log.Info("gas info", zap.Uint64("gas_limit", opts.GasLimit), zap.Uint64("gas_price", opts.GasPrice.Uint64()))
+	p.log.Info("gas info", zap.Uint64("gas_limit", gasLimit), zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 
 	switch message.EventType {
 	case events.EmitMessage:

@@ -64,10 +64,9 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 
 // grouped rpc api clients
 type Client struct {
-	log      *zap.Logger
-	rpc      *rpc.Client
-	eth      *ethclient.Client
-	verifier *Client
+	log *zap.Logger
+	rpc *rpc.Client
+	eth *ethclient.Client
 	// evm chain ID
 	EVMChainID *big.Int
 	connection *bridgeContract.Connection

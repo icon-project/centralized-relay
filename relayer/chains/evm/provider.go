@@ -375,9 +375,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodRecvMessage, message.Src, message.Sn, message.Data)
+		sn := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodRecvMessage, message.Src, sn, message.Data)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.SetAdmin:
@@ -387,7 +388,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		data, err := abi.Pack(MethodSetAdmin, message.Src)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.RevertMessage:
@@ -395,9 +396,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodRevertMessage, message.Sn)
+		sn := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodRevertMessage, sn)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.ClaimFee:
@@ -407,7 +409,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		data, err := abi.Pack(MethodClaimFees)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.SetFee:
@@ -415,9 +417,11 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
+		sn := new(big.Int).SetUint64(message.Sn)
+		reqID := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodSetFee, message.Src, sn, reqID)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 	case events.CallMessage, events.ExecuteRollback:
@@ -425,9 +429,10 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
+		reqID := new(big.Int).SetUint64(message.Sn)
+		data, err := abi.Pack(MethodExecuteCall, reqID, message.Data)
 		if err != nil {
-			return 0, nil
+			return 0, err
 		}
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
