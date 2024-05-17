@@ -141,7 +141,6 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 	if err != nil {
 		return nil, err
 	}
-
 	stellerMsg := types.StellerMsg{Message: msg}
 
 	switch msg.EventType {
@@ -156,10 +155,17 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			},
 		}, nil
 	case evtypes.CallMessage:
+		acc := xdr.MustAddressPtr(p.cfg.Address)
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scXcallAddr,
 			FunctionName:    xdr.ScSymbol("execute_call"),
 			Args: []xdr.ScVal{
+				{
+					Type: xdr.ScValTypeScvAddress,
+					Address: &xdr.ScAddress{
+						AccountId: acc,
+					},
+				},
 				stellerMsg.ScvReqID(),
 				stellerMsg.ScvData(),
 			},

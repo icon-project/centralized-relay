@@ -2,7 +2,6 @@ package steller
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strconv"
 	"sync"
@@ -79,7 +78,6 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 		return err
 	}
 	_, err = p.sendCallTransaction(*callArgs)
-	fmt.Println(err)
 	return err
 }
 

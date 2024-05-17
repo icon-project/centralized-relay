@@ -166,13 +166,12 @@ func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([
 	eventFilter := types.EventFilter{
 		LedgerSeq:   ledgerSeq,
 		ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
-		Topics:      []string{"EmitMessage", "CallMessage"},
+		Topics:      []string{"Message", "CallMessage"},
 	}
 	events, err := p.client.FetchEvents(ctx, eventFilter)
 	if err != nil {
 		return nil, err
 	}
-
 	messages, err := p.parseMessagesFromEvents(events)
 	for _, msg := range messages {
 		p.log.Info("detected event log:", zap.Any("event", *msg))
@@ -187,7 +186,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		var eventType string
 		for _, topic := range ev.Body.V0.Topics {
 			switch topic.String() {
-			case "EmitMessage":
+			case "Message":
 				eventType = relayerevents.EmitMessage
 			case "CallMessage":
 				eventType = relayerevents.CallMessage
@@ -210,13 +209,13 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		}
 		for _, mapItem := range *scMap {
 			switch mapItem.Key.String() {
-			case "sn":
+			case "connSn", "sn":
 				sn, ok := mapItem.Val.GetU128()
 				if !ok {
 					return nil, fmt.Errorf("failed to decode sn")
 				}
 				msg.Sn = uint64(sn.Lo)
-			case "req_id":
+			case "reqId":
 				reqId, ok := mapItem.Val.GetU128()
 				if !ok {
 					return nil, fmt.Errorf("failed to decode req_id")
@@ -224,15 +223,9 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 				msg.ReqID = uint64(reqId.Lo)
 			case "from":
 				msg.Src = mapItem.Val.String()
-			case "to":
+			case "targetNetwork", "to":
 				msg.Dst = mapItem.Val.String()
-			case "msg":
-				data, ok := mapItem.Val.GetBytes()
-				if !ok {
-					return nil, fmt.Errorf("failed to decode data")
-				}
-				msg.Data = data
-			case "data":
+			case "msg", "data":
 				data, ok := mapItem.Val.GetBytes()
 				if !ok {
 					return nil, fmt.Errorf("failed to decode data")
