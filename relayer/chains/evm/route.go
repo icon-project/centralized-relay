@@ -66,7 +66,6 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	p.log.Info("gas info", zap.Uint64("gas_limit", opts.GasLimit), zap.Uint64("gas_price", opts.GasPrice.Uint64()))
 
 	switch message.EventType {
-	// check estimated gas and gas price
 	case events.EmitMessage:
 		tx, err = p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
 	case events.CallMessage:

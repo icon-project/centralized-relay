@@ -31,6 +31,7 @@ type Codec struct {
 	InterfaceRegistry types.InterfaceRegistry
 	TxConfig          client.TxConfig
 	Codec             codec.Codec
+	cfg               *sdkTypes.Config
 }
 
 func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic, extraCodecs ...string) *Codec {
@@ -51,8 +52,6 @@ func (c *Config) MakeCodec(moduleBasics []module.AppModuleBasic, extraCodecs ...
 
 func (c *Config) makeCodecConfig() *Codec {
 	interfaceRegistry := types.NewInterfaceRegistry()
-	done := SetSDKConfigContext(c.AccountPrefix)
-	defer done()
 	cdc := codec.NewProtoCodec(interfaceRegistry)
 	return &Codec{
 		InterfaceRegistry: interfaceRegistry,
@@ -61,15 +60,13 @@ func (c *Config) makeCodecConfig() *Codec {
 	}
 }
 
-// This file is cursed and this mutex is too
-// you don't want none of this dewey cox.
 var sdkConfigMutex sync.Mutex
 
 // SetSDKContext sets the SDK config to the proper bech32 prefixes.
 // Don't use this unless you know what you're doing.
 // TODO: :dagger: :knife: :chainsaw: remove this function
-func (cc *Provider) SetSDKContext() func() {
-	return SetSDKConfigContext(cc.cfg.AccountPrefix)
+func (c *Provider) SetSDKContext() func() {
+	return SetSDKConfigContext(c.cfg.AccountPrefix)
 }
 
 // SetSDKContext sets the SDK config to the given bech32 prefixes

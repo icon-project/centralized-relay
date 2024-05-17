@@ -109,7 +109,7 @@ func (pc *Config) sanitize() (*Config, error) {
 	return pc, nil
 }
 
-func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, error) {
+func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error) {
 	codec := c.MakeCodec(moduleBasics, c.ExtraCodec)
 
 	keyRing, err := keyring.New(
@@ -124,20 +124,21 @@ func (c *Config) newClientContext(ctx context.Context) (*sdkClient.Context, erro
 		},
 	)
 	if err != nil {
-		return nil, err
+		return sdkClient.Context{}, err
 	}
 
 	cometRPCClient, err := http.New(c.RpcUrl, "/websocket")
 	if err != nil {
-		return nil, err
+		return sdkClient.Context{}, err
 	}
 
 	grpcClient, err := grpc.NewClient(c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	if err != nil {
-		return nil, err
+		return sdkClient.Context{}, err
 	}
 
-	return &sdkClient.Context{
+	return sdkClient.Context{
+		CmdContext:        ctx,
 		ChainID:           c.ChainID,
 		Client:            cometRPCClient,
 		NodeURI:           c.RpcUrl,

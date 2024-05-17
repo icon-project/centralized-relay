@@ -51,10 +51,11 @@ type IClient interface {
 
 type Client struct {
 	ctx sdkClient.Context
+	aq  authTypes.QueryClient
 }
 
-func newClient(ctx *sdkClient.Context) *Client {
-	return &Client{*ctx}
+func newClient(ctx sdkClient.Context) *Client {
+	return &Client{ctx, authTypes.NewQueryClient(ctx.GRPCClient)}
 }
 
 func (c *Client) BuildTxFactory() (tx.Factory, error) {
@@ -117,18 +118,14 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 }
 
 func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
-	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
+	res, err := c.aq.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
 
 	var account sdkTypes.AccountI
 
-	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
-		return nil, err
-	}
-	return account, nil
+	return account, c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account)
 }
 
 // Create new AccountI

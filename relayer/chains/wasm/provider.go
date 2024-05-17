@@ -23,6 +23,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ provider.ChainProvider = (*Provider)(nil)
+
 type Provider struct {
 	logger    *zap.Logger
 	cfg       *Config
@@ -68,11 +70,14 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 // Wallet returns the wallet of the provider
 func (p *Provider) Wallet() sdkTypes.AccAddress {
 	if p.wallet == nil {
-		if err := p.RestoreKeystore(context.Background()); err != nil {
+		ctx := context.Background()
+		done := p.SetSDKContext()
+		defer done()
+		if err := p.RestoreKeystore(ctx); err != nil {
 			p.logger.Error("failed to restore keystore", zap.Error(err))
 			return nil
 		}
-		account, err := p.client.GetAccountInfo(context.Background(), p.cfg.GetWallet())
+		account, err := p.client.GetAccountInfo(ctx, p.cfg.GetWallet())
 		if err != nil {
 			p.logger.Error("failed to get account info", zap.Error(err))
 			return nil
@@ -177,7 +182,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	if err != nil {
 		if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
 			if mmErr := p.handleSequence(ctx); mmErr != nil {
-				return nil, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
+				return res, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
 			}
 			return p.sendMessage(ctx, msgs...)
 		}
