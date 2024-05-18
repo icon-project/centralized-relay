@@ -214,9 +214,14 @@ func (i HexInt) Value() (int64, error) {
 	return strconv.ParseInt(s, 16, 64)
 }
 
-func (i HexInt) Int() (int, error) {
+func (i HexInt) Int64() (int64, error) {
 	s := strings.TrimPrefix(string(i), "0x")
 	v, err := strconv.ParseInt(s, 16, 32)
+	return v, err
+}
+
+func (i HexInt) Int() (int, error) {
+	v, err := i.Int64()
 	return int(v), err
 }
 

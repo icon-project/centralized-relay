@@ -88,12 +88,10 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
 
-	stepVal, err := step.Int()
+	steps, err := step.Int64()
 	if err != nil {
 		return nil, err
 	}
-
-	steps := int64(stepVal)
 
 	if steps > p.cfg.StepLimit {
 		return nil, fmt.Errorf("step limit is too high: %d", steps)
