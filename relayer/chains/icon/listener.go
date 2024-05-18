@@ -89,7 +89,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							p.log.Info("Detected eventlog",
 								zap.Uint64("height", msg.MessageHeight),
 								zap.String("target_network", msg.Dst),
-								zap.Uint64("sn", msg.Sn),
+								zap.Uint64("sn", msg.Sn.Uint64()),
 								zap.String("event_type", msg.EventType),
 							)
 							incoming <- &providerTypes.BlockInfo{

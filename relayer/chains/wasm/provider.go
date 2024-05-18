@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -382,7 +381,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 	queryMsg := &types.QueryReceiptMsg{
 		GetReceipt: &types.GetReceiptMsg{
 			SrcNetwork: key.Src,
-			ConnSn:     strconv.FormatUint(key.Sn, 10),
+			ConnSn:     key.Sn.String(),
 		},
 	}
 	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
@@ -438,7 +437,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	msg := &relayTypes.Message{
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 		EventType: events.RevertMessage,
 	}
 	_, err := p.call(ctx, msg)
@@ -446,7 +445,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee *big.Int) error {
 	msg := &relayTypes.Message{
 		Src:       networkdID,
 		Sn:        msgFee,
@@ -489,7 +488,7 @@ func (p *Provider) SetAdmin(ctx context.Context, address string) error {
 // ExecuteRollback
 func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	msg := &relayTypes.Message{
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 		EventType: events.ExecuteRollback,
 	}
 	_, err := p.call(ctx, msg)
@@ -626,7 +625,7 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 				p.logger.Info("Detected eventlog",
 					zap.Uint64("height", msg.MessageHeight),
 					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn),
+					zap.Uint64("sn", msg.Sn.Uint64()),
 					zap.String("event_type", msg.EventType),
 				)
 			}
@@ -769,7 +768,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Info("Detected eventlog",
 					zap.Int64("height", res.Height),
 					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn),
+					zap.Uint64("sn", msg.Sn.Uint64()),
 					zap.String("event_type", msg.EventType),
 				)
 			}

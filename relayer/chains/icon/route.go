@@ -32,13 +32,13 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 	case events.EmitMessage:
 		msg := &types.RecvMessage{
 			SrcNID: message.Src,
-			ConnSn: types.NewHexInt(int64(message.Sn)),
+			ConnSn: types.NewHexInt(message.Sn.Int64()),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
 		msg := &types.ExecuteCall{
-			ReqID: types.NewHexInt(int64(message.ReqID)),
+			ReqID: types.NewHexInt(message.ReqID.Int64()),
 			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
@@ -49,7 +49,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetAdmin), nil
 	case events.RevertMessage:
 		msg := &types.RevertMessage{
-			Sn: types.NewHexInt(int64(message.Sn)),
+			Sn: types.NewHexInt(message.Sn.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRevertMessage), nil
 	case events.ClaimFee:
@@ -57,8 +57,8 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 	case events.SetFee:
 		msg := &types.SetFee{
 			NetworkID: message.Src,
-			MsgFee:    types.NewHexInt(int64(message.Sn)),
-			ResFee:    types.NewHexInt(int64(message.ReqID)),
+			MsgFee:    types.NewHexInt(message.Sn.Int64()),
+			ResFee:    types.NewHexInt(message.ReqID.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	}
@@ -75,7 +75,7 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.NewAddress(wallet.Address().Bytes()),
 		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(p.cfg.NetworkID),
+		NetworkID:   types.NewHexString(p.cfg.ChainID),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,

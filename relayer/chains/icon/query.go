@@ -120,7 +120,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					Dst:           dst,
 					Src:           key.Src,
 					Data:          dataValue,
-					Sn:            sn.Uint64(),
+					Sn:            sn,
 				}
 				messages = append(messages, msg)
 			case CallMessage:
@@ -149,8 +149,8 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					Dst:           dst,
 					Src:           src[0],
 					Data:          data,
-					Sn:            sn.Uint64(),
-					ReqID:         requestID.Uint64(),
+					Sn:            sn,
+					ReqID:         requestID,
 				}
 				messages = append(messages, msg)
 			}

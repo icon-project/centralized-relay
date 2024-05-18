@@ -198,7 +198,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 		p.log.Info("Detected eventlog",
 			zap.Uint64("height", lbn.Height.Uint64()),
 			zap.String("target_network", message.Dst),
-			zap.Uint64("sn", message.Sn),
+			zap.Uint64("sn", message.Sn.Uint64()),
 			zap.String("event_type", message.EventType),
 		)
 		messages = append(messages, message)
@@ -274,7 +274,7 @@ func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfo
 			}
 			p.log.Info("Detected eventlog",
 				zap.String("target_network", message.Dst),
-				zap.Uint64("sn", message.Sn),
+				zap.Uint64("sn", message.Sn.Uint64()),
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
 				zap.Uint64("block_number", log.BlockNumber),

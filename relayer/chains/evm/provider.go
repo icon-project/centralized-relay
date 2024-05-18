@@ -40,20 +40,11 @@ var (
 )
 
 type Config struct {
-	ChainName      string                          `json:"-" yaml:"-"`
-	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
-	WebsocketUrl   string                          `json:"websocket-url" yaml:"websocket-url"`
-	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
-	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
-	Address        string                          `json:"address" yaml:"address"`
-	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
-	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
-	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
-	NID            string                          `json:"nid" yaml:"nid"`
-	GasAdjustment  uint64                          `json:"gas-adjustment" yaml:"gas-adjustment"`
-	HomeDir        string                          `json:"-" yaml:"-"`
-	Disabled       bool                            `json:"disabled" yaml:"disabled"`
+	provider.CommonConfig `json:",inline" yaml:",inline"`
+	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
+	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
+	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
+	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
 }
 
 type Provider struct {
@@ -264,7 +255,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	}
 	msg := &providerTypes.Message{
 		EventType: events.RevertMessage,
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 	}
 	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
 	if err != nil {
@@ -304,7 +295,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -339,7 +330,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 // ExecuteRollback
-func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -375,8 +366,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodRecvMessage, message.Src, sn, message.Data)
+		data, err := abi.Pack(MethodRecvMessage, message.Src, message.Sn, message.Data)
 		if err != nil {
 			return 0, err
 		}
@@ -396,8 +386,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodRevertMessage, sn)
+		data, err := abi.Pack(MethodRevertMessage, message.Sn)
 		if err != nil {
 			return 0, err
 		}
@@ -417,9 +406,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		reqID := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodSetFee, message.Src, sn, reqID)
+		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
 		if err != nil {
 			return 0, err
 		}
@@ -429,8 +416,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		reqID := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodExecuteCall, reqID, message.Data)
+		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
 		if err != nil {
 			return 0, err
 		}

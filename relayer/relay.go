@@ -242,7 +242,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 
 				// if message is received we can remove the message from db
 				if messageReceived {
-					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn))
+					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
 					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
@@ -308,7 +308,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 			dst.log.Info("message relayed successfully",
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
-				zap.Uint64("sn", key.Sn),
+				zap.Uint64("sn", key.Sn.Uint64()),
 				zap.String("tx_hash", response.TxHash),
 			)
 
@@ -347,9 +347,9 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 			dst.log.Info("message relayed successfully",
 				zap.String("dst", dst.Provider.NID()),
 				zap.String("tx_hash", response.TxHash),
-				zap.Uint64("sn", key.Sn),
+				zap.Uint64("sn", key.Sn.Uint64()),
 				zap.String("event_type", msg.EventType),
-				zap.Uint64("request_id", msg.ReqID),
+				zap.Uint64("request_id", msg.ReqID.Uint64()),
 				zap.Int64("height", response.Height),
 			)
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
@@ -405,7 +405,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 		dst.log.Error("message relay failed",
 			zap.String("src", routeMessage.Src),
 			zap.String("dst", routeMessage.Dst),
-			zap.Uint64("sn", routeMessage.Sn),
+			zap.Uint64("sn", routeMessage.Sn.Uint64()),
 			zap.String("event_type", routeMessage.EventType),
 			zap.Uint8("count", routeMessage.Retry),
 		)

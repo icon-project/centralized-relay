@@ -262,6 +262,11 @@ func NewHexInt(v int64) HexInt {
 	return HexInt("0x" + strconv.FormatInt(v, 16))
 }
 
+// NewHexString returns a HexInt from a string
+func NewHexString(s string) HexInt {
+	return HexInt("0x" + s)
+}
+
 // T_ADDR_EOA, T_ADDR_SCORE
 type Address string
 

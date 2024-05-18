@@ -13,7 +13,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -21,30 +20,21 @@ import (
 )
 
 type Config struct {
-	RpcUrl                 string                          `json:"rpc-url" yaml:"rpc-url"`
-	GrpcUrl                string                          `json:"grpc-url" yaml:"grpc-url"`
-	ChainID                string                          `json:"chain-id" yaml:"chain-id"`
-	NID                    string                          `json:"nid" yaml:"nid"`
-	HomeDir                string                          `json:"home-dir" yaml:"home-dir"`
-	KeyringBackend         string                          `json:"keyring-backend" yaml:"keyring-backend"`
-	KeyringDir             string                          `json:"keyring-dir" yaml:"keyring-dir"`
-	AccountPrefix          string                          `json:"account-prefix" yaml:"account-prefix"`
-	Contracts              providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	Address                string                          `json:"address" yaml:"address"`
-	Denomination           string                          `json:"denomination" yaml:"denomination"`
-	GasPrices              string                          `json:"gas-prices" yaml:"gas-prices"`
-	GasAdjustment          float64                         `json:"gas-adjustment" yaml:"gas-adjustment"`
-	MinGasAmount           uint64                          `json:"min-gas-amount" yaml:"min-gas-amount"`
-	MaxGasAmount           uint64                          `json:"max-gas-amount" yaml:"max-gas-amount"`
-	TxConfirmationInterval time.Duration                   `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
-	BroadcastMode          string                          `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
-	SignModeStr            string                          `json:"sign-mode" yaml:"sign-mode"`
-	Simulate               bool                            `json:"simulate" yaml:"simulate"`
-	StartHeight            uint64                          `json:"start-height" yaml:"start-height"`
-	FinalityBlock          uint64                          `json:"finality-block" yaml:"finality-block"`
-	Disabled               bool                            `json:"disabled" yaml:"disabled"`
-	ExtraCodec             string                          `json:"extra-codecs" yaml:"extra-codecs"`
-	ChainName              string                          `json:"-" yaml:"-"`
+	provider.CommonConfig  `json:",inline" yaml:",inline"`
+	GrpcUrl                string        `json:"grpc-url" yaml:"grpc-url"`
+	KeyringBackend         string        `json:"keyring-backend" yaml:"keyring-backend"`
+	KeyringDir             string        `json:"keyring-dir" yaml:"keyring-dir"`
+	AccountPrefix          string        `json:"account-prefix" yaml:"account-prefix"`
+	Denomination           string        `json:"denomination" yaml:"denomination"`
+	GasPrices              string        `json:"gas-prices" yaml:"gas-prices"`
+	GasAdjustment          float64       `json:"gas-adjustment" yaml:"gas-adjustment"`
+	MinGasAmount           uint64        `json:"min-gas-amount" yaml:"min-gas-amount"`
+	MaxGasAmount           uint64        `json:"max-gas-amount" yaml:"max-gas-amount"`
+	TxConfirmationInterval time.Duration `json:"tx-confirmation-interval" yaml:"tx-confirmation-interval"`
+	BroadcastMode          string        `json:"broadcast-mode" yaml:"broadcast-mode"` // sync, async and block. Recommended: sync
+	SignModeStr            string        `json:"sign-mode" yaml:"sign-mode"`
+	Simulate               bool          `json:"simulate" yaml:"simulate"`
+	ExtraCodec             string        `json:"extra-codecs" yaml:"extra-codecs"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -101,10 +91,6 @@ func (pc *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) Enabled() bool {
-	return !c.Disabled
-}
-
 func (pc *Config) sanitize() (*Config, error) {
 	return pc, nil
 }
@@ -127,7 +113,7 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 		return sdkClient.Context{}, err
 	}
 
-	cometRPCClient, err := http.New(c.RpcUrl, "/websocket")
+	cometRPCClient, err := http.New(c.RPCUrl, "/websocket")
 	if err != nil {
 		return sdkClient.Context{}, err
 	}
@@ -141,7 +127,7 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 		CmdContext:        ctx,
 		ChainID:           c.ChainID,
 		Client:            cometRPCClient,
-		NodeURI:           c.RpcUrl,
+		NodeURI:           c.RPCUrl,
 		Codec:             codec.Codec,
 		Keyring:           keyRing,
 		KeyringDir:        c.KeyringDir,
