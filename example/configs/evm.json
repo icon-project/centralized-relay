@@ -8,7 +8,6 @@
         "gas-min": 10056,
         "gas-limit": 200000,
         "nid": " 0xa869.fuji",
-        "concurrency": 3,
         "contracts": {
             "xcall": "0x...cvv",
             "connection": "0x...oml"

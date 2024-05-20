@@ -3,7 +3,6 @@
     "value": {
         "rpc-url": "https://lisbon.net.solidwallet.io/api/v3/",
         "address": "hx...",
-        "password": "gochain",
         "start-height": 0,
         "min-step-limit": 0,
         "max-step-limit": 0,

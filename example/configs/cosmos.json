@@ -1,6 +1,7 @@
 {
-  "type": "wasm",
+  "type": "cosmos",
   "value": {
+    "disabled": false,
     "chain-id": "constantine-3",
     "nid": "archway",
     "rpc-url": "https://rpc.constantine.archway.io:443",
