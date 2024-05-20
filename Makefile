@@ -9,8 +9,8 @@ GOOS := $(shell go env GOOS)
 GOARCH := $(shell go env GOARCH)
 
 # Define the URLs for the library files
-LIBWASMV_VERS := "v2.0.0"
-LIBWASMMV_URL := https://github.com/CosmWasm/wasmvm/releases/download/$(LIBWASMV_VERS)
+COSMWASM_VERSION      ?= v2.0.1
+LIBWASMMV_URL := https://github.com/CosmWasm/wasmvm/releases/download/$(COSMWASM_VERSION)
 
 
 
@@ -111,8 +111,7 @@ e2e-test:
 	@go test -v ./test/e2e -testify.m TestE2E_all
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.22.1
-COSMWASM_VERSION      ?= v2.0.0
+GOLANG_CROSS_VERSION  ?= v1.22.3
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
