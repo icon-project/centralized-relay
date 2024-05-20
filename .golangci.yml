@@ -1,0 +1,10 @@
+linters:
+  enable:
+    - deadcode
+    - gofmt
+    - golint
+    - govet
+    - ineffassign
+    - structcheck
+    - typecheck
+    - varcheck

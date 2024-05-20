@@ -9,7 +9,11 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+<<<<<<< HEAD
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
+=======
+	"github.com/icon-project/centralized-relay/relayer/chains/sui"
+>>>>>>> feature/sui-integration
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -254,6 +258,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(wasm.ProviderConfig)
 	case "steller":
 		iw.Value = new(steller.Config)
+	case "sui":
+		iw.Value = new(sui.Config)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}
