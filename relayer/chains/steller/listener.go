@@ -230,7 +230,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 				if !ok {
 					return nil, fmt.Errorf("failed to decode data")
 				}
-				msg.Data = data
+				msg.Data = []byte(data)
 			}
 		}
 
