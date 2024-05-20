@@ -9,11 +9,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-<<<<<<< HEAD
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
-=======
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
->>>>>>> feature/sui-integration
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
 	"github.com/icon-project/centralized-relay/relayer"
