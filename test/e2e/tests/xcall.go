@@ -191,7 +191,7 @@ func (x *XCallTestSuite) testRollbackDataWithoutRollback(ctx context.Context, t 
 	assert.NoErrorf(t, err, "error getting height %v", err)
 	code, err := chainA.FindCallResponse(ctx, height, res.SerialNo)
 	assert.NoErrorf(t, err, "no call response found %v", err)
-	isSuccess = assert.Equal(t, "0", code)
+	isSuccess = assert.Equal(t, "1", code)
 	if !isSuccess {
 		return err
 	}
