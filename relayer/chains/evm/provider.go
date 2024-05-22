@@ -429,7 +429,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		reqID := new(big.Int).SetUint64(message.Sn)
+		reqID := new(big.Int).SetUint64(message.ReqID)
 		data, err := abi.Pack(MethodExecuteCall, reqID, message.Data)
 		if err != nil {
 			return 0, err
