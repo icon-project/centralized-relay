@@ -12,6 +12,19 @@ type IClient interface {
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetLatestBlockHash(ctx context.Context) (*solana.Hash, error)
 
+	GetAccountInfo(ctx context.Context, accountId solana.PublicKey) (*solrpc.Account, error)
+
+	GetSignatureStatus(
+		ctx context.Context,
+		searchTxHistory bool,
+		sign solana.Signature,
+	) (*solrpc.SignatureStatusesResult, error)
+
+	GetMinBalanceForRentExemption(
+		ctx context.Context,
+		dataSize uint64,
+	) (uint64, error)
+
 	SimulateTx(
 		ctx context.Context,
 		tx *solana.Transaction,
@@ -23,12 +36,6 @@ type IClient interface {
 		tx *solana.Transaction,
 		opts *solrpc.TransactionOpts,
 	) (solana.Signature, error)
-
-	GetSignatureStatus(
-		ctx context.Context,
-		searchTxHistory bool,
-		sign solana.Signature,
-	) (*solrpc.SignatureStatusesResult, error)
 }
 
 type Client struct {
@@ -37,6 +44,14 @@ type Client struct {
 
 func NewClient(rpcCl *solrpc.Client) IClient {
 	return Client{rpc: rpcCl}
+}
+
+func (cl Client) GetAccountInfo(ctx context.Context, accountId solana.PublicKey) (*solrpc.Account, error) {
+	res, err := cl.rpc.GetAccountInfo(ctx, accountId)
+	if err != nil {
+		return nil, err
+	}
+	return res.Value, nil
 }
 
 func (cl Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
@@ -92,4 +107,11 @@ func (cl Client) GetSignatureStatus(
 		return res.Value[0], nil
 	}
 	return nil, fmt.Errorf("tx signature result not found")
+}
+
+func (cl Client) GetMinBalanceForRentExemption(
+	ctx context.Context,
+	dataSize uint64,
+) (uint64, error) {
+	return cl.rpc.GetMinimumBalanceForRentExemption(ctx, dataSize, "")
 }

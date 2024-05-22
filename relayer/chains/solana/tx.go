@@ -10,6 +10,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"go.uber.org/zap"
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
@@ -18,35 +19,11 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
-	latestBlockHash, err := p.client.GetLatestBlockHash(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get latest block hash: %w", err)
-	}
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := solana.NewTransaction(instructions, *latestBlockHash)
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
 	if err != nil {
-		return fmt.Errorf("failed to create new tx: %w", err)
-	}
-
-	simres, err := p.client.SimulateTx(ctx, tx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to simulate tx: %w", err)
-	}
-
-	if p.cfg.GasLimit != 0 && p.cfg.GasLimit < *simres.UnitsConsumed {
-		return fmt.Errorf("budget requirement is too high: %d greater than allowed limit: %d", *simres.UnitsConsumed, p.cfg.GasLimit)
-	}
-
-	_, err = tx.Sign(
-		func(key solana.PublicKey) *solana.PrivateKey {
-			if p.wallet.PublicKey().Equals(key) {
-				return &p.wallet.PrivateKey
-			}
-			return nil
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to sign tx: %w", err)
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
 	txSign, err := p.client.SendTx(ctx, tx, nil)
@@ -57,6 +34,65 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	go p.executeRouteCallback(ctx, txSign, message, callback)
 
 	return nil
+}
+
+func (p *Provider) InitXcall(ctx context.Context) error {
+	instructions, signers, err := p.createInitXcallInstruction()
+	if err != nil {
+		return err
+	}
+
+	signers = append(signers, p.wallet.PrivateKey)
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	p.log.Info("init xcall successful", zap.String("tx-hash", txSign.String()))
+	return nil
+}
+
+func (p *Provider) prepareAndSimulateTx(ctx context.Context, instructions []solana.Instruction, signers []solana.PrivateKey) (*solana.Transaction, error) {
+	latestBlockHash, err := p.client.GetLatestBlockHash(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest block hash: %w", err)
+	}
+
+	tx, err := solana.NewTransaction(instructions, *latestBlockHash, solana.TransactionPayer(p.wallet.PublicKey()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new tx: %w", err)
+	}
+
+	// simres, err := p.client.SimulateTx(ctx, tx, nil)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to simulate tx: %w", err)
+	// }
+
+	// if p.cfg.GasLimit != 0 && p.cfg.GasLimit < *simres.UnitsConsumed {
+	// 	return nil, fmt.Errorf("budget requirement is too high: %d greater than allowed limit: %d", *simres.UnitsConsumed, p.cfg.GasLimit)
+	// }
+
+	_, err = tx.Sign(
+		func(key solana.PublicKey) *solana.PrivateKey {
+			for _, signer := range signers {
+				if signer.PublicKey() == key {
+					return &signer
+				}
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign tx: %w", err)
+	}
+
+	return tx, nil
 }
 
 func (p *Provider) executeRouteCallback(
@@ -99,6 +135,53 @@ func (p *Provider) executeRouteCallback(
 	}
 }
 
+func (p *Provider) createInitXcallInstruction() ([]solana.Instruction, []solana.PrivateKey, error) {
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator("init")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	progID, err := p.xcallIdl.GetProgramID()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	payerAccount := solana.AccountMeta{
+		PublicKey:  p.wallet.PublicKey(),
+		IsWritable: true,
+		IsSigner:   true,
+	}
+
+	instructionData := discriminator
+
+	xcallStateAc, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	signers := []solana.PrivateKey{xcallStateAc}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&payerAccount,
+				&solana.AccountMeta{
+					PublicKey: solana.SystemProgramID,
+				},
+				&solana.AccountMeta{
+					PublicKey:  xcallStateAc.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	return instructions, signers, nil
+}
+
 func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage:
@@ -122,7 +205,7 @@ func (p *Provider) getSendMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, err
 	}
 
-	progID, err := solana.PublicKeyFromBase58(p.cfg.ConnectionAddress)
+	progID, err := p.xcallIdl.GetProgramID()
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +240,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, err
 	}
 
-	progID, err := solana.PublicKeyFromBase58(p.cfg.ConnectionAddress)
+	progID, err := p.xcallIdl.GetProgramID()
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +274,7 @@ func (p *Provider) getExecuteCallIntruction(msg *relayertypes.Message) ([]solana
 		return nil, err
 	}
 
-	progID, err := solana.PublicKeyFromBase58(p.cfg.XcallAddress)
+	progID, err := p.xcallIdl.GetProgramID()
 	if err != nil {
 		return nil, err
 	}

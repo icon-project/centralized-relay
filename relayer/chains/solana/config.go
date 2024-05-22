@@ -14,8 +14,8 @@ type Config struct {
 
 	RPCUrl            string `yaml:"rpc-url"`
 	Address           string `yaml:"address"`
-	XcallAddress      string `yaml:"xcall-address"`
-	ConnectionAddress string `yaml:"connection-address"`
+	XcallStateAccount string `yaml:"xcall-state-account"`
+	XcallIdl          string `yaml:"xcall-idl"`
 	NID               string `yaml:"nid"`
 	HomeDir           string `yaml:"home-dir"`
 	GasLimit          uint64 `yaml:"gas-limit"`
@@ -32,11 +32,17 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 
 	client := NewClient(solrpc.New(pc.RPCUrl))
 
+	xcallIdl, err := fetchIDL(pc.XcallIdl, client)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Provider{
-		log:    logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
-		cfg:    pc,
-		client: client,
-		txmut:  &sync.Mutex{},
+		log:      logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
+		cfg:      pc,
+		client:   client,
+		txmut:    &sync.Mutex{},
+		xcallIdl: xcallIdl,
 	}, nil
 }
 
