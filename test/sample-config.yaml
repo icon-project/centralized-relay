@@ -3,10 +3,10 @@ chains:
   - name: stellar
     version: "3"
     environment: remote
-    rpc_uri: https://soroban-testnet.stellar.org
-    websocket_uri: https://horizon-testnet.stellar.org
+    rpc_uri: https://tt.net.solidwallet.io/stellar-rpc/rpc
+    websocket_uri: https://tt.net.solidwallet.io/stellar-rpc
     relay_wallet : GCX3TODZ2KEHYGD6HOQDRZVOUWNSQWP6OLYBIQ3XNPFKQ47G42H7WCGA
-    keystore_password: "Test SDF Network ; September 2015"
+    keystore_password: "Standalone Network ; February 2017"
     keystore_file: SDFOICJI3PHUWHFARICCQS2A3W6BNGQVWQ6JDNYPH62VW6GWDBHDH7GE
     contracts_path: "$BASE_PATH/artifacts/stellar"
     chain_config:
