@@ -17,6 +17,7 @@ import (
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/hexstr"
 	"go.uber.org/zap"
 )
 
@@ -76,7 +77,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 
 		module, err := p.getModule(func(mod DappModule) bool {
-			return mod.CapID == message.DappModuleCapID
+			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
 		})
 		if err != nil {
 			return nil, err
