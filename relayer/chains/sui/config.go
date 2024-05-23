@@ -11,17 +11,27 @@ import (
 )
 
 type Config struct {
-	ChainID        string `yaml:"chain-id" json:"chain-id"`
-	ChainName      string `yaml:"-" json:"-"`
-	RPCUrl         string `yaml:"rpc-url" json:"rpc-url"`
-	Address        string `yaml:"address" json:"address"`
-	NID            string `yaml:"nid" json:"nid"`
+	ChainName string `yaml:"-" json:"-"`
+	ChainID   string `yaml:"chain-id" json:"chain-id"`
+	RPCUrl    string `yaml:"rpc-url" json:"rpc-url"`
+	Address   string `yaml:"address" json:"address"`
+	NID       string `yaml:"nid" json:"nid"`
+
 	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
-	DappPkgID      string `yaml:"dapp-package-id" json:"dapp-package-id"`
 	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
-	DappStateID    string `yaml:"dapp-state-id" json:"dapp-state-id"`
-	HomeDir        string `yaml:"home-dir" json:"home-dir"`
-	GasLimit       uint64 `yaml:"gas-limit" json:"gas-limit"`
+
+	DappPkgID              string       `yaml:"dapp-package-id" json:"dapp-package-id"`
+	DappTreasuryCapCarrier string       `yaml:"dapp-treasury-cap-carrier" json:"dapp-treasury-cap-carrier"`
+	DappModules            []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
+
+	HomeDir  string `yaml:"home-dir" json:"home-dir"`
+	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
+}
+
+type DappModule struct {
+	Name     string `yaml:"name" json:"name"`
+	CapID    string `yaml:"cap-id" json:"cap-id"`
+	ConfigID string `yaml:"config-id" json:"config-id"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {

@@ -60,7 +60,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
-		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, EntryModule, MethodRecvMessage), nil
+		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
@@ -74,18 +74,82 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		if err != nil {
 			return nil, err
 		}
-		callParams := []SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.DappStateID},
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-			{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-			{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
-			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+
+		module, err := p.getModule(func(mod DappModule) bool {
+			return mod.CapID == message.DappModuleCapID
+		})
+		if err != nil {
+			return nil, err
 		}
 
-		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, DappModule, MethodExecuteCall), nil
+		var callParams []SuiCallArg
+
+		switch module.Name {
+		case ModuleMockDapp:
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: module.ConfigID},
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			}
+		case ModuleXcallManager:
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: module.ConfigID},
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			}
+		case ModuleAssetManager:
+			xcallManagerModule, err := p.getModule(func(mod DappModule) bool {
+				return mod.Name == ModuleXcallManager
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to find xcall manager module")
+			}
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: module.ConfigID},
+				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
+				{Type: CallArgObject, Val: suiClockObjectId},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			}
+		case ModuleBalancedDollar:
+			xcallManagerModule, err := p.getModule(func(mod DappModule) bool {
+				return mod.Name == ModuleXcallManager
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to find xcall manager module")
+			}
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: p.cfg.DappTreasuryCapCarrier},
+				{Type: CallArgObject, Val: module.ConfigID},
+				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			}
+		default:
+			return nil, fmt.Errorf("received unknown dapp module cap id: %s", message.DappModuleCapID)
+		}
+
+		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
+}
+
+func (p *Provider) getModule(condition func(module DappModule) bool) (*DappModule, error) {
+	for _, mod := range p.cfg.DappModules {
+		if condition(mod) {
+			return &mod, nil
+		}
+	}
+	return nil, fmt.Errorf("module not found")
 }
 
 func (p *Provider) preparePTB(msg *SuiMessage) (lib.Base64Data, error) {
@@ -334,7 +398,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 		{Type: CallArgPure, Val: key.Src},
 		{Type: CallArgPure, Val: snU128},
-	}, p.cfg.XcallPkgID, EntryModule, MethodGetReceipt)
+	}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
 	var msgReceived bool
 	wallet, err := p.Wallet()
 	if err != nil {

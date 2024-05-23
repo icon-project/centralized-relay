@@ -24,13 +24,14 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst           string `json:"dst"`
-	Src           string `json:"src"`
-	Sn            uint64 `json:"sn"`
-	Data          []byte `json:"data"`
-	MessageHeight uint64 `json:"messageHeight"`
-	EventType     string `json:"eventType"`
-	ReqID         uint64 `json:"reqID,omitempty"`
+	Dst             string `json:"dst"`
+	Src             string `json:"src"`
+	Sn              uint64 `json:"sn"`
+	Data            []byte `json:"data"`
+	MessageHeight   uint64 `json:"messageHeight"`
+	EventType       string `json:"eventType"`
+	ReqID           uint64 `json:"reqID,omitempty"`
+	DappModuleCapID string `json:"-"`
 }
 
 type ContractConfigMap map[string]string
