@@ -40,7 +40,7 @@ var (
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
 
-	suiClockObjectId = "0x0000000000000000000000000000000000000000000000000000000000000006"
+	suiClockObjectId = "0x6"
 )
 
 type Provider struct {
