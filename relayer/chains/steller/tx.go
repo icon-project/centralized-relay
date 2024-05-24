@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -81,9 +82,42 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
+	if simres.RestorePreamble != nil {
+		p.log.Info("Need to restore from archived state")
+		if err := p.handleArchivalState(simres, &sourceAccount); err != nil {
+			return nil, err
+		}
+		//re-run previous failed transaction
+		if _, err := sourceAccount.IncrementSequenceNumber(); err != nil {
+			return nil, err
+		}
+		txParam := txnbuild.TransactionParams{
+			SourceAccount:        &sourceAccount,
+			IncrementSequenceNum: false,
+			Operations:           []txnbuild.Operation{&callOp},
+			BaseFee:              txnbuild.MinBaseFee,
+			Preconditions: txnbuild.Preconditions{
+				TimeBounds: txnbuild.NewTimeout(300),
+			},
+		}
+
+		simtx, err := txnbuild.NewTransaction(txParam)
+		if err != nil {
+			return nil, err
+		}
+		simtxe, err := simtx.Base64()
+		if err != nil {
+			return nil, err
+		}
+		simres, err = p.client.SimulateTransaction(simtxe)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
+
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
 		return nil, err
@@ -130,6 +164,54 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	txRes, err := p.client.SubmitTransactionXDR(txe)
 	return &txRes, err
+}
+
+func (p *Provider) handleArchivalState(simResult *sorobanclient.TxSimulationResult, sourceAccount txnbuild.Account) error {
+	txParam := txnbuild.TransactionParams{
+		SourceAccount:        sourceAccount,
+		IncrementSequenceNum: false,
+		Operations: []txnbuild.Operation{
+			&txnbuild.RestoreFootprint{},
+		},
+		BaseFee: txnbuild.MinBaseFee,
+		Preconditions: txnbuild.Preconditions{
+			TimeBounds: txnbuild.NewTimeout(300),
+		},
+	}
+	var transactionData xdr.SorobanTransactionData
+	dt := simResult.RestorePreamble.TransactionData
+	err := xdr.SafeUnmarshalBase64(dt, &transactionData)
+	if err != nil {
+		return err
+	}
+	op := txParam.Operations[0]
+	switch v := op.(type) {
+	case *txnbuild.ExtendFootprintTtl:
+		v.Ext = xdr.TransactionExt{
+			V:           1,
+			SorobanData: &transactionData,
+		}
+	case *txnbuild.RestoreFootprint:
+		v.Ext = xdr.TransactionExt{
+			V:           1,
+			SorobanData: &transactionData,
+		}
+	default:
+		p.log.Error("invalid type found")
+	}
+	txParam.Operations = []txnbuild.Operation{op}
+	txParam.BaseFee += simResult.RestorePreamble.MinResourceFee
+	simtx, _ := txnbuild.NewTransaction(txParam)
+	tx, err := simtx.Sign(p.cfg.NetworkPassphrase, p.wallet)
+	if err != nil {
+		return err
+	}
+	txe, err := tx.Base64()
+	if err != nil {
+		return err
+	}
+	_, err = p.client.SubmitTransactionXDR(txe)
+	return err
 }
 
 func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeContractArgs, error) {
@@ -257,7 +339,6 @@ func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	scContractAddr, err := xdr.NewScAddress(xdr.ScAddressTypeScAddressTypeContract, xdr.Hash(contractHash))
 	if err != nil {
 		return nil, err
@@ -327,7 +408,6 @@ func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScV
 			TimeBounds: txnbuild.NewTimeout(300),
 		},
 	}
-
 	queryTx, err := txnbuild.NewTransaction(txParam)
 	if err != nil {
 		return err
@@ -339,6 +419,19 @@ func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScV
 	queryRes, err := p.client.SimulateTransaction(queryTxe)
 	if err != nil {
 		return err
+	}
+	if queryRes.RestorePreamble != nil {
+		p.log.Info("Need to restore from archived state")
+		if _, err := sourceAccount.IncrementSequenceNumber(); err != nil {
+			return err
+		}
+		if err := p.handleArchivalState(queryRes, &sourceAccount); err != nil {
+			return err
+		}
+		queryRes, err = p.client.SimulateTransaction(queryTxe)
+		if err != nil {
+			return err
+		}
 	}
 	for _, callResult := range queryRes.Results {
 		resBytes, err := base64.StdEncoding.DecodeString(callResult.Xdr)
