@@ -173,7 +173,7 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 			js, _ := json.Marshal(fields)
 			var objRes ObjectResult
 			json.Unmarshal(js, &objRes)
-			an.IBCAddresses[dappKey+IdCapSuffix] = objRes.XcallCap.Fields.ID.ID
+			an.IBCAddresses[dappKey+IdCapSuffix] = objRes.XcallCap.Fields.ID.ID[2:]
 		}
 	}
 
@@ -344,7 +344,7 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapSuffix][2:], to, sn)
+	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapSuffix], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
@@ -425,6 +425,11 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
+	dappModule := centralized.SuiDappModule{
+		Name:     "mock_dapp",
+		CapId:    an.GetContractAddress(dappKey + IdCapSuffix),
+		ConfigId: an.GetContractAddress(dappKey + StateSuffix),
+	}
 	config := &centralized.SUIRelayerChainConfig{
 		Type: "sui",
 		Value: centralized.SUIRelayerChainConfigValue{
@@ -434,13 +439,15 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			XcallPkgId:     an.GetContractAddress("xcall"),
 			XcallStorageId: an.GetContractAddress(xcallStorage),
 			DappPkgId:      an.GetContractAddress(dappKey),
-			DappStateId:    an.GetContractAddress(dappKey + StateSuffix),
-			StartHeight:    0,
-			BlockInterval:  "0s",
-			Address:        an.testconfig.RelayWalletAddress,
-			FinalityBlock:  uint64(0),
-			GasPrice:       4000000,
-			GasLimit:       50000000,
+			DappModules: []centralized.SuiDappModule{
+				dappModule,
+			},
+			StartHeight:   0,
+			BlockInterval: "0s",
+			Address:       an.testconfig.RelayWalletAddress,
+			FinalityBlock: uint64(0),
+			GasPrice:      4000000,
+			GasLimit:      50000000,
 		},
 	}
 	return yaml.Marshal(config)
@@ -563,14 +570,14 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if an.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		an.IBCAddresses["xcall"] = "0xd3db79c55ab29283454c5291a98c540d296188289a34fc2c2f027b3308189f69"
-		an.IBCAddresses[xcallAdmin] = "0x88b99fef0513930e6fabb806f22e7a4b011df61d8afc6462075735c8d7fc7e6d"
-		an.IBCAddresses[xcallStorage] = "0x799e39b2a9dfd6f26c23dc4da3906a85e0af6bdd744f6574cf5540a465430c86"
+		an.IBCAddresses["xcall"] = "0x94d618466055623f75d8a8291344dc9ca364bd92f971df5a78e4d98b6b6cfd06"
+		an.IBCAddresses[xcallAdmin] = "0xf7cae27f12187d07566641797fc34923ed0cf016a171d9e6f309f01e66918f1d"
+		an.IBCAddresses[xcallStorage] = "0xb4ac16aeb32b3455dd8a37438c729c25a68576f7e2466301c721bdd992c14a1a"
 		dappKey := fmt.Sprintf("dapp-%s", testcase)
-		an.IBCAddresses[dappKey] = "0xa27447e656fb47ed45bb40091d58c566467ea840d55aebe5436956c68a55ece7"
-		an.IBCAddresses[dappKey+WitnessSuffix] = "0x5982ec2fce3d664899b95561436b69c86ad0d768dad4db61d5e610a53ff708a0"
-		an.IBCAddresses[dappKey+StateSuffix] = "0x0f21b5b5df1cb917f19a72032ead4390df5d984ea068554397e8b9567b36ffc7"
-		an.IBCAddresses[dappKey+IdCapSuffix] = "0x0d08486db9350275d8c35378c03477c111125ac30c45b0eb094d854222ba7f8e"
+		an.IBCAddresses[dappKey] = "0x9382d72a6f15d01ec836af7279449e935474b3661915114dd72c42f8306dfb3d"
+		an.IBCAddresses[dappKey+WitnessSuffix] = "0xb1c55da56c857058364b51b325777738bd418166131770d16c49dbf91225b8b8"
+		an.IBCAddresses[dappKey+StateSuffix] = "0x1d449e436f27819d4f8925c24473c3e6d6eed30b36db33174ea7d3418aa2a3cb"
+		an.IBCAddresses[dappKey+IdCapSuffix] = "2f4709b651f6d8fa1f596c114699cd52005cf42febe8e9b3165e65cc2bc5b0ae"[2:]
 		return nil
 	}
 	//deploy rlp
