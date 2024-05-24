@@ -335,9 +335,6 @@ func (an *SuiRemotenet) FindCallResponse(ctx context.Context, startHeight uint64
 	}
 	jsonData := (event.ParsedJson.(map[string]interface{}))
 	responseCode := jsonData["response_code"].(float64)
-	if responseCode == 1 {
-		return "0", nil
-	}
 	return strconv.FormatFloat(responseCode, 'f', -1, 64), nil
 
 }
@@ -566,14 +563,14 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if an.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		an.IBCAddresses["xcall"] = "0x1f44670eb6e4c3c185ebd7570f0aa1b05c58166d24e8b98065c22ac251c47020"
-		an.IBCAddresses[xcallAdmin] = "0x074f70b54c05903bcc38b5996f0dd1ba8057ba0db9831447c0c4f793a4a6dfca"
-		an.IBCAddresses[xcallStorage] = "0x85faf54883d5fa38c451a2ebe0dd154ab80f18ebf961c6fcb7ea0a66fbd1d993"
+		an.IBCAddresses["xcall"] = "0xd3db79c55ab29283454c5291a98c540d296188289a34fc2c2f027b3308189f69"
+		an.IBCAddresses[xcallAdmin] = "0x88b99fef0513930e6fabb806f22e7a4b011df61d8afc6462075735c8d7fc7e6d"
+		an.IBCAddresses[xcallStorage] = "0x799e39b2a9dfd6f26c23dc4da3906a85e0af6bdd744f6574cf5540a465430c86"
 		dappKey := fmt.Sprintf("dapp-%s", testcase)
-		an.IBCAddresses[dappKey] = "0xc3fdeb6ae1958f76836d26d7be76cb92a4142812c6eda3e0e0c918eef0b846b8"
-		an.IBCAddresses[dappKey+WitnessSuffix] = "0x87da36817801b46ffb449f13ae5c425cb15ff185e23a6a232c5c3e634632d6fe"
-		an.IBCAddresses[dappKey+StateSuffix] = "0xc84d837bccaa2ec682f117802f8170350d8fe21537c4a4802f586e843945b4ad"
-		an.IBCAddresses[dappKey+IdCapSuffix] = "0xda420b09e1eefa15574f0248e45e1b11376396dd69f91b6c87c781730172e1cd"
+		an.IBCAddresses[dappKey] = "0xa27447e656fb47ed45bb40091d58c566467ea840d55aebe5436956c68a55ece7"
+		an.IBCAddresses[dappKey+WitnessSuffix] = "0x5982ec2fce3d664899b95561436b69c86ad0d768dad4db61d5e610a53ff708a0"
+		an.IBCAddresses[dappKey+StateSuffix] = "0x0f21b5b5df1cb917f19a72032ead4390df5d984ea068554397e8b9567b36ffc7"
+		an.IBCAddresses[dappKey+IdCapSuffix] = "0x0d08486db9350275d8c35378c03477c111125ac30c45b0eb094d854222ba7f8e"
 		return nil
 	}
 	//deploy rlp
