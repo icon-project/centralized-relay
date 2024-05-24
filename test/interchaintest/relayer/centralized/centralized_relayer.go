@@ -52,6 +52,24 @@ type ICONRelayerChainConfigValue struct {
 	StepLimit     int64             `yaml:"step-limit"`
 }
 
+type SUIRelayerChainConfigValue struct {
+	NID            string            `yaml:"nid"`
+	RPCURL         string            `yaml:"rpc-url"`
+	WebsocketUrl   string            `yaml:"ws-url"`
+	StartHeight    int               `yaml:"start-height"`
+	XcallPkgId     string            `yaml:"xcall-package-id"`
+	DappPkgId      string            `yaml:"dapp-package-id"`
+	XcallStorageId string            `yaml:"xcall-storage-id"`
+	DappStateId    string            `yaml:"dapp-state-id"`
+	NetworkID      int               `yaml:"network-id"`
+	Contracts      map[string]string `yaml:"contracts"`
+	BlockInterval  string            `yaml:"block-interval"`
+	Address        string            `yaml:"address"`
+	FinalityBlock  uint64            `yaml:"finality-block"`
+	GasPrice       int64             `yaml:"gas-price"`
+	GasLimit       int               `yaml:"gas-limit"`
+}
+
 type EVMRelayerChainConfigValue struct {
 	NID           string            `yaml:"nid"`
 	RPCURL        string            `yaml:"rpc-url"`
@@ -103,6 +121,11 @@ type EVMRelayerChainConfig struct {
 type CosmosRelayerChainConfig struct {
 	Type  string                        `json:"type"`
 	Value CosmosRelayerChainConfigValue `json:"value"`
+}
+
+type SUIRelayerChainConfig struct {
+	Type  string                     `json:"type"`
+	Value SUIRelayerChainConfigValue `json:"value"`
 }
 
 const (

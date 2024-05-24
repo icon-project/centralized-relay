@@ -1,15 +1,21 @@
 {
-    "type": "sui",
-    "value": {
-      "chain-id": "sui",
-      "nid": "sui",
-      "rpc-url": "https://fullnode.testnet.sui.io:443",
-      "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
-      "xcall-package-id": "0xb84d2272ecbc564061b32d15d8091427cba3cb9fc188e873da040b894d7c42f2",
-      "dapp-package-id": "0xb30bdd526d053094633ef8cc358e1fd0b9ce6595c58ece510cbfd70bb34379cd",
-      "xcall-storage-id": "0x2d98c80fcad34bca0d623af0acb81d26181954b75a7b14f0a19739186f5c3911",
-      "dapp-state-id": "0x9de834480617ae76c8df19a6660b84606505f30a3d11b4bd13d838b124b9ae04",
-      "gas-limit": 5000000
-    }
+  "type": "sui",
+  "value": {
+    "chain-id": "sui",
+    "nid": "sui",
+    "rpc-url": "https://fullnode.devnet.sui.io:443",
+    "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
+    "xcall-package-id": "0xed18eec9609cf53e217993f5db388e25ee5b02d1e5efcc14d3ef75d1f4500e9a",
+    "xcall-storage-id": "0x753935d5f963ebdb506ce9dafcadc357122344e75c02a534d97a3c22c4fec4fd",
+    "dapp-package-id": "0xcc1af375dca0d4e6dcbbeb1821369c78d88808fccac2bfc42a185a562bd6765f",
+    "dapp-treasury-cap-carrier": "",
+    "dapp-modules": [
+      {
+        "name": "mock_dapp",
+        "cap-id": "b2686b2955bb0ef6b519c970a9cda2ad5326599e6772f6b004d2a580d6f17954",
+        "config-id": "0xd429175208e9aa327faf14dff06f9240a95f0b6fc1b8b00e81a20178f8a5a6ce"
+      }
+    ],
+    "gas-limit": 5000000
   }
-  
+}

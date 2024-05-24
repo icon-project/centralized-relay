@@ -118,7 +118,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 	}
 
 	switch ev.Type {
-	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"):
+	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleConnection, "Message"):
 		msg.EventType = relayerEvents.EmitMessage
 		var emitEvent types.EmitEvent
 		if err := json.Unmarshal(eventBytes, &emitEvent); err != nil {
@@ -132,7 +132,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Data = emitEvent.Msg
 		msg.Dst = emitEvent.To
 
-	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "main", "CallMessage"):
+	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "CallMessage"):
 		msg.EventType = relayerEvents.CallMessage
 		var callMsgEvent types.CallMsgEvent
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
@@ -144,6 +144,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 			return nil, err
 		}
 		msg.ReqID = uint64(reqID)
+		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 
 	default:
 		return nil, fmt.Errorf("invalid event type")

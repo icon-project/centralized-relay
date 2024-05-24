@@ -165,6 +165,9 @@ func (c *CosmosRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, ke
 }
 
 func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	if c.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	xcall := c.IBCAddresses["xcall"]
 	denom := c.Config().Denom
 	connectionCodeId, err := c.StoreContractRemote(ctx, c.filepath["connection"])
@@ -172,9 +175,6 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
 	time.Sleep(5 * time.Second)
 	connectionAddress, err := c.InstantiateContractRemote(ctx, connectionCodeId, `{"denom":"`+denom+`","xcall_address":"`+xcall+`","relayer":"`+c.testconfig.RelayWalletAddress+`"}`, true, c.GetCommonArgs()...)
 
@@ -182,16 +182,6 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 		return err
 	}
 	c.IBCAddresses["connection"] = connectionAddress
-	// methodName := "set_fee"
-	// _, err = c.ExecuteContract(ctx, connectionAddress, keyName, methodName, map[string]interface{}{
-	// 	"network_id":   target.Config().ChainID,
-	// 	"message_fee":  "0x0",
-	// 	"response_fee": "0x0",
-	// },
-	// )
-	// if err != nil {
-	// 	return err
-	// }
 	return nil
 }
 
@@ -267,6 +257,13 @@ func (c *CosmosRemotenet) SetupIBC(ctx context.Context, keyName string) (context
 }
 
 func (c *CosmosRemotenet) SetupXCall(ctx context.Context) error {
+	if c.testconfig.Environment == "preconfigured" {
+		testcase := ctx.Value("testcase").(string)
+		c.IBCAddresses["xcall"] = "archway1u3kd42ns0m5fdlw8xpe3kp87dpfds68vhsfwt28hen7x8y8tjfuq9avr2n"
+		c.IBCAddresses["connection"] = "archway1mrhm2xy5yzlagl62zt2qt2dmrwrjwsag4pcc57uc44z04etn9slsa257y3"
+		c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "archway1x8ejvuzjs9m40sljx4u6z0x2x7tc2q9k25a92v3hp5u4r30vurls5qujxr"
+		return nil
+	}
 	denom := c.Config().Denom
 	xCallCodeId, err := c.StoreContractRemote(ctx, c.filepath["xcall"])
 	if err != nil {
@@ -294,6 +291,9 @@ func (c *CosmosRemotenet) GetIBCAddress(key string) string {
 }
 
 func (c *CosmosRemotenet) DeployXCallMockApp(ctx context.Context, keyname string, connections []chains.XCallConnection) error {
+	if c.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	testcase := ctx.Value("testcase").(string)
 	// connectionKey := fmt.Sprintf("connection-%s", testcase)
 	// xCallKey := fmt.Sprintf("xcall-%s", testcase)
@@ -358,6 +358,7 @@ func (c *CosmosRemotenet) XCall(ctx context.Context, targetChain chains.Chain, k
 	if err != nil {
 		return nil, err
 	}
+
 	return c.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
 }
 

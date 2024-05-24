@@ -72,6 +72,7 @@ type EmitEvent struct {
 }
 
 type CallMsgEvent struct {
-	ReqId string `json:"req_id"`
-	Data  []byte `json:"data"`
+	ReqId           string `json:"req_id"`
+	Data            []byte `json:"data"`
+	DappModuleCapId string `json:"to"`
 }
