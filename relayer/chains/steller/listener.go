@@ -1,9 +1,7 @@
 package steller
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"runtime"
 	"time"
@@ -13,7 +11,6 @@ import (
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/concurrency"
 	"github.com/icon-project/centralized-relay/utils/sorter"
-	xdr3 "github.com/stellar/go-xdr/xdr3"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +18,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return fmt.Errorf("failed to restore key: %w", err)
 	}
-
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
 		return err
@@ -169,14 +165,13 @@ func (p *Provider) getLedgerInfoStream(done <-chan interface{}, seqStream <-chan
 func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([]*relayertypes.Message, error) {
 	eventFilter := types.EventFilter{
 		LedgerSeq:   ledgerSeq,
-		ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract]},
-		Topics:      []string{"new_message"},
+		ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
+		Topics:      []string{"Message", "CallMessage"},
 	}
 	events, err := p.client.FetchEvents(ctx, eventFilter)
 	if err != nil {
 		return nil, err
 	}
-
 	messages, err := p.parseMessagesFromEvents(events)
 	for _, msg := range messages {
 		p.log.Info("detected event log:", zap.Any("event", *msg))
@@ -191,9 +186,9 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 		var eventType string
 		for _, topic := range ev.Body.V0.Topics {
 			switch topic.String() {
-			case "emitMessage":
+			case "Message":
 				eventType = relayerevents.EmitMessage
-			case "callMessage":
+			case "CallMessage":
 				eventType = relayerevents.CallMessage
 			}
 		}
@@ -207,46 +202,42 @@ func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertype
 			EventType:     eventType,
 			MessageHeight: ev.LedgerSeq,
 		}
-
 		scval := ev.Body.V0.Data
 		scMap, ok := scval.GetMap()
 		if !ok {
 			continue
 		}
-
 		for _, mapItem := range *scMap {
-			valBytes, err := mapItem.Val.MarshalBinary()
-			if err != nil {
-				return nil, err
-			}
-			decoder := xdr3.NewDecoder(bytes.NewBuffer(valBytes))
 			switch mapItem.Key.String() {
-			case "sn":
-				intVal, _, err := decoder.DecodeInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode sn: %v", err)
+			case "connSn", "sn":
+				sn, ok := mapItem.Val.GetU128()
+				if !ok {
+					return nil, fmt.Errorf("failed to decode sn")
 				}
-				msg.Sn = uint64(intVal)
+				msg.Sn = uint64(sn.Lo)
 			case "reqId":
-				intVal, _, err := decoder.DecodeInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode reqId: %v", err)
+				reqId, ok := mapItem.Val.GetU128()
+				if !ok {
+					return nil, fmt.Errorf("failed to decode req_id")
 				}
-				msg.ReqID = uint64(intVal)
-			case "src":
+				msg.ReqID = uint64(reqId.Lo)
+			case "from":
 				msg.Src = mapItem.Val.String()
-			case "dst":
+			case "targetNetwork", "to":
 				msg.Dst = mapItem.Val.String()
-			case "data":
-				data, err := hex.DecodeString(mapItem.Val.String())
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode data: %v", err)
+			case "msg", "data":
+				data, ok := mapItem.Val.GetBytes()
+				if !ok {
+					return nil, fmt.Errorf("failed to decode data")
 				}
-				msg.Data = data
+				msg.Data = []byte(data)
 			}
 		}
 
 		//skip invalid message
+		if msg.Src == "" && msg.Dst != "" {
+			msg.Src = p.cfg.NID
+		}
 		if msg.Sn == 0 || msg.Src == "" || msg.Dst == "" {
 			p.log.Warn("detected invalid message: ", zap.Any("msg", msg))
 			continue

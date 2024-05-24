@@ -26,3 +26,16 @@ func (v *ScvBool) Convert(val xdr.ScVal) error {
 	}
 	return nil
 }
+
+type ScvU64F128 uint64
+
+func (v *ScvU64F128) Convert(val xdr.ScVal) error {
+	parts, ok := val.GetU128()
+	_ = parts
+	if ok {
+		*v = ScvU64F128(parts.Lo)
+	} else {
+		return fmt.Errorf("%s: got unexpected type: %s", ScValConversionErr, val.Type)
+	}
+	return nil
+}

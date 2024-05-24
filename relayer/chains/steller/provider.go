@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
+	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -41,6 +42,9 @@ func (p *Provider) Name() string {
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
+	if err := p.RestoreKeystore(context.Background()); err != nil {
+		return nil
+	}
 	return nil
 }
 
@@ -61,33 +65,75 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	//Todo
 	return nil, nil
 }
 
 func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
-	//Todo
-	return nil
+	message := &relayertypes.Message{
+		EventType: evtypes.SetAdmin,
+		Src:       admin,
+	}
+	callArgs, err := p.newMiscContractCallArgs(*message)
+	if err != nil {
+		return err
+	}
+	_, err = p.sendCallTransaction(*callArgs)
+	return err
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	//Todo
-	return nil
+	message := &relayertypes.Message{
+		EventType: evtypes.RevertMessage,
+		Sn:        sn.Uint64(),
+	}
+	callArgs, err := p.newMiscContractCallArgs(*message)
+	if err != nil {
+		return err
+	}
+	_, err = p.sendCallTransaction(*callArgs)
+	return err
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	//Todo
-	return 0, nil
+	message := &relayertypes.Message{
+		EventType: evtypes.GetFee,
+		Src:       networkID,
+	}
+	callArgs, err := p.newMiscContractCallArgs(*message, responseFee)
+	if err != nil {
+		return 0, err
+	}
+	var fee types.ScvU64F128
+	err = p.queryContract(*callArgs, &fee)
+	return uint64(fee), err
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
-	//Todo
-	return nil
+	message := &relayertypes.Message{
+		EventType: evtypes.SetFee,
+		Src:       networkID,
+		Sn:        msgFee,
+		ReqID:     resFee,
+	}
+	callArgs, err := p.newMiscContractCallArgs(*message)
+	if err != nil {
+		return err
+	}
+	_, err = p.sendCallTransaction(*callArgs)
+	return err
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	//Todo
-	return nil
+
+	message := &relayertypes.Message{
+		EventType: evtypes.ClaimFee,
+	}
+	callArgs, err := p.newMiscContractCallArgs(*message)
+	if err != nil {
+		return err
+	}
+	_, err = p.sendCallTransaction(*callArgs)
+	return err
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {

@@ -253,7 +253,7 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.ProviderConfig)
-	case "steller":
+	case "stellar":
 		iw.Value = new(steller.Config)
 	case "sui":
 		iw.Value = new(sui.Config)
