@@ -8,12 +8,17 @@ import (
 
 func (s *E2ETestSuite) SetupXCall(ctx context.Context) error {
 	createdChains := s.GetChains()
+	pocessedChains := []string{}
 	for index, chain := range createdChains {
 		if err := chain.SetupXCall(ctx); err != nil {
 			return err
 		}
 		for ind, cn := range createdChains {
 			if ind != index {
+				if contains(pocessedChains, chain.Config().Name) {
+					continue
+				}
+				pocessedChains = append(pocessedChains, chain.Config().Name)
 				if err := chain.SetupConnection(ctx, cn); err != nil {
 					return err
 				}
@@ -21,6 +26,15 @@ func (s *E2ETestSuite) SetupXCall(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
 }
 
 // SetupChainsAndRelayer create two chains, a relayer, establishes a connection and creates a channel
