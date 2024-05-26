@@ -10,9 +10,10 @@ All notable changes to this project will be documented in this file.
 - RPC failures are are handled more elegently, switches to the polling and back to the subscriptions
 - Other improvements and bug fixes
 
-### Refactor
+### Changed
 
 - Icon `progressInterval` notification block is not incremented to handle rpc failures
+- Default Block mined wait time is increased to 5 minutes
 
 ## [1.2.5] - 2024-05-18
 
