@@ -53,7 +53,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		Height:           types.NewHexInt(processedheight),
 		EventFilter:      p.GetMonitorEventFilters(),
 		Logs:             types.NewHexInt(1),
-		ProgressInterval: types.NewHexInt(15),
+		ProgressInterval: types.NewHexInt(25),
 	}
 
 	for {
@@ -76,7 +76,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								return err
 							}
 							if height > 0 {
-								eventReq.Height = types.NewHexInt(height + 1)
+								eventReq.Height = types.NewHexInt(height)
 							}
 							return nil
 						}
@@ -104,7 +104,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-					time.Sleep(time.Second * 5)
+					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))
 				}

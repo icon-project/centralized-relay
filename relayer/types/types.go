@@ -15,7 +15,7 @@ var (
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 5 * time.Second
+	RetryInterval            = 3 * time.Second
 )
 
 type BlockInfo struct {
@@ -52,6 +52,14 @@ func (c ContractConfigMap) Validate() error {
 		}
 	}
 	return nil
+}
+
+// GetWasmMsgType returns the wasm message type
+func (m *EventMap) GetWasmMsgType() string {
+	for wasmType := range m.SigType {
+		return wasmType
+	}
+	return ""
 }
 
 func (m *Message) MessageKey() *MessageKey {
