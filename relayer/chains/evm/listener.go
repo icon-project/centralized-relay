@@ -245,7 +245,7 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfoChan chan *relayertypes.BlockInfo) {
+func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfoChan chan *relayertypes.BlockInfo) error {
 	ch := make(chan ethTypes.Log)
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
@@ -254,18 +254,18 @@ func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfo
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
 		ticker.Reset(time.Second * 3)
-		return
+		return err
 	}
 	defer sub.Unsubscribe()
 	p.log.Info("Subscribed to new blocks", zap.Uint64("from", p.blockReq.FromBlock.Uint64()), zap.Any("address", p.blockReq.Addresses))
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case err := <-sub.Err():
 			p.log.Error("subscription error", zap.Error(err))
 			ticker.Reset(time.Second * 3)
-			return
+			return p.Listener(ctx, p.GetLastSavedBlockHeight(), blockInfoChan)
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
 			if err != nil {

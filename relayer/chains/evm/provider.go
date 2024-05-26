@@ -57,15 +57,16 @@ type Config struct {
 }
 
 type Provider struct {
-	client       IClient
-	log          *zap.Logger
-	cfg          *Config
-	StartHeight  uint64
-	blockReq     ethereum.FilterQuery
-	wallet       *keystore.Key
-	kms          kms.KMS
-	contracts    map[string]providerTypes.EventMap
-	NonceTracker types.NonceTrackerI
+	client              IClient
+	log                 *zap.Logger
+	cfg                 *Config
+	StartHeight         uint64
+	blockReq            ethereum.FilterQuery
+	wallet              *keystore.Key
+	kms                 kms.KMS
+	contracts           map[string]providerTypes.EventMap
+	NonceTracker        types.NonceTrackerI
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -438,4 +439,14 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
 	}
 	return p.client.EstimateGas(ctx, msg)
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
+}
+
+// GetLastSavedBlockHeight returns the last saved block height
+func (p *Provider) GetLastSavedBlockHeight() uint64 {
+	return p.LastSavedHeightFunc()
 }
