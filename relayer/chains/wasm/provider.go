@@ -26,13 +26,14 @@ import (
 var _ provider.ChainProvider = (*Provider)(nil)
 
 type Provider struct {
-	logger    *zap.Logger
-	cfg       *Config
-	client    IClient
-	kms       kms.KMS
-	wallet    sdkTypes.AccountI
-	contracts map[string]relayTypes.EventMap
-	eventList []sdkTypes.Event
+	logger              *zap.Logger
+	cfg                 *Config
+	client              IClient
+	kms                 kms.KMS
+	wallet              sdkTypes.AccountI
+	contracts           map[string]relayTypes.EventMap
+	eventList           []sdkTypes.Event
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -119,16 +120,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			return ctx.Err()
 		case <-subscribeStarter.C:
 			subscribeStarter.Stop()
-			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
-				Address: p.cfg.Contracts[relayTypes.ConnectionContract],
-				Method:  EventTypeWasmMessage,
-				Height:  latestHeight,
-			})
-			go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
-				Address: p.cfg.Contracts[relayTypes.XcallContract],
-				Method:  EventTypeWasmCallMessage,
-				Height:  latestHeight,
-			})
+			for _, event := range p.contracts {
+				go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+					Address: event.Address,
+					Method:  event.GetWasmMsgType(),
+					Height:  latestHeight,
+				})
+			}
 		default:
 			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
@@ -781,9 +779,19 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 					time.Sleep(time.Second * 1)
 					continue
 				}
-				p.logger.Debug("http client reconnected")
-				return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
+				p.logger.Info("http client reconnected")
+				return p.Listener(ctx, p.GetLastSavedHeight(), blockInfoChan)
 			}
 		}
 	}
+}
+
+// SetLastSavedHeightFunc sets the function to save the last saved height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
+}
+
+// GetLastSavedHeight returns the last saved height
+func (p *Provider) GetLastSavedHeight() uint64 {
+	return p.LastSavedHeightFunc()
 }

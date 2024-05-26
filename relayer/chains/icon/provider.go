@@ -87,12 +87,13 @@ func (c *Config) Enabled() bool {
 }
 
 type Provider struct {
-	log       *zap.Logger
-	cfg       *Config
-	wallet    module.Wallet
-	client    *Client
-	kms       kms.KMS
-	contracts map[string]providerTypes.EventMap
+	log                 *zap.Logger
+	cfg                 *Config
+	wallet              module.Wallet
+	client              *Client
+	kms                 kms.KMS
+	contracts           map[string]providerTypes.EventMap
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Provider) NID() string {
@@ -257,4 +258,14 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 		return fmt.Errorf("failed: %s", txr.TxHash)
 	}
 	return nil
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
+}
+
+// GetLastSavedBlockHeight returns the last saved block height
+func (p *Provider) GetLastSavedBlockHeight() uint64 {
+	return p.LastSavedHeightFunc()
 }

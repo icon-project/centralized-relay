@@ -93,7 +93,9 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 			chainRuntime.LastSavedHeight = lastSavedHeight
 		}
 		chainRuntimes[chain.NID()] = chainRuntime
-
+		chainRuntime.Provider.SetLastSavedHeightFunc(func() uint64 {
+			return chainRuntime.LastSavedHeight
+		})
 	}
 
 	return &Relayer{
