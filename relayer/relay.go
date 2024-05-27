@@ -21,7 +21,7 @@ var (
 	maxFlushMessage       uint = 10
 	FinalityInterval           = 5 * time.Second
 	DeleteExpiredInterval      = 6 * time.Hour
-	MessageExpiration          = 48 * time.Hour
+	MessageExpiration          = 24 * time.Hour
 
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
