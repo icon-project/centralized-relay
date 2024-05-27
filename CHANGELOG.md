@@ -8,12 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - Cosmos contracts subscriptions respects the configured contracts
 - RPC failures are are handled more elegently, switches to the polling and back to the subscriptions
+- Address check validation for the manaul relay on the icon chain
 - Other improvements and bug fixes
 
 ### Changed
 
 - Icon `progressInterval` notification block is not incremented to handle rpc failures
-- Default Block mined wait time is increased to 5 minutes
+- Default Block mined wait time is increased to 10 minutes
+- Exponential backoff for the retry count
 
 ## [1.2.5] - 2024-05-18
 
