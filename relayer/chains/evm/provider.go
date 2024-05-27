@@ -236,8 +236,7 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	// add 10% hard-coded to gas price
-	txOpts.GasPrice = gasPrice.Mul(gasPrice, big.NewInt(15)).Div(gasPrice, big.NewInt(100))
+	txOpts.GasPrice = gasPrice.Mul(gasPrice, big.NewInt(110)).Div(gasPrice, big.NewInt(100))
 	return txOpts, nil
 }
 
