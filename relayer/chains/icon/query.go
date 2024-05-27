@@ -98,8 +98,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 			}
 			switch el.Indexed[0] {
 			case EmitMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) &&
-					len(el.Indexed) != 3 && len(el.Data) != 1 {
+				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) || len(el.Indexed) != 3 || len(el.Data) != 1 {
 					continue
 				}
 				dst = el.Indexed[1]
@@ -124,8 +123,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 				}
 				messages = append(messages, msg)
 			case CallMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) &&
-					len(el.Indexed) != 4 && len(el.Data) != 2 {
+				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) || len(el.Indexed) != 4 || len(el.Data) != 2 {
 					continue
 				}
 				dst = p.NID()
