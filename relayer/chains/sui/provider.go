@@ -17,15 +17,16 @@ import (
 )
 
 var (
-	MethodClaimFee      = "claim_fees"
-	MethodGetReceipt    = "get_receipt"
-	MethodSetFee        = "set_fee"
-	MethodGetFee        = "get_fee"
-	MethodRevertMessage = "revert_message"
-	MethodSetAdmin      = "set_admin"
-	MethodGetAdmin      = "get_admin"
-	MethodRecvMessage   = "receive_message"
-	MethodExecuteCall   = "execute_call"
+	MethodClaimFee             = "claim_fees"
+	MethodGetReceipt           = "get_receipt"
+	MethodSetFee               = "set_fee"
+	MethodGetFee               = "get_fee"
+	MethodRevertMessage        = "revert_message"
+	MethodSetAdmin             = "set_admin"
+	MethodGetAdmin             = "get_admin"
+	MethodRecvMessage          = "receive_message"
+	MethodExecuteCall          = "execute_call"
+	MethodGetWithdrawTokentype = "get_withdraw_token_type"
 
 	ModuleConnection = "centralized_connection"
 	ModuleEntry      = "centralized_entry"
@@ -100,10 +101,12 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		{Type: CallArgPure, Val: adminAddr},
-	}, p.cfg.XcallPkgID, ModuleEntry, MethodSetAdmin)
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: adminAddr},
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetAdmin)
 
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
@@ -120,9 +123,11 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgPure, Val: sn},
-	}, p.cfg.XcallPkgID, ModuleEntry, MethodRevertMessage)
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgPure, Val: sn},
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodRevertMessage)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -138,9 +143,11 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-	}, p.cfg.XcallPkgID, ModuleEntry, "get_admin")
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+		}, p.cfg.XcallPkgID, ModuleEntry, "get_admin")
 	var adminAddr move_types.AccountAddress
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -158,11 +165,13 @@ func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee b
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		{Type: CallArgPure, Val: networkID},
-		{Type: CallArgPure, Val: responseFee},
-	}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: networkID},
+			{Type: CallArgPure, Val: responseFee},
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -179,12 +188,14 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		{Type: CallArgPure, Val: networkID},
-		{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
-		{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
-	}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: networkID},
+			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
+			{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -201,9 +212,11 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-	},
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+		},
 		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {

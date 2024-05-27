@@ -61,7 +61,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
-		return p.NewSuiMessage(callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
+		return p.NewSuiMessage([]string{}, callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
@@ -84,6 +84,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 
 		var callParams []SuiCallArg
+		var typeArgs []string
 
 		switch module.Name {
 		case ModuleMockDapp:
@@ -109,6 +110,13 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			if err != nil {
 				return nil, fmt.Errorf("failed to find xcall manager module")
 			}
+			withdrawTokenType, err := p.getWithdrawTokentype(context.Background(), message)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get withdraw token type")
+			}
+
+			typeArgs = append(typeArgs, *withdrawTokenType)
+
 			callParams = []SuiCallArg{
 				{Type: CallArgObject, Val: module.ConfigID},
 				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
@@ -138,7 +146,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, fmt.Errorf("received unknown dapp module cap id: %s", message.DappModuleCapID)
 		}
 
-		return p.NewSuiMessage(callParams, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
+		return p.NewSuiMessage(typeArgs, callParams, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
@@ -200,7 +208,6 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		return nil, fmt.Errorf("invalid packageId: %w", err)
 	}
 
-	typeArgs := []string{}
 	var args []interface{}
 	for _, param := range msg.Params {
 		args = append(args, param.Val)
@@ -212,7 +219,7 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		*packageId,
 		msg.Module,
 		msg.Method,
-		typeArgs,
+		msg.TypeArgs,
 		args,
 		nil,
 		types.NewSafeSuiBigInt(p.cfg.GasLimit),
@@ -395,11 +402,13 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	if err != nil {
 		return false, err
 	}
-	suiMessage := p.NewSuiMessage([]SuiCallArg{
-		{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		{Type: CallArgPure, Val: key.Src},
-		{Type: CallArgPure, Val: snU128},
-	}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: key.Src},
+			{Type: CallArgPure, Val: snU128},
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
 	var msgReceived bool
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -416,4 +425,28 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	}
 
 	return msgReceived, nil
+}
+
+func (p *Provider) getWithdrawTokentype(ctx context.Context, message *relayertypes.Message) (*string, error) {
+	suiMessage := p.NewSuiMessage(
+		[]string{},
+		[]SuiCallArg{
+			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+		}, p.cfg.DappPkgID, ModuleAssetManager, MethodGetWithdrawTokentype)
+	var tokenType string
+	wallet, err := p.Wallet()
+	if err != nil {
+		return nil, err
+	}
+
+	txBytes, err := p.preparePTB(suiMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &tokenType); err != nil {
+		return nil, err
+	}
+
+	return &tokenType, nil
 }
