@@ -98,61 +98,59 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 			}
 			switch el.Indexed[0] {
 			case EmitMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) &&
-					len(el.Indexed) != 3 && len(el.Data) != 1 {
-					continue
+				if el.Addr == types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) &&
+					len(el.Indexed) == 3 && len(el.Data) == 1 {
+					dst = el.Indexed[1]
+					sn, err := types.HexInt(el.Indexed[2]).BigInt()
+					if err != nil {
+						p.log.Error("GenerateMessage: error decoding int value ")
+						continue
+					}
+					data := types.HexBytes(el.Data[0])
+					dataValue, err := data.Value()
+					if err != nil {
+						p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
+						continue
+					}
+					msg := &providerTypes.Message{
+						MessageHeight: height.Uint64(),
+						EventType:     eventType,
+						Dst:           dst,
+						Src:           key.Src,
+						Data:          dataValue,
+						Sn:            sn.Uint64(),
+					}
+					messages = append(messages, msg)
 				}
-				dst = el.Indexed[1]
-				sn, err := types.HexInt(el.Indexed[2]).BigInt()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding int value ")
-					continue
-				}
-				data := types.HexBytes(el.Data[0])
-				dataValue, err := data.Value()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
-					continue
-				}
-				msg := &providerTypes.Message{
-					MessageHeight: height.Uint64(),
-					EventType:     eventType,
-					Dst:           dst,
-					Src:           key.Src,
-					Data:          dataValue,
-					Sn:            sn.Uint64(),
-				}
-				messages = append(messages, msg)
 			case CallMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) &&
-					len(el.Indexed) != 4 && len(el.Data) != 2 {
-					continue
+				if el.Addr == types.Address(p.cfg.Contracts[providerTypes.XcallContract]) &&
+					len(el.Indexed) == 4 && len(el.Data) == 2 {
+					dst = p.NID()
+					src := strings.SplitN(string(el.Indexed[1][:]), "/", 2)
+					sn, err := types.HexInt(el.Indexed[3]).BigInt()
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[2])
+					}
+					requestID, err := types.HexInt(el.Data[0]).BigInt()
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse reqID: %s", el.Data[0])
+					}
+					data, err := types.HexBytes(el.Data[1]).Value()
+					if err != nil {
+						p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
+						continue
+					}
+					msg := &providerTypes.Message{
+						MessageHeight: height.Uint64(),
+						EventType:     p.GetEventName(el.Indexed[0]),
+						Dst:           dst,
+						Src:           src[0],
+						Data:          data,
+						Sn:            sn.Uint64(),
+						ReqID:         requestID.Uint64(),
+					}
+					messages = append(messages, msg)
 				}
-				dst = p.NID()
-				src := strings.SplitN(string(el.Indexed[1][:]), "/", 2)
-				sn, err := types.HexInt(el.Indexed[3]).BigInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[2])
-				}
-				requestID, err := types.HexInt(el.Data[0]).BigInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse reqID: %s", el.Data[0])
-				}
-				data, err := types.HexBytes(el.Data[1]).Value()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
-					continue
-				}
-				msg := &providerTypes.Message{
-					MessageHeight: height.Uint64(),
-					EventType:     p.GetEventName(el.Indexed[0]),
-					Dst:           dst,
-					Src:           src[0],
-					Data:          data,
-					Sn:            sn.Uint64(),
-					ReqID:         requestID.Uint64(),
-				}
-				messages = append(messages, msg)
 			}
 		}
 	}
