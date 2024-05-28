@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.7] - 2024-05-28
+
+### Fixed
+
+- Use on/off switch for the polling and subscriptions for recoveries
+- Other improvements and bug fixes
+
+### Changed
+
+- Evm block mined is replaced by custom function
+
 ## [1.2.6] - 2024-05-26
 
 ### Fixed
