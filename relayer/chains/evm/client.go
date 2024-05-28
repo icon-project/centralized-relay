@@ -21,9 +21,11 @@ import (
 )
 
 const (
-	RPCCallRetry        = 5
-	MaxTxFixtures       = 5
-	DefaultMinedTimeout = time.Minute * 10
+	RPCCallRetry           = 5
+	MaxTxFixtures          = 5
+	DefaultMinedTimeout    = time.Minute * 5
+	DefaultPollingInterval = time.Second * 5
+	MaximumWaitTry         = 60
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
