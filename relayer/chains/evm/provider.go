@@ -177,14 +177,12 @@ func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction)
 	ticker := time.NewTicker(DefaultPollingInterval)
 	defer ticker.Stop()
 	counter := 0
-	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
-	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			if counter >= MaximumWaitTry {
+			if counter >= MaximumPollTry {
 				return nil, errors.New("Retry Limit Exceeded while waiting for results of transaction")
 			}
 			counter++
