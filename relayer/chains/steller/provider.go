@@ -2,6 +2,7 @@ package steller
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strconv"
 	"sync"
@@ -65,7 +66,16 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	return nil, nil
+	p.log.Info("generating message", zap.Any("messagekey", messageKey))
+	if messageKey == nil {
+		return nil, errors.New("GenerateMessage: message key cannot be nil")
+	}
+	messages, err := p.fetchLedgerMessages(context.Background(), messageKey.Height)
+	if len(messages) == 0 {
+		return nil, errors.New("GenerateMessage: no messages found")
+	}
+	return messages, err
+
 }
 
 func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
