@@ -111,6 +111,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	}
 
 	subscribeStarter := time.NewTicker(time.Second * 1)
+	pollHeightTicker := time.NewTicker(time.Second * 1)
+	pollHeightTicker.Stop()
+
+	resetFunc := func() {
+		subscribeStarter.Reset(time.Second * 3)
+		pollHeightTicker.Reset(time.Second * 3)
+	}
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
@@ -125,7 +132,15 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 					Address: event.Address,
 					Method:  event.GetWasmMsgType(),
 					Height:  latestHeight,
-				})
+				}, resetFunc)
+			}
+		case <-pollHeightTicker.C:
+			pollHeightTicker.Stop()
+			startHeight = p.GetLastSavedHeight()
+			latestHeight, err = p.QueryLatestHeight(ctx)
+			if err != nil {
+				p.logger.Error("failed to get latest block height", zap.Error(err))
+				continue
 			}
 		default:
 			if startHeight < latestHeight {
@@ -709,7 +724,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 // SubscribeMessageEvents subscribes to the message events
 // Expermental: Allows to subscribe to the message events realtime without fully syncing the chain
-func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, opts *types.SubscribeOpts) error {
+func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, opts *types.SubscribeOpts, resetFunc func()) error {
 	query := strings.Join([]string{
 		"tm.event = 'Tx'",
 		fmt.Sprintf("tx.height >= %d ", opts.Height),
@@ -719,7 +734,8 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 	resultEventChan, err := p.client.Subscribe(ctx, "tx-result-waiter", query)
 	if err != nil {
 		p.logger.Error("event subscription failed", zap.Error(err))
-		return p.SubscribeMessageEvents(ctx, blockInfoChan, opts)
+		resetFunc()
+		return err
 	}
 	defer p.client.Unsubscribe(ctx, opts.Address, query)
 	p.logger.Info("event subscription started", zap.String("contract_address", opts.Address), zap.String("method", opts.Method))
@@ -780,7 +796,8 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 					continue
 				}
 				p.logger.Info("http client reconnected")
-				return p.Listener(ctx, p.GetLastSavedHeight(), blockInfoChan)
+				resetFunc()
+				return err
 			}
 		}
 	}
