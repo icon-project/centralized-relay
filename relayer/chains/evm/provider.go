@@ -175,11 +175,11 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
 	ticker := time.NewTicker(DefaultPollingInterval)
+	defer ticker.Stop()
 	counter := 0
 	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
 	defer cancel()
 	for {
-		defer ticker.Stop()
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
