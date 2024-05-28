@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -173,9 +174,27 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
+	ticker := time.NewTicker(DefaultPollingInterval)
+	counter := 0
 	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
 	defer cancel()
-	return p.client.WaitForTransactionMined(ctx, tx)
+	for {
+		defer ticker.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			if counter >= MaximumWaitTry {
+				return nil, errors.New("Retry Limit Exceeded while waiting for results of transaction")
+			}
+			counter++
+			txr, err := p.client.TransactionReceipt(ctx, tx.Hash())
+			if err != nil && err == ethereum.NotFound {
+				continue
+			}
+			return txr, err
+		}
+	}
 }
 
 func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
