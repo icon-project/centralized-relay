@@ -15,12 +15,10 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
-	instructions, err := p.MakeCallInstructions(message)
+	instructions, signers, err := p.MakeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
-
-	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
 	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
 	if err != nil {
@@ -125,7 +123,7 @@ func (p *Provider) waitForTxConfirmation(timeout time.Duration, sign solana.Sign
 	startTime := time.Now()
 	for range time.NewTicker(500 * time.Millisecond).C {
 		txStatus, err := p.client.GetSignatureStatus(context.TODO(), false, sign)
-		if err == nil && txStatus != nil && txStatus.ConfirmationStatus == solrpc.ConfirmationStatusFinalized {
+		if err == nil && txStatus != nil && (txStatus.ConfirmationStatus == solrpc.ConfirmationStatusConfirmed || txStatus.ConfirmationStatus == solrpc.ConfirmationStatusFinalized) {
 			return txStatus, nil
 		} else if time.Since(startTime) > timeout {
 			var cbErr error
@@ -215,22 +213,21 @@ func (p *Provider) createInitXcallInstruction() ([]solana.Instruction, []solana.
 	return instructions, signers, nil
 }
 
-func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, error) {
+func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage:
 		return p.getRecvMessageIntruction(msg)
-	case relayerevents.CallMessage:
-		return p.getExecuteCallIntruction(msg)
 	default:
-		return nil, fmt.Errorf("invalid event type in message")
+		return nil, nil, fmt.Errorf("invalid event type in message")
 	}
 }
 
 func (p *Provider) getSendMessageIntruction(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
-	discriminator, err := p.xcallIdl.GetInstructionDiscriminator("send_message")
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodSendMessage)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	toArg, err := borsh.Serialize(msg.Dst)
 	if err != nil {
 		return nil, nil, err
@@ -275,20 +272,28 @@ func (p *Provider) getSendMessageIntruction(msg *relayertypes.Message) ([]solana
 	return instructions, []solana.PrivateKey{p.wallet.PrivateKey}, nil
 }
 
-func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana.Instruction, error) {
-	recvMsgParams := types.RecvMessageParams{
-		Sn:   msg.Sn,
-		Src:  msg.Src,
-		Data: msg.Data,
-	}
-	paramBytes, err := BorshEncode(recvMsgParams)
+func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodRecvMessage)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	srcArg, err := borsh.Serialize(msg.Src)
+	if err != nil {
+		return nil, nil, err
+	}
+	snArg, err := borsh.Serialize(msg.Sn)
+	if err != nil {
+		return nil, nil, err
+	}
+	dataArg, err := borsh.Serialize(msg.Data)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	progID, err := p.xcallIdl.GetProgramID()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	payerAccount := solana.AccountMeta{
@@ -297,51 +302,29 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		IsSigner:   true,
 	}
 
-	instructionData := append([]byte{types.MethodRecvMessage}, paramBytes...)
-
-	instructions := []solana.Instruction{
-		&solana.GenericInstruction{
-			ProgID:        progID,
-			AccountValues: solana.AccountMetaSlice{&payerAccount},
-			DataBytes:     instructionData,
-		},
-	}
-
-	return instructions, nil
-}
-
-func (p *Provider) getExecuteCallIntruction(msg *relayertypes.Message) ([]solana.Instruction, error) {
-	executeCallParams := types.ExecuteCallParams{
-		ReqId: msg.ReqID,
-		Data:  msg.Data,
-	}
-	paramBytes, err := BorshEncode(executeCallParams)
+	xcallStatePubKey, err := solana.PublicKeyFromBase58(p.cfg.XcallStateAccount)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	progID, err := p.xcallIdl.GetProgramID()
-	if err != nil {
-		return nil, err
-	}
-
-	payerAccount := solana.AccountMeta{
-		PublicKey:  p.wallet.PublicKey(),
+	xcallStateAccount := solana.AccountMeta{
+		PublicKey:  xcallStatePubKey,
 		IsWritable: true,
-		IsSigner:   true,
 	}
 
-	instructionData := append([]byte{types.MethodExecuteCall}, paramBytes...)
+	instructionData := append(discriminator, srcArg...)
+	instructionData = append(instructionData, snArg...)
+	instructionData = append(instructionData, dataArg...)
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
 			ProgID:        progID,
-			AccountValues: solana.AccountMetaSlice{&payerAccount},
+			AccountValues: solana.AccountMetaSlice{&payerAccount, &xcallStateAccount},
 			DataBytes:     instructionData,
 		},
 	}
 
-	return instructions, nil
+	return instructions, []solana.PrivateKey{p.wallet.PrivateKey}, nil
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayertypes.Receipt, error) {

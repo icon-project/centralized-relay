@@ -32,8 +32,8 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 
 	client := NewClient(solrpc.New(pc.RPCUrl))
 
-	xcallIdl, err := fetchIDL(pc.XcallIdl, client)
-	if err != nil {
+	var xcallIdl IDL
+	if err := client.FetchIDL(ctx, pc.XcallIdl, &xcallIdl); err != nil {
 		return nil, err
 	}
 
@@ -42,7 +42,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		cfg:      pc,
 		client:   client,
 		txmut:    &sync.Mutex{},
-		xcallIdl: xcallIdl,
+		xcallIdl: &xcallIdl,
 	}, nil
 }
 

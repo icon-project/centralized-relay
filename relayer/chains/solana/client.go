@@ -1,18 +1,26 @@
 package solana
 
 import (
+	"bytes"
+	"compress/zlib"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/near/borsh-go"
 )
 
 type IClient interface {
 	GetLatestBlockHeight(ctx context.Context) (uint64, error)
 	GetLatestBlockHash(ctx context.Context) (*solana.Hash, error)
 
-	GetAccountInfo(ctx context.Context, accountId solana.PublicKey) (*solrpc.Account, error)
+	GetAccountInfoRaw(ctx context.Context, addr string) (*solrpc.Account, error)
+	GetAccountInfo(ctx context.Context, acAddr string, accPtr interface{}) error
+
+	FetchIDL(ctx context.Context, idlAddress string, idlPtr interface{}) error
 
 	GetSignatureStatus(
 		ctx context.Context,
@@ -46,12 +54,84 @@ func NewClient(rpcCl *solrpc.Client) IClient {
 	return Client{rpc: rpcCl}
 }
 
-func (cl Client) GetAccountInfo(ctx context.Context, accountId solana.PublicKey) (*solrpc.Account, error) {
-	res, err := cl.rpc.GetAccountInfo(ctx, accountId)
+func (cl Client) GetAccountInfoRaw(ctx context.Context, addr string) (*solrpc.Account, error) {
+	acPubKey, err := solana.PublicKeyFromBase58(addr)
+	if err != nil {
+		return nil, err
+	}
+	res, err := cl.rpc.GetAccountInfo(ctx, acPubKey)
 	if err != nil {
 		return nil, err
 	}
 	return res.Value, nil
+}
+
+func (cl Client) GetAccountInfo(ctx context.Context, acAddr string, accPtr interface{}) error {
+	ac, err := cl.GetAccountInfoRaw(ctx, acAddr)
+	if err != nil {
+		return err
+	}
+	data := ac.Data.GetBinary()[8:] //skip discriminator
+
+	if err := borsh.Deserialize(accPtr, data); err != nil {
+		return fmt.Errorf("failed to deserialize to account ptr: %w", err)
+	}
+
+	return nil
+}
+
+func (cl Client) FetchIDL(ctx context.Context, idlAddress string, idlPtr interface{}) error {
+	idlAccount, err := cl.GetAccountInfoRaw(context.Background(), idlAddress)
+	if err != nil {
+		return err
+	}
+
+	data := idlAccount.Data.GetBinary()[8:] //skip discriminator
+
+	idlAcInfo := struct {
+		Authority solana.PublicKey
+		DataLen   uint32
+	}{}
+	if err := borsh.Deserialize(&idlAcInfo, data); err != nil {
+		return err
+	}
+
+	compressedBytes := data[36 : 36+idlAcInfo.DataLen] //skip authority and unwanted trailing bytes
+
+	decompressedBytes, err := decompress(compressedBytes)
+	if err != nil {
+		return err
+	}
+
+	if err = json.Unmarshal(decompressedBytes, idlPtr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func decompress(compressedData []byte) ([]byte, error) {
+	// Create a new bytes reader from the compressed data
+	b := bytes.NewReader(compressedData)
+
+	// Create a new zlib reader
+	r, err := zlib.NewReader(b)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// Create a buffer to hold the decompressed data
+	var out bytes.Buffer
+
+	// Copy the decompressed data into the buffer
+	_, err = io.Copy(&out, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the decompressed data
+	return out.Bytes(), nil
 }
 
 func (cl Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
