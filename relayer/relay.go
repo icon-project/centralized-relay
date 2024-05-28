@@ -248,11 +248,11 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
-				go r.RouteMessage(ctx, message, dst, src)
+				r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
 				if ok := src.shouldExecuteCall(ctx, message); ok {
 					message.ToggleProcessing()
-					go r.ExecuteCall(ctx, message, src)
+					r.ExecuteCall(ctx, message, src)
 				}
 			}
 		}
