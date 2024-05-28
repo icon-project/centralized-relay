@@ -84,7 +84,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 
 		var callParams []SuiCallArg
-		var typeArgs []string
+		typeArgs := []string{}
 
 		switch module.Name {
 		case ModuleMockDapp:
