@@ -55,6 +55,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	subscribeStart := time.NewTicker(time.Second * 1)
+	pollHeightTicker := time.NewTicker(time.Second * 1)
+
+	pollHeightTicker.Stop()
+
+	resetFunc := func() {
+		subscribeStart.Reset(time.Second * 3)
+		pollHeightTicker.Reset(time.Second * 3)
+	}
 
 	next, latest := startHeight, p.latestHeight()
 	concurrency := p.GetConcurrency(ctx, startHeight, latest)
@@ -72,7 +80,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			return nil
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
-			go p.Subscribe(ctx, blockInfoChan)
+			go p.Subscribe(ctx, blockInfoChan, resetFunc)
+		case <-pollHeightTicker.C:
+			pollHeightTicker.Stop()
+			next = p.GetLastSavedBlockHeight()
+			latest = p.latestHeight()
 
 		case bn := <-bnch:
 			// process all notifications
@@ -245,7 +257,7 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo) error {
+func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetFunc func()) error {
 	ch := make(chan ethTypes.Log)
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
@@ -253,6 +265,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
+		resetFunc()
 		return err
 	}
 	defer sub.Unsubscribe()
@@ -263,8 +276,8 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			return nil
 		case err := <-sub.Err():
 			p.log.Error("subscription error", zap.Error(err))
-
-			return p.Listener(ctx, p.GetLastSavedBlockHeight(), blockInfoChan)
+			resetFunc()
+			return err
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
 			if err != nil {
