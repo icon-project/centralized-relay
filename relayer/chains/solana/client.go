@@ -80,7 +80,31 @@ func (cl Client) GetAccountInfo(ctx context.Context, acAddr string, accPtr inter
 	return nil
 }
 
-func (cl Client) FetchIDL(ctx context.Context, idlAddress string, idlPtr interface{}) error {
+func idlAddrFromProgID(progID string) (string, error) {
+	progPubkey, err := solana.PublicKeyFromBase58(progID)
+	if err != nil {
+		return "", err
+	}
+
+	basePubkey, _, err := solana.FindProgramAddress([][]byte{}, progPubkey)
+	if err != nil {
+		return "", err
+	}
+
+	calculatedIdlAddr, err := solana.CreateWithSeed(basePubkey, "anchor:idl", progPubkey)
+	if err != nil {
+		return "", err
+	}
+
+	return calculatedIdlAddr.String(), nil
+}
+
+func (cl Client) FetchIDL(ctx context.Context, progID string, idlPtr interface{}) error {
+	idlAddress, err := idlAddrFromProgID(progID)
+	if err != nil {
+		return err
+	}
+
 	idlAccount, err := cl.GetAccountInfoRaw(context.Background(), idlAddress)
 	if err != nil {
 		return err

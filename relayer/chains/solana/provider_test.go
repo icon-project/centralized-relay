@@ -39,3 +39,19 @@ func TestIDL(t *testing.T) {
 
 	fmt.Printf("%+v", idlData)
 }
+
+func TestIDLAddress(t *testing.T) {
+	progPubkey, err := solana.PublicKeyFromBase58("FiXbEGcDhFPHW84CJmHoRbrgYkBAEyPJL7gAPPT3H9ZS")
+	assert.NoError(t, err)
+
+	idlPubkey, err := solana.PublicKeyFromBase58("3fFhJNrxpdnKcxsY9sem81bg3VPQL5FySwzg99354spR")
+	assert.NoError(t, err)
+
+	signer, _, err := solana.FindProgramAddress([][]byte{}, progPubkey)
+	assert.NoError(t, err)
+
+	calculatedIdlAddr, err := solana.CreateWithSeed(signer, "anchor:idl", progPubkey)
+	assert.NoError(t, err)
+
+	assert.Equal(t, idlPubkey, calculatedIdlAddr)
+}
