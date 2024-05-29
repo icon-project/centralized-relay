@@ -39,6 +39,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	tx, err := p.SendTransaction(ctx, opts, message, MaxTxFixtures)
 	if err != nil {
+		globalRouteLock.Unlock()
 		return fmt.Errorf("routing failed: %w", err)
 	}
 	globalRouteLock.Unlock()
