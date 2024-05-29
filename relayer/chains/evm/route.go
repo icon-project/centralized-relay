@@ -38,7 +38,6 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
-	p.NonceTracker.Inc(p.wallet.Address)
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 
@@ -69,6 +68,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		zap.Uint64("estimated_limit", gasLimit),
 		zap.Uint64("adjusted_limit", opts.GasLimit),
 		zap.Uint64("nonce", opts.Nonce.Uint64()),
+		zap.Uint64("sn", message.Sn),
 	)
 
 	switch message.EventType {

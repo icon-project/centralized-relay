@@ -23,8 +23,9 @@ import (
 const (
 	RPCCallRetry           = 5
 	MaxTxFixtures          = 10
+	TxSubmitTimeout        = time.Second * 60
 	DefaultPollingInterval = time.Second * 30
-	MaximumPollTry         = 60 * 5
+	MaximumPollTry         = 60 * 2
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {

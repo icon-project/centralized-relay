@@ -268,6 +268,7 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	}
 	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
 	txOpts.GasTipCap = gasTip
+	p.NonceTracker.Inc(wallet.Address)
 	return txOpts, nil
 }
 
