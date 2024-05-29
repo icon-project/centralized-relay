@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -38,6 +39,9 @@ var (
 
 	// Xcall contract
 	MethodExecuteCall = "executeCall"
+
+	// Lock for opts
+	globalOptsLock = &sync.Mutex{}
 )
 
 type Config struct {
@@ -158,13 +162,11 @@ func (p *Provider) Wallet() (*keystore.Key, error) {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
-		if p.NonceTracker.Get(p.wallet.Address) == nil {
-			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-			if err != nil {
-				return nil, err
-			}
-			p.NonceTracker.Set(p.wallet.Address, nonce)
+		nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+		if err != nil {
+			return nil, err
 		}
+		p.NonceTracker.Set(p.wallet.Address, nonce)
 	}
 	return p.wallet, nil
 }
@@ -250,6 +252,10 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
+	// lock here to prevent transcation replacement
+	globalOptsLock.Lock()
+	defer globalOptsLock.Unlock()
+
 	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
 	txOpts.Context = ctx
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
@@ -258,9 +264,9 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	}
 	gasTip, err := p.client.SuggestGasTip(ctx)
 	if err != nil {
-		gasTip = new(big.Int).SetUint64(100)
+		p.log.Warn("failed to get gas tip", zap.Error(err))
 	}
-	txOpts.GasPrice = gasPrice
+	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
 	txOpts.GasTipCap = gasTip
 	return txOpts, nil
 }

@@ -22,7 +22,7 @@ import (
 
 const (
 	RPCCallRetry           = 5
-	MaxTxFixtures          = 5
+	MaxTxFixtures          = 10
 	DefaultPollingInterval = time.Second * 30
 	MaximumPollTry         = 60 * 5
 )
@@ -114,7 +114,7 @@ type IClient interface {
 }
 
 func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
-	nonce, err := c.eth.NonceAt(ctx, account, blockNumber)
+	nonce, err := c.eth.PendingNonceAt(ctx, account)
 	if err != nil {
 		return nil, err
 	}

@@ -63,7 +63,13 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 
 	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
 
-	p.log.Info("gas info", zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Uint64("original_limit", gasLimit), zap.Uint64("adjusted_limit", opts.GasLimit))
+	p.log.Info("gas info",
+		zap.Uint64("gas_cap", opts.GasFeeCap.Uint64()),
+		zap.Uint64("gas_tip", opts.GasTipCap.Uint64()),
+		zap.Uint64("estimated_limit", gasLimit),
+		zap.Uint64("adjusted_limit", opts.GasLimit),
+		zap.Uint64("nonce", opts.Nonce.Uint64()),
+	)
 
 	switch message.EventType {
 	case events.EmitMessage:
@@ -86,13 +92,21 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	}
 	if err != nil {
 		switch p.parseErr(err, maxRetry > 0) {
-		case ErrorLessGas, ErrorLimitLessThanGas:
+		case ErrorLimitLessThanGas:
 			p.log.Info("gasfee low", zap.Error(err))
 			gasPrice, err := p.client.SuggestGasPrice(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get gas price: %w", err)
 			}
-			opts.GasPrice = gasPrice
+			gasTip, err := p.client.SuggestGasTip(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get gas price: %w", err)
+			}
+			opts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
+			opts.GasTipCap = gasTip
+		case ErrorLessGas:
+			p.log.Warn("transaction replacement", zap.Error(err))
+			return nil, err
 		case ErrNonceTooLow, ErrNonceTooHigh:
 			p.log.Info("nonce mismatch", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Error(err))
 			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
@@ -100,11 +114,10 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 				return nil, err
 			}
 			opts.Nonce = nonce
-			p.NonceTracker.Set(p.wallet.Address, nonce)
 		default:
 			return nil, err
 		}
-		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
+		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_tip", opts.GasTipCap.Uint64()), zap.Any("message", message))
 		return p.SendTransaction(ctx, opts, message, maxRetry-1)
 	}
 	return tx, err
