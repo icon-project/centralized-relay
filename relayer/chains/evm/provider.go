@@ -183,11 +183,14 @@ func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction)
 			return nil, ctx.Err()
 		case <-ticker.C:
 			if counter >= MaximumPollTry {
-				return nil, errors.New("Retry Limit Exceeded while waiting for results of transaction")
+				return nil, fmt.Errorf("failed to get receipt after %d tries", counter)
 			}
 			counter++
 			txr, err := p.client.TransactionReceipt(ctx, tx.Hash())
-			if err != nil && err == ethereum.NotFound {
+			if err == nil {
+				return txr, nil
+			}
+			if errors.Is(err, ethereum.NotFound) {
 				continue
 			}
 			return txr, err
@@ -253,7 +256,12 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	txOpts.GasPrice = gasPrice.Mul(gasPrice, big.NewInt(110)).Div(gasPrice, big.NewInt(100))
+	gasTip, err := p.client.SuggestGasTip(ctx)
+	if err != nil {
+		gasTip = new(big.Int).SetUint64(100)
+	}
+	txOpts.GasPrice = gasPrice
+	txOpts.GasTipCap = gasTip
 	return txOpts, nil
 }
 

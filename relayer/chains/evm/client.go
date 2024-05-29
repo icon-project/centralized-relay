@@ -86,6 +86,7 @@ type IClient interface {
 	// ethClient
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
+	SuggestGasTip(ctx context.Context) (*big.Int, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
@@ -164,6 +165,10 @@ func (cl *Client) GetBlockNumber() (uint64, error) {
 
 func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasPrice(ctx)
+}
+
+func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
+	return cl.eth.SuggestGasTipCap(ctx)
 }
 
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
