@@ -78,7 +78,7 @@ fi
 
 if [ "$build_xcall" = "true" ]; then
   echo "building xCall contracts..."
-  # build_xCall_contracts "$xcall_branch"
+  build_xCall_contracts "$xcall_branch"
   build_sui_docker
 fi
 
