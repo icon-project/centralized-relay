@@ -12,10 +12,11 @@ import (
 var (
 	MaxTxRetry         uint8 = 5
 	StaleMarkCount           = MaxTxRetry * 3
+	RouteDuration            = 3 * time.Second
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 3 * time.Second
+	RetryInterval            = 3*time.Second + RouteDuration
 )
 
 type BlockInfo struct {

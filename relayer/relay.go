@@ -17,7 +17,6 @@ var (
 	listenerChannelBufferSize = 1000
 
 	HeightSaveInterval         = time.Minute * 5
-	RouteDuration              = 3 * time.Second
 	maxFlushMessage       uint = 10
 	FinalityInterval           = 5 * time.Second
 	DeleteExpiredInterval      = 6 * time.Hour
@@ -160,7 +159,7 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 }
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
-	routeTimer := time.NewTicker(RouteDuration)
+	routeTimer := time.NewTicker(types.RouteDuration)
 	flushTimer := time.NewTicker(flushInterval)
 	heightTimer := time.NewTicker(HeightSaveInterval)
 	cleanMessageTimer := time.NewTicker(DeleteExpiredInterval)
@@ -533,7 +532,7 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 func (r *Relayer) cleanExpiredMessages(ctx context.Context) {
 	for _, chain := range r.chains {
 		nId := chain.Provider.NID()
-		p := store.NewPagination().WithLimit(50)
+		p := store.NewPagination().WithLimit(maxFlushMessage)
 		messages, err := r.messageStore.GetMessages(nId, p)
 		if err != nil {
 			r.log.Error("error occured when fetching messages from db", zap.Error(err))
