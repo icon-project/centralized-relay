@@ -25,6 +25,9 @@ const (
 
 // this will be executed in go route
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+	// lock here to prevent transcation replacement
+	globalRouteLock.Lock()
+
 	p.log.Info("starting to route message", zap.Any("message", message))
 
 	opts, err := p.GetTransationOpts(ctx)
@@ -38,6 +41,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
+	globalRouteLock.Unlock()
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 

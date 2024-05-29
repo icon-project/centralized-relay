@@ -41,7 +41,7 @@ var (
 	MethodExecuteCall = "executeCall"
 
 	// Lock for opts
-	globalOptsLock = &sync.Mutex{}
+	globalRouteLock = &sync.Mutex{}
 )
 
 type Config struct {
@@ -252,11 +252,11 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
-	// lock here to prevent transcation replacement
-	globalOptsLock.Lock()
-	defer globalOptsLock.Unlock()
-
-	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
+	nonce, err := p.client.NonceAt(ctx, wallet.Address, nil)
+	if err != nil {
+		return nil, err
+	}
+	txOpts.Nonce = nonce
 	txOpts.Context = ctx
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
@@ -268,7 +268,6 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	}
 	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
 	txOpts.GasTipCap = gasTip
-	p.NonceTracker.Inc(wallet.Address)
 	return txOpts, nil
 }
 
