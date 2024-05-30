@@ -18,7 +18,6 @@ const (
 	ErrorLessGas          = "transaction underpriced"
 	ErrorLimitLessThanGas = "max fee per gas less than block base fee"
 	ErrUnKnown            = "unknown"
-	ErrMaxTried           = "max tried"
 	ErrNonceTooLow        = "nonce too low"
 	ErrNonceTooHigh       = "nonce too high"
 )
@@ -37,7 +36,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message, MaxTxFixtures)
+	tx, err := p.SendTransaction(ctx, opts, message)
 	globalRouteLock.Unlock()
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
@@ -45,7 +44,12 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 
-func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
+func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
+	var (
+		tx  *types.Transaction
+		err error
+	)
+
 	gasLimit, err := p.EstimateGas(ctx, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas: %w", err)
@@ -74,21 +78,35 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	case events.EmitMessage:
 		return p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
 	case events.CallMessage:
-		return p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
+		tx, err = p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
-		return p.client.SetAdmin(opts, addr)
+		tx, err = p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		return p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
+		tx, err = p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
 	case events.ClaimFee:
-		return p.client.ClaimFee(opts)
+		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
-		return p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
+		tx, err = p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
 	case events.ExecuteRollback:
-		return p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
+		tx, err = p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
+	if err != nil {
+		switch p.parseErr(err) {
+		case ErrNonceTooLow, ErrNonceTooHigh, ErrorLessGas:
+			nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
+			if err != nil {
+				return nil, err
+			}
+			p.log.Info("nonce mismatch", zap.Uint64("tx", opts.Nonce.Uint64()), zap.Uint64("current", nonce.Uint64()), zap.Error(err))
+			p.NonceTracker.Set(p.wallet.Address, nonce)
+		default:
+			return nil, err
+		}
+	}
+	return tx, err
 }
 
 func (p *Provider) WaitForTxResult(ctx context.Context, tx *types.Transaction, m *providerTypes.MessageKey, callback providerTypes.TxResponseFunc) error {
@@ -141,11 +159,9 @@ func (p *Provider) LogFailedTx(messageKey *providerTypes.MessageKey, result *typ
 	)
 }
 
-func (p *Provider) parseErr(err error, shouldParse bool) string {
+func (p *Provider) parseErr(err error) string {
 	msg := err.Error()
 	switch {
-	case !shouldParse:
-		return ErrMaxTried
 	case strings.Contains(msg, ErrorLimitLessThanGas):
 		return ErrorLimitLessThanGas
 	case strings.Contains(msg, ErrorLessGas):

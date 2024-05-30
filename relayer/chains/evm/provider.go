@@ -252,12 +252,7 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
-	nonce, err := p.client.PendingNonceAt(ctx, wallet.Address, nil)
-	if err != nil {
-		return nil, err
-	}
-	txOpts.Nonce = nonce
-	txOpts.Context = ctx
+	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
@@ -277,7 +272,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin}, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin})
 	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
@@ -298,7 +293,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		EventType: events.RevertMessage,
 		Sn:        sn.Uint64(),
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -321,7 +316,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -347,7 +342,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		Sn:        msgFee,
 		ReqID:     resFee,
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -380,7 +375,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 		EventType: events.ExecuteRollback,
 		Sn:        sn,
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}

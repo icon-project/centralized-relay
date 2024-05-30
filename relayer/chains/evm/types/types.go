@@ -20,8 +20,13 @@ type Block struct {
 	GasUsed      string   `json:"gasUsed"`
 }
 
+type NonceValue struct {
+	Previous *big.Int
+	Current  *big.Int
+}
+
 type NonceTracker struct {
-	address map[common.Address]*big.Int
+	address map[common.Address]*NonceValue
 	*sync.Mutex
 }
 
@@ -34,7 +39,7 @@ type NonceTrackerI interface {
 // NewNonceTracker
 func NewNonceTracker() NonceTrackerI {
 	return &NonceTracker{
-		address: make(map[common.Address]*big.Int),
+		address: make(map[common.Address]*NonceValue),
 		Mutex:   &sync.Mutex{},
 	}
 }
@@ -42,17 +47,25 @@ func NewNonceTracker() NonceTrackerI {
 func (n *NonceTracker) Get(addr common.Address) *big.Int {
 	n.Lock()
 	defer n.Unlock()
-	return n.address[addr]
+	nonce := n.address[addr]
+	if nonce.Previous == nonce.Current {
+		nonce.Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
+	}
+	return nonce.Current
 }
 
 func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
 	n.Lock()
 	defer n.Unlock()
-	n.address[addr] = nonce
+	n.address[addr] = &NonceValue{
+		Previous: nonce.Sub(nonce, big.NewInt(1)),
+		Current:  nonce,
+	}
 }
 
 func (n *NonceTracker) Inc(addr common.Address) {
 	n.Lock()
 	defer n.Unlock()
-	n.address[addr] = n.address[addr].Add(n.address[addr], big.NewInt(1))
+	nonce := n.address[addr]
+	n.address[addr].Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
 }

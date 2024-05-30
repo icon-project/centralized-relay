@@ -119,6 +119,7 @@ func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blo
 	if err != nil {
 		return nil, err
 	}
+	//
 	return new(big.Int).SetUint64(nonce), nil
 }
 
@@ -170,6 +171,10 @@ func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 
 func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasTipCap(ctx)
+}
+
+func (cl *Client) PendingTransactionCount(ctx context.Context) (uint, error) {
+	return cl.eth.PendingTransactionCount(ctx)
 }
 
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
