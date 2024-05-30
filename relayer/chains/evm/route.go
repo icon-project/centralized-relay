@@ -95,36 +95,6 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
-	if err != nil {
-		switch p.parseErr(err, maxRetry > 0) {
-		case ErrorLimitLessThanGas:
-			p.log.Info("gasfee low", zap.Error(err))
-			gasPrice, err := p.client.SuggestGasPrice(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get gas price: %w", err)
-			}
-			gasTip, err := p.client.SuggestGasTip(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get gas price: %w", err)
-			}
-			opts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
-			opts.GasTipCap = gasTip
-		case ErrorLessGas:
-			p.log.Warn("transaction replacement", zap.Error(err))
-			return nil, err
-		case ErrNonceTooLow, ErrNonceTooHigh:
-			p.log.Info("nonce mismatch", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Error(err))
-			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-			if err != nil {
-				return nil, err
-			}
-			opts.Nonce = nonce
-		default:
-			return nil, err
-		}
-		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_tip", opts.GasTipCap.Uint64()), zap.Any("message", message))
-		return p.SendTransaction(ctx, opts, message, maxRetry-1)
-	}
 	return tx, err
 }
 

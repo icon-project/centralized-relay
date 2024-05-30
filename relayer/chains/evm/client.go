@@ -9,6 +9,7 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/gasestimator"
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
