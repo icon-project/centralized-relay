@@ -68,8 +68,9 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 
 func (p *Provider) allowedEventTypes() []string {
 	return []string{
-		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"),
-		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "main", "CallMessage"),
+		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleConnection, "Message"),
+		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "CallMessage"),
+		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "RollbackMessage"),
 	}
 }
 
@@ -145,6 +146,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		}
 		msg.ReqID = uint64(reqID)
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
+		msg.Dst = p.cfg.NID
 
 	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "RollbackMessage"):
 		msg.EventType = relayerEvents.ExecuteRollback
@@ -158,6 +160,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		}
 		msg.Sn = uint64(sn)
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
+		msg.Dst = p.cfg.NID
 
 	default:
 		return nil, fmt.Errorf("invalid event type")
