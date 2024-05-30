@@ -162,7 +162,7 @@ func (p *Provider) Wallet() (*keystore.Key, error) {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
-		nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+		nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 
 	fromAddress := crypto.PubkeyToAddress(from.PublicKey)
 
-	nonce, err := r.client.NonceAt(context.TODO(), fromAddress, nil)
+	nonce, err := r.client.PendingNonceAt(context.TODO(), fromAddress, nil)
 	if err != nil {
 		err = errors.Wrap(err, "PendingNonceAt ")
 		return common.Hash{}, err
@@ -252,7 +252,7 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
-	nonce, err := p.client.NonceAt(ctx, wallet.Address, nil)
+	nonce, err := p.client.PendingNonceAt(ctx, wallet.Address, nil)
 	if err != nil {
 		return nil, err
 	}

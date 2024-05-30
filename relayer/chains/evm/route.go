@@ -38,20 +38,14 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	messageKey := message.MessageKey()
 
 	tx, err := p.SendTransaction(ctx, opts, message, MaxTxFixtures)
+	globalRouteLock.Unlock()
 	if err != nil {
-		globalRouteLock.Unlock()
 		return fmt.Errorf("routing failed: %w", err)
 	}
-	globalRouteLock.Unlock()
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 
 func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
-	var (
-		tx  *types.Transaction
-		err error
-	)
-
 	gasLimit, err := p.EstimateGas(ctx, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas: %w", err)
@@ -78,24 +72,23 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 
 	switch message.EventType {
 	case events.EmitMessage:
-		tx, err = p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
+		return p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
 	case events.CallMessage:
-		tx, err = p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
+		return p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
-		tx, err = p.client.SetAdmin(opts, addr)
+		return p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		tx, err = p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
+		return p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
 	case events.ClaimFee:
-		tx, err = p.client.ClaimFee(opts)
+		return p.client.ClaimFee(opts)
 	case events.SetFee:
-		tx, err = p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
+		return p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
 	case events.ExecuteRollback:
-		tx, err = p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
+		return p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
-	return tx, err
 }
 
 func (p *Provider) WaitForTxResult(ctx context.Context, tx *types.Transaction, m *providerTypes.MessageKey, callback providerTypes.TxResponseFunc) error {

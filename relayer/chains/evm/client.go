@@ -9,7 +9,6 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/gasestimator"
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
@@ -89,7 +88,7 @@ type IClient interface {
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	SuggestGasTip(ctx context.Context) (*big.Int, error)
-	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
@@ -115,7 +114,7 @@ type IClient interface {
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
-func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	nonce, err := c.eth.PendingNonceAt(ctx, account)
 	if err != nil {
 		return nil, err
