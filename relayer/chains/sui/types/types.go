@@ -76,3 +76,8 @@ type CallMsgEvent struct {
 	Data            []byte `json:"data"`
 	DappModuleCapId string `json:"to"`
 }
+
+type RollbackMsgEvent struct {
+	Sn              string `json:"sn"`
+	DappModuleCapId string `json:"dapp"`
+}

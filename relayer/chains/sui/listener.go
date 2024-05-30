@@ -146,6 +146,19 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.ReqID = uint64(reqID)
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 
+	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "RollbackMessage"):
+		msg.EventType = relayerEvents.ExecuteRollback
+		var rollbackMsgEvent types.RollbackMsgEvent
+		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {
+			return nil, err
+		}
+		sn, err := strconv.Atoi(rollbackMsgEvent.Sn)
+		if err != nil {
+			return nil, err
+		}
+		msg.Sn = uint64(sn)
+		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
+
 	default:
 		return nil, fmt.Errorf("invalid event type")
 	}

@@ -25,6 +25,7 @@ var (
 	MethodGetAdmin             = "get_admin"
 	MethodRecvMessage          = "receive_message"
 	MethodExecuteCall          = "execute_call"
+	MethodExecuteRollback      = "execute_rollback"
 	MethodGetWithdrawTokentype = "get_withdraw_token_type"
 
 	ModuleConnection = "centralized_connection"
