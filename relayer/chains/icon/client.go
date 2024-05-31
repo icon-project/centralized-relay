@@ -33,8 +33,7 @@ import (
 
 const (
 	DefaultRetryPollingRetires                 = 10
-	DefaultSendTransactionRetryInterval        = 3 * time.Second
-	DefaultGetTransactionResultPollingInterval = 1 * time.Second
+	DefaultGetTransactionResultPollingInterval = 3 * time.Second
 	JsonrpcApiVersion                          = 3
 )
 
@@ -53,6 +52,7 @@ type IClient interface {
 	GetProofForResult(p *types.ProofResultParam) ([][]byte, error)
 	GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error)
 	EstimateStep(param *types.TransactionParam) (*types.HexInt, error)
+	GetNetworkInfo() (*types.NetworkInfo, error)
 
 	MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error
 	MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error
@@ -516,6 +516,14 @@ func (c *Client) EstimateStep(param types.TransactionParam) (*types.HexInt, erro
 		return nil, err
 	}
 	return res, nil
+}
+
+func (c *Client) GetNetworkInfo() (*types.NetworkInfo, error) {
+	result := &types.NetworkInfo{}
+	if _, err := c.Do("icx_getNetworkInfo", struct{}{}, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {

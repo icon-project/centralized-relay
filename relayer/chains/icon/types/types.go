@@ -333,6 +333,14 @@ type Block struct {
 	// Signature              HexBytes  `json:"signature" validate:"optional,t_hash"`
 }
 
+// NetworkInfo is the struct for network information
+type NetworkInfo struct {
+	Platform  string `json:"platform"`
+	NetworkID HexInt `json:"nid" validate:"required,t_int"`
+	Channel   string `json:"channel"`
+	Height    HexInt `json:"latest"`
+}
+
 type WsReadCallback func(*websocket.Conn, interface{}) error
 
 type SendMessage struct {

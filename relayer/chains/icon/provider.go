@@ -29,13 +29,20 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, err
 	}
 
+	client := NewClient(ctx, c.RPCUrl, log)
+	NetworkInfo, err := client.GetNetworkInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get network id: %v", err)
+	}
+
 	c.ChainName = chainName
 	c.HomeDir = homepath
 
 	return &Provider{
 		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
-		client:    NewClient(ctx, c.RPCUrl, log),
+		client:    client,
 		cfg:       c,
+		networkID: NetworkInfo.NetworkID,
 		contracts: c.eventMap(),
 	}, nil
 }
@@ -83,6 +90,7 @@ type Provider struct {
 	client              *Client
 	kms                 kms.KMS
 	contracts           map[string]providerTypes.EventMap
+	networkID           types.HexInt
 	LastSavedHeightFunc func() uint64
 }
 
@@ -105,6 +113,10 @@ func (p *Provider) Config() provider.Config {
 
 func (p *Provider) Name() string {
 	return p.cfg.ChainName
+}
+
+func (p *Provider) NetworkID() types.HexInt {
+	return p.networkID
 }
 
 func (p *Provider) Wallet() (module.Wallet, error) {
