@@ -206,7 +206,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 		Use:     "view",
 		Aliases: []string{"get"},
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return d.server.Close()
+			return d.closeSocket()
 		},
 		Short: "Show blocks stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {

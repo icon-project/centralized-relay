@@ -425,16 +425,16 @@ func (r *Relayer) StartFinalityProcessor(ctx context.Context) {
 }
 
 func (r *Relayer) CheckFinality(ctx context.Context) {
-	for _, c := range r.chains {
+	for nid, c := range r.chains {
 		// check for the finality only if finalityblock is provided by the chain
 		finalityBlock := c.Provider.FinalityBlock(ctx)
 		latestHeight := c.LastBlockHeight
 		if finalityBlock > 0 {
 			pagination := store.NewPagination().WithLimit(10)
-			txObjects, err := r.finalityStore.GetTxObjects(c.Provider.NID(), pagination)
+			txObjects, err := r.finalityStore.GetTxObjects(nid, pagination)
 			if err != nil {
 				r.log.Warn("finality processor: retrive message from store",
-					zap.String("nid", c.Provider.NID()),
+					zap.String("nid", nid),
 					zap.Error(err),
 				)
 				continue
@@ -473,6 +473,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 							zap.Any("message key", txObject.MessageKey),
 							zap.Error(err))
 					}
+					r.log.Debug("finality processor: transaction still exist after finalized block, deleting txObject")
 					continue
 				}
 
@@ -519,7 +520,7 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	for _, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
-			r.log.Error("error occured when querying latest height", zap.Error(err))
+			r.log.Error("error occured when querying latest height", zap.String("nid", chain.Provider.NID()), zap.Error(err))
 			continue
 		}
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {

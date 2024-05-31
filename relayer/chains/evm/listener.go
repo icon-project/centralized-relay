@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"runtime"
 	"sort"
@@ -18,8 +19,6 @@ import (
 )
 
 const (
-	BlockInterval              = 2 * time.Second
-	BlockHeightPollInterval    = 60 * time.Second
 	defaultReadTimeout         = 15 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	DefaultFinalityBlock       = 10
@@ -90,8 +89,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			// process all notifications
 			for ; bn != nil; next++ {
 				if lbn != nil {
-					p.log.Debug("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
-						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
+					p.log.Info("block-notification", zap.Uint64("height", lbn.Height.Uint64()),
+						zap.Uint64("gas-used", lbn.Header.GasUsed))
 
 					messages, err := p.FindMessages(ctx, lbn)
 					if err != nil {
@@ -116,6 +115,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			if next >= latest {
 				continue
 			}
+
+			fmt.Println("default", next, latest)
 
 			qch := make(chan *bnq, cap(bnch))
 			for i := next; i < latest && len(qch) < cap(qch); i++ {

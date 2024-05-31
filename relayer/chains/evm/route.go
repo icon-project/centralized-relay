@@ -70,6 +70,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		zap.Uint64("estimated_limit", gasLimit),
 		zap.Uint64("adjusted_limit", opts.GasLimit),
 		zap.Uint64("nonce", opts.Nonce.Uint64()),
+		zap.String("event_type", message.EventType),
 		zap.Uint64("sn", message.Sn.Uint64()),
 	)
 

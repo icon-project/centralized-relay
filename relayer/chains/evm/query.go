@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	provider "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
@@ -59,10 +60,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	finalizedReceipt := &types.Receipt{
 		TxHash: txHash,
 		Height: receipt.BlockNumber.Uint64(),
-	}
-
-	if receipt.Status == 1 {
-		finalizedReceipt.Status = true
+		Status: receipt.Status == ethTypes.ReceiptStatusSuccessful,
 	}
 
 	return finalizedReceipt, nil

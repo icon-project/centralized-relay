@@ -12,8 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -23,9 +21,8 @@ import (
 const (
 	RPCCallRetry           = 5
 	MaxTxFixtures          = 10
-	TxSubmitTimeout        = time.Second * 60
 	DefaultPollingInterval = time.Second * 30
-	MaximumPollTry         = 60 * 2
+	MaximumPollTry         = 15
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
@@ -81,7 +78,6 @@ type IClient interface {
 	GetBlockNumber() (uint64, error)
 	GetBlockByHash(hash common.Hash) (*types.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
-	GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error)
 	GetChainID() *big.Int
 
 	// ethClient
@@ -92,7 +88,6 @@ type IClient interface {
 	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
-	WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
 	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error)
@@ -119,7 +114,6 @@ func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blo
 	if err != nil {
 		return nil, err
 	}
-	//
 	return new(big.Int).SetUint64(nonce), nil
 }
 
@@ -129,15 +123,6 @@ func (cl *Client) TransactionByHash(ctx context.Context, blockHash common.Hash) 
 
 func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
 	return cl.eth.TransactionReceipt(ctx, txHash)
-}
-
-// Wait for the transaction to be mined
-func (cl *Client) WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
-	receipt, err := bind.WaitMined(ctx, cl.eth, tx)
-	if err != nil {
-		return nil, err
-	}
-	return receipt, nil
 }
 
 func (cl *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
@@ -173,10 +158,6 @@ func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasTipCap(ctx)
 }
 
-func (cl *Client) PendingTransactionCount(ctx context.Context) (uint, error) {
-	return cl.eth.PendingTransactionCount(ctx)
-}
-
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
 	defer cancel()
@@ -188,67 +169,6 @@ func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethT
 	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
 	return cl.eth.HeaderByNumber(ctx, height)
-}
-
-func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) {
-	c := IClient(cl)
-
-	hb, err := c.GetBlockByHash(hash)
-	if err != nil {
-		return nil, err
-	}
-	if hb.GasUsed == "0x0" || len(hb.Transactions) == 0 {
-		return nil, nil
-	}
-	txhs := hb.Transactions
-	// fetch all txn receipts concurrently
-	type rcq struct {
-		txh   string
-		v     *ethTypes.Receipt
-		err   error
-		retry uint8
-	}
-	qch := make(chan *rcq, len(txhs))
-	for _, txh := range txhs {
-		qch <- &rcq{txh, nil, nil, providerTypes.MaxTxRetry}
-	}
-	rmap := make(map[string]*ethTypes.Receipt)
-	for q := range qch {
-		switch {
-		case q.err != nil:
-			if q.retry == 0 {
-				return nil, q.err
-			}
-			q.retry--
-			q.err = nil
-			qch <- q
-		case q.v != nil:
-			rmap[q.txh] = q.v
-			if len(rmap) == cap(qch) {
-				close(qch)
-			}
-		default:
-			go func(q *rcq) {
-				defer func() { qch <- q }()
-				ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
-				defer cancel()
-				if q.v == nil {
-					q.v = &ethTypes.Receipt{}
-				}
-				q.v, err = c.TransactionReceipt(ctx, common.HexToHash(q.txh))
-				if q.err != nil {
-					q.err = errors.Wrapf(q.err, "getTranasctionReceipt: %v", q.err)
-				}
-			}(q)
-		}
-	}
-	receipts := make(ethTypes.Receipts, 0, len(txhs))
-	for _, txh := range txhs {
-		if r, ok := rmap[txh]; ok {
-			receipts = append(receipts, r)
-		}
-	}
-	return receipts, nil
 }
 
 func (c *Client) GetChainID() *big.Int {

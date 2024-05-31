@@ -33,7 +33,6 @@ type NonceTracker struct {
 type NonceTrackerI interface {
 	Get(common.Address) *big.Int
 	Set(common.Address, *big.Int)
-	Inc(common.Address)
 }
 
 // NewNonceTracker
@@ -48,7 +47,7 @@ func (n *NonceTracker) Get(addr common.Address) *big.Int {
 	n.Lock()
 	defer n.Unlock()
 	nonce := n.address[addr]
-	if nonce.Previous == nonce.Current {
+	if nonce.Previous.Cmp(nonce.Current) == 0 {
 		nonce.Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
 	}
 	return nonce.Current
@@ -61,11 +60,4 @@ func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
 		Previous: nonce.Sub(nonce, big.NewInt(1)),
 		Current:  nonce,
 	}
-}
-
-func (n *NonceTracker) Inc(addr common.Address) {
-	n.Lock()
-	defer n.Unlock()
-	nonce := n.address[addr]
-	n.address[addr].Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
 }
