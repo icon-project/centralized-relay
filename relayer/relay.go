@@ -18,7 +18,7 @@ var (
 
 	HeightSaveInterval         = time.Minute * 5
 	maxFlushMessage       uint = 10
-	FinalityInterval           = 5 * time.Second
+	FinalityInterval           = 30 * time.Second
 	DeleteExpiredInterval      = 6 * time.Hour
 	MessageExpiration          = 24 * time.Hour
 
