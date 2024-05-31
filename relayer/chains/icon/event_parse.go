@@ -51,7 +51,7 @@ func (p *Provider) parseEmitMessage(e *types.EventLog, eventType string, height 
 	}
 
 	dst := string(e.Indexed[1])
-	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
+	sn := new(big.Int).SetBytes(e.Indexed[2])
 
 	return &providerTypes.Message{
 		MessageHeight: height,
@@ -69,8 +69,8 @@ func (p *Provider) parseCallMessage(e *types.EventLog, eventType string, height 
 	}
 
 	src := strings.SplitN(string(e.Indexed[1][:]), "/", 2)
-	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
-	reqID := big.NewInt(0).SetBytes(e.Data[0]).Uint64()
+	sn := new(big.Int).SetBytes(e.Indexed[2])
+	reqID := new(big.Int).SetBytes(e.Data[0])
 
 	return &providerTypes.Message{
 		MessageHeight: height,
@@ -130,7 +130,7 @@ func (p *Provider) parseEmitMessageEvent(height uint64, e *types.EventNotificati
 		EventType:     p.GetEventName(e.Indexed[0]),
 		Dst:           dst,
 		Data:          data,
-		Sn:            sn.Uint64(),
+		Sn:            sn,
 		Src:           p.NID(),
 	}, nil
 }
@@ -156,11 +156,11 @@ func (p *Provider) parseCallMessageEvent(height uint64, e *types.EventNotificati
 
 	return &providerTypes.Message{
 		MessageHeight: height,
-		ReqID:         reqID.Uint64(),
+		ReqID:         reqID,
 		EventType:     p.GetEventName(e.Indexed[0]),
 		Dst:           p.NID(),
 		Data:          data,
-		Sn:            sn.Uint64(),
+		Sn:            sn,
 		Src:           src[0],
 	}, nil
 }

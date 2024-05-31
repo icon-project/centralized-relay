@@ -214,9 +214,14 @@ func (i HexInt) Value() (int64, error) {
 	return strconv.ParseInt(s, 16, 64)
 }
 
-func (i HexInt) Int() (int, error) {
+func (i HexInt) Int64() (int64, error) {
 	s := strings.TrimPrefix(string(i), "0x")
 	v, err := strconv.ParseInt(s, 16, 32)
+	return v, err
+}
+
+func (i HexInt) Int() (int, error) {
+	v, err := i.Int64()
 	return int(v), err
 }
 
@@ -260,6 +265,11 @@ func ParseBigInt(i *big.Int, s string) error {
 
 func NewHexInt(v int64) HexInt {
 	return HexInt("0x" + strconv.FormatInt(v, 16))
+}
+
+// NewHexString returns a HexInt from a string
+func NewHexString(s string) HexInt {
+	return HexInt("0x" + s)
 }
 
 // T_ADDR_EOA, T_ADDR_SCORE

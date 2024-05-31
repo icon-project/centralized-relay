@@ -3,7 +3,6 @@ package evm
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -71,25 +70,25 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		zap.Uint64("estimated_limit", gasLimit),
 		zap.Uint64("adjusted_limit", opts.GasLimit),
 		zap.Uint64("nonce", opts.Nonce.Uint64()),
-		zap.Uint64("sn", message.Sn),
+		zap.Uint64("sn", message.Sn.Uint64()),
 	)
 
 	switch message.EventType {
 	case events.EmitMessage:
-		return p.client.ReceiveMessage(opts, message.Src, new(big.Int).SetUint64(message.Sn), message.Data)
+		tx, err = p.client.ReceiveMessage(opts, message.Src, message.Sn, message.Data)
 	case events.CallMessage:
-		tx, err = p.client.ExecuteCall(opts, new(big.Int).SetUint64(message.ReqID), message.Data)
+		tx, err = p.client.ExecuteCall(opts, message.ReqID, message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
 		tx, err = p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		tx, err = p.client.RevertMessage(opts, new(big.Int).SetUint64(message.Sn))
+		tx, err = p.client.RevertMessage(opts, message.Sn)
 	case events.ClaimFee:
 		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
-		tx, err = p.client.SetFee(opts, message.Src, new(big.Int).SetUint64(message.Sn), new(big.Int).SetUint64(message.ReqID))
+		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
 	case events.ExecuteRollback:
-		tx, err = p.client.ExecuteRollback(opts, new(big.Int).SetUint64(message.Sn))
+		tx, err = p.client.ExecuteRollback(opts, message.Sn)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}

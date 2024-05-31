@@ -25,13 +25,13 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst           string `json:"dst"`
-	Src           string `json:"src"`
-	Sn            uint64 `json:"sn"`
-	Data          []byte `json:"data"`
-	MessageHeight uint64 `json:"messageHeight"`
-	EventType     string `json:"eventType"`
-	ReqID         uint64 `json:"reqID,omitempty"`
+	Dst           string   `json:"dst"`
+	Src           string   `json:"src"`
+	Sn            *big.Int `json:"sn"`
+	Data          []byte   `json:"data"`
+	MessageHeight uint64   `json:"messageHeight"`
+	EventType     string   `json:"eventType"`
+	ReqID         *big.Int `json:"reqID,omitempty"`
 }
 
 type ContractConfigMap map[string]string
@@ -134,13 +134,13 @@ const (
 )
 
 type MessageKey struct {
-	Sn        uint64
+	Sn        *big.Int
 	Src       string
 	Dst       string
 	EventType string
 }
 
-func NewMessageKey(sn uint64, src string, dst string, eventType string) *MessageKey {
+func NewMessageKey(sn *big.Int, src string, dst string, eventType string) *MessageKey {
 	return &MessageKey{sn, src, dst, eventType}
 }
 

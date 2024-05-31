@@ -23,7 +23,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return &providerTypes.Message{
 			Dst:           msg.TargetNetwork,
 			Src:           p.NID(),
-			Sn:            msg.Sn.Uint64(),
+			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
 			EventType:     p.GetEventName(EmitMessage),
 			Data:          msg.Msg,
@@ -36,11 +36,11 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return &providerTypes.Message{
 			Dst:           p.NID(),
 			Src:           p.NID(),
-			Sn:            msg.Sn.Uint64(),
+			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
 			EventType:     p.GetEventName(CallMessage),
 			Data:          msg.Data,
-			ReqID:         msg.ReqId.Uint64(),
+			ReqID:         msg.ReqId,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown topic")

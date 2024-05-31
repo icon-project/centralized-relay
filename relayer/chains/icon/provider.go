@@ -9,25 +9,15 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
 )
 
 type Config struct {
-	ChainName      string                         `json:"-" yaml:"-"`
-	RPCUrl         string                         `json:"rpc-url" yaml:"rpc-url"`
-	Address        string                         `json:"address" yaml:"address"`
-	StartHeight    uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
-	Contracts      relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID      int64                          `json:"network-id" yaml:"network-id"`
-	FinalityBlock  uint64                         `json:"finality-block" yaml:"finality-block"`
-	NID            string                         `json:"nid" yaml:"nid"`
-	StepMin        int64                          `json:"step-min" yaml:"step-min"`
-	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
-	StepAdjustment int64                          `json:"step-adjustment" yaml:"step-adjustment"`
-	Disabled       bool                           `json:"disabled" yaml:"disabled"`
-	HomeDir        string                         `json:"-" yaml:"-"`
+	provider.CommonConfig `json:",inline" yaml:",inline"`
+	StepMin               int64 `json:"step-min" yaml:"step-min"`
+	StepLimit             int64 `json:"step-limit" yaml:"step-limit"`
+	StepAdjustment        int64 `json:"step-adjustment" yaml:"step-adjustment"`
 }
 
 // NewProvider returns new Icon provider
@@ -134,7 +124,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
 	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
 		"srcNetwork": messageKey.Src,
-		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+		"_connSn":    types.NewHexInt(messageKey.Sn.Int64()),
 	})
 
 	var status types.HexInt
@@ -202,11 +192,11 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 // SetFees
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	callParam := map[string]interface{}{
 		"networkId":   networkID,
-		"messageFee":  types.NewHexInt(int64(msgFee)),
-		"responseFee": types.NewHexInt(int64(resFee)),
+		"messageFee":  types.NewHexInt(msgFee.Int64()),
+		"responseFee": types.NewHexInt(resFee.Int64()),
 	}
 
 	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetFee)
