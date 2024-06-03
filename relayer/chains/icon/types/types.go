@@ -202,6 +202,10 @@ func (hs HexBytes) Value() ([]byte, error) {
 	return hex.DecodeString(string(hs[2:]))
 }
 
+func (hs HexBytes) String() string {
+	return string(hs)
+}
+
 func NewHexBytes(b []byte) HexBytes {
 	return HexBytes("0x" + hex.EncodeToString(b))
 }

@@ -112,7 +112,7 @@ func (p *Config) Validate() error {
 
 func (p *Config) sanitize() error {
 	if p.GasAdjustment == 0 {
-		p.GasAdjustment = 5
+		p.GasAdjustment = 50
 	}
 	return nil
 }

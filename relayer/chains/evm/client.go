@@ -78,6 +78,7 @@ type IClient interface {
 	GetBlockNumber() (uint64, error)
 	GetBlockByHash(hash common.Hash) (*types.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
+	GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	GetChainID() *big.Int
 
 	// ethClient
@@ -156,6 +157,10 @@ func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 
 func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasTipCap(ctx)
+}
+
+func (cl *Client) GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
+	return cl.eth.FilterLogs(ctx, q)
 }
 
 func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {

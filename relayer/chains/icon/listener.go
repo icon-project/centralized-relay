@@ -90,6 +90,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								zap.Uint64("height", msg.MessageHeight),
 								zap.String("target_network", msg.Dst),
 								zap.Uint64("sn", msg.Sn.Uint64()),
+								zap.String("tx_hash", v.Hash.String()),
 								zap.String("event_type", msg.EventType),
 							)
 							incoming <- &providerTypes.BlockInfo{

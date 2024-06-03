@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -15,7 +14,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 	topic := log.Topics[0]
 
 	switch topic {
-	case crypto.Keccak256Hash([]byte(EmitMessage)):
+	case EmitMessageHash:
 		msg, err := p.client.ParseConnectionMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
@@ -28,7 +27,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			EventType:     p.GetEventName(EmitMessage),
 			Data:          msg.Msg,
 		}, nil
-	case crypto.Keccak256Hash([]byte(CallMessage)):
+	case CallMessageHash:
 		msg, err := p.client.ParseXcallMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
