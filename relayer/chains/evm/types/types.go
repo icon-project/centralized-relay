@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"math/big"
 	"sync"
 
@@ -47,8 +48,10 @@ func (n *NonceTracker) Get(addr common.Address) *big.Int {
 	n.Lock()
 	defer n.Unlock()
 	nonce := n.address[addr]
-	if nonce.Previous.Cmp(nonce.Current) == 0 {
+	fmt.Println(nonce.Current, nonce.Previous)
+	if nonce.Current.Cmp(nonce.Previous) == 0 {
 		nonce.Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
+		nonce.Previous = nonce.Current
 	}
 	return nonce.Current
 }
