@@ -72,7 +72,6 @@ type IClient interface {
 	GetBalance(ctx context.Context, hexAddr string) (*big.Int, error)
 	GetBlockNumber() (uint64, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
-	GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	GetChainID() *big.Int
 
 	// ethClient
@@ -80,7 +79,6 @@ type IClient interface {
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	SuggestGasTip(ctx context.Context) (*big.Int, error)
 	PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
-	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
@@ -110,10 +108,6 @@ func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blo
 		return nil, err
 	}
 	return new(big.Int).SetUint64(nonce), nil
-}
-
-func (cl *Client) TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error) {
-	return cl.eth.TransactionByHash(ctx, blockHash)
 }
 
 func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
@@ -151,10 +145,6 @@ func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 
 func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasTipCap(ctx)
-}
-
-func (cl *Client) GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
-	return cl.eth.FilterLogs(ctx, q)
 }
 
 func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {

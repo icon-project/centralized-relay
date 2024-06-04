@@ -683,7 +683,7 @@ func (p *Provider) getNumOfPipelines(diff int) int {
 	if diff <= runtime.NumCPU() {
 		return diff
 	}
-	return runtime.NumCPU() / 2
+	return runtime.NumCPU()
 }
 
 func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) uint64 {
@@ -692,7 +692,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight) / 2
+	diff := int(toHeight-fromHeight/p.cfg.BlockBatchSize) + 1
 
 	numOfPipelines := p.getNumOfPipelines(diff)
 	wg := &sync.WaitGroup{}

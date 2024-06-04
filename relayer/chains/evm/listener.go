@@ -140,7 +140,7 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 	var logs []ethTypes.Log
 	var err error
 	for i := 0; i < retry; i++ {
-		logs, err = p.client.GetLogs(ctx, filter)
+		logs, err = p.client.FilterLogs(ctx, filter)
 		if err == nil {
 			return logs, nil
 		}

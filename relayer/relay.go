@@ -225,6 +225,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				}
 
 				if ok := dst.shouldSendMessage(ctx, message, src); !ok {
+					dst.log.Debug("message not ready to send", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
 					continue
 				}
 
@@ -233,7 +234,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
-					r.log.Error("error occured when checking message received", zap.Error(err))
+					dst.log.Error("error occured when checking message received", zap.Error(err))
 					continue
 				}
 
