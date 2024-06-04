@@ -373,22 +373,23 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
 	routeMessage.AddNextTry()
-	// save to db
-	if err := r.messageStore.StoreMessage(routeMessage); err != nil {
-		r.log.Error("error occured when storing the message after max retry", zap.Error(err))
-		return
+	if routeMessage.Retry > types.MaxTxRetry {
+		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
+			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
+			return
+		}
+
+		// removed message from messageCache
+		src.MessageCache.Remove(routeMessage.MessageKey())
+
+		dst.log.Error("message relay failed",
+			zap.String("src", routeMessage.Src),
+			zap.String("dst", routeMessage.Dst),
+			zap.Uint64("sn", routeMessage.Sn.Uint64()),
+			zap.String("event_type", routeMessage.EventType),
+			zap.Uint8("count", routeMessage.Retry),
+		)
 	}
-
-	// removed message from messageCache
-	src.MessageCache.Remove(routeMessage.MessageKey())
-
-	dst.log.Error("message relay failed",
-		zap.String("src", routeMessage.Src),
-		zap.String("dst", routeMessage.Dst),
-		zap.Uint64("sn", routeMessage.Sn.Uint64()),
-		zap.String("event_type", routeMessage.EventType),
-		zap.Uint8("count", routeMessage.Retry),
-	)
 	return
 }
 

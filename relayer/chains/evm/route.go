@@ -40,6 +40,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
+	p.log.Info("transaction sent", zap.String("tx_hash", tx.Hash().String()), zap.Any("message", messageKey))
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 

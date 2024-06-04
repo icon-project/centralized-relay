@@ -99,7 +99,7 @@ func (r *RouteMessage) GetRetry() uint8 {
 
 // ResetLastTry resets the last try time to the current time plus the retry interval
 func (r *RouteMessage) AddNextTry() {
-	r.LastTry = time.Now().Add(RetryInterval + time.Duration(math.Pow(2, float64(r.Retry)))) // exponential backoff
+	r.LastTry = time.Now().Add(RetryInterval * time.Duration(math.Pow(2, float64(r.Retry)))) // exponential backoff
 }
 
 func (r *RouteMessage) IsProcessing() bool {
