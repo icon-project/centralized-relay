@@ -78,8 +78,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 
 			var blockReqs []*blockReq
-			for i := startHeight; i < latestHeight; i += p.cfg.MaxBlockRange {
-				end := i + p.cfg.MaxBlockRange
+			for i := startHeight; i < latestHeight; i += p.cfg.BlockBatchSize {
+				end := i + p.cfg.BlockBatchSize
 				if end > latestHeight {
 					end = latestHeight
 				}
@@ -172,7 +172,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 }
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
-	diff := int(currentHeight-startHeight/p.cfg.MaxBlockRange) + 1
+	diff := int(currentHeight-startHeight/p.cfg.BlockBatchSize) + 1
 	cpu := runtime.NumCPU()
 	if diff <= cpu {
 		return diff
