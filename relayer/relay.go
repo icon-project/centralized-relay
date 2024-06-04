@@ -14,7 +14,7 @@ import (
 
 var (
 	DefaultFlushInterval      = 5 * time.Minute
-	listenerChannelBufferSize = 1000
+	listenerChannelBufferSize = 1000 * 5
 
 	HeightSaveInterval         = time.Minute * 5
 	maxFlushMessage       uint = 10
@@ -121,8 +121,6 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
-		chainRuntime := chainRuntime
-
 		eg.Go(func() error {
 			return chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
 		})
@@ -136,14 +134,12 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
-		chainRuntime := chainRuntime
-		listener := chainRuntime.listenerChan
 		eg.Go(func() error {
 			for {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case blockInfo, ok := <-listener:
+				case blockInfo, ok := <-chainRuntime.listenerChan:
 					if !ok {
 						return nil
 					}

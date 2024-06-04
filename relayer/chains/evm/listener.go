@@ -59,7 +59,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		resetFunc      = func(ticker *time.Ticker, hasError bool) func() {
 			return func() {
 				hasError = true
-				ticker.Reset(time.Second * 1)
+				ticker.Reset(time.Second * 3)
 			}
 		}(subscribeStart, isSubError)
 	)
@@ -78,10 +78,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 
 			var blockReqs []*blockReq
-			for i := latestHeight; i < latestHeight; i += maxBlockRange {
-				end := i + maxBlockRange
+			for i := startHeight; i < latestHeight; i += p.cfg.MaxBlockRange {
+				end := i + p.cfg.MaxBlockRange
 				if end > latestHeight {
-					end = latestHeight + (end - latestHeight)
+					end = latestHeight
 				}
 				blockReqs = append(blockReqs, &blockReq{start: i, end: end, retry: maxBlockQueryFailedRetry})
 			}
@@ -172,7 +172,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 }
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
-	diff := int(currentHeight-startHeight)/maxBlockRange + 1
+	diff := int(currentHeight-startHeight/p.cfg.MaxBlockRange) + 1
 	cpu := runtime.NumCPU()
 	if diff <= cpu {
 		return diff

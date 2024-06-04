@@ -94,7 +94,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								zap.String("event_type", msg.EventType),
 							)
 							incoming <- &providerTypes.BlockInfo{
-								Messages: msgs,
+								Messages: []*providerTypes.Message{msg},
 								Height:   msg.MessageHeight,
 							}
 						}

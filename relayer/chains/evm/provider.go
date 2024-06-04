@@ -50,6 +50,7 @@ type Config struct {
 	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
 	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
+	MaxBlockRange         uint64 `json:"max-block-range" yaml:"max-block-range"`
 }
 
 type Provider struct {
@@ -113,6 +114,9 @@ func (p *Config) Validate() error {
 func (p *Config) sanitize() error {
 	if p.GasAdjustment == 0 {
 		p.GasAdjustment = 50
+	}
+	if p.MaxBlockRange == 0 {
+		p.MaxBlockRange = maxBlockRange
 	}
 	return nil
 }
