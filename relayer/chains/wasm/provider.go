@@ -24,11 +24,6 @@ import (
 
 var _ provider.ChainProvider = (*Provider)(nil)
 
-type AccountI interface {
-	sdkTypes.AccountI
-	SetSequence(uint64) error
-}
-
 type Provider struct {
 	logger              *zap.Logger
 	cfg                 *Config
