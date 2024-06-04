@@ -56,12 +56,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		isSubError     bool
 		latestHeight   = p.latestHeight()
 		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
-		resetFunc      = func(ticker *time.Ticker, hasError bool) func() {
-			return func() {
-				hasError = true
-				ticker.Reset(time.Second * 3)
-			}
-		}(subscribeStart, isSubError)
+		resetFunc      = func() {
+			isSubError = true
+			subscribeStart.Reset(time.Second * 3)
+		}
 	)
 
 	for {
