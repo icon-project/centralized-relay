@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultReadTimeout         = 15 * time.Second
+	defaultReadTimeout         = 60 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 3
@@ -211,7 +211,7 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetFunc func()) error {
-	ch := make(chan ethTypes.Log)
+	ch := make(chan ethTypes.Log, 10)
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
@@ -222,6 +222,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 		return err
 	}
 	defer sub.Unsubscribe()
+	defer close(ch)
 	p.log.Info("Subscribed to new blocks", zap.Any("address", p.blockReq.Addresses))
 	for {
 		select {

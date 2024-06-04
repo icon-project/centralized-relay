@@ -239,12 +239,12 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 	})
 }
 
-func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
+func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, outgoing chan *providerTypes.BlockInfo, cb func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error, errCb func(*websocket.Conn, error)) error {
 	resp := &types.EventNotification{}
 	return c.Monitor(ctx, "/event", p, resp, func(conn *websocket.Conn, v interface{}) error {
 		switch t := v.(type) {
 		case *types.EventNotification:
-			if err := cb(t); err != nil {
+			if err := cb(t, outgoing); err != nil {
 				c.log.Debug(fmt.Sprintf("MonitorEvent callback return err:%+v", err))
 			}
 		case error:

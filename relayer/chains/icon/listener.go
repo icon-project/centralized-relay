@@ -66,7 +66,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 			go func(ctx context.Context, cancel context.CancelFunc) {
-				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
+				err := p.client.MonitorEvent(ctx, eventReq, incoming, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						p.log.Debug("event notification received", zap.Any("event", v))
 						if v.Progress != "" {
@@ -93,7 +93,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								zap.String("tx_hash", v.Hash.String()),
 								zap.String("event_type", msg.EventType),
 							)
-							incoming <- &providerTypes.BlockInfo{
+							outgoing <- &providerTypes.BlockInfo{
 								Messages: []*providerTypes.Message{msg},
 								Height:   msg.MessageHeight,
 							}

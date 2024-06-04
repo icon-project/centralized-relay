@@ -141,7 +141,7 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 					return ctx.Err()
 				case blockInfo, ok := <-chainRuntime.listenerChan:
 					if !ok {
-						return nil
+						return fmt.Errorf("listener channel closed")
 					}
 					r.processBlockInfo(ctx, chainRuntime, blockInfo)
 				}

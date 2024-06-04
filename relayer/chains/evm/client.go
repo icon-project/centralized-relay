@@ -9,9 +9,7 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"go.uber.org/zap"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -19,28 +17,28 @@ import (
 )
 
 const (
-	RPCCallRetry           = 5
-	MaxTxFixtures          = 10
 	DefaultPollingInterval = time.Second * 30
 	MaximumPollTry         = 15
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
-	clrpc, err := rpc.Dial(rpcUrl)
-	if err != nil {
-		return nil, err
-	}
 	cleth, err := ethclient.DialContext(ctx, websocketUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	connection, err := bridgeContract.NewConnection(connectionContract, cleth)
+	// debug: use rpc instead of websocket
+	cleths, err := ethclient.DialContext(ctx, rpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	connection, err := bridgeContract.NewConnection(connectionContract, cleths)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
 
-	xcall, err := bridgeContract.NewXcall(XcallContract, cleth)
+	xcall, err := bridgeContract.NewXcall(XcallContract, cleths)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
@@ -53,7 +51,6 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 
 	return &Client{
 		log:        l,
-		rpc:        clrpc,
 		eth:        cleth,
 		EVMChainID: evmChainId,
 		connection: connection,
@@ -63,10 +60,8 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 
 // grouped rpc api clients
 type Client struct {
-	log *zap.Logger
-	rpc *rpc.Client
-	eth *ethclient.Client
-	// evm chain ID
+	log        *zap.Logger
+	eth        *ethclient.Client
 	EVMChainID *big.Int
 	connection *bridgeContract.Connection
 	xcall      *bridgeContract.Xcall
@@ -76,7 +71,6 @@ type IClient interface {
 	Log() *zap.Logger
 	GetBalance(ctx context.Context, hexAddr string) (*big.Int, error)
 	GetBlockNumber() (uint64, error)
-	GetBlockByHash(hash common.Hash) (*types.Block, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	GetChainID() *big.Int
@@ -91,7 +85,7 @@ type IClient interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
-	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error)
+	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
 
 	// abiContract for connection
 	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
@@ -161,13 +155,6 @@ func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
 
 func (cl *Client) GetLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
 	return cl.eth.FilterLogs(ctx, q)
-}
-
-func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
-	defer cancel()
-	hb := new(types.Block)
-	return hb, cl.rpc.CallContext(ctx, hb, "eth_getBlockByHash", hash, false)
 }
 
 func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {
@@ -249,6 +236,6 @@ func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethType
 }
 
 // Subscribe
-func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error) {
+func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error) {
 	return c.eth.SubscribeFilterLogs(ctx, q, ch)
 }
