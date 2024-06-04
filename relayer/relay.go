@@ -272,6 +272,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64) error {
 	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 	chainRuntime.LastSavedHeight = height
+	chainRuntime.LastBlockHeight = height
 	if err := r.blockStore.StoreBlock(height, chainRuntime.Provider.NID()); err != nil {
 		return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.NID(), err)
 	}
@@ -513,14 +514,14 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 
 // SaveBlockHeight for all chains
 func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
-	for _, chain := range r.chains {
+	for nid, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
-			r.log.Error("error occured when querying latest height", zap.String("nid", chain.Provider.NID()), zap.Error(err))
+			r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
 			continue
 		}
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
-			r.log.Error("error occured when saving block height", zap.Error(err))
+			r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
 			continue
 		}
 	}
@@ -528,10 +529,9 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 
 // cleanExpiredMessages
 func (r *Relayer) cleanExpiredMessages(ctx context.Context) {
-	for _, chain := range r.chains {
-		nId := chain.Provider.NID()
+	for nid, chain := range r.chains {
 		p := store.NewPagination().WithLimit(maxFlushMessage)
-		messages, err := r.messageStore.GetMessages(nId, p)
+		messages, err := r.messageStore.GetMessages(nid, p)
 		if err != nil {
 			r.log.Error("error occured when fetching messages from db", zap.Error(err))
 			continue

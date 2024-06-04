@@ -1,6 +1,8 @@
 package evm
 
 import (
+	"fmt"
+
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -36,6 +38,8 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 }
 
 func (p *Config) GetMonitorEventFilters() ethereum.FilterQuery {
+	fmt.Println(CallMessageHash)
+
 	var (
 		addresses []common.Address
 		topics    []common.Hash
