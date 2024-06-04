@@ -47,7 +47,7 @@ func (n *NonceTracker) Get(addr common.Address) *big.Int {
 	n.Lock()
 	defer n.Unlock()
 	nonce := n.address[addr]
-	if nonce.Current.Cmp(nonce.Previous) == 0 {
+	if nonce.Current.Cmp(nonce.Previous) != 1 {
 		nonce.Current = nonce.Current.Add(nonce.Current, big.NewInt(1))
 		nonce.Previous = nonce.Current
 	}
