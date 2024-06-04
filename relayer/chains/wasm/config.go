@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -35,6 +36,7 @@ type Config struct {
 	SignModeStr            string        `json:"sign-mode" yaml:"sign-mode"`
 	Simulate               bool          `json:"simulate" yaml:"simulate"`
 	ExtraCodec             string        `json:"extra-codecs" yaml:"extra-codecs"`
+	BlockBatchSize         uint64        `json:"block-batch-size" yaml:"block-batch-size"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -92,11 +94,14 @@ func (pc *Config) Validate() error {
 }
 
 func (pc *Config) sanitize() (*Config, error) {
+	if pc.BlockBatchSize == 0 {
+		pc.BlockBatchSize = 50
+	}
 	return pc, nil
 }
 
 func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error) {
-	codec := c.MakeCodec(moduleBasics, c.ExtraCodec)
+	codec := c.MakeCodec(moduleBasics, strings.Split(c.ExtraCodec, ",")...)
 
 	keyRing, err := keyring.New(
 		c.ChainName,
