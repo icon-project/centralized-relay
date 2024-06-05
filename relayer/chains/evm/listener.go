@@ -79,7 +79,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			for i := startHeight; i < latestHeight; i += p.cfg.BlockBatchSize {
 				end := i + p.cfg.BlockBatchSize
 				if end > latestHeight {
-					end = latestHeight + 1
+					end = latestHeight
 				}
 				blockReqs = append(blockReqs, &blockReq{start: i, end: end, retry: maxBlockQueryFailedRetry})
 			}

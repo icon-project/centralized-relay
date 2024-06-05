@@ -30,7 +30,6 @@ type btpBlockRequest struct {
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
-	errCh := make(chan error)             // error channel
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
@@ -60,8 +59,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-errCh:
-			return err
 
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)

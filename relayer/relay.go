@@ -185,7 +185,7 @@ func (r *Relayer) flushMessages(ctx context.Context) {
 			chain.log.Warn("error occured when query messagesFromStore", zap.Error(err))
 			continue
 		}
-		chain.log.Debug("flushing messages", zap.Int("message count", len(messages)))
+		chain.log.Debug("flushing messages", zap.Int("count", len(messages)))
 		// adding message to messageCache
 		// TODO: message with no txHash
 
@@ -225,7 +225,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				}
 
 				if ok := dst.shouldSendMessage(ctx, message, src); !ok {
-					dst.log.Debug("message not ready to send", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
+					// debug log
+					r.log.Debug("message not sent to destination", zap.Any("message", message))
 					continue
 				}
 
@@ -274,10 +275,7 @@ func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntim
 	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 	chainRuntime.LastSavedHeight = height
 	chainRuntime.LastBlockHeight = height
-	if err := r.blockStore.StoreBlock(height, chainRuntime.Provider.NID()); err != nil {
-		return fmt.Errorf("error while saving height of chain:%s %v", chainRuntime.Provider.NID(), err)
-	}
-	return nil
+	return r.blockStore.StoreBlock(height, chainRuntime.Provider.NID())
 }
 
 func (r *Relayer) FindChainRuntime(nId string) (*ChainRuntime, error) {
