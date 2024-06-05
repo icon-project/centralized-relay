@@ -22,36 +22,30 @@ const (
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
-	cleth, err := ethclient.DialContext(ctx, websocketUrl)
+	eth, err := ethclient.DialContext(ctx, websocketUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	// debug: use rpc instead of websocket
-	cleths, err := ethclient.DialContext(ctx, rpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	connection, err := bridgeContract.NewConnection(connectionContract, cleths)
+	connection, err := bridgeContract.NewConnection(connectionContract, eth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
 
-	xcall, err := bridgeContract.NewXcall(XcallContract, cleths)
+	xcall, err := bridgeContract.NewXcall(XcallContract, eth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
 
 	// getting the chain id
-	evmChainId, err := cleth.ChainID(ctx)
+	evmChainId, err := eth.ChainID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
 		log:        l,
-		eth:        cleth,
+		eth:        eth,
 		EVMChainID: evmChainId,
 		connection: connection,
 		xcall:      xcall,

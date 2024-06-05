@@ -55,12 +55,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		subscribeStart = time.NewTicker(time.Second * 1)
 		isSubError     bool
 		latestHeight   = p.latestHeight()
+		nonceTicker    = time.NewTicker(time.Minute * 5)
 		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
 		resetFunc      = func() {
 			isSubError = true
 			subscribeStart.Reset(time.Second * 3)
 		}
 	)
+	defer nonceTicker.Stop()
 
 	for {
 		select {
@@ -130,6 +132,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			go func() {
 				wg.Wait()
 			}()
+		case <-nonceTicker.C:
+			wallet, err := p.Wallet()
+			if err != nil {
+				p.log.Error("failed to get wallet", zap.Error(err))
+				continue
+			}
+			nonce, err := p.client.PendingNonceAt(ctx, wallet.Address, nil)
+			if err != nil {
+				p.log.Error("failed to get nonce", zap.Error(err))
+				continue
+			}
+			p.NonceTracker.Set(wallet.Address, nonce)
 		}
 	}
 }
