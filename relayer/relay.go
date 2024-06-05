@@ -319,14 +319,11 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 					return
 				}
 			}
-
 			// if success remove message from everywhere
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
-			return
 		}
-		r.HandleMessageFailed(routeMessage, dst, src)
 	}
 }
 
@@ -353,14 +350,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
-			return
 		}
-		routeMessage, ok := dst.MessageCache.Get(key)
-		if !ok {
-			r.log.Error("key not found in messageCache", zap.Any("key", &key))
-			return
-		}
-		r.HandleMessageFailed(routeMessage, dst, dst)
 	}
 	msg.IncrementRetry()
 	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
@@ -371,8 +361,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
 	routeMessage.ToggleProcessing()
-	routeMessage.AddNextTry()
-	if routeMessage.Retry > types.MaxTxRetry {
+	if routeMessage.Retry >= types.MaxTxRetry {
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
 			return

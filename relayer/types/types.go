@@ -68,16 +68,14 @@ func (m *Message) MessageKey() *MessageKey {
 }
 
 type RouteMessage struct {
-	*sync.RWMutex `json:"-"`
-	*Message      `json:"message"`
-	Retry         uint8     `json:"retry"`
-	Processing    bool      `json:"processing"`
-	LastTry       time.Time `json:"lastTry,omitempty"`
+	*Message
+	Retry      uint8
+	Processing bool
+	LastTry    time.Time
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
-		RWMutex: new(sync.RWMutex),
 		Message: m,
 	}
 }
@@ -87,8 +85,6 @@ func (r *RouteMessage) GetMessage() *Message {
 }
 
 func (r *RouteMessage) IncrementRetry() {
-	r.Lock()
-	defer r.Unlock()
 	r.Retry++
 	r.AddNextTry()
 }
@@ -98,35 +94,25 @@ func (r *RouteMessage) ToggleProcessing() {
 }
 
 func (r *RouteMessage) GetRetry() uint8 {
-	r.RLock()
-	defer r.RUnlock()
 	return r.Retry
 }
 
 // ResetLastTry resets the last try time to the current time plus the retry interval
 func (r *RouteMessage) AddNextTry() {
-	r.Lock()
-	defer r.Unlock()
 	r.LastTry = time.Now().Add(RetryInterval * time.Duration(math.Pow(2, float64(r.Retry)))) // exponential backoff
 }
 
 func (r *RouteMessage) IsProcessing() bool {
-	r.RLock()
-	defer r.RUnlock()
 	return r.Processing || !(r.LastTry.IsZero() || r.LastTry.Before(time.Now()))
 }
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	r.RLock()
-	defer r.RUnlock()
 	return r.Retry >= StaleMarkCount
 }
 
 // IsElasped checks if the last try is elasped by the duration
 func (r *RouteMessage) IsElasped(duration time.Duration) bool {
-	r.RLock()
-	defer r.RUnlock()
 	return r.LastTry.Add(duration).Before(time.Now())
 }
 
