@@ -96,7 +96,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		client:       client,
 		blockReq:     p.GetMonitorEventFilters(),
 		contracts:    p.eventMap(),
-		NonceTracker: types.NewNonceTracker(),
+		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
 	}, nil
 }
 
