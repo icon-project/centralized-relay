@@ -25,6 +25,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, 
 	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
 		startCheckpointSeq = lastSavedCheckpointSeq
 	}
+
 	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 

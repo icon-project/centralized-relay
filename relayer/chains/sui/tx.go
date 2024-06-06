@@ -108,11 +108,12 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				return mod.Name == ModuleXcallManager
 			})
 			if err != nil {
-				return nil, fmt.Errorf("failed to find xcall manager module")
+				return nil, fmt.Errorf("failed to find xcall manager module: %w", err)
 			}
+
 			withdrawTokenType, err := p.getWithdrawTokentype(context.Background(), message)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get withdraw token type")
+				return nil, fmt.Errorf("failed to get withdraw token type: %w", err)
 			}
 
 			typeArgs = append(typeArgs, *withdrawTokenType)
@@ -131,7 +132,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				return mod.Name == ModuleXcallManager
 			})
 			if err != nil {
-				return nil, fmt.Errorf("failed to find xcall manager module")
+				return nil, fmt.Errorf("failed to find xcall manager module: %w", err)
 			}
 			callParams = []SuiCallArg{
 				{Type: CallArgObject, Val: p.cfg.DappTreasuryCapCarrier},
@@ -175,7 +176,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		case ModuleAssetManager:
 			withdrawTokenType, err := p.getWithdrawTokentype(context.Background(), message)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get withdraw token type")
+				return nil, fmt.Errorf("failed to get withdraw token type: %w", err)
 			}
 
 			typeArgs = append(typeArgs, *withdrawTokenType)
@@ -484,7 +485,7 @@ func (p *Provider) getWithdrawTokentype(ctx context.Context, message *relayertyp
 	suiMessage := p.NewSuiMessage(
 		[]string{},
 		[]SuiCallArg{
-			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			{Type: CallArgPure, Val: message.Data},
 		}, p.cfg.DappPkgID, ModuleAssetManager, MethodGetWithdrawTokentype)
 	var tokenType string
 	wallet, err := p.Wallet()
