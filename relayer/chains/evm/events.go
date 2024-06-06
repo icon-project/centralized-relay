@@ -10,8 +10,9 @@ import (
 
 // All the events
 var (
-	EmitMessage = "Message(string,uint256,bytes)"
-	CallMessage = "CallMessage(string,string,uint256,uint256,bytes)"
+	EmitMessage     = "Message(string,uint256,bytes)"
+	CallMessage     = "CallMessage(string,string,uint256,uint256,bytes)"
+	ExecuteRollback = "ExecuteRollback(uint256)"
 )
 
 // EventSigToEventType converts event signature to event type
@@ -23,6 +24,7 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 		switch contractName {
 		case providerTypes.XcallContract:
 			sig[CallMessage] = events.CallMessage
+			sig[ExecuteRollback] = events.ExecuteRollback
 		case providerTypes.ConnectionContract:
 			sig[EmitMessage] = events.EmitMessage
 		}
@@ -38,8 +40,8 @@ func (p *Config) GetMonitorEventFilters() ethereum.FilterQuery {
 		topics    []common.Hash
 	)
 	for addr, contract := range p.eventMap() {
+		addresses = append(addresses, common.HexToAddress(addr))
 		for sig := range contract.SigType {
-			addresses = append(addresses, common.HexToAddress(addr))
 			topics = append(topics, crypto.Keccak256Hash([]byte(sig)))
 		}
 	}
