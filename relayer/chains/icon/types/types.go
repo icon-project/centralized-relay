@@ -359,3 +359,7 @@ type SetFee struct {
 	MsgFee    HexInt `json:"messageFee"`
 	ResFee    HexInt `json:"responseFee"`
 }
+
+type ExecuteRollback struct {
+	Sn HexInt `json:"_sn"`
+}

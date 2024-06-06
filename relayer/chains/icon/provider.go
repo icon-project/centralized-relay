@@ -243,8 +243,8 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 // ExecuteRollback
-func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
-	params := map[string]interface{}{"_sn": types.NewHexInt(int64(sn))}
+func (p *Provider) ExecuteRollback(ctx context.Context, sn int64) error {
+	params := map[string]interface{}{"_sn": types.NewHexInt(sn)}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.XcallContract]), params, MethodExecuteRollback)
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {
