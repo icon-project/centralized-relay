@@ -179,6 +179,8 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				return nil, fmt.Errorf("failed to get withdraw token type: %w", err)
 			}
 
+			p.log.Info("Withdraw Token Type Successful", zap.String("token-type", *withdrawTokenType))
+
 			typeArgs = append(typeArgs, *withdrawTokenType)
 
 			callParams = []SuiCallArg{

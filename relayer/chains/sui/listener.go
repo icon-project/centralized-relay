@@ -162,6 +162,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Sn = uint64(sn)
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
+		msg.Data = rollbackMsgEvent.Data
 
 	default:
 		return nil, fmt.Errorf("invalid event type")
