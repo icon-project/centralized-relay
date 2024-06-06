@@ -108,7 +108,8 @@ type IClient interface {
 	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
-	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
@@ -281,8 +282,12 @@ func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.
 	return c.connection.RevertMessage(opts, sn)
 }
 
-func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
+func (c *Client) ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
 	return c.xcall.ParseCallMessage(log)
+}
+
+func (c *Client) ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error) {
+	return c.xcall.ParseRollbackMessage(log)
 }
 
 func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {

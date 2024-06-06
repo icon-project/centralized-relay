@@ -29,7 +29,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			Data:          msg.Msg,
 		}, nil
 	case crypto.Keccak256Hash([]byte(CallMessage)):
-		msg, err := p.client.ParseXcallMessage(log)
+		msg, err := p.client.ParseCallMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
@@ -41,6 +41,18 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			EventType:     p.GetEventName(CallMessage),
 			Data:          msg.Data,
 			ReqID:         msg.ReqId.Uint64(),
+		}, nil
+	case crypto.Keccak256Hash([]byte(ExecuteRollback)):
+		msg, err := p.client.ParseRollbackMessage(log)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing message:%v ", err)
+		}
+		return &providerTypes.Message{
+			Dst:           p.NID(),
+			Src:           p.NID(),
+			Sn:            msg.Sn.Uint64(),
+			MessageHeight: log.BlockNumber,
+			EventType:     p.GetEventName(ExecuteRollback),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown topic")
