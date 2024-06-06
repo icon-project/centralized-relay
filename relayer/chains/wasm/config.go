@@ -127,10 +127,14 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 	if err != nil {
 		return sdkClient.Context{}, err
 	}
+	networkInfo, err := cometRPCClient.Status(ctx)
+	if err != nil {
+		return sdkClient.Context{}, err
+	}
 
 	return sdkClient.Context{
 		CmdContext:        ctx,
-		ChainID:           c.ChainID,
+		ChainID:           networkInfo.NodeInfo.Network,
 		Client:            cometRPCClient,
 		NodeURI:           c.RPCUrl,
 		Codec:             codec.Codec,

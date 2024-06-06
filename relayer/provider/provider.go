@@ -54,7 +54,6 @@ type ChainProvider interface {
 // CommonConfig is the common configuration for all chain providers
 type CommonConfig struct {
 	ChainName     string                  `json:"-" yaml:"-"`
-	ChainID       string                  `json:"chain-id" yaml:"chain-id"`
 	RPCUrl        string                  `json:"rpc-url" yaml:"rpc-url"`
 	StartHeight   uint64                  `json:"start-height" yaml:"start-height"`
 	Address       string                  `json:"address" yaml:"address"`

@@ -230,7 +230,6 @@ func (p *Provider) logTxFailed(err error, txHash string, code relayTypes.Respons
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	p.logger.Info("successful transaction",
 		zap.Uint64("block_height", height),
-		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
 	)
 }
