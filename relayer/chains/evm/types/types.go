@@ -42,7 +42,7 @@ type NonceTrackerI interface {
 }
 
 // NewNonceTracker
-func NewNonceTracker(getter func(context.Context, common.Address, *big.Int) (*big.Int, error)) *NonceTracker {
+func NewNonceTracker(getter func(context.Context, common.Address, *big.Int) (*big.Int, error)) NonceTrackerI {
 	return &NonceTracker{
 		address: make(map[common.Address]*NonceValue),
 		Mutex:   &sync.Mutex{},

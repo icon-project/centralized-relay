@@ -24,6 +24,8 @@ import (
 
 var _ provider.ChainProvider = (*Provider)(nil)
 
+var globalRouteLock = &sync.Mutex{}
+
 type Provider struct {
 	logger              *zap.Logger
 	cfg                 *Config
@@ -83,6 +85,7 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
+		p.wallet.SetSequence(account.GetSequence() + 1)
 		return p.client.SetAddress(account.GetAddress())
 	}
 	return p.wallet.GetAddress()
@@ -203,6 +206,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	globalRouteLock.Lock()
+	defer globalRouteLock.Unlock()
 	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
