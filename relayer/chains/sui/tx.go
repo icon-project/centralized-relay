@@ -57,6 +57,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 		callParams := []SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 			{Type: CallArgPure, Val: message.Src},
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
@@ -462,6 +463,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: key.Src},
 			{Type: CallArgPure, Val: snU128},
 		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)

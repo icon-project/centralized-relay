@@ -20,6 +20,9 @@ type Config struct {
 	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
 	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
+	ConnectionID    string `yaml:"connection-id" json:"connection-id"`
+	ConnectionCapID string `yaml:"connection-cap-id" json:"connection-cap-id"`
+
 	DappPkgID              string       `yaml:"dapp-package-id" json:"dapp-package-id"`
 	DappTreasuryCapCarrier string       `yaml:"dapp-treasury-cap-carrier" json:"dapp-treasury-cap-carrier"`
 	DappModules            []DappModule `yaml:"dapp-modules" json:"dapp-modules"`

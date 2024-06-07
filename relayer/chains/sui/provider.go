@@ -209,6 +209,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
 		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
@@ -232,6 +233,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
@@ -256,6 +258,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
 		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
