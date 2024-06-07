@@ -158,7 +158,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
+		}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -183,7 +183,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
+		}, p.xcallPkgIDLatest(), ModuleEntry, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
-		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
+		p.xcallPkgIDLatest(), ModuleEntry, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -235,4 +235,8 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
+}
+
+func (p *Provider) xcallPkgIDLatest() string {
+	return p.cfg.XcallPkgIDs[0]
 }
