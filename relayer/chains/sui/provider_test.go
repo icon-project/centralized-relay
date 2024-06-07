@@ -5,13 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	"github.com/coming-chat/go-sui/v2/lib"
 	"github.com/coming-chat/go-sui/v2/types"
-	"github.com/fardream/go-bcs/bcs"
 	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -272,20 +270,4 @@ func TestGenerateTxDigests(t *testing.T) {
 			assert.Equal(subTest, eachTest.expectedOutput, p.GenerateTxDigests(eachTest.input, maxDigests))
 		})
 	}
-}
-
-func TestEncodeBCSByteArray(t *testing.T) {
-	hexStr := "f89c8a5769746864726177546fb84a303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030323a3a7375693a3a535549b84230786566396432393635326639623236343831626662373664643931383930353736396661623134663165633363623863303464383834376664356232323364336264"
-	hexByte, _ := hex.DecodeString(hexStr)
-
-	bcsBytes, _ := bcs.Marshal(hexByte)
-
-	hexBcs := hex.EncodeToString(bcsBytes)
-
-	resultStrList := strings.Split(hexBcs, hexStr)
-
-	fmt.Println("Prefix: ", resultStrList[0])
-
-	fmt.Println("Lenght of hexbyte:", len(hexByte))
-	fmt.Println("Lenght of hexbcs:", len(bcsBytes))
 }
