@@ -2,12 +2,12 @@ package sui
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strconv"
 	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
-	"github.com/coming-chat/go-sui/v2/move_types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -141,67 +141,13 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-			{Type: CallArgPure, Val: adminAddr},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetAdmin)
-
-	txBytes, err := p.prepareTxMoveCall(suiMessage)
-	if err != nil {
-		return err
-	}
-	res, err := p.SendTransaction(ctx, txBytes)
-	if err != nil {
-		return err
-	}
-	p.log.Info("set fee txn successful",
-		zap.String("tx-hash", res.Digest.String()),
-	)
-	return nil
+	//implementation not needed in sui
+	return fmt.Errorf("set_admin is not implmented in sui contract")
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgPure, Val: sn},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodRevertMessage)
-	txBytes, err := p.prepareTxMoveCall(suiMessage)
-	if err != nil {
-		return err
-	}
-	res, err := p.SendTransaction(ctx, txBytes)
-	if err != nil {
-		return err
-	}
-	p.log.Info("revert message txn successful",
-		zap.String("tx-hash", res.Digest.String()),
-	)
-	return nil
-}
-
-func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		}, p.cfg.XcallPkgID, ModuleEntry, "get_admin")
-	var adminAddr move_types.AccountAddress
-	wallet, err := p.Wallet()
-	if err != nil {
-		return 0, err
-	}
-	txBytes, err := p.preparePTB(suiMessage)
-	if err != nil {
-		return 0, err
-	}
-	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &adminAddr); err != nil {
-		return 0, err
-	}
-
-	return 0, nil
+	//implementation not needed in sui
+	return fmt.Errorf("revert_message is not implemented in sui contract")
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
