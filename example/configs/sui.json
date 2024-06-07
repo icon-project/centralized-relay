@@ -1,19 +1,32 @@
 {
   "type": "sui",
   "value": {
-    "chain-id": "sui",
-    "nid": "sui",
-    "rpc-url": "https://fullnode.devnet.sui.io:443",
+    "nid": "sui-test",
+    "rpc-url": "https://fullnode.testnet.sui.io:443",
     "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
-    "xcall-package-id": "0xed18eec9609cf53e217993f5db388e25ee5b02d1e5efcc14d3ef75d1f4500e9a",
-    "xcall-storage-id": "0x753935d5f963ebdb506ce9dafcadc357122344e75c02a534d97a3c22c4fec4fd",
-    "dapp-package-id": "0xcc1af375dca0d4e6dcbbeb1821369c78d88808fccac2bfc42a185a562bd6765f",
-    "dapp-treasury-cap-carrier": "",
+    "xcall-package-ids": [
+      "0xd8acb58553eeefc32077075f4ee2a4dc7e9d65e0aa82639e12784043a0cffce1"
+    ],
+    "xcall-storage-id": "0x4655bb7859023e6a8804f31cb746999d9e0758da642aa8e7e18e11c31427c8cc",
+    "connection-id": "centralized-1",
+    "connection-cap-id": "0x0bd3506ebbb37bb531342469c4665c3594442b6b004a8bb0e9910e5b04cc57ae",
+    "dapp-package-id": "0x7d7ae28c5a82c0bdb17a106dbbb236e3ee94e4b12408f04a0a192b20273fb2fd",
+    "dapp-treasury-cap-carrier": "0x4e28f7b3765d7ae38cc85061d0998ef0d4240e8a01be58927d2c7854f07b14c7",
     "dapp-modules": [
       {
-        "name": "mock_dapp",
-        "cap-id": "b2686b2955bb0ef6b519c970a9cda2ad5326599e6772f6b004d2a580d6f17954",
-        "config-id": "0xd429175208e9aa327faf14dff06f9240a95f0b6fc1b8b00e81a20178f8a5a6ce"
+        "name": "xcall_manager",
+        "cap-id": "0xa4ea25a8025e04543408e0ad054321ae98fda932bdf4ee846ba60f6548d64bcb",
+        "config-id": "0x85df6e0d192cb6f54e0fcdf681f34323a83ed4be871059c897a69eb2a466a34b"
+      },
+      {
+        "name": "asset_manager",
+        "cap-id": "0xb31546a6f3a0fa3b265f0572113d6422e81ae7fa455a615d27d2cab8ef85ab93",
+        "config-id": "0xb5605a51dae249aecd7d70352cf36f589c11822568774c144909110ebd15ee02"
+      },
+      {
+        "name": "balanced_dollar",
+        "cap-id": "0x630d4a826c090023600498c562a7dd611ef673268b7a4bd7de63c571684d97cf",
+        "config-id": "0x2427b3a3b95600749848e69f694ddffef5f96b2a0cc03e3d56d8a8b83ce94826"
       }
     ],
     "gas-limit": 5000000
