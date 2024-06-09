@@ -505,6 +505,8 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 
 // SaveBlockHeight for all chains
 func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	for nid, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
