@@ -164,14 +164,14 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 		select {
 		case <-flushTimer.C:
 			// flushMessage gets all the message from DB
-			r.flushMessages(ctx)
+			go r.flushMessages(ctx)
 		case <-routeTimer.C:
 			// processMessage starting working on all the runtime Messages
 			r.processMessages(ctx)
 		case <-heightTimer.C:
-			r.SaveChainsBlockHeight(ctx)
+			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
-			r.cleanExpiredMessages(ctx)
+			go r.cleanExpiredMessages(ctx)
 		}
 	}
 }
