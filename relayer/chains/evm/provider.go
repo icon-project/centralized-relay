@@ -247,6 +247,8 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+	defer cancel()
 	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {

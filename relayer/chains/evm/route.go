@@ -66,13 +66,14 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 
 	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
 
-	p.log.Info("gas info",
+	p.log.Info("transaction info",
 		zap.Uint64("gas_cap", opts.GasFeeCap.Uint64()),
 		zap.Uint64("gas_tip", opts.GasTipCap.Uint64()),
 		zap.Uint64("estimated_limit", gasLimit),
 		zap.Uint64("adjusted_limit", opts.GasLimit),
 		zap.Uint64("nonce", opts.Nonce.Uint64()),
 		zap.String("event_type", message.EventType),
+		zap.String("src", message.Src),
 		zap.Uint64("sn", message.Sn.Uint64()),
 	)
 
@@ -148,15 +149,20 @@ func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *type
 		zap.String("tx_hash", receipt.TxHash.String()),
 		zap.Int64("height", receipt.BlockNumber.Int64()),
 		zap.Uint64("gas_used", receipt.GasUsed),
+		zap.String("contract_address", receipt.ContractAddress.Hex()),
 	)
 }
 
 func (p *Provider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
-	p.log.Info("failed transaction",
+	p.log.Error("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),
 		zap.Uint64("gas_used", result.GasUsed),
 		zap.Uint("tx_index", result.TransactionIndex),
+		zap.String("event_type", messageKey.EventType),
+		zap.Uint64("sn", messageKey.Sn.Uint64()),
+		zap.String("src", messageKey.Src),
+		zap.String("contract_address", result.ContractAddress.Hex()),
 		zap.Error(err),
 	)
 }
