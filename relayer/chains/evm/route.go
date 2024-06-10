@@ -30,6 +30,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
+		globalRouteLock.Unlock()
 		return fmt.Errorf("routing failed: %w", err)
 	}
 

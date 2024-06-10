@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultReadTimeout         = 10 * time.Second
+	defaultReadTimeout         = 60 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 3

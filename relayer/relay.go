@@ -233,11 +233,10 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				message.ToggleProcessing()
 
 				// if message reached delete the message
-				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				defer cancel()
 				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
 					dst.log.Error("error occured when checking message received", zap.Error(err))
+					message.ToggleProcessing()
 					continue
 				}
 

@@ -25,6 +25,8 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *types.Mess
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.MessageKey) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+	defer cancel()
 	return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
 }
 
