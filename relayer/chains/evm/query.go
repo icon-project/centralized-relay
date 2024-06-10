@@ -13,7 +13,7 @@ import (
 )
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return p.client.GetBlockNumber()
+	return p.client.GetBlockNumber(ctx)
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *types.Message) (bool, error) {

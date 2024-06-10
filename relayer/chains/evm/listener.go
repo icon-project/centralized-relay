@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultReadTimeout         = 60 * time.Second
+	defaultReadTimeout         = 10 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 3
@@ -34,8 +34,8 @@ type blockReq struct {
 	retry      int
 }
 
-func (r *Provider) latestHeight() uint64 {
-	height, err := r.client.GetBlockNumber()
+func (r *Provider) latestHeight(ctx context.Context) uint64 {
+	height, err := r.client.GetBlockNumber(ctx)
 	if err != nil {
 		r.log.Error("Evm listener: failed to GetBlockNumber", zap.Error(err))
 		return 0
@@ -54,7 +54,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
 		isSubError     bool
-		latestHeight   = p.latestHeight()
+		latestHeight   = p.latestHeight(ctx)
 		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
 		resetFunc      = func() {
 			isSubError = true

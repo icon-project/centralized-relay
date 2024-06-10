@@ -64,7 +64,7 @@ type Client struct {
 type IClient interface {
 	Log() *zap.Logger
 	GetBalance(ctx context.Context, hexAddr string) (*big.Int, error)
-	GetBlockNumber() (uint64, error)
+	GetBlockNumber(context.Context) (uint64, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetChainID() *big.Int
 
@@ -123,14 +123,10 @@ func (cl *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]eth
 	return cl.eth.FilterLogs(ctx, q)
 }
 
-func (cl *Client) GetBlockNumber() (uint64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+func (cl *Client) GetBlockNumber(ctx context.Context) (uint64, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
-	bn, err := cl.eth.BlockNumber(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return bn, nil
+	return cl.eth.BlockNumber(ctx)
 }
 
 func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
