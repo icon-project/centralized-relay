@@ -36,7 +36,7 @@ var (
 	ModuleMockDapp       = "mock_dapp"
 	ModuleXcallManager   = "xcall_manager"
 	ModuleAssetManager   = "asset_manager"
-	ModuleBalancedDollar = "balanced_dollar"
+	ModuleBalancedDollar = "balanced_dollar_crosschain"
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000

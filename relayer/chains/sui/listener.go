@@ -85,8 +85,12 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 	for _, ev := range events {
 		msg, err := p.parseMessageFromEvent(ev)
 		if err != nil {
+			if err.Error() == types.ConnectionIDMismatchError {
+				continue
+			}
 			return nil, err
 		}
+
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
 			zap.String("event-type", msg.EventType),
@@ -134,6 +138,10 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &emitEvent); err != nil {
 			return nil, err
 		}
+		if emitEvent.ConnectionID != p.cfg.ConnectionID {
+			return nil, fmt.Errorf(types.ConnectionIDMismatchError)
+		}
+
 		sn, err := strconv.Atoi(emitEvent.Sn)
 		if err != nil {
 			return nil, err
