@@ -136,7 +136,6 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				return nil, fmt.Errorf("failed to find xcall manager module: %w", err)
 			}
 			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: p.cfg.DappTreasuryCapCarrier},
 				{Type: CallArgObject, Val: module.ConfigID},
 				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
@@ -190,7 +189,6 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			}
 		case ModuleBalancedDollar:
 			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: p.cfg.DappTreasuryCapCarrier},
 				{Type: CallArgObject, Val: module.ConfigID},
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 				{Type: CallArgPure, Val: snU128},

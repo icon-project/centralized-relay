@@ -11,7 +11,6 @@
     "connection-id": "centralized-1",
     "connection-cap-id": "0x0bd3506ebbb37bb531342469c4665c3594442b6b004a8bb0e9910e5b04cc57ae",
     "dapp-package-id": "0x7d7ae28c5a82c0bdb17a106dbbb236e3ee94e4b12408f04a0a192b20273fb2fd",
-    "dapp-treasury-cap-carrier": "0x4e28f7b3765d7ae38cc85061d0998ef0d4240e8a01be58927d2c7854f07b14c7",
     "dapp-modules": [
       {
         "name": "xcall_manager",
