@@ -2,12 +2,12 @@ package sui
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strconv"
 	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
-	"github.com/coming-chat/go-sui/v2/move_types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -25,6 +25,7 @@ var (
 	MethodGetAdmin             = "get_admin"
 	MethodRecvMessage          = "receive_message"
 	MethodExecuteCall          = "execute_call"
+	MethodExecuteRollback      = "execute_rollback"
 	MethodGetWithdrawTokentype = "get_withdraw_token_type"
 
 	ModuleConnection = "centralized_connection"
@@ -35,7 +36,7 @@ var (
 	ModuleMockDapp       = "mock_dapp"
 	ModuleXcallManager   = "xcall_manager"
 	ModuleAssetManager   = "asset_manager"
-	ModuleBalancedDollar = "balanced_dollar"
+	ModuleBalancedDollar = "balanced_dollar_crosschain"
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
@@ -140,67 +141,13 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-			{Type: CallArgPure, Val: adminAddr},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetAdmin)
-
-	txBytes, err := p.prepareTxMoveCall(suiMessage)
-	if err != nil {
-		return err
-	}
-	res, err := p.SendTransaction(ctx, txBytes)
-	if err != nil {
-		return err
-	}
-	p.log.Info("set fee txn successful",
-		zap.String("tx-hash", res.Digest.String()),
-	)
-	return nil
+	//implementation not needed in sui
+	return fmt.Errorf("set_admin is not implmented in sui contract")
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgPure, Val: sn},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodRevertMessage)
-	txBytes, err := p.prepareTxMoveCall(suiMessage)
-	if err != nil {
-		return err
-	}
-	res, err := p.SendTransaction(ctx, txBytes)
-	if err != nil {
-		return err
-	}
-	p.log.Info("revert message txn successful",
-		zap.String("tx-hash", res.Digest.String()),
-	)
-	return nil
-}
-
-func (p *Provider) GetAdmin(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-		}, p.cfg.XcallPkgID, ModuleEntry, "get_admin")
-	var adminAddr move_types.AccountAddress
-	wallet, err := p.Wallet()
-	if err != nil {
-		return 0, err
-	}
-	txBytes, err := p.preparePTB(suiMessage)
-	if err != nil {
-		return 0, err
-	}
-	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &adminAddr); err != nil {
-		return 0, err
-	}
-
-	return 0, nil
+	//implementation not needed in sui
+	return fmt.Errorf("revert_message is not implemented in sui contract")
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
@@ -208,9 +155,10 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
+		}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -231,10 +179,11 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
+		}, p.xcallPkgIDLatest(), ModuleEntry, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -255,8 +204,9 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
-		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
+		p.xcallPkgIDLatest(), ModuleEntry, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -285,4 +235,8 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
+}
+
+func (p *Provider) xcallPkgIDLatest() string {
+	return p.cfg.XcallPkgIDs[0]
 }

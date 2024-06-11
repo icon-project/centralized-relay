@@ -17,12 +17,14 @@ type Config struct {
 	Address   string `yaml:"address" json:"address"`
 	NID       string `yaml:"nid" json:"nid"`
 
-	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
-	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
+	XcallPkgIDs    []string `yaml:"xcall-package-ids" json:"xcall-package-ids"`
+	XcallStorageID string   `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
-	DappPkgID              string       `yaml:"dapp-package-id" json:"dapp-package-id"`
-	DappTreasuryCapCarrier string       `yaml:"dapp-treasury-cap-carrier" json:"dapp-treasury-cap-carrier"`
-	DappModules            []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
+	ConnectionID    string `yaml:"connection-id" json:"connection-id"`
+	ConnectionCapID string `yaml:"connection-cap-id" json:"connection-cap-id"`
+
+	DappPkgID   string       `yaml:"dapp-package-id" json:"dapp-package-id"`
+	DappModules []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
 
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`

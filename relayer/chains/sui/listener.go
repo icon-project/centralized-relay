@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -25,6 +26,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, 
 	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
 		startCheckpointSeq = lastSavedCheckpointSeq
 	}
+
 	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 
@@ -67,10 +69,15 @@ func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint6
 }
 
 func (p *Provider) allowedEventTypes() []string {
-	return []string{
-		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "centralized_connection", "Message"),
-		fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, "main", "CallMessage"),
+	allowedEvents := []string{}
+	for _, xcallPkgId := range p.cfg.XcallPkgIDs {
+		allowedEvents = append(allowedEvents, []string{
+			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleConnection, "Message"),
+			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "CallMessage"),
+			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "RollbackMessage"),
+		}...)
 	}
+	return allowedEvents
 }
 
 func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]relayertypes.BlockInfo, error) {
@@ -78,8 +85,12 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 	for _, ev := range events {
 		msg, err := p.parseMessageFromEvent(ev)
 		if err != nil {
+			if err.Error() == types.ConnectionIDMismatchError {
+				continue
+			}
 			return nil, err
 		}
+
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
 			zap.String("event-type", msg.EventType),
@@ -117,13 +128,20 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		return nil, err
 	}
 
-	switch ev.Type {
-	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleConnection, "Message"):
+	eventParts := strings.Split(ev.Type, "::")
+	eventSuffix := strings.Join(eventParts[1:], "::")
+
+	switch eventSuffix {
+	case fmt.Sprintf("%s::%s", ModuleConnection, "Message"):
 		msg.EventType = relayerEvents.EmitMessage
 		var emitEvent types.EmitEvent
 		if err := json.Unmarshal(eventBytes, &emitEvent); err != nil {
 			return nil, err
 		}
+		if emitEvent.ConnectionID != p.cfg.ConnectionID {
+			return nil, fmt.Errorf(types.ConnectionIDMismatchError)
+		}
+
 		sn, err := strconv.Atoi(emitEvent.Sn)
 		if err != nil {
 			return nil, err
@@ -132,7 +150,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Data = emitEvent.Msg
 		msg.Dst = emitEvent.To
 
-	case fmt.Sprintf("%s::%s::%s", p.cfg.XcallPkgID, ModuleMain, "CallMessage"):
+	case fmt.Sprintf("%s::%s", ModuleMain, "CallMessage"):
 		msg.EventType = relayerEvents.CallMessage
 		var callMsgEvent types.CallMsgEvent
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
@@ -145,6 +163,22 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		}
 		msg.ReqID = uint64(reqID)
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
+		msg.Dst = p.cfg.NID
+
+	case fmt.Sprintf("%s::%s", ModuleMain, "RollbackMessage"):
+		msg.EventType = relayerEvents.ExecuteRollback
+		var rollbackMsgEvent types.RollbackMsgEvent
+		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {
+			return nil, err
+		}
+		sn, err := strconv.Atoi(rollbackMsgEvent.Sn)
+		if err != nil {
+			return nil, err
+		}
+		msg.Sn = uint64(sn)
+		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
+		msg.Dst = p.cfg.NID
+		msg.Data = rollbackMsgEvent.Data
 
 	default:
 		return nil, fmt.Errorf("invalid event type")
