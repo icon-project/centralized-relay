@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cometbft/cometbft/rpc/client/http"
@@ -66,11 +67,12 @@ func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath str
 	ws := newClient(clientContext)
 
 	return &Provider{
-		logger:    log.With(zap.Stringp("nid", &pc.NID), zap.Stringp("name", &pc.ChainName)),
-		cfg:       pc,
-		client:    ws,
-		contracts: contracts,
-		eventList: pc.GetMonitorEventFilters(contracts),
+		logger:      log.With(zap.Stringp("nid", &pc.NID), zap.Stringp("name", &pc.ChainName)),
+		cfg:         pc,
+		client:      ws,
+		contracts:   contracts,
+		eventList:   pc.GetMonitorEventFilters(contracts),
+		routerMutex: new(sync.Mutex),
 	}, nil
 }
 

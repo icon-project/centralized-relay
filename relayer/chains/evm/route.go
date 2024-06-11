@@ -24,20 +24,20 @@ const (
 // this will be executed in go route
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	// lock here to prevent transcation replacement
-	globalRouteLock.Lock()
+	p.routerMutex.Lock()
 
 	p.log.Info("starting to route message", zap.Any("message", message))
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
-		globalRouteLock.Unlock()
+		p.routerMutex.Unlock()
 		return fmt.Errorf("routing failed: %w", err)
 	}
 
 	messageKey := message.MessageKey()
 
 	tx, err := p.SendTransaction(ctx, opts, message)
-	globalRouteLock.Unlock()
+	p.routerMutex.Unlock()
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}

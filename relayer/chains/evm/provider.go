@@ -39,9 +39,6 @@ var (
 
 	// Xcall contract
 	MethodExecuteCall = "executeCall"
-
-	// Lock for opts
-	globalRouteLock = &sync.Mutex{}
 )
 
 type Config struct {
@@ -64,6 +61,7 @@ type Provider struct {
 	contracts           map[string]providerTypes.EventMap
 	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
+	routerMutex         *sync.Mutex
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -97,6 +95,7 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		blockReq:     p.GetMonitorEventFilters(),
 		contracts:    p.eventMap(),
 		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
+		routerMutex:  new(sync.Mutex),
 	}, nil
 }
 

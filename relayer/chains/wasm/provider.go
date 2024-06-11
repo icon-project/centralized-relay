@@ -24,8 +24,6 @@ import (
 
 var _ provider.ChainProvider = (*Provider)(nil)
 
-var globalRouteLock = &sync.Mutex{}
-
 type Provider struct {
 	logger              *zap.Logger
 	cfg                 *Config
@@ -35,6 +33,7 @@ type Provider struct {
 	contracts           map[string]relayTypes.EventMap
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
+	routerMutex         *sync.Mutex
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -206,8 +205,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	globalRouteLock.Lock()
-	defer globalRouteLock.Unlock()
+	p.routerMutex.Lock()
+	defer p.routerMutex.Unlock()
 	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
