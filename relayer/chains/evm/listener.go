@@ -82,6 +82,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 					end = latestHeight
 				}
 				blockReqs = append(blockReqs, &blockReq{start: i, end: end, retry: maxBlockQueryFailedRetry})
+				i = end + 1
 			}
 			totalReqs := len(blockReqs)
 			// Calculate the size of each chunk
@@ -170,7 +171,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 }
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
-	diff := int(currentHeight-startHeight/p.cfg.BlockBatchSize) + 1
+	diff := int((currentHeight-startHeight)/p.cfg.BlockBatchSize) + 1
 	cpu := runtime.NumCPU()
 	if diff <= cpu {
 		return diff
