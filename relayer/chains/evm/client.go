@@ -27,12 +27,17 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 		return nil, err
 	}
 
-	connection, err := bridgeContract.NewConnection(connectionContract, eth)
+	ethRpc, err := ethclient.DialContext(ctx, rpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	connection, err := bridgeContract.NewConnection(connectionContract, ethRpc)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
 
-	xcall, err := bridgeContract.NewXcall(XcallContract, eth)
+	xcall, err := bridgeContract.NewXcall(XcallContract, ethRpc)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}

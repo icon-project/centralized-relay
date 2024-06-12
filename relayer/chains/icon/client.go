@@ -265,12 +265,13 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 		return err
 	}
 	defer func() {
-		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.LocalAddr().String()))
+		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.RemoteAddr().String()))
 		c.wsClose(conn)
 	}()
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
 	}
+	c.log.Info("Monitoring started", zap.String("address", conn.RemoteAddr().String()))
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	})
