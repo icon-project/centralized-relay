@@ -59,6 +59,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		resetFunc      = func() {
 			isSubError = true
 			subscribeStart.Reset(time.Second * 3)
+			client, err := p.client.Reconnect()
+			if err != nil {
+				p.log.Error("failed to reconnect", zap.Error(err))
+			}
+			p.client = client
 		}
 	)
 

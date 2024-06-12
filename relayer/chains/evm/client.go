@@ -27,17 +27,12 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 		return nil, err
 	}
 
-	ethRpc, err := ethclient.DialContext(ctx, rpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	connection, err := bridgeContract.NewConnection(connectionContract, ethRpc)
+	connection, err := bridgeContract.NewConnection(connectionContract, eth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
 
-	xcall, err := bridgeContract.NewXcall(XcallContract, ethRpc)
+	xcall, err := bridgeContract.NewXcall(XcallContract, eth)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
@@ -48,12 +43,22 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 		return nil, err
 	}
 
+	reconnectFunc := func() (IClient, error) {
+		eth.Close()
+		newClient, err := newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
+		if err != nil {
+			return nil, err
+		}
+		return newClient, nil
+	}
+
 	return &Client{
 		log:        l,
 		eth:        eth,
 		EVMChainID: evmChainId,
 		connection: connection,
 		xcall:      xcall,
+		reconnect:  reconnectFunc,
 	}, nil
 }
 
@@ -61,9 +66,11 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 type Client struct {
 	log        *zap.Logger
 	eth        *ethclient.Client
+	ethRpc     *ethclient.Client
 	EVMChainID *big.Int
 	connection *bridgeContract.Connection
 	xcall      *bridgeContract.Xcall
+	reconnect  func() (IClient, error)
 }
 
 type IClient interface {
@@ -83,6 +90,7 @@ type IClient interface {
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
 	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
+	Reconnect() (IClient, error)
 
 	// abiContract for connection
 	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
@@ -223,4 +231,9 @@ func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethType
 // Subscribe
 func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error) {
 	return c.eth.SubscribeFilterLogs(ctx, q, ch)
+}
+
+// Reconnect
+func (c *Client) Reconnect() (IClient, error) {
+	return c.reconnect()
 }
