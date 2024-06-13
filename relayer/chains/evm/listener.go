@@ -256,7 +256,9 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
 			}
-		case <-time.After(time.Minute):
+		case <-time.After(time.Minute * 2):
+			ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+			defer cancel()
 			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
 				p.log.Error("connection error", zap.Error(err))
 				resetFunc()
