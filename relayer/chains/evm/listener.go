@@ -62,8 +62,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			client, err := p.client.Reconnect()
 			if err != nil {
 				p.log.Error("failed to reconnect", zap.Error(err))
+			} else {
+				p.client = client
 			}
-			p.client = client
 		}
 	)
 
@@ -107,11 +108,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 							Addresses: p.blockReq.Addresses,
 							Topics:    p.blockReq.Topics,
 						}
+						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 						logs, err := p.getLogsRetry(ctx, filter, br.retry)
 						if err != nil {
 							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 							continue
 						}
+						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 						for _, log := range logs {
 							message, err := p.getRelayMessageFromLog(log)
 							if err != nil {
