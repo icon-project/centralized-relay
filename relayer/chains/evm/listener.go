@@ -82,13 +82,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 
 			var blockReqs []*blockReq
-			for i := startHeight; i < latestHeight; i += p.cfg.BlockBatchSize {
-				end := i + p.cfg.BlockBatchSize
-				if end > latestHeight {
-					end = latestHeight
-				}
-				blockReqs = append(blockReqs, &blockReq{start: i, end: end, retry: maxBlockQueryFailedRetry})
-				i = end + 1
+			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
 			}
 			totalReqs := len(blockReqs)
 			// Calculate the size of each chunk
