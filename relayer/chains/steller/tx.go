@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
+	"go.uber.org/zap"
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
@@ -39,7 +41,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	if err != nil {
 		cbErr = err
 	} else if txRes != nil && !txRes.Successful {
-		cbErr = fmt.Errorf("failed to send call transaction")
+		cbErr = errors.New("failed to send call transaction")
 	}
 
 	callback(message.MessageKey(), cbTxResp, cbErr)
@@ -79,6 +81,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	simtxe, err := simtx.Base64()
 	if err != nil {
+		p.log.Warn("tx simulation failed", zap.Any("code", simtx))
 		return nil, err
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
@@ -149,7 +152,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	txParam.BaseFee = int64(minResourceFee) + int64(p.cfg.MaxInclusionFee)
-
 	tx, err := txnbuild.NewTransaction(txParam)
 	if err != nil {
 		return nil, err
@@ -163,6 +165,9 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	txRes, err := p.client.SubmitTransactionXDR(txe)
+	if err != nil {
+		p.log.Warn("error while executing txn", zap.Any("error", err), zap.Any("code", txe))
+	}
 	return &txRes, err
 }
 
@@ -224,7 +229,6 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 		return nil, err
 	}
 	stellerMsg := types.StellerMsg{Message: msg}
-
 	switch msg.EventType {
 	case evtypes.EmitMessage:
 		return &xdr.InvokeContractArgs{
@@ -250,6 +254,14 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 				},
 				stellerMsg.ScvReqID(),
 				stellerMsg.ScvData(),
+			},
+		}, nil
+	case evtypes.RollbackMessage:
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scXcallAddr,
+			FunctionName:    xdr.ScSymbol("execute_rollback"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSn(),
 			},
 		}, nil
 	default:
