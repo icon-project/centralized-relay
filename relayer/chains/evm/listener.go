@@ -58,7 +58,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
 		resetFunc      = func() {
 			isSubError = true
-			subscribeStart.Reset(time.Second * 3)
+			subscribeStart.Reset(time.Second * 1)
+			client, err := p.client.Reconnect()
+			if err != nil {
+				p.log.Error("failed to reconnect", zap.Error(err))
+			} else {
+				p.client = client
+			}
 		}
 	)
 
@@ -76,13 +82,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 
 			var blockReqs []*blockReq
-			for i := startHeight; i < latestHeight; i += p.cfg.BlockBatchSize {
-				end := i + p.cfg.BlockBatchSize
-				if end > latestHeight {
-					end = latestHeight
-				}
-				blockReqs = append(blockReqs, &blockReq{start: i, end: end, retry: maxBlockQueryFailedRetry})
-				i = end + 1
+			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
 			}
 			totalReqs := len(blockReqs)
 			// Calculate the size of each chunk
@@ -102,11 +104,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 							Addresses: p.blockReq.Addresses,
 							Topics:    p.blockReq.Topics,
 						}
+						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 						logs, err := p.getLogsRetry(ctx, filter, br.retry)
 						if err != nil {
 							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 							continue
 						}
+						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 						for _, log := range logs {
 							message, err := p.getRelayMessageFromLog(log)
 							if err != nil {
@@ -247,6 +251,12 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
+			}
+		case <-time.After(time.Minute * 2):
+			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+				p.log.Error("connection error", zap.Error(err))
+				resetFunc()
+				return err
 			}
 		}
 	}

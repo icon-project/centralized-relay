@@ -102,6 +102,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
+					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))
