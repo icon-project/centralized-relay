@@ -38,14 +38,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	p.log.Info("start querying from ledger seq", zap.Uint64("start-seq", startSeq))
 	eventChannel := make(chan types.Event, 10)
 	reconnect()
-	oneMinCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	oneMinCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-oneMinCtx.Done():
-			oneMinCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
+			oneMinCtx, cancel = context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()
 			reconnect()
 		case ev, ok := <-eventChannel:
