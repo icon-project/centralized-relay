@@ -178,12 +178,18 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	if !isSuccess {
 		return err
 	}
-	time.Sleep(3 * time.Second)
-	ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
-	assert.NoErrorf(t, err, "error on excute rollback- %w", err)
-	rollbackEventFound := ctx.Value("IsRollbackEventFound")
-	assert.Equal(t, true, rollbackEventFound)
-	fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	if chainA.Config().Name != "sui" { //TODO: remove after all chains support auto rollback
+		time.Sleep(3 * time.Second)
+		ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
+		assert.NoErrorf(t, err, "error on excute rollback- %w", err)
+		rollbackEventFound := ctx.Value("IsRollbackEventFound")
+		assert.Equal(t, true, rollbackEventFound)
+		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	} else {
+		_, err = chainA.FindRollbackExecutedMessage(ctx, height, res.SerialNo)
+		assert.NoErrorf(t, err, "no rollback executed message found %v", err)
+		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	}
 	return err
 }
 

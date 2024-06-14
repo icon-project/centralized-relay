@@ -327,9 +327,9 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
 	if in.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		in.IBCAddresses["xcall"] = "cxea57838445bc3e6af694856b929978ad63167aed"
-		in.IBCAddresses["connection"] = "cxb85761e3f7b5852a930b3c9f7664526647b5f05a"
-		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx78cc6d823837b0031d4127627df2e8bae1d3059d"
+		in.IBCAddresses["xcall"] = "cx4df1d24b5c5d6cae7e9f885d941a9c123005c598"
+		in.IBCAddresses["connection"] = "cx5bc2fae446d43d458902e9b922b9cc66633c40eb"
+		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx6f86fc01ce8dffcf8c54f22cd07236050e3ca8a3"
 		return nil
 	}
 	nid := in.cfg.ChainID
@@ -811,4 +811,22 @@ func (in *IconRemotenet) ExecCallTxCommand(ctx context.Context, scoreAddress, me
 	}
 
 	return in.NodeCommand(command...)
+}
+
+// FindRollbackExecutedMessage implements chains.Chain.
+func (in *IconRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
+	index := []*string{&sn}
+	event, err := in.FindEvent(ctx, startHeight, "xcall", "RollbackMessage(int,int)", index)
+	if err != nil {
+		return "", err
+	}
+	intHeight, _ := event.Height.Int()
+	block, _ := in.IconClient.GetBlockByHeight(&icontypes.BlockHeightParam{Height: icontypes.NewHexInt(int64(intHeight - 1))})
+	i, _ := event.Index.Int()
+	tx := block.NormalTransactions[i]
+	trResult, _ := in.TransactionResult(ctx, string(tx.TxHash))
+	eventIndex, _ := event.Events[0].Int()
+	code, _ := strconv.ParseInt(trResult.EventLogs[eventIndex].Data[0], 0, 64)
+
+	return strconv.FormatInt(code, 10), nil
 }
