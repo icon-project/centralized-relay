@@ -58,7 +58,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 						}
 					}
 				}
-				startSeq = ev.LedgerSeq + 1
+				startSeq = ev.LedgerSeq
 			}
 		case <-reconnectCh:
 			p.log.Info("Query started.", zap.Uint64("from-seq", startSeq))
