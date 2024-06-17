@@ -81,10 +81,13 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	simtxe, err := simtx.Base64()
 	if err != nil {
-		p.log.Warn("tx simulation failed", zap.Any("code", simtx))
 		return nil, err
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
+	if err != nil {
+		p.log.Warn("tx simulation failed", zap.Any("code", simtx))
+		return nil, err
+	}
 	if simres.RestorePreamble != nil {
 		p.log.Info("Need to restore from archived state")
 		if err := p.handleArchivalState(simres, &sourceAccount); err != nil {
@@ -117,10 +120,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 			return nil, err
 		}
 	}
-	if err != nil {
-		return nil, err
-	}
-
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
 		return nil, err
