@@ -150,7 +150,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 
 		return p.NewSuiMessage(typeArgs, callParams, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
 
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		module, err := p.getModule(func(mod DappModule) bool {
 			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
 		})

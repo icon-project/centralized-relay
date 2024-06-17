@@ -1,8 +1,9 @@
 package events
 
 const (
-	EmitMessage = "emitMessage"
-	CallMessage = "callMessage"
+	EmitMessage     = "emitMessage"
+	CallMessage     = "callMessage"
+	RollbackMessage = "rollBackMessage"
 
 	// Special event types
 	RevertMessage   = "revertMessage"

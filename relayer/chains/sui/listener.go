@@ -166,7 +166,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Dst = p.cfg.NID
 
 	case fmt.Sprintf("%s::%s", ModuleMain, "RollbackMessage"):
-		msg.EventType = relayerEvents.ExecuteRollback
+		msg.EventType = relayerEvents.RollbackMessage
 		var rollbackMsgEvent types.RollbackMsgEvent
 		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {
 			return nil, err

@@ -253,7 +253,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					go r.ExecuteCall(ctx, message, src)
 				}
 
-			case events.ExecuteRollback:
+			case events.RollbackMessage:
 				if !message.IsProcessing() {
 					message.ToggleProcessing()
 					go r.ExecuteRollback(ctx, message, src)
