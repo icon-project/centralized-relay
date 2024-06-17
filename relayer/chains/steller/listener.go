@@ -27,6 +27,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 		startSeq = lastSavedLedgerSeq
 	}
 
+	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < startSeq {
+		startSeq = p.cfg.StartHeight
+	}
+
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {

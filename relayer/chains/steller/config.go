@@ -15,17 +15,18 @@ import (
 )
 
 type Config struct {
-	ChainID           string                         `yaml:"chain-id"`
-	ChainName         string                         `yaml:"-"`
-	HorizonUrl        string                         `yaml:"horizon-url"`
-	SorobanUrl        string                         `yaml:"soroban-url"`
-	Address           string                         `yaml:"address"`
-	Contracts         relayertypes.ContractConfigMap `yaml:"contracts"`
+	ChainID           string                         `json:"chain-id" yaml:"chain-id"`
+	ChainName         string                         `json:"-t" yaml:"-"`
+	HorizonUrl        string                         `json:"horizon-url" yaml:"horizon-url"`
+	SorobanUrl        string                         `json:"soroban-url" yaml:"soroban-url"`
+	Address           string                         `json:"address" yaml:"address"`
+	Contracts         relayertypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	NID               string                         `json:"nid" yaml:"nid"`
-	HomeDir           string                         `yaml:"home-dir"`
-	MaxInclusionFee   uint64                         `yaml:"max-inclusion-fee"` // in stroop: the smallest unit of a lumen, one ten-millionth of a lumen (.0000001 XLM).
-	BlockInterval     time.Duration                  `yaml:"block-interval"`
-	NetworkPassphrase string                         `yaml:"network-passphrase"`
+	HomeDir           string                         `json:"home-dir" yaml:"home-dir"`
+	MaxInclusionFee   uint64                         `json:"max-inclusion-fee" yaml:"max-inclusion-fee"` // in stroop: the smallest unit of a lumen, one ten-millionth of a lumen (.0000001 XLM).
+	BlockInterval     time.Duration                  `json:"block-interval" yaml:"block-interval"`
+	NetworkPassphrase string                         `json:"network-passphrase" yaml:"network-passphrase"`
+	StartHeight       uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
