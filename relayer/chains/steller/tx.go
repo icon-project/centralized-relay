@@ -26,6 +26,10 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return err
 	}
 	txRes, err := p.sendCallTransaction(*callArgs)
+	if err != nil {
+		p.log.Warn("error occurred while executing transaction", zap.Any("error", err),
+			zap.Any("sn", message.Sn), zap.Any("reqId", message.ReqID), zap.Any("type", message.EventType))
+	}
 	cbTxResp := &relayertypes.TxResponse{}
 	responseCode := relayertypes.Failed
 	if txRes != nil && txRes.Successful {
@@ -85,7 +89,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
 	if err != nil {
-		p.log.Warn("tx simulation failed", zap.Any("code", simtx))
+		p.log.Warn("tx simulation failed", zap.Any("code", simtxe))
 		return nil, err
 	}
 	if simres.RestorePreamble != nil {
@@ -122,9 +126,9 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
+		p.log.Warn("tx result marshal failed", zap.Any("code", simtxe))
 		return nil, err
 	}
-
 	callOp.Ext = xdr.TransactionExt{
 		V:           1,
 		SorobanData: &sorobanTxnData,
