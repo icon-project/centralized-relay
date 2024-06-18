@@ -8,3 +8,4 @@ linters:
     - structcheck
     - typecheck
     - varcheck
+    - staticcheck

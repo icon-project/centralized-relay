@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -15,7 +14,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 	topic := log.Topics[0]
 
 	switch topic {
-	case crypto.Keccak256Hash([]byte(EmitMessage)):
+	case EmitMessageHash:
 		msg, err := p.client.ParseConnectionMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
@@ -23,12 +22,12 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return &providerTypes.Message{
 			Dst:           msg.TargetNetwork,
 			Src:           p.NID(),
-			Sn:            msg.Sn.Uint64(),
+			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
 			EventType:     p.GetEventName(EmitMessage),
 			Data:          msg.Msg,
 		}, nil
-	case crypto.Keccak256Hash([]byte(CallMessage)):
+	case CallMessageHash:
 		msg, err := p.client.ParseCallMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
@@ -36,13 +35,13 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return &providerTypes.Message{
 			Dst:           p.NID(),
 			Src:           p.NID(),
-			Sn:            msg.Sn.Uint64(),
+			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
 			EventType:     p.GetEventName(CallMessage),
 			Data:          msg.Data,
-			ReqID:         msg.ReqId.Uint64(),
+			ReqID:         msg.ReqId,
 		}, nil
-	case crypto.Keccak256Hash([]byte(ExecuteRollback)):
+	case ExecuteRollbackHash:
 		msg, err := p.client.ParseRollbackMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
@@ -50,7 +49,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return &providerTypes.Message{
 			Dst:           p.NID(),
 			Src:           p.NID(),
-			Sn:            msg.Sn.Uint64(),
+			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
 			EventType:     p.GetEventName(ExecuteRollback),
 		}, nil

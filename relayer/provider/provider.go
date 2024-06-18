@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -46,6 +47,43 @@ type ChainProvider interface {
 	ImportKeystore(context.Context, string, string) (string, error)
 	RevertMessage(context.Context, *big.Int) error
 	GetFee(context.Context, string, bool) (uint64, error)
-	SetFee(context.Context, string, uint64, uint64) error
+	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
+}
+
+// CommonConfig is the common configuration for all chain providers
+type CommonConfig struct {
+	ChainName     string                  `json:"-" yaml:"-"`
+	RPCUrl        string                  `json:"rpc-url" yaml:"rpc-url"`
+	StartHeight   uint64                  `json:"start-height" yaml:"start-height"`
+	Address       string                  `json:"address" yaml:"address"`
+	Contracts     types.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	FinalityBlock uint64                  `json:"finality-block" yaml:"finality-block"`
+	NID           string                  `json:"nid" yaml:"nid"`
+	HomeDir       string                  `json:"-" yaml:"-"`
+	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+}
+
+// Enabled returns true if the provider is enabled
+func (c *CommonConfig) Enabled() bool {
+	return !c.Disabled
+}
+
+func (pc *CommonConfig) SetWallet(addr string) {
+	pc.Address = addr
+}
+
+func (pc *CommonConfig) GetWallet() string {
+	return pc.Address
+}
+
+func (pc *CommonConfig) Validate() error {
+	if pc.ChainName == "" {
+		return fmt.Errorf("chain-name cannot be empty")
+	}
+
+	if pc.HomeDir == "" {
+		return fmt.Errorf("home-dir cannot be empty")
+	}
+	return nil
 }

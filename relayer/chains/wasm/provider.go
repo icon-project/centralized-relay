@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +33,7 @@ type Provider struct {
 	contracts           map[string]relayTypes.EventMap
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
+	routerMutex         *sync.Mutex
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -84,6 +84,7 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
+		p.wallet.SetSequence(account.GetSequence() + 1)
 		return p.client.SetAddress(account.GetAddress())
 	}
 	return p.wallet.GetAddress()
@@ -204,6 +205,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
+	p.routerMutex.Lock()
+	defer p.routerMutex.Unlock()
 	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 }
 
@@ -215,18 +218,17 @@ func (p *Provider) handleSequence(ctx context.Context) error {
 	return p.wallet.SetSequence(acc.GetSequence())
 }
 
-func (p *Provider) logTxFailed(err error, txHash string, code uint8) {
+func (p *Provider) logTxFailed(err error, txHash string, code relayTypes.ResponseCode) {
 	p.logger.Error("transaction failed",
 		zap.Error(err),
 		zap.String("tx_hash", txHash),
-		zap.Uint8("code", code),
+		zap.Any("code", code),
 	)
 }
 
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	p.logger.Info("successful transaction",
 		zap.Uint64("block_height", height),
-		zap.String("chain_id", p.cfg.ChainID),
 		zap.String("tx_hash", txHash),
 	)
 }
@@ -278,7 +280,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
 	for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
 		if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
-			p.logTxFailed(txWaitRes.Error, txHash, uint8(txWaitRes.TxResult.Code))
+			p.logTxFailed(txWaitRes.Error, txHash, txWaitRes.TxResult.Code)
 			callback(mk, txWaitRes.TxResult, txWaitRes.Error)
 			return
 		}
@@ -395,7 +397,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 	queryMsg := &types.QueryReceiptMsg{
 		GetReceipt: &types.GetReceiptMsg{
 			SrcNetwork: key.Src,
-			ConnSn:     strconv.FormatUint(key.Sn, 10),
+			ConnSn:     key.Sn.String(),
 		},
 	}
 	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
@@ -451,7 +453,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	msg := &relayTypes.Message{
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 		EventType: events.RevertMessage,
 	}
 	_, err := p.call(ctx, msg)
@@ -459,7 +461,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkdID string, msgFee, resFee *big.Int) error {
 	msg := &relayTypes.Message{
 		Src:       networkdID,
 		Sn:        msgFee,
@@ -502,7 +504,7 @@ func (p *Provider) SetAdmin(ctx context.Context, address string) error {
 // ExecuteRollback
 func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	msg := &relayTypes.Message{
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 		EventType: events.ExecuteRollback,
 	}
 	_, err := p.call(ctx, msg)
@@ -534,8 +536,8 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
-				fromHeight += 2
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize}:
+				fromHeight += p.cfg.BlockBatchSize
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -639,7 +641,7 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 				p.logger.Info("Detected eventlog",
 					zap.Uint64("height", msg.MessageHeight),
 					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn),
+					zap.Uint64("sn", msg.Sn.Uint64()),
 					zap.String("event_type", msg.EventType),
 				)
 			}
@@ -684,7 +686,7 @@ func (p *Provider) getNumOfPipelines(diff int) int {
 	if diff <= runtime.NumCPU() {
 		return diff
 	}
-	return runtime.NumCPU() / 2
+	return runtime.NumCPU()
 }
 
 func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayTypes.BlockInfo, fromHeight, toHeight uint64) uint64 {
@@ -693,7 +695,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight) / 2
+	diff := int(toHeight-fromHeight/p.cfg.BlockBatchSize) + 1
 
 	numOfPipelines := p.getNumOfPipelines(diff)
 	wg := &sync.WaitGroup{}
@@ -783,7 +785,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Info("Detected eventlog",
 					zap.Int64("height", res.Height),
 					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn),
+					zap.Uint64("sn", msg.Sn.Uint64()),
 					zap.String("event_type", msg.EventType),
 				)
 			}
