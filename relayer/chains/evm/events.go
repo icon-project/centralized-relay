@@ -12,6 +12,9 @@ import (
 var (
 	EmitMessage = "Message(string,uint256,bytes)"
 	CallMessage = "CallMessage(string,string,uint256,uint256,bytes)"
+
+	EmitMessageHash = crypto.Keccak256Hash([]byte(EmitMessage))
+	CallMessageHash = crypto.Keccak256Hash([]byte(CallMessage))
 )
 
 // EventSigToEventType converts event signature to event type

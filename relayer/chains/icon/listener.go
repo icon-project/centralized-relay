@@ -30,7 +30,6 @@ type btpBlockRequest struct {
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
-	errCh := make(chan error)             // error channel
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
@@ -60,13 +59,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-errCh:
-			return err
 
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 			go func(ctx context.Context, cancel context.CancelFunc) {
-				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
+				err := p.client.MonitorEvent(ctx, eventReq, incoming, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						p.log.Debug("event notification received", zap.Any("event", v))
 						if v.Progress != "" {
@@ -89,11 +86,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							p.log.Info("Detected eventlog",
 								zap.Uint64("height", msg.MessageHeight),
 								zap.String("target_network", msg.Dst),
-								zap.Uint64("sn", msg.Sn),
+								zap.Uint64("sn", msg.Sn.Uint64()),
+								zap.String("tx_hash", v.Hash.String()),
 								zap.String("event_type", msg.EventType),
 							)
-							incoming <- &providerTypes.BlockInfo{
-								Messages: msgs,
+							outgoing <- &providerTypes.BlockInfo{
+								Messages: []*providerTypes.Message{msg},
 								Height:   msg.MessageHeight,
 							}
 						}
@@ -104,6 +102,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
+					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))

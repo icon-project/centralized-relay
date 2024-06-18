@@ -47,6 +47,7 @@ type IClient interface {
 	Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error)
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
+	GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error)
 }
 
 type Client struct {
@@ -223,6 +224,11 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 		return 0, err
 	}
 	return fee, nil
+}
+
+// GetNetworkInfo returns the network information
+func (c *Client) GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error) {
+	return c.ctx.Client.Status(ctx)
 }
 
 // Subscribe
