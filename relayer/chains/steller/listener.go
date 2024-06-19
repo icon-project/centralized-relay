@@ -11,6 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	hzContextTimeout = 2 * time.Minute
+)
+
 func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return fmt.Errorf("failed to restore key: %w", err)
@@ -42,14 +46,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 	p.log.Info("start querying from ledger seq", zap.Uint64("start-seq", startSeq))
 	eventChannel := make(chan types.Event, 10)
 	reconnect()
-	oneMinCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	hzStreamCtx, cancel := context.WithTimeout(ctx, hzContextTimeout)
 	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-oneMinCtx.Done():
-			oneMinCtx, cancel = context.WithTimeout(ctx, 60*time.Second)
+		case <-hzStreamCtx.Done():
+			hzStreamCtx, cancel = context.WithTimeout(ctx, hzContextTimeout)
 			defer cancel()
 			reconnect()
 		case ev, ok := <-eventChannel:
@@ -71,7 +75,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 				ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
 				Topics:      []string{"Message", "CallMessage", "RollbackMessage"},
 			}
-			go p.client.StreamEvents(oneMinCtx, eventFilter, eventChannel)
+			go p.client.StreamEvents(hzStreamCtx, eventFilter, eventChannel)
 
 		}
 	}
