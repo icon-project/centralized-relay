@@ -37,7 +37,6 @@ type ChainProvider interface {
 	SetLastSavedHeightFunc(func() uint64)
 	MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error)
 	SetAdmin(context.Context, string) error
-	NotifyRPCFailure(context.Context) error
 
 	FinalityBlock(ctx context.Context) uint64
 	GenerateMessages(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error)
