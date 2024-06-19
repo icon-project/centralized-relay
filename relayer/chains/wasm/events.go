@@ -109,8 +109,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeySn:
-					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
