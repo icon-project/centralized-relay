@@ -14,7 +14,7 @@ type EventFilter struct {
 }
 
 type Event struct {
-	xdr.ContractEvent
+	*xdr.ContractEvent
 	LedgerSeq uint64
 }
 

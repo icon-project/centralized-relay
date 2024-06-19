@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
+	"go.uber.org/zap"
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
@@ -24,6 +26,10 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return err
 	}
 	txRes, err := p.sendCallTransaction(*callArgs)
+	if err != nil {
+		p.log.Warn("error occurred while executing transaction", zap.Any("error", err),
+			zap.Any("sn", message.Sn), zap.Any("reqId", message.ReqID), zap.Any("type", message.EventType))
+	}
 	cbTxResp := &relayertypes.TxResponse{}
 	responseCode := relayertypes.Failed
 	if txRes != nil && txRes.Successful {
@@ -39,7 +45,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	if err != nil {
 		cbErr = err
 	} else if txRes != nil && !txRes.Successful {
-		cbErr = fmt.Errorf("failed to send call transaction")
+		cbErr = errors.New("failed to send call transaction")
 	}
 
 	callback(message.MessageKey(), cbTxResp, cbErr)
@@ -82,6 +88,10 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
+	if err != nil {
+		p.log.Warn("tx simulation failed", zap.Any("code", simtxe))
+		return nil, err
+	}
 	if simres.RestorePreamble != nil {
 		p.log.Info("Need to restore from archived state")
 		if err := p.handleArchivalState(simres, &sourceAccount); err != nil {
@@ -114,15 +124,11 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 			return nil, err
 		}
 	}
-	if err != nil {
-		return nil, err
-	}
-
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
+		p.log.Warn("tx result marshal failed", zap.Any("code", simtxe))
 		return nil, err
 	}
-
 	callOp.Ext = xdr.TransactionExt{
 		V:           1,
 		SorobanData: &sorobanTxnData,
@@ -149,7 +155,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	txParam.BaseFee = int64(minResourceFee) + int64(p.cfg.MaxInclusionFee)
-
 	tx, err := txnbuild.NewTransaction(txParam)
 	if err != nil {
 		return nil, err
@@ -163,6 +168,9 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		return nil, err
 	}
 	txRes, err := p.client.SubmitTransactionXDR(txe)
+	if err != nil {
+		p.log.Warn("error while executing txn", zap.Any("error", err), zap.Any("code", txe))
+	}
 	return &txRes, err
 }
 
@@ -224,7 +232,6 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 		return nil, err
 	}
 	stellerMsg := types.StellerMsg{Message: msg}
-
 	switch msg.EventType {
 	case evtypes.EmitMessage:
 		return &xdr.InvokeContractArgs{
@@ -250,6 +257,14 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 				},
 				stellerMsg.ScvReqID(),
 				stellerMsg.ScvData(),
+			},
+		}, nil
+	case evtypes.RollbackMessage:
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scXcallAddr,
+			FunctionName:    xdr.ScSymbol("execute_rollback"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSn(),
 			},
 		}, nil
 	default:
