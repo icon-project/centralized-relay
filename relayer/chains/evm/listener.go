@@ -215,8 +215,6 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetFunc func()) error {
 	ch := make(chan ethTypes.Log, 10)
-	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
-	defer cancel()
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
