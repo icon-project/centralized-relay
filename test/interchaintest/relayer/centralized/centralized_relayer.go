@@ -70,6 +70,20 @@ type SUIRelayerChainConfigValue struct {
 	GasLimit       int               `yaml:"gas-limit"`
 }
 
+type StellarRelayerChainConfigValue struct {
+	NID               string            `yaml:"nid"`
+	SorobanUrl        string            `yaml:"soroban-url"`
+	HorizonUrl        string            `yaml:"horizon-url"`
+	StartHeight       int               `yaml:"start-height"`
+	NetworkID         int               `yaml:"network-id"`
+	Contracts         map[string]string `yaml:"contracts"`
+	BlockInterval     string            `yaml:"block-interval"`
+	Address           string            `yaml:"address"`
+	FinalityBlock     uint64            `yaml:"finality-block"`
+	MaxInclusionFee   int64             `yaml:"max-inclusion-fee"`
+	NetworkPassphrase string            `yaml:"network-passphrase"`
+}
+
 type EVMRelayerChainConfigValue struct {
 	NID           string            `yaml:"nid"`
 	RPCURL        string            `yaml:"rpc-url"`
@@ -126,6 +140,11 @@ type CosmosRelayerChainConfig struct {
 type SUIRelayerChainConfig struct {
 	Type  string                     `json:"type"`
 	Value SUIRelayerChainConfigValue `json:"value"`
+}
+
+type StellarRelayerChainConfig struct {
+	Type  string                         `json:"type"`
+	Value StellarRelayerChainConfigValue `json:"value"`
 }
 
 const (
