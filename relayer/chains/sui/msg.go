@@ -10,6 +10,7 @@ type SuiCallArg struct {
 }
 type SuiMessage struct {
 	Params    []SuiCallArg
+	TypeArgs  []string
 	Method    string
 	PackageId string
 	Module    string
@@ -23,9 +24,10 @@ func (m *SuiMessage) MsgBytes() ([]byte, error) {
 	return jsoniter.Marshal(m.Params)
 }
 
-func (p *Provider) NewSuiMessage(params []SuiCallArg, packageId, module, method string) *SuiMessage {
+func (p *Provider) NewSuiMessage(typeArgs []string, params []SuiCallArg, packageId, module, method string) *SuiMessage {
 	return &SuiMessage{
 		Params:    params,
+		TypeArgs:  typeArgs,
 		PackageId: packageId,
 		Module:    module,
 		Method:    method,

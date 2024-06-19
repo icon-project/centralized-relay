@@ -252,6 +252,12 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					message.ToggleProcessing()
 					go r.ExecuteCall(ctx, message, src)
 				}
+
+			case events.RollbackMessage:
+				if !message.IsProcessing() {
+					message.ToggleProcessing()
+					go r.ExecuteRollback(ctx, message, src)
+				}
 			}
 		}
 	}
@@ -365,6 +371,35 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		r.HandleMessageFailed(routeMessage, dst, dst)
 	}
 	msg.IncrementRetry()
+	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
+		dst.log.Error("error occured during message route", zap.Error(err))
+		r.HandleMessageFailed(msg, dst, dst)
+	}
+}
+
+// ExecuteRollback
+func (r *Relayer) ExecuteRollback(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) {
+	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
+		if response.Code == types.Success {
+			dst.log.Info("message relayed successfully",
+				zap.String("dst", dst.Provider.NID()),
+				zap.String("tx_hash", response.TxHash),
+				zap.Uint64("sn", key.Sn),
+				zap.String("event_type", msg.EventType),
+				zap.Int64("height", response.Height),
+			)
+			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
+				r.log.Error("error occured when clearing successful message", zap.Error(err))
+			}
+			return
+		}
+		routeMessage, ok := dst.MessageCache.Get(key)
+		if !ok {
+			r.log.Error("key not found in messageCache", zap.Any("key", &key))
+			return
+		}
+		r.HandleMessageFailed(routeMessage, dst, dst)
+	}
 	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
 		r.HandleMessageFailed(msg, dst, dst)

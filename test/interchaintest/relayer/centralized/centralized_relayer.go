@@ -53,21 +53,28 @@ type ICONRelayerChainConfigValue struct {
 }
 
 type SUIRelayerChainConfigValue struct {
-	NID            string            `yaml:"nid"`
-	RPCURL         string            `yaml:"rpc-url"`
-	WebsocketUrl   string            `yaml:"ws-url"`
-	StartHeight    int               `yaml:"start-height"`
-	XcallPkgId     string            `yaml:"xcall-package-id"`
-	DappPkgId      string            `yaml:"dapp-package-id"`
-	XcallStorageId string            `yaml:"xcall-storage-id"`
-	DappStateId    string            `yaml:"dapp-state-id"`
-	NetworkID      int               `yaml:"network-id"`
-	Contracts      map[string]string `yaml:"contracts"`
-	BlockInterval  string            `yaml:"block-interval"`
-	Address        string            `yaml:"address"`
-	FinalityBlock  uint64            `yaml:"finality-block"`
-	GasPrice       int64             `yaml:"gas-price"`
-	GasLimit       int               `yaml:"gas-limit"`
+	NID             string          `yaml:"nid"`
+	RPCURL          string          `yaml:"rpc-url"`
+	WebsocketUrl    string          `yaml:"ws-url"`
+	StartHeight     int             `yaml:"start-height"`
+	XcallPkgIds     []string        `yaml:"xcall-package-ids"`
+	ConnectionId    string          `yaml:"connection-id"`
+	ConnectionCapId string          `yaml:"connection-cap-id"`
+	DappPkgId       string          `yaml:"dapp-package-id"`
+	XcallStorageId  string          `yaml:"xcall-storage-id"`
+	NetworkID       int             `yaml:"network-id"`
+	BlockInterval   string          `yaml:"block-interval"`
+	Address         string          `yaml:"address"`
+	FinalityBlock   uint64          `yaml:"finality-block"`
+	GasPrice        int64           `yaml:"gas-price"`
+	GasLimit        int             `yaml:"gas-limit"`
+	DappModules     []SuiDappModule `yaml:"dapp-modules"`
+}
+
+type SuiDappModule struct {
+	Name     string `yaml:"name"`
+	CapId    string `yaml:"cap-id"`
+	ConfigId string `yaml:"config-id"`
 }
 
 type StellarRelayerChainConfigValue struct {

@@ -56,9 +56,15 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 						assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB( %s) ::%v\n ", chainFlowIdentifier, err)
 					})
 
-					x.T.Run("xcall test rollback data chainA-chainB ithout rollback "+chainFlowName, func(t *testing.T) {
+					x.T.Run("xcall test rollback data chainA-chainB without rollback "+chainFlowName, func(t *testing.T) {
 						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
 						err := x.testRollbackDataWithoutRollback(ctx, t, chain, innerChain)
+						assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB( %s) ::%v\n ", chainFlowIdentifier, err)
+					})
+
+					x.T.Run("xcall test rollback data reply chainA-chainB without rollback "+chainFlowName, func(t *testing.T) {
+						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						err := x.testRollbackDataReplyWithoutRollback(ctx, t, chain, innerChain)
 						assert.NoErrorf(t, err, "fail xCall rollback message chainA-chainB( %s) ::%v\n ", chainFlowIdentifier, err)
 					})
 
@@ -92,6 +98,12 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 					x.T.Run("xcall test rollback data chainB-chainA without rollback "+reverseChainFlowName, func(t *testing.T) {
 						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
 						err := x.testRollbackDataWithoutRollback(ctx, t, innerChain, chain)
+						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
+					})
+
+					x.T.Run("xcall test rollback data reply data chainB-chainA without rollback "+reverseChainFlowName, func(t *testing.T) {
+						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						err := x.testRollbackDataReplyWithoutRollback(ctx, t, innerChain, chain)
 						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
 					})
 
@@ -166,12 +178,18 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	if !isSuccess {
 		return err
 	}
-	time.Sleep(3 * time.Second)
-	ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
-	assert.NoErrorf(t, err, "error on excute rollback- %w", err)
-	rollbackEventFound := ctx.Value("IsRollbackEventFound")
-	assert.Equal(t, true, rollbackEventFound)
-	fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	if chainA.Config().Name != "sui" { //TODO: remove after all chains support auto rollback
+		time.Sleep(3 * time.Second)
+		ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
+		assert.NoErrorf(t, err, "error on excute rollback- %w", err)
+		rollbackEventFound := ctx.Value("IsRollbackEventFound")
+		assert.Equal(t, true, rollbackEventFound)
+		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	} else {
+		_, err = chainA.FindRollbackExecutedMessage(ctx, height, res.SerialNo)
+		assert.NoErrorf(t, err, "no rollback executed message found %v", err)
+		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	}
 	return err
 }
 
@@ -179,6 +197,33 @@ func (x *XCallTestSuite) testRollbackDataWithoutRollback(ctx context.Context, t 
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	msg := "MessageTransferTestingWithoutRollback"
+	rollback := "rollbackData"
+	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
+	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress
+	res, err := chainA.XCall(ctx, chainB, chainB.Config().Name, dst, []byte(msg), []byte(rollback))
+	isSuccess := assert.NoErrorf(t, err, "error on sending packet- %v", err)
+	if !isSuccess {
+		return err
+	}
+	height, err := chainA.(ibc.Chain).Height(ctx)
+	assert.NoErrorf(t, err, "error getting height %v", err)
+	code, err := chainA.FindCallResponse(ctx, height, res.SerialNo)
+	assert.NoErrorf(t, err, "no call response found %v", err)
+	isSuccess = assert.Equal(t, "1", code)
+	if !isSuccess {
+		return err
+	}
+	time.Sleep(3 * time.Second)
+	_, err = chainA.ExecuteRollback(ctx, res.SerialNo)
+	assert.Errorf(t, err, "should not be rolled back- %w", err)
+	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	return nil
+}
+
+func (x *XCallTestSuite) testRollbackDataReplyWithoutRollback(ctx context.Context, t *testing.T, chainA, chainB chains.Chain) error {
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
+	msg := "reply-reponse"
 	rollback := "rollbackData"
 	dAppAddress := handlePanicAndGetContractAddress(chainB, dappKey+"-idcap", dappKey)
 	dst := chainB.(ibc.Chain).Config().ChainID + "/" + dAppAddress

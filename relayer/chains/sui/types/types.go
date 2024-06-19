@@ -9,6 +9,8 @@ const (
 	XcallContract      = "xcall"
 	ConnectionContract = "connection"
 
+	ConnectionIDMismatchError = "connection_id_mismatch_error"
+
 	QUERY_MAX_RESULT_LIMIT = 50
 )
 
@@ -66,13 +68,20 @@ type SuiMultiGetTransactionBlocksRequest struct {
 }
 
 type EmitEvent struct {
-	Sn  string `json:"conn_sn"`
-	Msg []byte `json:"msg"`
-	To  string `json:"to"`
+	Sn           string `json:"conn_sn"`
+	Msg          []byte `json:"msg"`
+	To           string `json:"to"`
+	ConnectionID string `json:"connection_id"`
 }
 
 type CallMsgEvent struct {
 	ReqId           string `json:"req_id"`
 	Data            []byte `json:"data"`
 	DappModuleCapId string `json:"to"`
+}
+
+type RollbackMsgEvent struct {
+	Sn              string `json:"sn"`
+	Data            []byte `json:"data"`
+	DappModuleCapId string `json:"dapp"`
 }
