@@ -21,7 +21,6 @@ const (
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 3
 	DefaultFinalityBlock       = 10
-	DefaultWSTimeout           = 10 * time.Second
 )
 
 type BnOptions struct {
@@ -149,7 +148,7 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 			return logs, nil
 		}
 		p.log.Error("failed to get logs", zap.Error(err), zap.Int("retry", i+1))
-		time.Sleep(time.Second * 15)
+		time.Sleep(time.Second * 30)
 	}
 	return nil, err
 }
