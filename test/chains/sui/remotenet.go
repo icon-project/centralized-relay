@@ -48,6 +48,7 @@ const (
 	xcallStorage                                = "xcall-storage"
 	sui_rlp_path                                = "libs/sui_rlp"
 	adminCap                                    = "AdminCap"
+	connectionCap                               = "ConnCap"
 	IdCapSuffix                                 = "-idcap"
 	StateSuffix                                 = "-state"
 	WitnessSuffix                               = "-witness"
@@ -58,6 +59,7 @@ const (
 	RegisterXcall                               = "register_xcall"
 	CallArgObject                               = "object"
 	CallArgPure                                 = "pure"
+	connectionName                              = "centralized-1"
 )
 
 func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
@@ -186,7 +188,7 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 		params = []SuiCallArg{
 			{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StateSuffix]},
 			{Type: CallArgPure, Val: connection.Nid},
-			{Type: CallArgPure, Val: "centralized"},
+			{Type: CallArgPure, Val: connectionName},
 			{Type: CallArgPure, Val: connection.Destination},
 		}
 
@@ -262,11 +264,8 @@ func (an *SuiRemotenet) ExportState(ctx context.Context, height int64) (string, 
 
 // FindCallMessage implements chains.Chain.
 func (an *SuiRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from string, to string, sn string) (string, string, error) {
-	testcase := ctx.Value("testcase").(string)
-	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	xCallKey := an.GetContractAddress(dappKey) //fmt.Sprintf("xcall-%s", testcase)
 	index := sn
-	event, err := an.FindEvent(ctx, startHeight, xCallKey, index, "::main::CallMessage")
+	event, err := an.FindEvent(ctx, startHeight, "xcall", index, "::main::CallMessage", CentralConnModule)
 	if err != nil {
 		return "", "", err
 	}
@@ -279,12 +278,25 @@ func (an *SuiRemotenet) FindCallMessage(ctx context.Context, startHeight uint64,
 	return jsonData["sn"].(string), string(valueSlice), nil
 }
 
-func (an *SuiRemotenet) getEvent(ctx context.Context, sn, eventType string) (*types.SuiEvent, error) {
+// FindRollbackExecutedMessage implements chains.Chain.
+func (an *SuiRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
+	testcase := ctx.Value("testcase").(string)
+	dappKey := fmt.Sprintf("dapp-%s", testcase)
+	index := sn
+	event, err := an.FindEvent(ctx, startHeight, dappKey, index, "::main::RollbackExecuted", MockAppModule)
+	if err != nil {
+		return "", err
+	}
+	jsonData := (event.ParsedJson.(map[string]interface{}))
+	return jsonData["sn"].(string), nil
+}
+
+func (an *SuiRemotenet) getEvent(ctx context.Context, sn, eventType, module, packageKey string) (*types.SuiEvent, error) {
 	limit := uint(100)
 	query := MoveEventRequest{
 		MoveModule: MoveModule{
-			Package: an.IBCAddresses["xcall"],
-			Module:  CentralConnModule,
+			Package: an.IBCAddresses[packageKey],
+			Module:  module,
 		},
 	}
 	var resp types.EventPage
@@ -302,7 +314,7 @@ func (an *SuiRemotenet) getEvent(ctx context.Context, sn, eventType string) (*ty
 	return nil, fmt.Errorf("event not found")
 }
 
-func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, index, eventType string) (*types.SuiEvent, error) {
+func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, packageKey, index, eventType, module string) (*types.SuiEvent, error) {
 	timeout := time.After(60 * time.Second)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -312,7 +324,7 @@ func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 		case <-timeout:
 			return nil, fmt.Errorf("failed to find eventLog")
 		case <-ticker.C:
-			data, err := an.getEvent(ctx, index, eventType)
+			data, err := an.getEvent(ctx, index, eventType, module, packageKey)
 			if err != nil {
 				continue
 			}
@@ -324,12 +336,8 @@ func (an *SuiRemotenet) FindEvent(ctx context.Context, startHeight uint64, contr
 
 // FindCallResponse implements chains.Chain.
 func (an *SuiRemotenet) FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error) {
-
-	testcase := ctx.Value("testcase").(string)
-	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	xCallKey := an.GetContractAddress(dappKey) //fmt.Sprintf("xcall-%s", testcase)
 	index := sn
-	event, err := an.FindEvent(ctx, startHeight, xCallKey, index, "::main::ResponseMessage")
+	event, err := an.FindEvent(ctx, startHeight, "xcall", index, "::main::ResponseMessage", CentralConnModule)
 	if err != nil {
 		return "", err
 	}
@@ -344,7 +352,7 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	sn := ctx.Value("sn").(string)
-	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapSuffix][2:], to, sn)
+	reqId, destData, err := target.FindCallMessage(ctx, height, an.cfg.ChainID+"/"+an.IBCAddresses[dappKey+IdCapSuffix], to, sn)
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
@@ -374,7 +382,7 @@ func (an *SuiRemotenet) GetBlockByHeight(ctx context.Context) (context.Context, 
 // GetContractAddress implements chains.Chain.
 func (an *SuiRemotenet) GetContractAddress(key string) string {
 	if key == "connection" {
-		return "centralized"
+		return connectionName
 	}
 	value, exist := an.IBCAddresses[key]
 	if !exist {
@@ -426,19 +434,21 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	dappModule := centralized.SuiDappModule{
-		Name:     "mock_dapp",
+		Name:     MockAppModule,
 		CapId:    an.GetContractAddress(dappKey + IdCapSuffix)[2:],
 		ConfigId: an.GetContractAddress(dappKey + StateSuffix),
 	}
 	config := &centralized.SUIRelayerChainConfig{
 		Type: "sui",
 		Value: centralized.SUIRelayerChainConfigValue{
-			NID:            an.Config().ChainID,
-			RPCURL:         an.GetRPCAddress(),
-			WebsocketUrl:   an.testconfig.WebsocketUrl,
-			XcallPkgId:     an.GetContractAddress("xcall"),
-			XcallStorageId: an.GetContractAddress(xcallStorage),
-			DappPkgId:      an.GetContractAddress(dappKey),
+			NID:             an.Config().ChainID,
+			RPCURL:          an.GetRPCAddress(),
+			WebsocketUrl:    an.testconfig.WebsocketUrl,
+			XcallPkgIds:     []string{an.GetContractAddress("xcall")},
+			XcallStorageId:  an.GetContractAddress(xcallStorage),
+			ConnectionId:    an.GetContractAddress("connection"),
+			ConnectionCapId: an.GetContractAddress("connectionCap"),
+			DappPkgId:       an.GetContractAddress(dappKey),
 			DappModules: []centralized.SuiDappModule{
 				dappModule,
 			},
@@ -570,14 +580,15 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if an.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		an.IBCAddresses["xcall"] = "0x774328323947bb5291e8e6589f3b97149e3117ce4e8c6e135491264b9dcc7a1e"
-		an.IBCAddresses[xcallAdmin] = "0x6926992d275fe1f3848fd87a7a07adbe1d56b022c0028e1e148bf0d1d06c5389"
-		an.IBCAddresses[xcallStorage] = "0x68793501dc5e0036dbdd89585f9cca4188bca843f44a9fe5f3d47914476e4f1e"
+		an.IBCAddresses["xcall"] = "0x2335d392042351e213a605ff545a95977d96921b213fea18a38c816fc220d999"
+		an.IBCAddresses[xcallAdmin] = "0x5af8f1e4be19b515ad11c7a3945acb9b7dbcff51a1e266abaf08b2ad4d7feb49"
+		an.IBCAddresses[xcallStorage] = "0x4af515643673ab0348906c4e94e5687ab2ffc9b366ab08430195419caf432f09"
+		an.IBCAddresses["connectionCap"] = "0x599970a35f5ea8227803ef04c178fe3c55644482435990eecbb4a7c02240df5a"
 		dappKey := fmt.Sprintf("dapp-%s", testcase)
-		an.IBCAddresses[dappKey] = "0xc25cafa82cd0afb4987cadcb98db62b6a4bc8af1c68492846a0efb5954126e39"
-		an.IBCAddresses[dappKey+WitnessSuffix] = "0xf057fa4c1e14ff1a74a629e1cee6404ccd65dc3b434c30880594e355fff0e491"
-		an.IBCAddresses[dappKey+StateSuffix] = "0x676ea0e7dddf7d9637e544389230998d49b2321a129a8b2e42a5d6bbb6990fd2"
-		an.IBCAddresses[dappKey+IdCapSuffix] = "0x89ef97c5f2586349fdfbd2f490de70b127ec7b9e4158a497362a50350627bd68"
+		an.IBCAddresses[dappKey] = "0x473f597480e388e6a65fa099b86b77a577abe921822a352dc9022d55ab9124b5"
+		an.IBCAddresses[dappKey+WitnessSuffix] = "0x840ae24a0edefd4bc5269ef58444df2dcf836fe980efd89a1a6d66d26bcbdaf3"
+		an.IBCAddresses[dappKey+StateSuffix] = "0x3338eb33a79b101a987e5d092686c90472ecdf45972ea5a083af8b963843dd7d"
+		an.IBCAddresses[dappKey+IdCapSuffix] = "0xcebd6e3bc67ad3088c8aea84730d29c438adf0321bce5af97cef178eac682094"
 		return nil
 	}
 	//deploy rlp
@@ -622,11 +633,21 @@ func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallAdmin]},
 		{Type: CallArgPure, Val: "sui"},
-		{Type: CallArgPure, Val: "centralized"},
+		{Type: CallArgPure, Val: connectionName},
+		{Type: CallArgPure, Val: an.testconfig.RelayWalletAddress},
 	}
 	msg = an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection")
-	_, err = an.callContract(ctx, msg)
+	resp, err := an.callContract(ctx, msg)
+	if err != nil {
+		return err
+	}
+	for _, changes := range resp.ObjectChanges {
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, connectionCap) {
+			an.IBCAddresses["connectionCap"] = changes.Data.Created.ObjectId.String()
+		}
 
+	}
+	an.log.Info("connection registered", zap.Any("connectionCap", an.IBCAddresses["connectionCap"]))
 	return err
 }
 

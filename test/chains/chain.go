@@ -31,6 +31,7 @@ type Chain interface {
 	ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error)
 	ExecuteRollback(ctx context.Context, sn string) (context.Context, error)
 	FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error)
+	FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error)
 	FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error)
 	GetContractAddress(key string) string
 	DeployXCallMockApp(ctx context.Context, keyName string, connections []XCallConnection) error
