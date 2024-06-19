@@ -90,19 +90,19 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 					})
 
 					x.T.Run("xcall test rollback chainB-chainA"+reverseChainFlowName, func(t *testing.T) {
-						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						fmt.Println("Sending rollback message from src to dst", innerChain.Config().Name, chain.Config().Name)
 						err := x.testRollback(ctx, t, innerChain, chain)
 						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
 					})
 
 					x.T.Run("xcall test rollback data chainB-chainA without rollback "+reverseChainFlowName, func(t *testing.T) {
-						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						fmt.Println("Sending rollback message from src to dst", innerChain.Config().Name, chain.Config().Name)
 						err := x.testRollbackDataWithoutRollback(ctx, t, innerChain, chain)
 						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
 					})
 
 					x.T.Run("xcall test rollback data reply data chainB-chainA without rollback "+reverseChainFlowName, func(t *testing.T) {
-						fmt.Println("Sending rollback message from src to dst", chain.Config().Name, innerChain.Config().Name)
+						fmt.Println("Sending rollback message from src to dst", innerChain.Config().Name, chain.Config().Name)
 						err := x.testRollbackDataReplyWithoutRollback(ctx, t, innerChain, chain)
 						assert.NoErrorf(t, err, "fail xCall rollback message chainB-chainA( %s) ::%v\n ", reverseChainFlowIdentifier, err)
 					})
@@ -178,16 +178,17 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 	if !isSuccess {
 		return err
 	}
-	if chainA.Config().Name != "sui" { //TODO: remove after all chains support auto rollback
+	//TODO: remove after all chains support auto rollback
+	if chainA.Config().Name == "sui" || chainA.Config().Name == "stellar" {
+		_, err = chainA.FindRollbackExecutedMessage(ctx, height, res.SerialNo)
+		assert.NoErrorf(t, err, "no rollback executed message found %v", err)
+		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
+	} else {
 		time.Sleep(3 * time.Second)
 		ctx, err = chainA.ExecuteRollback(ctx, res.SerialNo)
 		assert.NoErrorf(t, err, "error on excute rollback- %w", err)
-		rollbackEventFound := ctx.Value("IsRollbackEventFound")
-		assert.Equal(t, true, rollbackEventFound)
-		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
-	} else {
-		_, err = chainA.FindRollbackExecutedMessage(ctx, height, res.SerialNo)
-		assert.NoErrorf(t, err, "no rollback executed message found %v", err)
+		rollbackExecutedEventFound := ctx.Value("IsRollbackEventFound")
+		assert.Equal(t, true, rollbackExecutedEventFound)
 		fmt.Println("Data Transfer Testing With Rollback from " + chainA.(ibc.Chain).Config().ChainID + " to " + chainB.(ibc.Chain).Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
 	}
 	return err
@@ -207,6 +208,10 @@ func (x *XCallTestSuite) testRollbackDataWithoutRollback(ctx context.Context, t 
 	}
 	height, err := chainA.(ibc.Chain).Height(ctx)
 	assert.NoErrorf(t, err, "error getting height %v", err)
+	if chainB.Config().Name == "stellar" {
+		//stellar a bit slow on devnet
+		time.Sleep(40 * time.Second)
+	}
 	code, err := chainA.FindCallResponse(ctx, height, res.SerialNo)
 	assert.NoErrorf(t, err, "no call response found %v", err)
 	isSuccess = assert.Equal(t, "1", code)
@@ -234,6 +239,10 @@ func (x *XCallTestSuite) testRollbackDataReplyWithoutRollback(ctx context.Contex
 	}
 	height, err := chainA.(ibc.Chain).Height(ctx)
 	assert.NoErrorf(t, err, "error getting height %v", err)
+	if chainB.Config().Name == "stellar" {
+		//stellar a bit slow on devnet
+		time.Sleep(40 * time.Second)
+	}
 	code, err := chainA.FindCallResponse(ctx, height, res.SerialNo)
 	assert.NoErrorf(t, err, "no call response found %v", err)
 	isSuccess = assert.Equal(t, "1", code)
@@ -278,6 +287,9 @@ func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Con
 			subMsg := err.Error()[subStart:subEnd]
 			result = assert.ObjectsAreEqual(strings.TrimSpace(subMsg), "MaxDataSizeExceeded")
 		} else if strings.Contains(err.Error(), "MaxDataSizeExceeded") {
+			result = true
+		} else if strings.Contains(err.Error(), "Contract, #5)") {
+			//stellar error
 			result = true
 		} else {
 			result = assert.ObjectsAreEqual(errors.New("UnknownFailure"), err)

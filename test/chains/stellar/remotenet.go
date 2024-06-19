@@ -31,9 +31,6 @@ type StellarRemotenet struct {
 	log           *zap.Logger
 	testName      string
 	cfg           ibc.ChainConfig
-	numValidators int
-	numFullNodes  int
-	keystorePath  string
 	scorePaths    map[string]string
 	IBCAddresses  map[string]string     `json:"addresses"`
 	Wallets       map[string]ibc.Wallet `json:"wallets"`
@@ -250,9 +247,9 @@ func (sn *StellarRemotenet) SetupConnection(ctx context.Context, target chains.C
 func (sn *StellarRemotenet) SetupXCall(ctx context.Context) error {
 	if sn.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		sn.IBCAddresses["xcall"] = "CASJ76AJJKK6BFMMB4DLLYV5J6OBTBIO25FDWXWZY5BIXFVCNK7XACNG"
-		sn.IBCAddresses["connection"] = "CBLG6CNVXWSCF7X5XXM6B5JZ2ULFIPV7KRENAIB2HB4FAKMGIMD63BJU"
-		sn.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "CA2QFEESKXOWQZJRQ7LUIGTDEEWNOLR4KRYL35GUWNRK5XYZ3FDP3L7W"
+		sn.IBCAddresses["xcall"] = "CAKBVQ2QLJWQ5AO4HPND3XEDLGCLDW7UV5WATLDLWBKP535EGDEVKSD4"
+		sn.IBCAddresses["connection"] = "CC4WN23OV5MRA5DKRBP5SZB6XUNXXWKNOUQ3TKTPCW3EM3KGIE54YANI"
+		sn.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "CA7VNLUTPQZEKAXJHXHCS2YJHPELODRZKB26MBQQISD4BPHG2PGAUPMM"
 		return nil
 	}
 	xcall, err := sn.DeployContractRemote(ctx, sn.scorePaths["xcall"])
@@ -411,7 +408,7 @@ func (sn *StellarRemotenet) FindCallResponse(ctx context.Context, startHeight ui
 }
 
 func (sn *StellarRemotenet) FindEvent(ctx context.Context, startHeight uint64, contract, signature, sno string) (*EventResponseEvent, error) {
-	timeout := time.After(60 * time.Second)
+	timeout := time.After(120 * time.Second)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -543,4 +540,13 @@ func (sn *StellarRemotenet) ExecCallTxCommand(ctx context.Context, scoreAddress,
 	}
 	command = sn.BinCommand(command...)
 	return command
+}
+
+func (sn *StellarRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sno string) (string, error) {
+	event, err := sn.FindEvent(ctx, startHeight, "xcall", "RollbackExecuted", sno)
+	if err != nil {
+		return "", err
+	}
+	fsno := event.ValueDecoded["sn"].(uint64)
+	return strconv.FormatUint(fsno, 10), nil
 }
