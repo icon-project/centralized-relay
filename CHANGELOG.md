@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.9] - 2024-06-19
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
+### Fixed
+
+- Use pending nonce instead of the latest nonce for the evm chain
+- Other improvements and bug fixes
+- CPU and memeory usage optimization, dropped by more than 100%
+- Retry is more stable
+- Exponential backoff for the retry count
+
+### Changed
+
+- mutext on router
+- evm past polling for events is optimized, it can batch call now using config option
+- cosmwasm block polling using batch size using config option
+
+## [1.2.8] - 2024-06-06
+
+### Changed
+
+- Removed concurrency
+
 ## [1.2.7] - 2024-05-28
 
 ### Fixed
