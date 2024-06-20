@@ -148,7 +148,7 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 			return logs, nil
 		}
 		p.log.Error("failed to get logs", zap.Error(err), zap.Int("retry", i+1))
-		time.Sleep(time.Second * 15)
+		time.Sleep(time.Second * 30)
 	}
 	return nil, err
 }
@@ -215,8 +215,6 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetFunc func()) error {
 	ch := make(chan ethTypes.Log, 10)
-	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
-	defer cancel()
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
