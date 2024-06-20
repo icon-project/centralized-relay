@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coming-chat/go-sui/v2/lib"
+	cctypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -17,24 +19,26 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
-	if err != nil {
-		return err
-	}
+	// latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
+	// if err != nil {
+	// 	return err
+	// }
 
-	startCheckpointSeq := latestCheckpointSeq
-	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
-		startCheckpointSeq = lastSavedCheckpointSeq
-	}
+	// startCheckpointSeq := latestCheckpointSeq
+	// if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
+	// 	startCheckpointSeq = lastSavedCheckpointSeq
+	// }
 
-	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
+	return p.listenRealtime(ctx, blockInfo)
+
+	// return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
 }
 
-func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq, endCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
 	done := make(chan interface{})
 	defer close(done)
 
-	txDigestsStream := p.getTxDigestsStream(done, strconv.Itoa(int(startCheckpointSeq)-1))
+	txDigestsStream := p.getTxDigestsStream(done, startCheckpointSeq, endCheckpointSeq)
 
 	p.log.Info("Started to query sui from", zap.Uint64("checkpoint", startCheckpointSeq))
 
@@ -258,10 +262,11 @@ func (p *Provider) GenerateTxDigests(checkpointResponses []types.CheckpointRespo
 	return txDigestsList
 }
 
-func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-chan types.TxDigests {
-	txDigestsStream := make(chan types.TxDigests)
+func (p *Provider) getTxDigestsStream(done chan interface{}, fromSeq, toSeq uint64) <-chan types.TxDigests {
+	txDigestsStream := make(chan types.TxDigests, 50)
 
 	go func() {
+		afterSeq := strconv.Itoa(int(fromSeq) - 1)
 		nextCursor := afterSeq
 		checkpointTicker := time.NewTicker(3 * time.Second) //todo need to decide this interval
 
@@ -294,9 +299,163 @@ func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-
 
 					nextCursor = paginatedRes.Data[len(paginatedRes.Data)-1].SequenceNumber
 				}
+
 			}
 		}
 	}()
 
 	return txDigestsStream
+}
+
+func (p *Provider) listenRealtime(ctx context.Context, blockStream chan *relayertypes.BlockInfo) error {
+	eventTypes := []map[string]interface{}{}
+	for _, evType := range p.allowedEventTypes() {
+		eventTypes = append(eventTypes, map[string]interface{}{
+			"MoveEventType": evType,
+		})
+	}
+	eventFilters := map[string]interface{}{
+		"Any": eventTypes,
+	}
+
+	done := make(chan interface{})
+	defer close(done)
+
+	wsUrl := strings.Replace(p.cfg.RPCUrl, "http", "ws", 1)
+
+	eventStream, err := p.client.SubscribeEventNotification(done, wsUrl, eventFilters)
+	if err != nil {
+		p.log.Error("failed to subscribe event notification", zap.Error(err))
+		return err
+	}
+
+	reconnectCh := make(chan bool)
+
+	p.log.Info("started realtime checkpoint listener")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case en, ok := <-eventStream:
+			if ok {
+				if en.Error != nil {
+					p.log.Error("failed to read event notification", zap.Error(en.Error))
+					go func() {
+						reconnectCh <- true
+					}()
+				} else {
+					go p.handleEventNotification(ctx, en, blockStream)
+				}
+			}
+		case val := <-reconnectCh:
+			if val {
+				p.log.Warn("something went wrong while reading from websocket conn: reconnecting...")
+				eventStream, err = p.client.SubscribeEventNotification(done, wsUrl, eventFilters)
+				if err != nil {
+					return err
+				}
+				p.log.Warn("websocket conn restablished")
+
+			}
+		}
+	}
+}
+
+func (p *Provider) handleEventNotification(ctx context.Context, ev cctypes.SuiEvent, blockStream chan *relayertypes.BlockInfo) {
+	txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
+	if err != nil {
+		p.log.Error("failed to get transaction while handling event notification",
+			zap.Error(err), zap.Any("event", ev))
+		return
+	}
+
+	eventResponse := types.EventResponse{
+		SuiEvent:   ev,
+		Checkpoint: txRes.Checkpoint.Uint64(),
+	}
+
+	msg, err := p.parseMessageFromEvent(eventResponse)
+	if err != nil {
+		p.log.Error("failed to parse message from event while handling event notification",
+			zap.Error(err),
+			zap.Any("event", ev))
+		return
+	}
+
+	blockStream <- &relayertypes.BlockInfo{
+		Height:   msg.MessageHeight,
+		Messages: []*relayertypes.Message{msg},
+	}
+}
+
+func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, toCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+	prevCheckpoint, err := p.client.GetCheckpoint(ctx, fromCheckpointSeq-1)
+	if err != nil {
+		return fmt.Errorf("failed to get from-checkpoint: %w", err)
+	}
+
+	done := make(chan interface{})
+	defer close(done)
+
+	eventPkgId := p.cfg.XcallPkgIDs[len(p.cfg.XcallPkgIDs)-1]
+	afterTxDigest := prevCheckpoint.Transactions[len(prevCheckpoint.Transactions)-1]
+	eventStream := p.getPollEventStream(done, eventPkgId, ModuleMain, afterTxDigest)
+
+	for {
+		select {
+		case ev, ok := <-eventStream:
+			if ok {
+				go p.handleEventNotification(ctx, ev, blockStream)
+			}
+		}
+	}
+
+}
+
+func (p *Provider) getPollEventStream(done chan interface{}, packageId string, eventModule string, afterTxDigest string) <-chan cctypes.SuiEvent {
+	eventStream := make(chan cctypes.SuiEvent)
+
+	go func() {
+		defer close(eventStream)
+
+		req := types.EventQueryRequest{
+			EventFilter: map[string]interface{}{
+				"MoveEventModule": map[string]interface{}{
+					"package": packageId,
+					"module":  eventModule,
+				},
+			},
+			Cursor: cctypes.EventId{
+				TxDigest: lib.Base58(afterTxDigest),
+			},
+			Limit:      100,
+			Descending: false,
+		}
+
+		ticker := time.NewTicker(3 * time.Second)
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				res, err := p.client.QueryEvents(context.Background(), req)
+				if err != nil {
+					p.log.Error("failed to query events", zap.Error(err))
+					break
+				}
+
+				if len(res.Data) > 0 {
+					for _, ev := range res.Data {
+						eventStream <- ev
+					}
+					lastEvent := res.Data[len(res.Data)-1]
+					req.Cursor = lastEvent.Id
+				}
+			}
+		}
+	}()
+
+	return eventStream
 }

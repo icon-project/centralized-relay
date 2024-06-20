@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/coming-chat/go-sui/v2/account"
+	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/coming-chat/go-sui/v2/lib"
 	"github.com/coming-chat/go-sui/v2/types"
 	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -270,4 +273,40 @@ func TestGenerateTxDigests(t *testing.T) {
 			assert.Equal(subTest, eachTest.expectedOutput, p.GenerateTxDigests(eachTest.input, maxDigests))
 		})
 	}
+}
+
+func newRootLogger() *zap.Logger {
+	config := zap.NewProductionEncoderConfig()
+	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
+		encoder.AppendString(ts.UTC().Format("2006-01-02T15:04:05.000000Z07:00"))
+	}
+	config.LevelKey = "lvl"
+
+	enc := zapcore.NewJSONEncoder(config)
+	level := zap.InfoLevel
+
+	core := zapcore.NewTee(zapcore.NewCore(enc, os.Stderr, level))
+
+	return zap.New(core)
+}
+func TestQueryEvents(t *testing.T) {
+	rpcClient, err := suisdkClient.Dial("https://fullnode.testnet.sui.io:443")
+	assert.NoError(t, err)
+
+	client := NewClient(rpcClient, newRootLogger())
+
+	events, err := client.QueryEvents(context.Background(), suitypes.EventQueryFilter{})
+	assert.NoError(t, err)
+
+	fmt.Println("Total event: ", len(events.Data))
+
+	for _, ev := range events.Data {
+		client.log.Info("event",
+			zap.String("package-id", ev.PackageId.String()),
+			zap.String("module", ev.TransactionModule),
+			zap.String("event-type", ev.Type),
+			zap.String("tx-digest", ev.Id.TxDigest.String()),
+		)
+	}
+
 }

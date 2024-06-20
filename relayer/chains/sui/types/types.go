@@ -10,6 +10,7 @@ const (
 	ConnectionContract = "connection"
 
 	ConnectionIDMismatchError = "connection_id_mismatch_error"
+	WsConnReadError           = "ws_conn_read_err"
 
 	QUERY_MAX_RESULT_LIMIT = 50
 )
@@ -84,4 +85,47 @@ type RollbackMsgEvent struct {
 	Sn              string `json:"sn"`
 	Data            []byte `json:"data"`
 	DappModuleCapId string `json:"dapp"`
+}
+
+type EventNotification struct {
+	cctypes.SuiEvent
+	Error error
+}
+type WsSubscriptionResp struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Result  int64  `json:"result"`
+	Id      int64  `json:"id"`
+}
+
+type JsonRPCRequest struct {
+	Version string      `json:"jsonrpc,omitempty"`
+	ID      interface{} `json:"id,omitempty"`
+	Method  string      `json:"method,omitempty"`
+	Params  interface{} `json:"params,omitempty"`
+}
+
+type EventQueryFilter struct {
+	FromCheckpoint uint64
+	ToCheckpoint   uint64
+	Packages       []string
+	EventModule    string
+}
+
+type EventQueryResponse struct {
+	Data        []cctypes.SuiEvent `json:"data"`
+	NextCursor  cctypes.EventId    `json:"nextCursor"`
+	HasNextPage bool               `json:"hasNextPage"`
+}
+
+type EventQueryRequest struct {
+	EventFilter interface{}
+	Cursor      cctypes.EventId
+	Limit       uint64
+	Descending  bool
+}
+
+type SuiMethod string
+
+func (sm SuiMethod) String() string {
+	return string(sm)
 }
