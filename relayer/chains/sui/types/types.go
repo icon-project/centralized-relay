@@ -9,8 +9,8 @@ const (
 	XcallContract      = "xcall"
 	ConnectionContract = "connection"
 
-	ConnectionIDMismatchError = "connection_id_mismatch_error"
-	WsConnReadError           = "ws_conn_read_err"
+	InvalidEventError = "invalid_event_err"
+	WsConnReadError   = "ws_conn_read_err"
 
 	QUERY_MAX_RESULT_LIMIT = 50
 )

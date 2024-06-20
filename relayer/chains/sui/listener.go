@@ -92,7 +92,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 	for _, ev := range events {
 		msg, err := p.parseMessageFromEvent(ev)
 		if err != nil {
-			if err.Error() == types.ConnectionIDMismatchError {
+			if err.Error() == types.InvalidEventError {
 				continue
 			}
 			return nil, err
@@ -146,7 +146,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 			return nil, err
 		}
 		if emitEvent.ConnectionID != p.cfg.ConnectionID {
-			return nil, fmt.Errorf(types.ConnectionIDMismatchError)
+			return nil, fmt.Errorf(types.InvalidEventError)
 		}
 
 		sn, err := strconv.Atoi(emitEvent.Sn)
@@ -188,7 +188,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Data = rollbackMsgEvent.Data
 
 	default:
-		return nil, fmt.Errorf("invalid event type")
+		return nil, fmt.Errorf(types.InvalidEventError)
 	}
 
 	msg.Src = p.cfg.NID
@@ -387,6 +387,15 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 		return
 	}
 
+	p.log.Info("Detected event log: ",
+		zap.Uint64("checkpoint", msg.MessageHeight),
+		zap.String("event-type", msg.EventType),
+		zap.Uint64("sn", msg.Sn),
+		zap.String("dst", msg.Dst),
+		zap.Uint64("req-id", msg.ReqID),
+		zap.Any("data", hex.EncodeToString(msg.Data)),
+	)
+
 	blockStream <- &relayertypes.BlockInfo{
 		Height:   msg.MessageHeight,
 		Messages: []*relayertypes.Message{msg},
@@ -413,18 +422,10 @@ func (p *Provider) listenByPollingV1(ctx context.Context, fromCheckpointSeq uint
 			return ctx.Err()
 		case ev, ok := <-eventStream:
 			if ok {
-				p.log.Info("event",
-					zap.Uint64("checkpoint", ev.Checkpoint.Uint64()),
-					zap.String("package-id", ev.PackageId.String()),
-					zap.String("module", ev.TransactionModule),
-					zap.String("event-type", ev.Type),
-					zap.String("tx-digest", ev.Id.TxDigest.String()),
-				)
-				// go p.handleEventNotification(ctx, ev.SuiEvent, blockStream)
+				go p.handleEventNotification(ctx, ev, blockStream)
 			}
 		}
 	}
-
 }
 
 func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, toCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
@@ -442,13 +443,14 @@ func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, 
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case ev, ok := <-eventStream:
 			if ok {
 				go p.handleEventNotification(ctx, types.EventResponse{SuiEvent: ev}, blockStream)
 			}
 		}
 	}
-
 }
 
 func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, afterTxDigest string) <-chan types.EventResponse {
@@ -491,7 +493,7 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 					break
 				}
 
-				p.log.Info("tx block query successful", zap.String("cursor", cursor.String()))
+				p.log.Debug("tx block query successful", zap.String("cursor", cursor.String()))
 
 				if len(res.Data) > 0 {
 					var nextCursor *lib.Base58
