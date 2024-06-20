@@ -11,6 +11,7 @@ import (
 	"github.com/coming-chat/go-sui/v2/account"
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
 	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/stretchr/testify/assert"
@@ -295,7 +296,14 @@ func TestQueryEvents(t *testing.T) {
 
 	client := NewClient(rpcClient, newRootLogger())
 
-	events, err := client.QueryEvents(context.Background(), suitypes.EventQueryFilter{})
+	events, err := client.QueryEvents(context.Background(), suitypes.EventQueryRequest{
+		EventFilter: map[string]interface{}{
+			"MoveEventModule": map[string]interface{}{
+				"package": "",
+				"module":  "",
+			},
+		},
+	})
 	assert.NoError(t, err)
 
 	fmt.Println("Total event: ", len(events.Data))
@@ -309,4 +317,55 @@ func TestQueryEvents(t *testing.T) {
 		)
 	}
 
+}
+
+func TestQueryTxBlocks(t *testing.T) {
+	rpcClient, err := suisdkClient.Dial("https://fullnode.testnet.sui.io:443")
+	assert.NoError(t, err)
+
+	client := NewClient(rpcClient, newRootLogger())
+
+	checkpoint, err := client.GetCheckpoint(context.Background(), 57966444)
+	assert.NoError(t, err)
+
+	fmt.Println("Previous Digest:", checkpoint.PreviousDigest)
+
+	inputObj, err := sui_types.NewObjectIdFromHex("0xde9b85d02710e2651f530e83ba2fb1daea45fd05e72f1c0dd2398239b917b46c")
+	assert.NoError(t, err)
+
+	query := types.SuiTransactionBlockResponseQuery{
+		Filter: &types.TransactionFilter{
+			InputObject: inputObj,
+		},
+		Options: &types.SuiTransactionBlockResponseOptions{
+			ShowEvents: true,
+		},
+	}
+
+	cursor, err := sui_types.NewDigest("DvYdWWj8GLBsoFec6zp4kQZFJHTAWC2bKz3djSvzUkWx")
+	assert.NoError(t, err)
+
+	limit := uint(100)
+	res, err := client.QueryTxBlocks(context.Background(), query, cursor, &limit, false)
+	assert.NoError(t, err)
+
+	count := 0
+	for _, blockRes := range res.Data {
+		checkpoint := ""
+		if blockRes.Checkpoint != nil {
+			checkpoint = blockRes.Checkpoint.Decimal().String()
+		}
+		for _, ev := range blockRes.Events {
+			count++
+			client.log.Info("event",
+				zap.String("checkpoint", checkpoint),
+				zap.String("package-id", ev.PackageId.String()),
+				zap.String("module", ev.TransactionModule),
+				zap.String("event-type", ev.Type),
+				zap.String("tx-digest", ev.Id.TxDigest.String()),
+			)
+		}
+	}
+
+	fmt.Println("Total Events: ", count)
 }

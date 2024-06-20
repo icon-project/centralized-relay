@@ -60,7 +60,7 @@ type TxDigests struct {
 
 type EventResponse struct {
 	cctypes.SuiEvent
-	Checkpoint uint64
+	Checkpoint *cctypes.SafeSuiBigInt[uint64]
 }
 
 type SuiMultiGetTransactionBlocksRequest struct {

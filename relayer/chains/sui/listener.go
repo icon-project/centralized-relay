@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/sui_types"
 	cctypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
@@ -19,19 +20,21 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	// latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
-	// if err != nil {
-	// 	return err
-	// }
+	lastSavedCheckpointSeq = 57966444
 
-	// startCheckpointSeq := latestCheckpointSeq
-	// if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
-	// 	startCheckpointSeq = lastSavedCheckpointSeq
-	// }
+	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
+	if err != nil {
+		return err
+	}
 
-	return p.listenRealtime(ctx, blockInfo)
+	startCheckpointSeq := latestCheckpointSeq
+	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
+		startCheckpointSeq = lastSavedCheckpointSeq
+	}
 
-	// return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
+	// go p.listenRealtime(ctx, blockInfo)
+
+	return p.listenByPollingV1(ctx, startCheckpointSeq, blockInfo)
 }
 
 func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq, endCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
@@ -103,7 +106,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			zap.Uint64("req-id", msg.ReqID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
-		checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
+		checkpointMessages[ev.Checkpoint.Uint64()] = append(checkpointMessages[ev.Checkpoint.Uint64()], msg)
 	}
 
 	var blockInfoList []relayertypes.BlockInfo
@@ -123,7 +126,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 
 func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.Message, error) {
 	msg := relayertypes.Message{
-		MessageHeight: ev.Checkpoint,
+		MessageHeight: ev.Checkpoint.Uint64(),
 		Src:           p.cfg.NID,
 	}
 
@@ -345,7 +348,10 @@ func (p *Provider) listenRealtime(ctx context.Context, blockStream chan *relayer
 						reconnectCh <- true
 					}()
 				} else {
-					go p.handleEventNotification(ctx, en, blockStream)
+					event := types.EventResponse{
+						SuiEvent: en.SuiEvent,
+					}
+					go p.handleEventNotification(ctx, event, blockStream)
 				}
 			}
 		case val := <-reconnectCh:
@@ -362,20 +368,18 @@ func (p *Provider) listenRealtime(ctx context.Context, blockStream chan *relayer
 	}
 }
 
-func (p *Provider) handleEventNotification(ctx context.Context, ev cctypes.SuiEvent, blockStream chan *relayertypes.BlockInfo) {
-	txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
-	if err != nil {
-		p.log.Error("failed to get transaction while handling event notification",
-			zap.Error(err), zap.Any("event", ev))
-		return
+func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
+	if ev.Checkpoint == nil {
+		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
+		if err != nil {
+			p.log.Error("failed to get transaction while handling event notification",
+				zap.Error(err), zap.Any("event", ev))
+			return
+		}
+		ev.Checkpoint = txRes.Checkpoint
 	}
 
-	eventResponse := types.EventResponse{
-		SuiEvent:   ev,
-		Checkpoint: txRes.Checkpoint.Uint64(),
-	}
-
-	msg, err := p.parseMessageFromEvent(eventResponse)
+	msg, err := p.parseMessageFromEvent(ev)
 	if err != nil {
 		p.log.Error("failed to parse message from event while handling event notification",
 			zap.Error(err),
@@ -387,6 +391,40 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev cctypes.SuiEv
 		Height:   msg.MessageHeight,
 		Messages: []*relayertypes.Message{msg},
 	}
+}
+
+func (p *Provider) listenByPollingV1(ctx context.Context, fromCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+	prevCheckpoint, err := p.client.GetCheckpoint(ctx, fromCheckpointSeq-1)
+	if err != nil {
+		return fmt.Errorf("failed to get previous checkpoint[%d]: %w", fromCheckpointSeq-1, err)
+	}
+
+	done := make(chan interface{})
+	defer close(done)
+
+	afterTxDigest := prevCheckpoint.Transactions[len(prevCheckpoint.Transactions)-1]
+	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, afterTxDigest)
+
+	p.log.Info("event query started", zap.Uint64("checkpoint", fromCheckpointSeq))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-eventStream:
+			if ok {
+				p.log.Info("event",
+					zap.Uint64("checkpoint", ev.Checkpoint.Uint64()),
+					zap.String("package-id", ev.PackageId.String()),
+					zap.String("module", ev.TransactionModule),
+					zap.String("event-type", ev.Type),
+					zap.String("tx-digest", ev.Id.TxDigest.String()),
+				)
+				// go p.handleEventNotification(ctx, ev.SuiEvent, blockStream)
+			}
+		}
+	}
+
 }
 
 func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, toCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
@@ -406,11 +444,76 @@ func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, 
 		select {
 		case ev, ok := <-eventStream:
 			if ok {
-				go p.handleEventNotification(ctx, ev, blockStream)
+				go p.handleEventNotification(ctx, types.EventResponse{SuiEvent: ev}, blockStream)
 			}
 		}
 	}
 
+}
+
+func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, afterTxDigest string) <-chan types.EventResponse {
+	eventStream := make(chan types.EventResponse)
+
+	go func() {
+		defer close(eventStream)
+
+		inputObj, err := sui_types.NewObjectIdFromHex(objectID)
+		if err != nil {
+			p.log.Panic("failed to create object from hex string", zap.Error(err))
+		}
+
+		query := cctypes.SuiTransactionBlockResponseQuery{
+			Filter: &cctypes.TransactionFilter{
+				InputObject: inputObj,
+			},
+			Options: &cctypes.SuiTransactionBlockResponseOptions{
+				ShowEvents: true,
+			},
+		}
+
+		cursor, err := sui_types.NewDigest(afterTxDigest)
+		if err != nil {
+			p.log.Panic("failed to create new tx digest from base58 string", zap.Error(err))
+		}
+
+		limit := uint(100)
+
+		ticker := time.NewTicker(3 * time.Second)
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				res, err := p.client.QueryTxBlocks(context.Background(), query, cursor, &limit, false)
+				if err != nil {
+					p.log.Error("failed to query tx blocks", zap.Error(err), zap.String("cursor", cursor.String()))
+					break
+				}
+
+				p.log.Info("tx block query successful", zap.String("cursor", cursor.String()))
+
+				if len(res.Data) > 0 {
+					var nextCursor *lib.Base58
+					for _, blockRes := range res.Data {
+						for _, ev := range blockRes.Events {
+							eventStream <- types.EventResponse{
+								SuiEvent:   ev,
+								Checkpoint: blockRes.Checkpoint,
+							}
+							nextCursor = &ev.Id.TxDigest
+						}
+					}
+
+					cursor = nextCursor
+
+				}
+
+			}
+		}
+	}()
+
+	return eventStream
 }
 
 func (p *Provider) getPollEventStream(done chan interface{}, packageId string, eventModule string, afterTxDigest string) <-chan cctypes.SuiEvent {

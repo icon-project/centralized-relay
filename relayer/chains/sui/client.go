@@ -69,6 +69,14 @@ type IClient interface {
 		ctx context.Context,
 		req suitypes.EventQueryRequest,
 	) (*suitypes.EventQueryResponse, error)
+
+	QueryTxBlocks(
+		ctx context.Context,
+		query types.SuiTransactionBlockResponseQuery,
+		cursor *sui_types.TransactionDigest,
+		limit *uint,
+		descendingOrder bool,
+	) (*types.TransactionBlocksPage, error)
 }
 
 type Client struct {
@@ -239,7 +247,7 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
-					Checkpoint: txRes.Checkpoint.Uint64(),
+					Checkpoint: txRes.Checkpoint,
 				})
 			}
 		}
@@ -357,4 +365,14 @@ func (c *Client) QueryEvents(ctx context.Context, req suitypes.EventQueryRequest
 	}
 
 	return &events, nil
+}
+
+func (c *Client) QueryTxBlocks(
+	ctx context.Context,
+	query types.SuiTransactionBlockResponseQuery,
+	cursor *sui_types.TransactionDigest,
+	limit *uint,
+	descendingOrder bool,
+) (*types.TransactionBlocksPage, error) {
+	return c.rpc.QueryTransactionBlocks(ctx, query, cursor, limit, descendingOrder)
 }
