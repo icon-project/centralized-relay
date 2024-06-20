@@ -15,7 +15,7 @@ import (
 const (
 	EventTypeWasmMessage         = "wasm-Message"
 	EventTypeWasmCallMessage     = "wasm-CallMessage"
-	EventTypeWasmExecuteRollback = "wasm-ExecuteRollback"
+	EventTypeWasmExecuteRollback = "wasm-RollbackMessage"
 
 	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"

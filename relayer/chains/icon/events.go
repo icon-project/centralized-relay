@@ -10,7 +10,7 @@ import (
 const (
 	EmitMessage     = "Message(str,int,bytes)"
 	CallMessage     = "CallMessage(str,str,int,int,bytes)"
-	ExecuteRollback = "ExecuteRollback(int)"
+	ExecuteRollback = "RollbackMessage(int)"
 )
 
 // EventSigToEventType converts event signature to event type
