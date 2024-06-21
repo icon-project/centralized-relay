@@ -20,8 +20,6 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	lastSavedCheckpointSeq = 57966444
-
 	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
 	if err != nil {
 		return err
