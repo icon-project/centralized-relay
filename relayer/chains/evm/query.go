@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	provider "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -25,9 +26,18 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *types.Mess
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.MessageKey) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
-	defer cancel()
-	return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
+	switch messageKey.EventType {
+	case events.EmitMessage:
+		ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+		defer cancel()
+		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
+	case events.CallMessage:
+		return true, nil
+	case events.ExecuteRollback:
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown event type")
+	}
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {

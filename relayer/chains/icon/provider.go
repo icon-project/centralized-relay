@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -134,16 +135,21 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 
 // MessageReceived checks if the message is received
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
-	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
-		"srcNetwork": messageKey.Src,
-		"_connSn":    types.NewHexInt(messageKey.Sn.Int64()),
-	})
-
-	var status types.HexInt
-	if err := p.client.Call(callParam, &status); err != nil {
-		return false, fmt.Errorf("MessageReceived: %v", err)
+	switch messageKey.EventType {
+	case events.EmitMessage:
+		callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
+			"srcNetwork": messageKey.Src,
+			"_connSn":    types.NewHexInt(messageKey.Sn.Int64()),
+		})
+		var status types.HexInt
+		return status == types.NewHexInt(1), p.client.Call(callParam, &status)
+	case events.CallMessage:
+		return true, nil
+	case events.ExecuteRollback:
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown event type")
 	}
-	return status == types.NewHexInt(1), nil
 }
 
 // ReverseMessage reverts a message

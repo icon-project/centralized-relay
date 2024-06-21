@@ -394,25 +394,34 @@ func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, m
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-	queryMsg := &types.QueryReceiptMsg{
-		GetReceipt: &types.GetReceiptMsg{
-			SrcNetwork: key.Src,
-			ConnSn:     key.Sn.String(),
-		},
-	}
-	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
-	if err != nil {
-		return false, err
-	}
+	switch key.EventType {
+	case events.EmitMessage:
+		queryMsg := &types.QueryReceiptMsg{
+			GetReceipt: &types.GetReceiptMsg{
+				SrcNetwork: key.Src,
+				ConnSn:     key.Sn.String(),
+			},
+		}
+		rawQueryMsg, err := jsoniter.Marshal(queryMsg)
+		if err != nil {
+			return false, err
+		}
 
-	res, err := p.client.QuerySmartContract(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], rawQueryMsg)
-	if err != nil {
-		p.logger.Error("failed to check if message is received: ", zap.Error(err))
-		return false, err
-	}
+		res, err := p.client.QuerySmartContract(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], rawQueryMsg)
+		if err != nil {
+			p.logger.Error("failed to check if message is received: ", zap.Error(err))
+			return false, err
+		}
 
-	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
+		receiptMsgRes := types.QueryReceiptMsgResponse{}
+		return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
+	case events.CallMessage:
+		return true, nil
+	case events.ExecuteRollback:
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown event type")
+	}
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
