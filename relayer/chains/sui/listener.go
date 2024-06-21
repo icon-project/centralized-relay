@@ -507,11 +507,10 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 							nextCursor = &ev.Id.TxDigest
 						}
 					}
-
-					cursor = nextCursor
-
+					if nextCursor != nil {
+						cursor = nextCursor
+					}
 				}
-
 			}
 		}
 	}()
