@@ -77,6 +77,11 @@ type IClient interface {
 		limit *uint,
 		descendingOrder bool,
 	) (*types.TransactionBlocksPage, error)
+
+	GetEvents(
+		ctx context.Context,
+		txDigest sui_types.TransactionDigest,
+	) ([]types.SuiEvent, error)
 }
 
 type Client struct {
@@ -375,4 +380,11 @@ func (c *Client) QueryTxBlocks(
 	descendingOrder bool,
 ) (*types.TransactionBlocksPage, error) {
 	return c.rpc.QueryTransactionBlocks(ctx, query, cursor, limit, descendingOrder)
+}
+
+func (c *Client) GetEvents(
+	ctx context.Context,
+	txDigest sui_types.TransactionDigest,
+) ([]types.SuiEvent, error) {
+	return c.rpc.GetEvents(ctx, txDigest)
 }

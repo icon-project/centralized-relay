@@ -325,10 +325,10 @@ func TestQueryTxBlocks(t *testing.T) {
 
 	client := NewClient(rpcClient, newRootLogger())
 
-	checkpoint, err := client.GetCheckpoint(context.Background(), 57966444)
-	assert.NoError(t, err)
+	// checkpoint, err := client.GetCheckpoint(context.Background(), 57978490)
+	// assert.NoError(t, err)
 
-	fmt.Println("Previous Digest:", checkpoint.PreviousDigest)
+	// fmt.Println("Previous Digest:", checkpoint.PreviousDigest)
 
 	inputObj, err := sui_types.NewObjectIdFromHex("0xde9b85d02710e2651f530e83ba2fb1daea45fd05e72f1c0dd2398239b917b46c")
 	assert.NoError(t, err)
@@ -342,7 +342,7 @@ func TestQueryTxBlocks(t *testing.T) {
 		},
 	}
 
-	cursor, err := sui_types.NewDigest("DvYdWWj8GLBsoFec6zp4kQZFJHTAWC2bKz3djSvzUkWx")
+	cursor, err := sui_types.NewDigest("HGjoM1cL5dzR7B6radZ1woPFESe2cvwAaN6z46rBN9c5")
 	assert.NoError(t, err)
 
 	limit := uint(100)

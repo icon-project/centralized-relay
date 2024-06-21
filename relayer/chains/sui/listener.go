@@ -30,8 +30,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, 
 		startCheckpointSeq = lastSavedCheckpointSeq
 	}
 
-	// go p.listenRealtime(ctx, blockInfo)
-
 	return p.listenByPollingV1(ctx, startCheckpointSeq, blockInfo)
 }
 
@@ -404,18 +402,30 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 }
 
 func (p *Provider) listenByPollingV1(ctx context.Context, fromCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
-	prevCheckpoint, err := p.client.GetCheckpoint(ctx, fromCheckpointSeq-1)
-	if err != nil {
-		return fmt.Errorf("failed to get previous checkpoint[%d]: %w", fromCheckpointSeq-1, err)
-	}
-
 	done := make(chan interface{})
 	defer close(done)
 
-	afterTxDigest := prevCheckpoint.Transactions[len(prevCheckpoint.Transactions)-1]
-	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, afterTxDigest)
+	lastSavedTxDigestStr := ""
+	var lastSavedTxDigest *sui_types.TransactionDigest
 
-	p.log.Info("event query started", zap.Uint64("checkpoint", fromCheckpointSeq))
+	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest
+		lastSavedTxDigest, err := sui_types.NewDigest(lastSavedTxDigestStr)
+		if err != nil {
+			return err
+		}
+		currentEvents, err := p.client.GetEvents(ctx, *lastSavedTxDigest)
+		if err != nil {
+			return err
+		}
+
+		for _, ev := range currentEvents {
+			go p.handleEventNotification(ctx, types.EventResponse{SuiEvent: ev}, blockStream)
+		}
+	}
+
+	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, lastSavedTxDigest)
+
+	p.log.Info("event query started from last saved tx digest", zap.String("last-saved-tx-digest", lastSavedTxDigestStr))
 
 	for {
 		select {
@@ -454,7 +464,7 @@ func (p *Provider) listenByEventPolling(ctx context.Context, fromCheckpointSeq, 
 	}
 }
 
-func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, afterTxDigest string) <-chan types.EventResponse {
+func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, afterTxDigest *sui_types.TransactionDigest) <-chan types.EventResponse {
 	eventStream := make(chan types.EventResponse)
 
 	go func() {
@@ -474,10 +484,7 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 			},
 		}
 
-		cursor, err := sui_types.NewDigest(afterTxDigest)
-		if err != nil {
-			p.log.Panic("failed to create new tx digest from base58 string", zap.Error(err))
-		}
+		cursor := afterTxDigest
 
 		limit := uint(100)
 
