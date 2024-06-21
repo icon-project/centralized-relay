@@ -20,8 +20,11 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastProcessedTxDigest interface{}, blockInfo chan *relayertypes.BlockInfo) error {
-
-	return p.listenByPollingV1(ctx, lastProcessedTxDigest.(string), blockInfo)
+	txInfo := new(types.TxInfo)
+	if err := txInfo.Deserialize(lastProcessedTxDigest.([]byte)); err != nil {
+		return err
+	}
+	return p.listenByPollingV1(ctx, txInfo.TxDigest, blockInfo)
 }
 
 func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq, endCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
@@ -116,6 +119,13 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		MessageHeight: ev.Checkpoint.Uint64(),
 		Src:           p.cfg.NID,
 	}
+
+	txInfo := types.TxInfo{TxDigest: ev.Id.TxDigest.String()}
+	txInfoBytes, err := txInfo.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	msg.TxInfo = txInfoBytes
 
 	eventBytes, err := json.Marshal(ev.ParsedJson)
 	if err != nil {
