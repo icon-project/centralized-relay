@@ -379,6 +379,9 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 
 	msg, err := p.parseMessageFromEvent(ev)
 	if err != nil {
+		if err.Error() == types.InvalidEventError {
+			return
+		}
 		p.log.Error("failed to parse message from event while handling event notification",
 			zap.Error(err),
 			zap.Any("event", ev))
