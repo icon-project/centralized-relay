@@ -96,31 +96,15 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	req := types.SuiGetCheckpointsRequest{
-		Cursor:          strconv.Itoa(int(messageKey.Height) - 1),
-		Limit:           1,
-		DescendingOrder: false,
-	}
-	paginatedRes, err := p.client.GetCheckpoints(ctx, req)
+	checkpoint, err := p.client.GetCheckpoint(ctx, messageKey.Height)
 	if err != nil {
-		p.log.Error("failed to fetch checkpoints", zap.Error(err))
+		p.log.Error("failed to fetch checkpoint", zap.Error(err))
 		return nil, err
 	}
 
 	var messages []*relayertypes.Message
 
-	if len(paginatedRes.Data) == 0 {
-		p.log.Info("messages not found", zap.Uint64("height", messageKey.Height))
-		return messages, nil
-	}
-
-	digests := []string{}
-
-	for _, txDigests := range p.GenerateTxDigests(paginatedRes.Data, types.QUERY_MAX_RESULT_LIMIT) {
-		digests = append(digests, txDigests.Digests...)
-	}
-
-	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), digests)
+	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), checkpoint.Transactions)
 	if err != nil {
 		p.log.Error("failed to query events", zap.Error(err))
 		return nil, err
