@@ -19,18 +19,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
-	if err != nil {
-		return err
-	}
+func (p *Provider) Listener(ctx context.Context, lastProcessedTxDigest interface{}, blockInfo chan *relayertypes.BlockInfo) error {
 
-	startCheckpointSeq := latestCheckpointSeq
-	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
-		startCheckpointSeq = lastSavedCheckpointSeq
-	}
-
-	return p.listenByPollingV1(ctx, startCheckpointSeq, blockInfo)
+	return p.listenByPollingV1(ctx, lastProcessedTxDigest.(string), blockInfo)
 }
 
 func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq, endCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
@@ -401,11 +392,10 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 	}
 }
 
-func (p *Provider) listenByPollingV1(ctx context.Context, fromCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
+func (p *Provider) listenByPollingV1(ctx context.Context, lastSavedTxDigestStr string, blockStream chan *relayertypes.BlockInfo) error {
 	done := make(chan interface{})
 	defer close(done)
 
-	lastSavedTxDigestStr := ""
 	var lastSavedTxDigest *sui_types.TransactionDigest
 
 	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest

@@ -46,8 +46,8 @@ func (r *Provider) latestHeight() uint64 {
 	return height
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
-	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
+func (p *Provider) Listener(ctx context.Context, lastSavedHeight interface{}, blockInfoChan chan *relayertypes.BlockInfo) error {
+	startHeight, err := p.startFromHeight(ctx, lastSavedHeight.(uint64))
 	if err != nil {
 		return err
 	}
