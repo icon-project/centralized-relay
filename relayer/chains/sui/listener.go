@@ -21,9 +21,16 @@ import (
 
 func (p *Provider) Listener(ctx context.Context, lastProcessedTxDigest interface{}, blockInfo chan *relayertypes.BlockInfo) error {
 	txInfo := new(types.TxInfo)
-	if err := txInfo.Deserialize(lastProcessedTxDigest.([]byte)); err != nil {
-		return err
+
+	lastProcessedTxDigestBytes, _ := lastProcessedTxDigest.([]byte)
+
+	if lastProcessedTxDigestBytes != nil {
+		if err := txInfo.Deserialize(lastProcessedTxDigestBytes); err != nil {
+			p.log.Error("failed to deserialize last processed tx digest", zap.Error(err))
+			return err
+		}
 	}
+
 	return p.listenByPollingV1(ctx, txInfo.TxDigest, blockInfo)
 }
 
@@ -497,11 +504,11 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 			case <-ticker.C:
 				res, err := p.client.QueryTxBlocks(context.Background(), query, cursor, &limit, false)
 				if err != nil {
-					p.log.Error("failed to query tx blocks", zap.Error(err), zap.String("cursor", cursor.String()))
+					p.log.Error("failed to query tx blocks", zap.Error(err), zap.Any("cursor", cursor))
 					break
 				}
 
-				p.log.Debug("tx block query successful", zap.String("cursor", cursor.String()))
+				p.log.Debug("tx block query successful", zap.Any("cursor", cursor))
 
 				if len(res.Data) > 0 {
 					var nextCursor *lib.Base58
