@@ -66,6 +66,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case <-resetChannel:
 			startHeight = p.GetLastSavedBlockHeight()
 			latestHeight = p.latestHeight(ctx)
+			concurrency = p.GetConcurrency(ctx, startHeight, latestHeight)
 			subscribeStart.Reset(time.Second * 1)
 			client, err := p.client.Reconnect()
 			if err != nil {
