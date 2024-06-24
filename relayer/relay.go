@@ -130,19 +130,15 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 		chainRuntime := chainRuntime
 
 		eg.Go(func() error {
-			var lastProcessedTxInfo interface{}
-			if chainRuntime.Provider.Type() == "sui" {
-				lastProcessedTx, err := r.lastProcessedTxStore.Get(chainRuntime.Provider.NID())
-				if err != nil {
-					r.log.Info("failed to get last processed tx",
-						zap.Error(err),
-						zap.String("nid", chainRuntime.Provider.NID()))
-				}
-				lastProcessedTxInfo = lastProcessedTx
-			} else {
-				lastProcessedTxInfo = chainRuntime.LastSavedHeight
+			lastProcessedTxInfo, err := r.lastProcessedTxStore.Get(chainRuntime.Provider.NID())
+			if err != nil {
+				r.log.Warn("failed to get last processed tx", zap.Error(err), zap.String("nid", chainRuntime.Provider.NID()))
 			}
-			return chainRuntime.Provider.Listener(ctx, lastProcessedTxInfo, chainRuntime.listenerChan)
+			lastProcessedTx := types.LastProcessedTx{
+				Height: chainRuntime.LastSavedHeight,
+				Info:   lastProcessedTxInfo,
+			}
+			return chainRuntime.Provider.Listener(ctx, lastProcessedTx, chainRuntime.listenerChan)
 		})
 	}
 	if err := eg.Wait(); err != nil {

@@ -223,3 +223,8 @@ type Receipt struct {
 	Height uint64
 	Status bool
 }
+
+type LastProcessedTx struct {
+	Height uint64
+	Info   []byte
+}

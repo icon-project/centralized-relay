@@ -19,13 +19,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Provider) Listener(ctx context.Context, lastProcessedTxDigest interface{}, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfo chan *relayertypes.BlockInfo) error {
 	txInfo := new(types.TxInfo)
 
-	lastProcessedTxDigestBytes, _ := lastProcessedTxDigest.([]byte)
-
-	if lastProcessedTxDigestBytes != nil {
-		if err := txInfo.Deserialize(lastProcessedTxDigestBytes); err != nil {
+	if lastProcessedTx.Info != nil {
+		if err := txInfo.Deserialize(lastProcessedTx.Info); err != nil {
 			p.log.Error("failed to deserialize last processed tx digest", zap.Error(err))
 			return err
 		}
