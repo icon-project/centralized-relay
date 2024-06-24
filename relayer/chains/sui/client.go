@@ -94,7 +94,24 @@ func (c Client) MoveCall(
 }
 
 func (c Client) GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error) {
-	return c.rpc.GetObject(ctx, objID, options)
+	res, err := c.rpc.GetObject(ctx, objID, options)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.Error != nil {
+		if res.Error.Data.NotExists != nil {
+			return nil, fmt.Errorf("object: %s does not exist", res.Error.Data.NotExists.ObjectId)
+		} else if res.Error.Data.Deleted != nil {
+			return nil, fmt.Errorf("object: %s is deleted", res.Error.Data.Deleted.ObjectId)
+		} else if res.Error.Data.DisplayError != nil {
+			return nil, fmt.Errorf("%s", res.Error.Data.DisplayError.Error)
+		} else {
+			return nil, fmt.Errorf("unknown error occurred")
+		}
+	}
+
+	return res, err
 }
 
 func (c Client) GetCoins(ctx context.Context, addr string) (types.Coins, error) {
