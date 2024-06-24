@@ -23,8 +23,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
-	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
-	return nil
+	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 }
 
 func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
@@ -123,10 +122,10 @@ func (p *Provider) WaitForTxResult(
 	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
-) {
+) error {
 	if callback == nil {
 		// no point to wait for result if callback is nil
-		return
+		return nil
 	}
 
 	txhash := types.NewHexBytes(txHash)
@@ -138,7 +137,7 @@ func (p *Provider) WaitForTxResult(
 	if err != nil {
 		p.log.Error("get txn result failed", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)
-		return
+		return err
 	}
 
 	height, err := txRes.BlockHeight.Value()
@@ -148,16 +147,16 @@ func (p *Provider) WaitForTxResult(
 	// assign tx successful height
 	res.Height = height
 
-	status, err := txRes.Status.Int()
-	if status != 1 {
+	if status, err := txRes.Status.Int(); status != 1 {
 		err = fmt.Errorf("error: %s", err)
 		callback(messageKey, res, err)
 		p.LogFailedTx(method, txRes, err)
-		return
+		return err
 	}
 	res.Code = providerTypes.Success
 	callback(messageKey, res, nil)
 	p.LogSuccessTx(method, txRes)
+	return nil
 }
 
 func (p *Provider) LogSuccessTx(method string, result *types.TransactionResult) {
