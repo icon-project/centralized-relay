@@ -147,35 +147,6 @@ func newRootLogger() *zap.Logger {
 
 	return zap.New(core)
 }
-func TestQueryEvents(t *testing.T) {
-	rpcClient, err := suisdkClient.Dial("https://fullnode.testnet.sui.io:443")
-	assert.NoError(t, err)
-
-	client := NewClient(rpcClient, newRootLogger())
-
-	events, err := client.QueryEvents(context.Background(), suitypes.EventQueryRequest{
-		EventFilter: map[string]interface{}{
-			"MoveEventModule": map[string]interface{}{
-				"package": "",
-				"module":  "",
-			},
-		},
-	})
-	assert.NoError(t, err)
-
-	fmt.Println("Total event: ", len(events.Data))
-
-	for _, ev := range events.Data {
-		client.log.Info("event",
-			zap.String("package-id", ev.PackageId.String()),
-			zap.String("module", ev.TransactionModule),
-			zap.String("event-type", ev.Type),
-			zap.String("tx-digest", ev.Id.TxDigest.String()),
-		)
-	}
-
-}
-
 func TestQueryTxBlocks(t *testing.T) {
 	rpcClient, err := suisdkClient.Dial("https://fullnode.testnet.sui.io:443")
 	assert.NoError(t, err)
