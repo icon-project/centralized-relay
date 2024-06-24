@@ -36,7 +36,7 @@ type IClient interface {
 	GetTransaction(ctx context.Context, txDigest string) (*types.SuiTransactionBlockResponse, error)
 	QueryContract(ctx context.Context, senderAddr string, txBytes lib.Base64Data, resPtr interface{}) error
 
-	GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error)
+	GetCheckpoint(ctx context.Context, checkpoint uint64) (*suitypes.CheckpointResponse, error)
 	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
 
 	GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error)
@@ -53,6 +53,19 @@ type IClient interface {
 		gas *move_types.AccountAddress,
 		gasBudget types.SafeSuiBigInt[uint64],
 	) (*types.TransactionBytes, error)
+
+	QueryTxBlocks(
+		ctx context.Context,
+		query types.SuiTransactionBlockResponseQuery,
+		cursor *sui_types.TransactionDigest,
+		limit *uint,
+		descendingOrder bool,
+	) (*types.TransactionBlocksPage, error)
+
+	GetEvents(
+		ctx context.Context,
+		txDigest sui_types.TransactionDigest,
+	) ([]types.SuiEvent, error)
 }
 
 type Client struct {
@@ -174,20 +187,18 @@ func (cl *Client) QueryContract(ctx context.Context, senderAddr string, txBytes 
 	return fmt.Errorf("got empty result")
 }
 
-func (c *Client) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
-	paginatedRes := suitypes.PaginatedCheckpointsResponse{}
+func (c *Client) GetCheckpoint(ctx context.Context, checkpoint uint64) (*suitypes.CheckpointResponse, error) {
+	checkpointRes := suitypes.CheckpointResponse{}
 	if err := c.rpc.CallContext(
 		ctx,
-		&paginatedRes,
-		suisdkClient.SuiMethod("getCheckpoints"),
-		req.Cursor,
-		req.Limit,
-		req.DescendingOrder,
+		&checkpointRes,
+		suitypes.SuiMethod("sui_getCheckpoint"),
+		strconv.Itoa(int(checkpoint)),
 	); err != nil {
 		return nil, err
 	}
 
-	return &paginatedRes, nil
+	return &checkpointRes, nil
 }
 
 func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error) {
@@ -196,7 +207,7 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 	if err := c.rpc.CallContext(
 		ctx,
 		&txnBlockResponses,
-		suisdkClient.SuiMethod("multiGetTransactionBlocks"),
+		suitypes.SuiMethod("sui_multiGetTransactionBlocks"),
 		digests,
 		types.SuiTransactionBlockResponseOptions{ShowEvents: true},
 	); err != nil {
@@ -209,11 +220,28 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 			if slices.Contains(allowedEventTypes, ev.Type) {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
-					Checkpoint: txRes.Checkpoint.Uint64(),
+					Checkpoint: txRes.Checkpoint,
 				})
 			}
 		}
 	}
 
 	return events, nil
+}
+
+func (c *Client) QueryTxBlocks(
+	ctx context.Context,
+	query types.SuiTransactionBlockResponseQuery,
+	cursor *sui_types.TransactionDigest,
+	limit *uint,
+	descendingOrder bool,
+) (*types.TransactionBlocksPage, error) {
+	return c.rpc.QueryTransactionBlocks(ctx, query, cursor, limit, descendingOrder)
+}
+
+func (c *Client) GetEvents(
+	ctx context.Context,
+	txDigest sui_types.TransactionDigest,
+) ([]types.SuiEvent, error) {
+	return c.rpc.GetEvents(ctx, txDigest)
 }

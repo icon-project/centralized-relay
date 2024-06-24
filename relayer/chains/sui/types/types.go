@@ -9,21 +9,8 @@ const (
 	XcallContract      = "xcall"
 	ConnectionContract = "connection"
 
-	ConnectionIDMismatchError = "connection_id_mismatch_error"
-
-	QUERY_MAX_RESULT_LIMIT = 50
+	InvalidEventError = "invalid_event_err"
 )
-
-type ContractConfigMap map[string]string
-
-type SuiGetCheckpointsRequest struct {
-	// optional paging cursor
-	Cursor interface{} `json:"cursor"`
-	// maximum number of items per page
-	Limit uint64 `json:"limit" validate:"lte=50"`
-	// query result ordering, default to false (ascending order), oldest record first
-	DescendingOrder bool `json:"descendingOrder"`
-}
 
 type EpochRollingGasCostSummary struct {
 	ComputationCost         string `json:"computationCost"`
@@ -45,26 +32,9 @@ type CheckpointResponse struct {
 	ValidatorSignature         string                     `json:"validatorSignature"`
 }
 
-type PaginatedCheckpointsResponse struct {
-	Data        []CheckpointResponse `json:"data"`
-	NextCursor  string               `json:"nextCursor"`
-	HasNextPage bool                 `json:"hasNextPage"`
-}
-
-type TxDigests struct {
-	FromCheckpoint uint64
-	ToCheckpoint   uint64
-	Digests        []string
-}
-
 type EventResponse struct {
 	cctypes.SuiEvent
-	Checkpoint uint64
-}
-
-type SuiMultiGetTransactionBlocksRequest struct {
-	Digests []string                                   `json:"digests"`
-	Options cctypes.SuiTransactionBlockResponseOptions `json:"options"`
+	Checkpoint *cctypes.SafeSuiBigInt[uint64]
 }
 
 type EmitEvent struct {
@@ -84,4 +54,10 @@ type RollbackMsgEvent struct {
 	Sn              string `json:"sn"`
 	Data            []byte `json:"data"`
 	DappModuleCapId string `json:"dapp"`
+}
+
+type SuiMethod string
+
+func (sm SuiMethod) String() string {
+	return string(sm)
 }

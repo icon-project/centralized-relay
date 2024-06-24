@@ -29,7 +29,7 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.LastProcessedTx, incoming chan *providerTypes.BlockInfo) error {
 	errCh := make(chan error)             // error channel
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
@@ -39,6 +39,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		default:
 		}
 	}
+
+	lastSavedHeight := lastProcessedTx.Height
 
 	processedheight, err := p.StartFromHeight(ctx, lastSavedHeight)
 	if err != nil {

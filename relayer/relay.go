@@ -26,6 +26,8 @@ var (
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
 	prefixFinalityStore = "finality"
+
+	prefixLastProcessedTx = "lastProcessedTx"
 )
 
 // main start loop
@@ -55,12 +57,13 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 }
 
 type Relayer struct {
-	log           *zap.Logger
-	db            store.Store
-	chains        map[string]*ChainRuntime
-	messageStore  *store.MessageStore
-	blockStore    *store.BlockStore
-	finalityStore *store.FinalityStore
+	log                  *zap.Logger
+	db                   store.Store
+	chains               map[string]*ChainRuntime
+	messageStore         *store.MessageStore
+	blockStore           *store.BlockStore
+	finalityStore        *store.FinalityStore
+	lastProcessedTxStore *store.LastProcessedTxStore
 }
 
 func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
@@ -80,6 +83,9 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	// finality store
 	finalityStore := store.NewFinalityStore(db, prefixFinalityStore)
 
+	//last processed tx store
+	lastProcessedTxStore := store.NewLastProcessedTxStore(db, prefixLastProcessedTx)
+
 	chainRuntimes := make(map[string]*ChainRuntime, len(chains))
 	for _, chain := range chains {
 		chainRuntime, err := NewChainRuntime(log, chain)
@@ -97,12 +103,13 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	}
 
 	return &Relayer{
-		log:           log,
-		db:            db,
-		chains:        chainRuntimes,
-		messageStore:  messageStore,
-		blockStore:    blockStore,
-		finalityStore: finalityStore,
+		log:                  log,
+		db:                   db,
+		chains:               chainRuntimes,
+		messageStore:         messageStore,
+		blockStore:           blockStore,
+		finalityStore:        finalityStore,
+		lastProcessedTxStore: lastProcessedTxStore,
 	}, nil
 }
 
@@ -123,7 +130,15 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 		chainRuntime := chainRuntime
 
 		eg.Go(func() error {
-			return chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
+			lastProcessedTxInfo, err := r.lastProcessedTxStore.Get(chainRuntime.Provider.NID())
+			if err != nil {
+				r.log.Warn("failed to get last processed tx", zap.Error(err), zap.String("nid", chainRuntime.Provider.NID()))
+			}
+			lastProcessedTx := types.LastProcessedTx{
+				Height: chainRuntime.LastSavedHeight,
+				Info:   lastProcessedTxInfo,
+			}
+			return chainRuntime.Provider.Listener(ctx, lastProcessedTx, chainRuntime.listenerChan)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -274,6 +289,11 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
 			r.log.Error("failed to store a message in db", zap.Error(err))
+		}
+		if err := r.lastProcessedTxStore.Set(src.Provider.NID(), msg.TxInfo); err != nil {
+			r.log.Error("failed to save last processed tx",
+				zap.Error(err),
+				zap.Any("msg", msg))
 		}
 	}
 }

@@ -32,6 +32,8 @@ type Message struct {
 	EventType       string `json:"eventType"`
 	ReqID           uint64 `json:"reqID,omitempty"`
 	DappModuleCapID string `json:"-"`
+
+	TxInfo []byte `json:"-"`
 }
 
 type ContractConfigMap map[string]string
@@ -220,4 +222,9 @@ type Receipt struct {
 	TxHash string
 	Height uint64
 	Status bool
+}
+
+type LastProcessedTx struct {
+	Height uint64
+	Info   []byte
 }
