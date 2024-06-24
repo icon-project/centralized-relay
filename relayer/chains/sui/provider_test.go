@@ -75,9 +75,7 @@ func (*mockClient) GetTransaction(ctx context.Context, txDigest string) (*types.
 func (*mockClient) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
 	panic("not implemented")
 }
-func (*mockClient) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
-	panic("not implemented")
-}
+
 func (*mockClient) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error) {
 	panic("not implemented")
 }
