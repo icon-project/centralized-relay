@@ -48,6 +48,7 @@ const (
 	xcallStorage                                = "xcall-storage"
 	sui_rlp_path                                = "libs/sui_rlp"
 	adminCap                                    = "AdminCap"
+	upgradeCap                                  = "UpgradeCap"
 	connectionCap                               = "ConnCap"
 	IdCapSuffix                                 = "-idcap"
 	StateSuffix                                 = "-state"
@@ -126,6 +127,9 @@ func (an *SuiRemotenet) DeployContract(ctx context.Context, keyName string) (con
 		}
 		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, adminCap) {
 			depoymentInfo.AdminCap = changes.Data.Created.ObjectId.String()
+		}
+		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, upgradeCap) {
+			depoymentInfo.UpgradeCap = changes.Data.Created.ObjectId.String()
 		}
 		if changes.Data.Created != nil && strings.Contains(changes.Data.Created.ObjectType, storage) {
 			depoymentInfo.Storage = changes.Data.Created.ObjectId.String()
@@ -580,15 +584,15 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if an.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		an.IBCAddresses["xcall"] = "0x2335d392042351e213a605ff545a95977d96921b213fea18a38c816fc220d999"
-		an.IBCAddresses[xcallAdmin] = "0x5af8f1e4be19b515ad11c7a3945acb9b7dbcff51a1e266abaf08b2ad4d7feb49"
-		an.IBCAddresses[xcallStorage] = "0x4af515643673ab0348906c4e94e5687ab2ffc9b366ab08430195419caf432f09"
-		an.IBCAddresses["connectionCap"] = "0x599970a35f5ea8227803ef04c178fe3c55644482435990eecbb4a7c02240df5a"
+		an.IBCAddresses["xcall"] = "0x0e314ebdf048db710a912608059d1d7547c137187daf82da2f90421ff7891916"
+		an.IBCAddresses[xcallAdmin] = "0xb3a96316522087300776f4834964a0c81f5dbd962ed9f078e7d2576d57217632"
+		an.IBCAddresses[xcallStorage] = "0x510e5055bee544563758db466dbcf867b6160d41b4f40ab418ba1bb3fefd3cdb"
+		an.IBCAddresses["connectionCap"] = "0xc0b9ec3196256269b1aca95ff50e640e905b55cbf39d96cbb2ff0417c8c4190f"
 		dappKey := fmt.Sprintf("dapp-%s", testcase)
-		an.IBCAddresses[dappKey] = "0x473f597480e388e6a65fa099b86b77a577abe921822a352dc9022d55ab9124b5"
-		an.IBCAddresses[dappKey+WitnessSuffix] = "0x840ae24a0edefd4bc5269ef58444df2dcf836fe980efd89a1a6d66d26bcbdaf3"
-		an.IBCAddresses[dappKey+StateSuffix] = "0x3338eb33a79b101a987e5d092686c90472ecdf45972ea5a083af8b963843dd7d"
-		an.IBCAddresses[dappKey+IdCapSuffix] = "0xcebd6e3bc67ad3088c8aea84730d29c438adf0321bce5af97cef178eac682094"
+		an.IBCAddresses[dappKey] = "0x67e275f897570b9f6d11a321811e1dd37f15dcdf29a4e73dddcc4ad0596f1247"
+		an.IBCAddresses[dappKey+WitnessSuffix] = "0x9070d1fd0e93536e05d6e7f437f1bd6161c236b7de41a8dac9f694c201e15856"
+		an.IBCAddresses[dappKey+StateSuffix] = "0x4b5f9fc46f3f8c681cbdef787b260fec3a7550160185dcd6ea9656b1dd4cc19c"
+		an.IBCAddresses[dappKey+IdCapSuffix] = "0x031cfd9e3ccf82ba772e0911155335b9d00bfa152f7e51aa8503c595cf1c6686"
 		return nil
 	}
 	//deploy rlp
@@ -615,12 +619,14 @@ func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	an.log.Info("setup xcall completed ", zap.Any("packageId", deploymentInfo.PackageId), zap.Any("admin", deploymentInfo.AdminCap), zap.Any("storage", deploymentInfo.Storage))
+	an.log.Info("setup xcall completed ", zap.Any("packageId", deploymentInfo.PackageId),
+		zap.Any("admin", deploymentInfo.AdminCap), zap.Any("storage", deploymentInfo.Storage),
+		zap.Any("upgradeCap", deploymentInfo.UpgradeCap))
 	//configuing nid
 	//init
 	params := []SuiCallArg{
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
-		{Type: CallArgObject, Val: an.IBCAddresses[xcallAdmin]},
+		{Type: CallArgObject, Val: deploymentInfo.UpgradeCap},
 		{Type: CallArgPure, Val: "sui"},
 	}
 	msg := an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "configure_nid")

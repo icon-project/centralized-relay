@@ -45,11 +45,12 @@ type Dependency struct {
 }
 
 type DepoymentInfo struct {
-	PackageId string
-	AdminCap  string
-	Storage   string
-	Witness   string
-	IdCap     string
+	PackageId  string
+	AdminCap   string
+	UpgradeCap string
+	Storage    string
+	Witness    string
+	IdCap      string
 }
 
 type PackageInfo struct {
