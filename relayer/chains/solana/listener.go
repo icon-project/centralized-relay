@@ -6,21 +6,12 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	latestHeight, err := p.client.GetLatestBlockHeight(ctx)
-	if err != nil {
-		return err
-	}
-
-	startHeight := latestHeight
-	if lastSavedHeight != 0 && lastSavedHeight < latestHeight {
-		startHeight = lastSavedHeight
-	}
-
 	if err := p.RestoreKeystore(ctx); err != nil {
 		p.log.Error("failed to restore keystore", zap.Error(err))
 	} else {
@@ -38,17 +29,61 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.log.Error("failed to send message", zap.Error(err))
 	}
 
-	p.log.Info("started querying from height", zap.Uint64("height", startHeight))
+	fromSignature := ""
+
+	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
+
+	return p.listenByPolling(ctx, fromSignature, blockInfo)
+}
+
+func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, blockInfo chan *relayertypes.BlockInfo) error {
+	ticker := time.NewTicker(3 * time.Second)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+			txSigns, err := p.getSignatures(ctx, fromSignature)
+			if err != nil {
+				p.log.Error("failed to get signatures", zap.Error(err))
+				break
+			}
+			if len(txSigns) > 0 {
+				fromSignature = txSigns[len(txSigns)-1].Signature.String()
+			}
+			for i := len(txSigns) - 1; i >= 0; i-- {
+				sign := txSigns[i].Signature
+				txn, err := p.client.GetTransaction(ctx, sign, nil)
+				if err != nil {
+					p.log.Error("failed to get transaction", zap.String("signature", sign.String()))
+					continue
+				}
+
+				if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
+					event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
+					message, err := p.parseMessageFromEvent(event)
+					if err != nil {
+						p.log.Error("failed to parse message from event", zap.Any("event", event))
+						continue
+					}
+					if message != nil {
+						blockInfo <- &relayertypes.BlockInfo{
+							Height:   message.MessageHeight,
+							Messages: []*relayertypes.Message{message},
+						}
+					}
+				}
+			}
 		}
 	}
 }
 
-func (p *Provider) GetSignatures(fromSignature string) ([]*solrpc.TransactionSignature, error) {
+func (p *Provider) parseMessageFromEvent(ev types.SolEvent) (*relayertypes.Message, error) {
+	return nil, nil
+}
+
+func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
 	progId, err := p.xcallIdl.GetProgramID()
 	if err != nil {
 		return nil, err
@@ -71,6 +106,8 @@ func (p *Provider) GetSignatures(fromSignature string) ([]*solrpc.TransactionSig
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-ticker.C:
 			txSigns, err := p.client.GetSignaturesForAddress(context.Background(), progId, opts)
 			if err != nil {

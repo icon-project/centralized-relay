@@ -50,6 +50,12 @@ type IClient interface {
 		account solana.PublicKey,
 		opts *solrpc.GetSignaturesForAddressOpts,
 	) ([]*solrpc.TransactionSignature, error)
+
+	GetTransaction(
+		ctx context.Context,
+		signature solana.Signature,
+		opts *solrpc.GetTransactionOpts,
+	) (*solrpc.GetTransactionResult, error)
 }
 
 type Client struct {
