@@ -55,3 +55,7 @@ func TestIDLAddress(t *testing.T) {
 
 	assert.Equal(t, idlPubkey, calculatedIdlAddr)
 }
+
+func TestGetSignaturesForAddress(t *testing.T) {
+
+}

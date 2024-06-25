@@ -2,7 +2,10 @@ package solana
 
 import (
 	"context"
+	"time"
 
+	"github.com/gagliardetto/solana-go"
+	solrpc "github.com/gagliardetto/solana-go/rpc"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -41,6 +44,52 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		}
+	}
+}
+
+func (p *Provider) GetSignatures(fromSignature string) ([]*solrpc.TransactionSignature, error) {
+	progId, err := p.xcallIdl.GetProgramID()
+	if err != nil {
+		return nil, err
+	}
+
+	initialFromSign, err := solana.SignatureFromBase58(fromSignature)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := 1000
+	opts := &solrpc.GetSignaturesForAddressOpts{
+		Limit: &limit,
+		Until: initialFromSign,
+	}
+
+	ticker := time.NewTicker(3 * time.Second)
+
+	signatureList := []*solrpc.TransactionSignature{}
+
+	for {
+		select {
+		case <-ticker.C:
+			txSigns, err := p.client.GetSignaturesForAddress(context.Background(), progId, opts)
+			if err != nil {
+				p.log.Error("failed to get signatures for address",
+					zap.String("account", progId.String()),
+					zap.String("before", opts.Before.String()),
+					zap.String("until", opts.Until.String()),
+				)
+				break
+			}
+			if len(txSigns) > 0 {
+				opts.Before = txSigns[len(txSigns)-1].Signature
+				signatureList = append(signatureList, txSigns...)
+				if len(txSigns) < limit || opts.Before == initialFromSign {
+					return signatureList, nil
+				}
+			} else {
+				return signatureList, nil
+			}
 		}
 	}
 }
