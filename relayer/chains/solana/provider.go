@@ -15,12 +15,13 @@ import (
 )
 
 type Provider struct {
-	log    *zap.Logger
-	cfg    *Config
-	client IClient
-	wallet *solana.Wallet
-	kms    kms.KMS
-	txmut  *sync.Mutex
+	log      *zap.Logger
+	cfg      *Config
+	client   IClient
+	wallet   *solana.Wallet
+	kms      kms.KMS
+	txmut    *sync.Mutex
+	xcallIdl *IDL
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
