@@ -147,7 +147,7 @@ func (p *Provider) WaitForTxResult(
 	// assign tx successful height
 	res.Height = height
 
-	if status, err := txRes.Status.Int(); status != 1 {
+	if status, err := txRes.Status.Int(); status != 1 || err != nil {
 		err = fmt.Errorf("error: %s", err)
 		callback(messageKey, res, err)
 		p.LogFailedTx(method, txRes, err)
