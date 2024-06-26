@@ -17,7 +17,6 @@ type Config struct {
 
 	XcallProgramID      string `yaml:"xcall-program-id"`
 	ConnectionProgramID string `yaml:"connection-program-id"`
-	DappProgramID       string `yaml:"dapp-program-id"`
 
 	XcallStateAccount string `yaml:"xcall-state-account"`
 
@@ -51,13 +50,6 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		}
 	}
 
-	dappIdl := IDL{}
-	if pc.DappProgramID != "" {
-		if err := client.FetchIDL(ctx, pc.DappProgramID, &dappIdl); err != nil {
-			return nil, err
-		}
-	}
-
 	return &Provider{
 		log:      logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
 		cfg:      pc,
@@ -65,7 +57,6 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		txmut:    &sync.Mutex{},
 		xcallIdl: &xcallIdl,
 		connIdl:  &connIdl,
-		dappIdl:  &dappIdl,
 	}, nil
 }
 

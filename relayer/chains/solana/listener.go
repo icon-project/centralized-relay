@@ -38,6 +38,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.log.Error("failed to send message", zap.Error(err))
 	}
 
+	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
 	fromSignature := ""
 
 	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
@@ -53,13 +54,15 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			//fetch txSigns from most recent to oldest. 0th index is the most recent and last index is oldest
 			txSigns, err := p.getSignatures(ctx, fromSignature)
 			if err != nil {
 				p.log.Error("failed to get signatures", zap.Error(err))
 				break
 			}
 			if len(txSigns) > 0 {
-				fromSignature = txSigns[len(txSigns)-1].Signature.String()
+				//next query start from most recent signature.
+				fromSignature = txSigns[0].Signature.String()
 			}
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				sign := txSigns[i].Signature
@@ -209,6 +212,14 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 				)
 				break
 			}
+
+			p.log.Debug("signature query successful",
+				zap.Int("received-count", len(txSigns)),
+				zap.String("account", progId.String()),
+				zap.String("before", opts.Before.String()),
+				zap.String("until", opts.Until.String()),
+			)
+
 			if len(txSigns) > 0 {
 				opts.Before = txSigns[len(txSigns)-1].Signature
 				signatureList = append(signatureList, txSigns...)
