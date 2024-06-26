@@ -49,6 +49,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, blockInfo chan *relayertypes.BlockInfo) error {
 	ticker := time.NewTicker(3 * time.Second)
 
+	if fromSignature != "" {
+		fromSign, err := solana.SignatureFromBase58(fromSignature)
+		if err != nil {
+			return err
+		}
+		if err := p.processTxSignature(ctx, fromSign, blockInfo); err != nil {
+			p.log.Error("failed to process tx signature", zap.String("signature", fromSign.String()), zap.Error(err))
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -64,42 +74,48 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 				//next query start from most recent signature.
 				fromSignature = txSigns[0].Signature.String()
 			}
+			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				sign := txSigns[i].Signature
-				txn, err := p.client.GetTransaction(ctx, sign, nil)
-				if err != nil {
-					p.log.Error("failed to get transaction", zap.String("signature", sign.String()))
-					continue
-				}
-
-				if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
-					event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
-					messages, err := p.parseMessagesFromEvent(event)
-					if err != nil {
-						p.log.Error("failed to parse messages from event", zap.Any("event", event))
-						continue
-					}
-					if len(messages) > 0 {
-						for _, msg := range messages {
-							p.log.Info("Detected event log: ",
-								zap.Uint64("height", msg.MessageHeight),
-								zap.String("event-type", msg.EventType),
-								zap.Uint64("sn", msg.Sn),
-								zap.Uint64("req-id", msg.ReqID),
-								zap.String("src", msg.Src),
-								zap.String("dst", msg.Dst),
-								zap.Any("data", hex.EncodeToString(msg.Data)),
-							)
-						}
-						blockInfo <- &relayertypes.BlockInfo{
-							Height:   event.Slot,
-							Messages: messages,
-						}
-					}
+				if err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
+					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
 				}
 			}
 		}
 	}
+}
+
+func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
+	txn, err := p.client.GetTransaction(ctx, sign, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
+	}
+
+	if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
+		event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
+		messages, err := p.parseMessagesFromEvent(event)
+		if err != nil {
+			return fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+		}
+		if len(messages) > 0 {
+			for _, msg := range messages {
+				p.log.Info("Detected event log: ",
+					zap.Uint64("height", msg.MessageHeight),
+					zap.String("event-type", msg.EventType),
+					zap.Uint64("sn", msg.Sn),
+					zap.Uint64("req-id", msg.ReqID),
+					zap.String("src", msg.Src),
+					zap.String("dst", msg.Dst),
+					zap.Any("data", hex.EncodeToString(msg.Data)),
+				)
+			}
+			blockInfo <- &relayertypes.BlockInfo{
+				Height:   event.Slot,
+				Messages: messages,
+			}
+		}
+	}
+	return nil
 }
 
 func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
