@@ -225,10 +225,10 @@ func (p *Provider) logTxFailed(err error, tx *sdkTypes.TxResponse) {
 	)
 }
 
-func (p *Provider) logTxSuccess(height uint64, txHash *sdkTypes.TxResponse) {
+func (p *Provider) logTxSuccess(res *types.TxResult) {
 	p.logger.Info("successful transaction",
-		zap.Uint64("block_height", height),
-		zap.String("tx_hash", txHash.TxHash),
+		zap.Int64("block_height", res.TxResult.Height),
+		zap.String("tx_hash", res.TxResult.TxHash),
 	)
 }
 
@@ -278,13 +278,16 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, tx *sdkTypes.TxResponse, callback relayTypes.TxResponseFunc) error {
 	res, err := p.subscribeTxResult(ctx, tx, p.cfg.TxConfirmationInterval)
-	if err != nil {
-		p.logTxFailed(err, tx)
+	if err != nil || res.Error != nil {
+		if res.Error != nil {
+			err = res.Error
+		}
 		callback(mk, res.TxResult, err)
+		p.logTxFailed(err, tx)
 		return err
 	}
-	p.logTxSuccess(uint64(res.TxResult.Height), tx)
 	callback(mk, res.TxResult, nil)
+	p.logTxSuccess(res)
 	return nil
 }
 
@@ -336,16 +339,16 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 	for {
 		select {
 		case <-ctx.Done():
-			return &types.TxResult{TxResult: nil}, ctx.Err()
+			return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, ctx.Err()
 		case e := <-resultEventChan:
 			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
-				return &types.TxResult{TxResult: nil}, err
+				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
 			}
 
 			txRes := new(types.TxResultWaitResponse)
 			if err := jsoniter.Unmarshal(eventDataJSON, txRes); err != nil {
-				return &types.TxResult{TxResult: nil}, err
+				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
 			}
 
 			res := &types.TxResult{
