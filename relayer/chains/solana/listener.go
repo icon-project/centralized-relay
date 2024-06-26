@@ -2,12 +2,19 @@ package solana
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
+	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 )
 
@@ -21,6 +28,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	// if err := p.InitXcall(ctx); err != nil {
 	// 	p.log.Error("failed to init xcall", zap.Error(err))
 	// }
+
+	// return nil
 
 	if err := p.SendMessage(ctx, &relayertypes.Message{
 		Dst:  "0x3.icon",
@@ -62,15 +71,26 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 
 				if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
 					event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
-					message, err := p.parseMessageFromEvent(event)
+					messages, err := p.parseMessagesFromEvent(event)
 					if err != nil {
-						p.log.Error("failed to parse message from event", zap.Any("event", event))
+						p.log.Error("failed to parse messages from event", zap.Any("event", event))
 						continue
 					}
-					if message != nil {
+					if len(messages) > 0 {
+						for _, msg := range messages {
+							p.log.Info("Detected event log: ",
+								zap.Uint64("height", msg.MessageHeight),
+								zap.String("event-type", msg.EventType),
+								zap.Uint64("sn", msg.Sn),
+								zap.Uint64("req-id", msg.ReqID),
+								zap.String("src", msg.Src),
+								zap.String("dst", msg.Dst),
+								zap.Any("data", hex.EncodeToString(msg.Data)),
+							)
+						}
 						blockInfo <- &relayertypes.BlockInfo{
-							Height:   message.MessageHeight,
-							Messages: []*relayertypes.Message{message},
+							Height:   event.Slot,
+							Messages: messages,
 						}
 					}
 				}
@@ -79,8 +99,77 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 	}
 }
 
-func (p *Provider) parseMessageFromEvent(ev types.SolEvent) (*relayertypes.Message, error) {
-	return nil, nil
+func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
+	messages := []*relayertypes.Message{}
+
+	for _, log := range solEvent.Logs {
+		if strings.HasPrefix(log, types.EventLogPrefix) {
+			eventLog := strings.Replace(log, types.EventLogPrefix, "", 1)
+			eventLogBytes, err := base64.StdEncoding.DecodeString(eventLog)
+			if err != nil {
+				return nil, err
+			}
+
+			if len(eventLogBytes) < 8 {
+				return nil, fmt.Errorf("decoded bytes too short to contain discriminator: %v", eventLogBytes)
+			}
+
+			discriminator := eventLogBytes[:8]
+			eventBytes := eventLogBytes[8:]
+
+			for _, ev := range p.xcallIdl.Events {
+				if slices.Equal(ev.Discriminator, discriminator) {
+					switch ev.Name {
+					case types.EventSendMessage:
+						smEvent := types.SendMessageEvent{}
+						if err := borsh.Deserialize(&smEvent, eventBytes); err != nil {
+							return nil, fmt.Errorf("failed to decode send message event: %w", err)
+						}
+						messages = append(messages, &relayertypes.Message{
+							EventType:     relayerevents.EmitMessage,
+							Sn:            smEvent.ConnSn.Uint64(),
+							Src:           p.NID(),
+							Dst:           smEvent.TargetNetwork,
+							Data:          smEvent.Msg,
+							MessageHeight: solEvent.Slot,
+						})
+
+					case types.EventCallMessage:
+						cmEvent := types.CallMessageEvent{}
+						if err := borsh.Deserialize(&cmEvent, eventBytes); err != nil {
+							return nil, fmt.Errorf("failed to decode call message event: %w", err)
+						}
+						messages = append(messages, &relayertypes.Message{
+							EventType:     relayerevents.CallMessage,
+							Sn:            cmEvent.Sn.Uint64(),
+							ReqID:         cmEvent.ReqId.Uint64(),
+							Src:           cmEvent.From,
+							Dst:           cmEvent.To,
+							Data:          cmEvent.Data,
+							MessageHeight: solEvent.Slot,
+						})
+
+					case types.EventRollbackMessage:
+						rmEvent := types.RollbackMessageEvent{}
+						if err := borsh.Deserialize(&rmEvent, eventBytes); err != nil {
+							return nil, fmt.Errorf("failed to decode rollback message event: %w", err)
+						}
+						messages = append(messages, &relayertypes.Message{
+							EventType:     relayerevents.RollbackMessage,
+							Sn:            rmEvent.Sn.Uint64(),
+							Src:           p.NID(),
+							Dst:           p.NID(),
+							MessageHeight: solEvent.Slot,
+						})
+					}
+
+					break
+				}
+			}
+		}
+	}
+
+	return messages, nil
 }
 
 func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
@@ -89,15 +178,17 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 		return nil, err
 	}
 
-	initialFromSign, err := solana.SignatureFromBase58(fromSignature)
-	if err != nil {
-		return nil, err
-	}
-
 	limit := 1000
 	opts := &solrpc.GetSignaturesForAddressOpts{
 		Limit: &limit,
-		Until: initialFromSign,
+	}
+
+	if fromSignature != "" {
+		initialFromSign, err := solana.SignatureFromBase58(fromSignature)
+		if err != nil {
+			return nil, err
+		}
+		opts.Until = initialFromSign
 	}
 
 	ticker := time.NewTicker(3 * time.Second)
@@ -121,7 +212,7 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 			if len(txSigns) > 0 {
 				opts.Before = txSigns[len(txSigns)-1].Signature
 				signatureList = append(signatureList, txSigns...)
-				if len(txSigns) < limit || opts.Before == initialFromSign {
+				if len(txSigns) < limit || opts.Before == opts.Until {
 					return signatureList, nil
 				}
 			} else {
