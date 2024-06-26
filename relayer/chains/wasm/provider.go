@@ -278,10 +278,7 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, tx *sdkTypes.TxResponse, callback relayTypes.TxResponseFunc) error {
 	res, err := p.subscribeTxResult(ctx, tx, p.cfg.TxConfirmationInterval)
-	if err != nil || res.Error != nil {
-		if res.Error != nil {
-			err = res.Error
-		}
+	if err != nil {
 		callback(mk, res.TxResult, err)
 		p.logTxFailed(err, tx)
 		return err
@@ -356,13 +353,13 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 					Height:    txRes.Height,
 					TxHash:    tx.TxHash,
 					Codespace: txRes.Result.Codespace,
-					Code:      relayTypes.ResponseCode(txRes.Result.Code),
 					Data:      string(txRes.Result.Data),
 				},
 			}
 			if uint32(txRes.Result.Code) != types.CodeTypeOK {
-				res.Error = fmt.Errorf("transaction failed with code: %v", txRes.Result.Log)
+				return res, fmt.Errorf("transaction failed with error: %v", txRes.Result.Log)
 			}
+			res.TxResult.Code = relayTypes.Success
 			return res, nil
 		}
 	}
