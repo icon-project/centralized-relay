@@ -2,8 +2,6 @@ package multisig
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -36,18 +34,10 @@ func randomKeys(n int, chainParam *chaincfg.Params) ([]string, [][]byte, []*btcu
 
 		ECPubKey, _ := btcutil.NewAddressPubKey(wif.SerializePubKey(), chainParam)
 
-		pubKey := privKey.PubKey().SerializeCompressed()
-		pubKey2 := wif.SerializePubKey()
-
-		fmt.Printf("Account %v:\n%v\n%v\n%v\n", i, wif.String(), hex.EncodeToString(wif.SerializePubKey()), wif.PrivKey.Serialize())
 		privKeys = append(privKeys, wif.String())
 		pubKeys = append(pubKeys, wif.SerializePubKey())
 		ECPubKeys = append(ECPubKeys, ECPubKey)
-
-		fmt.Printf("randomKeys pubKey %v - pubKey 2 %v\n ", pubKey, pubKey2)
 	}
-	fmt.Printf("len privateKey: %v\n", len(privKeys))
-	fmt.Printf("len publicKey: %v\n", len(pubKeys))
 
 	return privKeys, pubKeys, ECPubKeys
 }
