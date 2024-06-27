@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"testing"
@@ -68,34 +69,16 @@ func TestCreateTx(t *testing.T) {
 
 	inputs := []*UTXO{
 		// 2/3 - empty data
-		// {
-		// 	WalletAddress: "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz",
-		// 	TxHash:        "1a532a1bd32b6be1140a3e1de414aa4d0d7a215066d62e8a27b96810a80de9ea",
-		// 	OutputIdx:     0,
-		// 	OutputAmount:  100000,
-		// },
-		// 2/3 - empty data
 		{
-			WalletAddress: "bcrt1ptkwstjj0fm24qfm4whkamzxlnp902fpqk2w0ust0usfu9fcmsccs9zvh5n",
 			TxHash:        "62d19039c9d0eec493f3a1440f0fab65c525b1426b675445b01f26ddf1d8fa42",
 			OutputIdx:     0,
 			OutputAmount:  10000,
 		},
-		// 3/3
-		// {
-		// 	WalletAddress: "bcrt1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslstaag7h",
-		// 	TxHash:        "18166fe8fe7ca9a9ea5632021d1173860af5ad2c332424a6d1f7d835c37ff347",
-		// 	OutputIdx:     0,
-		// 	OutputAmount:  100000,
-		// },
-
-		// // 2/3
-		// {
-		// 	WalletAddress: "bcrt1pmq64qc50jnn89s9e2cqn03y83rvqx75r2c2nx0fqqfp8w9jrfktsfkdyjs",
-		// 	TxHash:        "8f476a9a520f548e7b60512f5c14c5c6253a289dde02d146a02ca22892a2877a",
-		// 	OutputIdx:     0,
-		// 	OutputAmount:  10000,
-		// },
+		{
+			TxHash:        "8f476a9a520f548e7b60512f5c14c5c6253a289dde02d146a02ca22892a2877a",
+			OutputIdx:     0,
+			OutputAmount:  20000,
+		},
 	}
 
 	outputs := []*OutputTx{
@@ -116,7 +99,7 @@ func TestCreateTx(t *testing.T) {
 	// validators sign tx
 	totalSigs := [][][]byte{} // index private key -> index input -> sig
 	for _, privKey := range privKeys {
-		sigs, _, err := PartSignOnRawExternalTx(privKey, msgTx, inputs, prevOuts, multisigWallet, chainParam)
+		sigs, err := PartSignOnRawExternalTx(privKey, msgTx, inputs, multisigWallet, 0, chainParam)
 		if err != nil {
 			fmt.Println("err sign: ", err)
 		}
@@ -124,6 +107,74 @@ func TestCreateTx(t *testing.T) {
 		totalSigs = append(totalSigs, sigs)
 	}
 
+	signedMsgTx, err := CombineMultisigSigs(multisigInfo, multisigWallet, msgTx, totalSigs)
+
+	var signedTx bytes.Buffer
+	signedMsgTx.Serialize(&signedTx)
+	hexSignedTx := hex.EncodeToString(signedTx.Bytes())
+	signedMsgTxID := signedMsgTx.TxHash().String()
+
+	fmt.Println("hexSignedTx: ", hexSignedTx)
+	fmt.Println("signedMsgTxID: ", signedMsgTxID)
+	fmt.Println("err sign: ", err)
+}
+
+func TestMultiRelayers(t *testing.T) {
+	chainParam := &chaincfg.RegressionNetParams
+	privKeys, multisigInfo := randomMultisigInfo(3, 2, chainParam)
+
+	inputs := []*UTXO{
+		{
+			TxHash:        "62d19039c9d0eec493f3a1440f0fab65c525b1426b675445b01f26ddf1d8fa42",
+			OutputIdx:     0,
+			OutputAmount:  10000,
+		},
+		{
+			TxHash:        "8f476a9a520f548e7b60512f5c14c5c6253a289dde02d146a02ca22892a2877a",
+			OutputIdx:     0,
+			OutputAmount:  20000,
+		},
+	}
+
+	outputs := []*OutputTx{
+		{
+			ReceiverAddress: "bcrt1p65j57tzjufnjmt4fgx5xexfry6f3f87sggl02gl7fcxuky4x34fscyjejf",
+			Amount:          8000,
+		},
+	}
+
+	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+
+	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
+	msgTx, _, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript)
+
+	totalSigs := [][][]byte{}
+	// MATSTER RELAYER SIGN TX
+	sigs, err := PartSignOnRawExternalTx(privKeys[0], msgTx, inputs, multisigWallet, 0, chainParam)
+	if err != nil {
+		fmt.Println("err sign: ", err)
+	}
+	totalSigs = append(totalSigs, sigs)
+
+	router := SetUpRouter()
+	// create post body using an instance of the requestSignInput struct
+	rsi := requestSignInput{
+		MsgTx: msgTx,
+		Inputs:  inputs,
+	}
+	requestJson, _ := json.Marshal(rsi)
+
+	// SLAVE RELAYER 1 SIGN TX
+	sigs1 := requestSign("/requestSign1", requestJson, router)
+	fmt.Println("resp: ", sigs1)
+	totalSigs = append(totalSigs, sigs1)
+
+	// SLAVE RELAYER 2 SIGN TX
+	sigs2 := requestSign("/requestSign2", requestJson, router)
+	fmt.Println("resp: ", sigs2)
+	totalSigs = append(totalSigs, sigs2)
+
+	// MATSTER RELAYER COMBINE SIGNS
 	signedMsgTx, err := CombineMultisigSigs(multisigInfo, multisigWallet, msgTx, totalSigs)
 
 	var signedTx bytes.Buffer

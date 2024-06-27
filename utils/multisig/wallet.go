@@ -47,11 +47,6 @@ func buildMultisigTapScript(numSigsRequired int, pubKeys [][]byte) ([]byte, stri
 		return []byte{}, "", fmt.Errorf("could not build script - Error %v", err)
 	}
 
-	scriptStr, err := txscript.DisasmString(redeemScript)
-	fmt.Printf("Script str: %v\n", scriptStr)
-	fmt.Printf("Script str err: %v\n", err)
-
-
 	return redeemScript, "", nil
 }
 
@@ -119,8 +114,6 @@ func GenerateMultisigWallet(
 
 	tapLeaf1 := txscript.NewBaseTapLeaf(script1)
 	tapScriptTree := txscript.AssembleTaprootScriptTree(tapLeaf1)
-
-	fmt.Printf("TapTree: %+v\n", tapScriptTree)
 
 	tapScriptRootHash := tapScriptTree.RootNode.TapHash()
 
