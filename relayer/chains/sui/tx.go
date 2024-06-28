@@ -81,7 +81,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("module cap id %s not found: %w", message.DappModuleCapID, err)
 		}
 
 		var callParams []SuiCallArg
@@ -155,7 +155,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get module cap id %s: %w", message.DappModuleCapID, err)
 		}
 
 		snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.Sn))
