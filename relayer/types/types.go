@@ -31,7 +31,7 @@ type Message struct {
 	MessageHeight   uint64 `json:"messageHeight"`
 	EventType       string `json:"eventType"`
 	ReqID           uint64 `json:"reqID,omitempty"`
-	DappModuleCapID string `json:"-"`
+	DappModuleCapID string `json:"dappModuleCapID,omitempty"`
 
 	TxInfo []byte `json:"-"`
 }
