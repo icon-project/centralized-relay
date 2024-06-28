@@ -12,14 +12,18 @@ import (
 type Config struct {
 	ChainName string `yaml:"-"`
 
-	RPCUrl            string `yaml:"rpc-url"`
-	Address           string `yaml:"address"`
+	RPCUrl  string `yaml:"rpc-url"`
+	Address string `yaml:"address"`
+
+	XcallProgramID      string `yaml:"xcall-program-id"`
+	ConnectionProgramID string `yaml:"connection-program-id"`
+
 	XcallStateAccount string `yaml:"xcall-state-account"`
-	XcallProgramID    string `yaml:"xcall-program-id"`
-	NID               string `yaml:"nid"`
-	HomeDir           string `yaml:"home-dir"`
-	GasLimit          uint64 `yaml:"gas-limit"`
-	StartHeight       uint64 `yaml:"start-height"`
+
+	NID         string `yaml:"nid"`
+	HomeDir     string `yaml:"home-dir"`
+	GasLimit    uint64 `yaml:"gas-limit"`
+	StartHeight uint64 `yaml:"start-height"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -32,9 +36,18 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 
 	client := NewClient(solrpc.New(pc.RPCUrl))
 
-	var xcallIdl IDL
-	if err := client.FetchIDL(ctx, pc.XcallProgramID, &xcallIdl); err != nil {
-		return nil, err
+	xcallIdl := IDL{}
+	if pc.XcallProgramID != "" {
+		if err := client.FetchIDL(ctx, pc.XcallProgramID, &xcallIdl); err != nil {
+			return nil, err
+		}
+	}
+
+	connIdl := IDL{}
+	if pc.ConnectionProgramID != "" {
+		if err := client.FetchIDL(ctx, pc.ConnectionProgramID, &connIdl); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Provider{
@@ -43,6 +56,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		client:   client,
 		txmut:    &sync.Mutex{},
 		xcallIdl: &xcallIdl,
+		connIdl:  &connIdl,
 	}, nil
 }
 

@@ -22,6 +22,7 @@ type Provider struct {
 	kms      kms.KMS
 	txmut    *sync.Mutex
 	xcallIdl *IDL
+	connIdl  *IDL
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {

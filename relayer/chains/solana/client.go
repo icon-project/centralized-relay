@@ -44,6 +44,18 @@ type IClient interface {
 		tx *solana.Transaction,
 		opts *solrpc.TransactionOpts,
 	) (solana.Signature, error)
+
+	GetSignaturesForAddress(
+		ctx context.Context,
+		account solana.PublicKey,
+		opts *solrpc.GetSignaturesForAddressOpts,
+	) ([]*solrpc.TransactionSignature, error)
+
+	GetTransaction(
+		ctx context.Context,
+		signature solana.Signature,
+		opts *solrpc.GetTransactionOpts,
+	) (*solrpc.GetTransactionResult, error)
 }
 
 type Client struct {
@@ -218,4 +230,20 @@ func (cl Client) GetMinBalanceForRentExemption(
 	dataSize uint64,
 ) (uint64, error) {
 	return cl.rpc.GetMinimumBalanceForRentExemption(ctx, dataSize, "")
+}
+
+func (cl Client) GetSignaturesForAddress(
+	ctx context.Context,
+	account solana.PublicKey,
+	opts *solrpc.GetSignaturesForAddressOpts,
+) ([]*solrpc.TransactionSignature, error) {
+	return cl.rpc.GetSignaturesForAddressWithOpts(ctx, account, opts)
+}
+
+func (cl Client) GetTransaction(
+	ctx context.Context,
+	signature solana.Signature,
+	opts *solrpc.GetTransactionOpts,
+) (*solrpc.GetTransactionResult, error) {
+	return cl.rpc.GetTransaction(ctx, signature, opts)
 }

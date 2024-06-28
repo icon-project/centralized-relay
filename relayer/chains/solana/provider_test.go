@@ -1,6 +1,7 @@
 package solana
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -54,4 +55,35 @@ func TestIDLAddress(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, idlPubkey, calculatedIdlAddr)
+}
+
+func TestEventLogParse(t *testing.T) {
+	eventData := "HDQnaQjSWwkIAAAAMHgzLmljb24BAAAAAAAAAA=="
+
+	// Decode the Base64 encoded string
+	eventBytes, err := base64.StdEncoding.DecodeString(eventData)
+	assert.NoError(t, err)
+
+	fmt.Printf("Decoded bytes: %v\n", eventBytes)
+
+	// Extract the first 8 bytes as discriminator
+	if len(eventBytes) < 8 {
+		t.Fatalf("Decoded bytes too short to contain discriminator: %v", eventBytes)
+	}
+	discriminator := eventBytes[:8]
+	fmt.Printf("Discriminator: %v\n", discriminator)
+
+	// Remaining bytes are the serialized event
+	remainingBytes := eventBytes[8:]
+
+	ev := struct {
+		To string
+		Sn uint64
+	}{}
+
+	// Deserialize the remaining bytes into the TestEvent struct
+	err = borsh.Deserialize(&ev, remainingBytes)
+	assert.NoError(t, err)
+
+	fmt.Printf("TestEvent: %+v\n", ev)
 }
