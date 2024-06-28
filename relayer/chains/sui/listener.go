@@ -29,12 +29,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		}
 	}
 
-	lastProcessedTxDigest := "HaCg1RxmtzTc79RGy213xyRZubW1XYYDKt9RN6D8V6hQ"
-	if txInfo.TxDigest != "" {
-		lastProcessedTxDigest = txInfo.TxDigest
-	}
-
-	return p.listenByPolling(ctx, lastProcessedTxDigest, blockInfo)
+	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
 }
 
 func (p *Provider) allowedEventTypes() []string {
