@@ -66,6 +66,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			zap.Uint64("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
 			zap.Uint64("req-id", msg.ReqID),
+			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
 		checkpointMessages[ev.Checkpoint.Uint64()] = append(checkpointMessages[ev.Checkpoint.Uint64()], msg)
@@ -193,6 +194,7 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 		zap.Uint64("sn", msg.Sn),
 		zap.String("dst", msg.Dst),
 		zap.Uint64("req-id", msg.ReqID),
+		zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 		zap.Any("data", hex.EncodeToString(msg.Data)),
 	)
 
