@@ -29,7 +29,12 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		}
 	}
 
-	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
+	lastProcessedTxDigest := "HaCg1RxmtzTc79RGy213xyRZubW1XYYDKt9RN6D8V6hQ"
+	if txInfo.TxDigest != "" {
+		lastProcessedTxDigest = txInfo.TxDigest
+	}
+
+	return p.listenByPolling(ctx, lastProcessedTxDigest, blockInfo)
 }
 
 func (p *Provider) allowedEventTypes() []string {
@@ -204,7 +209,8 @@ func (p *Provider) listenByPolling(ctx context.Context, lastSavedTxDigestStr str
 	var lastSavedTxDigest *sui_types.TransactionDigest
 
 	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest
-		lastSavedTxDigest, err := sui_types.NewDigest(lastSavedTxDigestStr)
+		var err error
+		lastSavedTxDigest, err = sui_types.NewDigest(lastSavedTxDigestStr)
 		if err != nil {
 			return err
 		}
