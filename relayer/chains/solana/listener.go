@@ -49,8 +49,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, blockInfo chan *relayertypes.BlockInfo) error {
 	ticker := time.NewTicker(3 * time.Second)
 
-	if fromSignature != "" {
-		fromSign, err := solana.SignatureFromBase58(fromSignature)
+	startSignature := fromSignature
+
+	if startSignature != "" {
+		fromSign, err := solana.SignatureFromBase58(startSignature)
 		if err != nil {
 			return err
 		}
@@ -65,14 +67,14 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 			return ctx.Err()
 		case <-ticker.C:
 			//fetch txSigns from most recent to oldest. 0th index is the most recent and last index is oldest
-			txSigns, err := p.getSignatures(ctx, fromSignature)
+			txSigns, err := p.getSignatures(ctx, startSignature)
 			if err != nil {
 				p.log.Error("failed to get signatures", zap.Error(err))
 				break
 			}
 			if len(txSigns) > 0 {
 				//next query start from most recent signature.
-				fromSignature = txSigns[0].Signature.String()
+				startSignature = txSigns[0].Signature.String()
 			}
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
