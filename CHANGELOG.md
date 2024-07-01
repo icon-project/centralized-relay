@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2024-06-27
+
+### Fixed
+
+- WS connection recovery for the evm chain
+- Poper error checking for the icon and cosmos chain
+
+## [1.3.0] - 2024-06-23
+
+### Fixed
+
+- Polling fix for evm when ws errors
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
 ## [1.2.9] - 2024-06-19
 
 ### Added
