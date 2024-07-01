@@ -2,6 +2,174 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2024-06-27
+
+### Fixed
+
+- WS connection recovery for the evm chain
+- Poper error checking for the icon and cosmos chain
+
+## [1.3.0] - 2024-06-23
+
+### Fixed
+
+- Polling fix for evm when ws errors
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
+## [1.2.9] - 2024-06-19
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
+### Fixed
+
+- Use pending nonce instead of the latest nonce for the evm chain
+- Other improvements and bug fixes
+- CPU and memeory usage optimization, dropped by more than 100%
+- Retry is more stable
+- Exponential backoff for the retry count
+
+### Changed
+
+- mutext on router
+- evm past polling for events is optimized, it can batch call now using config option
+- cosmwasm block polling using batch size using config option
+
+## [1.2.8] - 2024-06-06
+
+### Changed
+
+- Removed concurrency
+
+## [1.2.7] - 2024-05-28
+
+### Fixed
+
+- Use on/off switch for the polling and subscriptions for recoveries
+- Other improvements and bug fixes
+
+### Changed
+
+- Evm block mined is replaced by custom function
+
+## [1.2.6] - 2024-05-26
+
+### Fixed
+
+- Cosmos contracts subscriptions respects the configured contracts
+- RPC failures are are handled more elegently, switches to the polling and back to the subscriptions
+- Address check validation for the manaul relay on the icon chain
+- Other improvements and bug fixes
+
+### Changed
+
+- Icon `progressInterval` notification block is not incremented to handle rpc failures
+- Default Block mined wait time is increased to 10 minutes
+- Exponential backoff for the retry count
+
+## [1.2.5] - 2024-05-18
+
+### Fixed
+
+- Wrong params sent when estimating gas for the evm chain `executeCall`
+
+## [1.2.4] - 2024-05-17
+
+### Added
+
+- Support for the injective chain
+
+### Fixed
+
+- Gas Estimation for the evm chain
+- Cosmos sdk global config bech32 prefixes
+- Other improvements and bug fixes
+
+## [1.2.3] - 2024-05-14
+
+### Added
+
+- Gas adjustment from config
+
+## [1.2.2] - 2024-05-01
+
+### Fixed
+
+- Avoid nonce increment when fixing the nonce error while sending the transaction
+
+## [1.2.1] - 2024-04-30
+
+### Fixed
+
+- Websocket connection disconnect issue with icon chain
+- Use `eth_gasPrice` for the gas price calculation all the time
+- Other improvements and bug fixes
+- Use block mined timeout instead of polling when waiting for transcation
+
+### Removed
+
+- Icon redunant polling code
+
+## [1.2.0] - 2024-04-09
+
+### Added
+
+- Full websocket listner support for all chains
+- Auto clean expired messages to avoid disk space issues
+
+### Changed
+
+- CallMessage is only retried twice to avoid spamming retries
+- Use only one websocket connection for maximum efficiency
+- Use `/event` active listener instead of block search leading to significant performance gains
+
+### Fixed
+
+- Error handling for the websocket connection
+- Start height for the icon chain
+- Manual relay for icon chain using the height (on chain)
+- Other improvements and bug fixes
+
+### Removed
+
+- Height sync is no longer necessary.
+
+## [1.1.3] - 2024-03-27
+
+### Added
+
+- Route manually from height (on chain)
+
+### Fixed
+
+- Increase delivery failure by trying for per 15 seconds after initial failures.
+- Panics when subscribing to the event result.
+- AWS ec2 instance profile detection.
+- Other improvements and bug fixes.
+
+## [1.1.2] - 2024-03-22
+
+### Fixed
+
+- Region detection for AWS
+- Priority 0 (high) for `start-height` evm
+- Panic too many packets map access
+
+## [1.1.1] - 2024-03-21
+
+### Added
+
+- Websocket support for evm chain
+
+### Fixed
+
+- AWS Region detection
+- Static binary build
+
 ## [1.1.0] - 2024-03-18
 
 ### Added
@@ -37,128 +205,3 @@ Exection will respect the fees set on configuration. The relay will now calculat
 Migrate keystore files to the new format by running the following command:
 
 **important**: Before running the command, make sure you have the AWS KMS key id. You can get the KMS key id by running the `crly config show` command.
-
-```shell
-aws kms encrypt --key-id <kms-key-id> --plaintext fileb://path/to/keystore.json --output text --query CiphertextBlob | base64 -d > path/to/keystore/address
-```
-
-Example when migrating the icon chain keystore file where its nid is `0x2.icon` and the wallet address is `0x0B958dd815195F73d6B9B91bFDF1639457678FEb`:
-
-verify keystore exists:
-
-```shell
-ls $HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json
-```
-
-Encrypt the keystore file:
-
-```shell
-aws kms encrypt --key-id <insert-key-id-here> --plaintext fileb://$HOME/.centralized-relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.json --output text --query CiphertextBlob | base64 -d > "$HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb"
-```
-
-Move the encrypted wallet passphrase to the new location:
-
-  ```shell
-  mv $HOME/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.password $HOME/.centralized relay/keystore/0x2.icon/0x0B958dd815195F73d6B9B91bFDF1639457678FEb.pass
-  ```
-
-### Additional Information
-
-- All the keystore relayer files are located in the `keystore` directory.
-  `ls $HOME/.centralized-relay/keystore`
-
-- The version `1.0.0` keystore files for chain are located in the inside the its `nid` directory in a following format:
-  `keystore/<nid>/<wallet-address>.json`
-
-## [1.1.1] - 2024-03-21
-
-### Added
-
-- Websocket support for evm chain
-
-### Fixed
-
-- AWS Region detection
-- Static binary build
-
-## [1.1.2] - 2024-03-22
-
-### Fixed
-
-- Region detection for AWS
-- Priority 0 (high) for `start-height` evm
-- Panic too many packets map access
-
-## [1.1.3] - 2024-03-27
-
-### Added
-
-- Route manually from height (on chain)
-
-### Fixed
-
-- Increase delivery failure by trying for per 15 seconds after initial failures.
-- Panics when subscribing to the event result.
-- AWS ec2 instance profile detection.
-- Other improvements and bug fixes.
-
-## [1.2.0] - 2024-04-09
-
-### Added
-
-- Full websocket listner support for all chains
-- Auto clean expired messages to avoid disk space issues
-
-### Changed
-
-- CallMessage is only retried twice to avoid spamming retries
-- Use only one websocket connection for maximum efficiency
-- Use `/event` active listener instead of block search leading to significant performance gains
-
-### Fixed
-
-- Error handling for the websocket connection
-- Start height for the icon chain
-- Manual relay for icon chain using the height (on chain)
-- Other improvements and bug fixes
-
-### Removed
-
-- Height sync is no longer necessary.
-
-## [1.2.1] - 2024-04-30
-
-### Fixed
-
-- Websocket connection disconnect issue with icon chain
-- Use `eth_gasPrice` for the gas price calculation all the time
-- Other improvements and bug fixes
-- Use block mined timeout instead of polling when waiting for transcation
-
-### Removed
-
-- Icon redunant polling code
-
-## [1.2.2] - 2024-05-01
-
-### Fixed
-
-- Avoid nonce increment when fixing the nonce error while sending the transaction
-
-# [1.2.3] - 2024-05-14
-
-### Added
-
-- Gas adjustment from config
-
-## [1.2.4] - 2024-05-17
-
-### Added
-
-- Support for the injective chain
-
-### Fixed
-
-- Gas Estimation for the evm chain
-- Cosmos sdk global config bech32 prefixes
-- Other improvements and bug fixes

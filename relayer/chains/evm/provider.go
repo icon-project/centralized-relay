@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -40,32 +42,26 @@ var (
 )
 
 type Config struct {
-	ChainName      string                          `json:"-" yaml:"-"`
-	RPCUrl         string                          `json:"rpc-url" yaml:"rpc-url"`
-	WebsocketUrl   string                          `json:"websocket-url" yaml:"websocket-url"`
-	VerifierRPCUrl string                          `json:"verifier-rpc-url" yaml:"verifier-rpc-url"`
-	StartHeight    uint64                          `json:"start-height" yaml:"start-height"`
-	Address        string                          `json:"address" yaml:"address"`
-	GasMin         uint64                          `json:"gas-min" yaml:"gas-min"`
-	GasLimit       uint64                          `json:"gas-limit" yaml:"gas-limit"`
-	Contracts      providerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	FinalityBlock  uint64                          `json:"finality-block" yaml:"finality-block"`
-	NID            string                          `json:"nid" yaml:"nid"`
-	GasAdjustment  uint64                          `json:"gas-adjustment" yaml:"gas-adjustment"`
-	HomeDir        string                          `json:"-" yaml:"-"`
-	Disabled       bool                            `json:"disabled" yaml:"disabled"`
+	provider.CommonConfig `json:",inline" yaml:",inline"`
+	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
+	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
+	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
+	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
+	BlockBatchSize        uint64 `json:"block-batch-size" yaml:"block-batch-size"`
 }
 
 type Provider struct {
-	client       IClient
-	log          *zap.Logger
-	cfg          *Config
-	StartHeight  uint64
-	blockReq     ethereum.FilterQuery
-	wallet       *keystore.Key
-	kms          kms.KMS
-	contracts    map[string]providerTypes.EventMap
-	NonceTracker types.NonceTrackerI
+	client              IClient
+	log                 *zap.Logger
+	cfg                 *Config
+	StartHeight         uint64
+	blockReq            ethereum.FilterQuery
+	wallet              *keystore.Key
+	kms                 kms.KMS
+	contracts           map[string]providerTypes.EventMap
+	NonceTracker        types.NonceTrackerI
+	LastSavedHeightFunc func() uint64
+	routerMutex         *sync.Mutex
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -98,7 +94,8 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		client:       client,
 		blockReq:     p.GetMonitorEventFilters(),
 		contracts:    p.eventMap(),
-		NonceTracker: types.NewNonceTracker(),
+		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
+		routerMutex:  new(sync.Mutex),
 	}, nil
 }
 
@@ -115,7 +112,10 @@ func (p *Config) Validate() error {
 
 func (p *Config) sanitize() error {
 	if p.GasAdjustment == 0 {
-		p.GasAdjustment = 5
+		p.GasAdjustment = 50
+	}
+	if p.BlockBatchSize == 0 {
+		p.BlockBatchSize = maxBlockRange
 	}
 	return nil
 }
@@ -156,13 +156,11 @@ func (p *Provider) Wallet() (*keystore.Key, error) {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
-		if p.NonceTracker.Get(p.wallet.Address) == nil {
-			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
-			if err != nil {
-				return nil, err
-			}
-			p.NonceTracker.Set(p.wallet.Address, nonce)
+		nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
+		if err != nil {
+			return nil, err
 		}
+		p.NonceTracker.Set(p.wallet.Address, nonce)
 	}
 	return p.wallet, nil
 }
@@ -172,9 +170,28 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
-	ctx, cancel := context.WithTimeout(ctx, DefaultMinedTimeout)
-	defer cancel()
-	return p.client.WaitForTransactionMined(ctx, tx)
+	ticker := time.NewTicker(DefaultPollingInterval)
+	defer ticker.Stop()
+	counter := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			if counter >= MaximumPollTry {
+				return nil, fmt.Errorf("failed to get receipt after %d tries", counter)
+			}
+			counter++
+			txr, err := p.client.TransactionReceipt(ctx, tx.Hash())
+			if err == nil {
+				return txr, nil
+			}
+			if errors.Is(err, ethereum.NotFound) {
+				continue
+			}
+			return txr, err
+		}
+	}
 }
 
 func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *big.Int) (txnHash common.Hash, err error) {
@@ -185,7 +202,7 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 
 	fromAddress := crypto.PubkeyToAddress(from.PublicKey)
 
-	nonce, err := r.client.NonceAt(context.TODO(), fromAddress, nil)
+	nonce, err := r.client.PendingNonceAt(context.TODO(), fromAddress, nil)
 	if err != nil {
 		err = errors.Wrap(err, "PendingNonceAt ")
 		return common.Hash{}, err
@@ -229,13 +246,19 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+	defer cancel()
 	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
-	txOpts.Context = ctx
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	txOpts.GasPrice = gasPrice
+	gasTip, err := p.client.SuggestGasTip(ctx)
+	if err != nil {
+		p.log.Warn("failed to get gas tip", zap.Error(err))
+	}
+	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
+	txOpts.GasTipCap = gasTip
 	return txOpts, nil
 }
 
@@ -245,7 +268,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin}, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, &providerTypes.Message{EventType: events.SetAdmin, Dst: admin})
 	receipt, err := p.WaitForResults(ctx, tx)
 	if err != nil {
 		return err
@@ -264,9 +287,9 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	}
 	msg := &providerTypes.Message{
 		EventType: events.RevertMessage,
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -289,7 +312,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -304,7 +327,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 // SetFee
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -315,7 +338,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		Sn:        msgFee,
 		ReqID:     resFee,
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -339,7 +362,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 // ExecuteRollback
-func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
+func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		return err
@@ -348,7 +371,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 		EventType: events.ExecuteRollback,
 		Sn:        sn,
 	}
-	tx, err := p.SendTransaction(ctx, opts, msg, providerTypes.MaxTxRetry)
+	tx, err := p.SendTransaction(ctx, opts, msg)
 	if err != nil {
 		return err
 	}
@@ -375,8 +398,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodRecvMessage, message.Src, sn, message.Data)
+		data, err := abi.Pack(MethodRecvMessage, message.Src, message.Sn, message.Data)
 		if err != nil {
 			return 0, err
 		}
@@ -396,8 +418,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodRevertMessage, sn)
+		data, err := abi.Pack(MethodRevertMessage, message.Sn)
 		if err != nil {
 			return 0, err
 		}
@@ -417,9 +438,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		sn := new(big.Int).SetUint64(message.Sn)
-		reqID := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodSetFee, message.Src, sn, reqID)
+		data, err := abi.Pack(MethodSetFee, message.Src, message.Sn, message.ReqID)
 		if err != nil {
 			return 0, err
 		}
@@ -429,8 +448,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		if err != nil {
 			return 0, err
 		}
-		reqID := new(big.Int).SetUint64(message.Sn)
-		data, err := abi.Pack(MethodExecuteCall, reqID, message.Data)
+		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
 		if err != nil {
 			return 0, err
 		}
@@ -438,4 +456,14 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
 	}
 	return p.client.EstimateGas(ctx, msg)
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
+}
+
+// GetLastSavedBlockHeight returns the last saved block height
+func (p *Provider) GetLastSavedBlockHeight() uint64 {
+	return p.LastSavedHeightFunc()
 }

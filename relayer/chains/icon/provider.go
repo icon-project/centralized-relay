@@ -9,25 +9,15 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
 )
 
 type Config struct {
-	ChainName      string                         `json:"-" yaml:"-"`
-	RPCUrl         string                         `json:"rpc-url" yaml:"rpc-url"`
-	Address        string                         `json:"address" yaml:"address"`
-	StartHeight    uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
-	Contracts      relayerTypes.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	NetworkID      int64                          `json:"network-id" yaml:"network-id"`
-	FinalityBlock  uint64                         `json:"finality-block" yaml:"finality-block"`
-	NID            string                         `json:"nid" yaml:"nid"`
-	StepMin        int64                          `json:"step-min" yaml:"step-min"`
-	StepLimit      int64                          `json:"step-limit" yaml:"step-limit"`
-	StepAdjustment int64                          `json:"step-adjustment" yaml:"step-adjustment"`
-	Disabled       bool                           `json:"disabled" yaml:"disabled"`
-	HomeDir        string                         `json:"-" yaml:"-"`
+	provider.CommonConfig `json:",inline" yaml:",inline"`
+	StepMin               int64 `json:"step-min" yaml:"step-min"`
+	StepLimit             int64 `json:"step-limit" yaml:"step-limit"`
+	StepAdjustment        int64 `json:"step-adjustment" yaml:"step-adjustment"`
 }
 
 // NewProvider returns new Icon provider
@@ -39,13 +29,20 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, err
 	}
 
+	client := NewClient(ctx, c.RPCUrl, log)
+	NetworkInfo, err := client.GetNetworkInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get network id: %v", err)
+	}
+
 	c.ChainName = chainName
 	c.HomeDir = homepath
 
 	return &Provider{
 		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
-		client:    NewClient(ctx, c.RPCUrl, log),
+		client:    client,
 		cfg:       c,
+		networkID: NetworkInfo.NetworkID,
 		contracts: c.eventMap(),
 	}, nil
 }
@@ -87,12 +84,14 @@ func (c *Config) Enabled() bool {
 }
 
 type Provider struct {
-	log       *zap.Logger
-	cfg       *Config
-	wallet    module.Wallet
-	client    *Client
-	kms       kms.KMS
-	contracts map[string]providerTypes.EventMap
+	log                 *zap.Logger
+	cfg                 *Config
+	wallet              module.Wallet
+	client              *Client
+	kms                 kms.KMS
+	contracts           map[string]providerTypes.EventMap
+	networkID           types.HexInt
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Provider) NID() string {
@@ -116,6 +115,10 @@ func (p *Provider) Name() string {
 	return p.cfg.ChainName
 }
 
+func (p *Provider) NetworkID() types.HexInt {
+	return p.networkID
+}
+
 func (p *Provider) Wallet() (module.Wallet, error) {
 	if p.wallet == nil {
 		if err := p.RestoreKeystore(context.Background()); err != nil {
@@ -133,7 +136,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
 	callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
 		"srcNetwork": messageKey.Src,
-		"_connSn":    types.NewHexInt(int64(messageKey.Sn)),
+		"_connSn":    types.NewHexInt(messageKey.Sn.Int64()),
 	})
 
 	var status types.HexInt
@@ -201,11 +204,11 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 // SetFees
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	callParam := map[string]interface{}{
 		"networkId":   networkID,
-		"messageFee":  types.NewHexInt(int64(msgFee)),
-		"responseFee": types.NewHexInt(int64(resFee)),
+		"messageFee":  types.NewHexInt(msgFee.Int64()),
+		"responseFee": types.NewHexInt(resFee.Int64()),
 	}
 
 	msg := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), callParam, MethodSetFee)
@@ -257,4 +260,14 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn uint64) error {
 		return fmt.Errorf("failed: %s", txr.TxHash)
 	}
 	return nil
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
+}
+
+// GetLastSavedBlockHeight returns the last saved block height
+func (p *Provider) GetLastSavedBlockHeight() uint64 {
+	return p.LastSavedHeightFunc()
 }

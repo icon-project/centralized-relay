@@ -2,7 +2,7 @@ package wasm
 
 import (
 	"fmt"
-	"strconv"
+	"math/big"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
@@ -63,8 +63,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 					}
 					msg.Data = data
 				case EventAttrKeyConnSn:
-					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
@@ -83,9 +83,9 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
-						return nil, fmt.Errorf("failed to parse reqId from event")
+					reqID, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
+						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.ReqID = reqID
 				case EventAttrKeyData:
@@ -93,8 +93,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
