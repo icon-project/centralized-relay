@@ -1,14 +1,15 @@
 {
     "type": "evm",
     "value": {
+        "disabled": false,
         "rpc-url": "https://rpc-mumbai.maticvigil.com",
-        "verifier-rpc-url": "",
+        "websocket-url": "wss://ws-mumbai.maticvigil.com",
         "start-height": 0,
         "address": "0x...c3f",
         "gas-min": 10056,
         "gas-limit": 200000,
+        "gas-adjustment": 5,
         "nid": " 0xa869.fuji",
-        "concurrency": 3,
         "contracts": {
             "xcall": "0x...cvv",
             "connection": "0x...oml"

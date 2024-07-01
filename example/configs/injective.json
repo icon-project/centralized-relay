@@ -23,6 +23,7 @@
     "broadcast-mode": "sync",
     "sign-mode": "SIGN_MODE_DIRECT",
     "simulate": true,
-    "start-height": 0
+    "start-height": 0,
+    "extra-codecs": "injective"
   }
 }
