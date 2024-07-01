@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
 )
@@ -50,13 +51,26 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		}
 	}
 
+	xcallProgID, err := xcallIdl.GetProgramID()
+	if err != nil {
+		return nil, err
+	}
+
+	connProgID, err := xcallIdl.GetProgramID()
+	if err != nil {
+		return nil, err
+	}
+
+	pdaRegistry := types.NewPDARegistry(xcallProgID, connProgID)
+
 	return &Provider{
-		log:      logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
-		cfg:      pc,
-		client:   client,
-		txmut:    &sync.Mutex{},
-		xcallIdl: &xcallIdl,
-		connIdl:  &connIdl,
+		log:         logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
+		cfg:         pc,
+		client:      client,
+		txmut:       &sync.Mutex{},
+		xcallIdl:    &xcallIdl,
+		connIdl:     &connIdl,
+		pdaRegistry: pdaRegistry,
 	}, nil
 }
 

@@ -23,6 +23,8 @@ type Provider struct {
 	txmut    *sync.Mutex
 	xcallIdl *IDL
 	connIdl  *IDL
+
+	pdaRegistry *types.PDARegistry
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
