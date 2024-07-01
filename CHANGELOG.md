@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2024-07-01
+
+### Fixed
+
+- EVM RPC connection recovery using the errors message
+
 ## [1.3.1] - 2024-06-27
 
 ### Fixed
