@@ -129,11 +129,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case <-subscribeStarter.C:
 			subscribeStarter.Stop()
 			for _, event := range p.contracts {
-				go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
-					Address: event.Address,
-					Method:  event.GetWasmMsgType(),
-					Height:  latestHeight,
-				}, resetFunc)
+				for msgType := range event.SigType {
+					go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+						Address: event.Address,
+						Method:  msgType,
+						Height:  latestHeight,
+					}, resetFunc)
+				}
 			}
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()

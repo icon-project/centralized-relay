@@ -15,7 +15,7 @@ import (
 const (
 	EventTypeWasmMessage         = "wasm-Message"
 	EventTypeWasmCallMessage     = "wasm-CallMessage"
-	EventTypeWasmExecuteRollback = "wasm-RollbackMessage"
+	EventTypeWasmRollbackMessage = "wasm-RollbackMessage"
 
 	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"
@@ -102,7 +102,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				}
 			}
 			messages = append(messages, msg)
-		case EventTypeWasmExecuteRollback:
+		case EventTypeWasmRollbackMessage:
 			msg := &relayerTypes.Message{
 				EventType: events.ExecuteRollback,
 			}
@@ -128,15 +128,13 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 func (p *Config) eventMap() map[string]relayerTypes.EventMap {
 	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
+		event := relayerTypes.EventMap{ContractName: contractName, Address: addr, SigType: make(map[string]string)}
 		switch contractName {
 		case relayerTypes.XcallContract:
-			event.SigType = map[string]string{
-				EventTypeWasmCallMessage:     events.CallMessage,
-				EventTypeWasmExecuteRollback: events.ExecuteRollback,
-			}
+			event.SigType[EventTypeWasmCallMessage] = events.CallMessage
+			event.SigType[EventTypeWasmRollbackMessage] = events.ExecuteRollback
 		case relayerTypes.ConnectionContract:
-			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
+			event.SigType[EventTypeWasmMessage] = events.EmitMessage
 		}
 		eventMap[addr] = event
 	}
@@ -167,7 +165,7 @@ func (p *Config) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMa
 			case events.CallMessage:
 				wasmMessggeType = EventTypeWasmCallMessage
 			case events.ExecuteRollback:
-				wasmMessggeType = EventTypeWasmExecuteRollback
+				wasmMessggeType = EventTypeWasmRollbackMessage
 			}
 			eventList = append(eventList, sdkTypes.Event{
 				Type: wasmMessggeType,
