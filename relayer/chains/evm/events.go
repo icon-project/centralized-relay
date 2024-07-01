@@ -12,11 +12,11 @@ import (
 var (
 	EmitMessage     = "Message(string,uint256,bytes)"
 	CallMessage     = "CallMessage(string,string,uint256,uint256,bytes)"
-	ExecuteRollback = "RollbackMessage(uint256)"
+	RollbackMessage = "RollbackMessage(uint256)"
 
 	EmitMessageHash     = crypto.Keccak256Hash([]byte(EmitMessage))
 	CallMessageHash     = crypto.Keccak256Hash([]byte(CallMessage))
-	ExecuteRollbackHash = crypto.Keccak256Hash([]byte(ExecuteRollback))
+	RollbackMessageHash = crypto.Keccak256Hash([]byte(RollbackMessage))
 )
 
 // EventSigToEventType converts event signature to event type
@@ -28,7 +28,7 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 		switch contractName {
 		case providerTypes.XcallContract:
 			sig[CallMessage] = events.CallMessage
-			sig[ExecuteRollback] = events.ExecuteRollback
+			sig[RollbackMessage] = events.ExecuteRollback
 		case providerTypes.ConnectionContract:
 			sig[EmitMessage] = events.EmitMessage
 		}

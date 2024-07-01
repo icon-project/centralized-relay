@@ -151,7 +151,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					ReqID:         requestID,
 				}
 				messages = append(messages, msg)
-			case ExecuteRollback:
+			case RollbackMessage:
 				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) || len(el.Indexed) != 4 || len(el.Data) != 2 {
 					continue
 				}

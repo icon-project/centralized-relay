@@ -41,7 +41,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			Data:          msg.Data,
 			ReqID:         msg.ReqId,
 		}, nil
-	case ExecuteRollbackHash:
+	case RollbackMessageHash:
 		msg, err := p.client.ParseRollbackMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
@@ -51,7 +51,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			Src:           p.NID(),
 			Sn:            msg.Sn,
 			MessageHeight: log.BlockNumber,
-			EventType:     p.GetEventName(ExecuteRollback),
+			EventType:     p.GetEventName(RollbackMessage),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown topic")
