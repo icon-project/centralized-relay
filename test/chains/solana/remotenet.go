@@ -322,44 +322,6 @@ type XcConfig struct {
 }
 
 func (sn *SolanaRemoteNet) SetupConnection(ctx context.Context, target chains.Chain) error {
-	if true {
-		sn.IBCAddresses["connection"] = "GFz2w7weTLpLkXByN8Ax82s8DMAiKF1NR6XiY3texNqq"
-		seeds := [][]byte{
-			[]byte("config"),
-		}
-		// programAc := "GFz2w7weTLpLkXByN8Ax82s8DMAiKF1NR6XiY3texNqq"
-		// var cfg Config
-		programAc := "4XhdhgaaWYfJHSSQ7RVbyCJPZx3LLxB8fz35X36pchLh"
-		var cfg XcConfig
-		configAc, _, err := solana.FindProgramAddress(seeds, solana.MustPublicKeyFromBase58(programAc))
-		fmt.Println("config ac is ", configAc)
-		if err != nil {
-			log.Fatalf("Failed to find program address: %v", err)
-		}
-		res, err := sn.rpcClient.rpc.GetProgramAccountsWithOpts(ctx, solana.MustPublicKeyFromBase58(programAc), &solrpc.GetProgramAccountsOpts{
-			Encoding: solana.EncodingJSONParsed,
-		})
-		fmt.Println(err)
-		for _, acc := range res {
-			fmt.Println(acc.Pubkey)
-			if acc.Pubkey == configAc {
-				if err := borsh.Deserialize(&cfg, acc.Account.Data.GetBinary()); err != nil {
-					return err
-				}
-				var ans string
-				borsh.Deserialize(&ans, cfg.NetworkId[:])
-				fmt.Println("n/w id is", cfg)
-				// fmt.Println("here", cfg, string(cfg.NetworkId[12:]))
-				var pk solana.PublicKey
-				borsh.Deserialize(&pk, cfg.Admin[0:])
-				// fmt.Println("pubkey is ", cfg.FeeHandler, pk)
-				// fmt.Println("pubkey is ", cfg.Xcall, pk)
-				// pubkey is  7nsKvftec4bsxvy8pwiYfjbgtz5dQzk2BRrQwvYeZMi8 BSFPzHQqSXg8UtRVXgghMxxpoPEskJbaA9Gk1yf5u6xX
-				// pubkey is  7nsKvftec4bqCGwyT5P6EknRDLjmTz74vAqzo37dHGrs BSFPzHQqSXg8UtRVXgghMxxpoPEskJbaA9Gk1yf5u6xX
-			}
-		}
-		return nil
-	}
 	if sn.testconfig.Environment == "preconfigured" {
 		return nil
 	}
