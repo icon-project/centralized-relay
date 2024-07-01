@@ -90,6 +90,18 @@ type CosmosRelayerChainConfigValue struct {
 	FinalityBlock          uint64            `yaml:"finality-block"`
 }
 
+type SolanaRelayerChainConfigValue struct {
+	NID             string            `yaml:"nid"`
+	RPCUrl          string            `yaml:"solana-url"`
+	StartHeight     int               `yaml:"start-height"`
+	NetworkID       int               `yaml:"network-id"`
+	Contracts       map[string]string `yaml:"contracts"`
+	BlockInterval   string            `yaml:"block-interval"`
+	Address         string            `yaml:"address"`
+	FinalityBlock   uint64            `yaml:"finality-block"`
+	MaxInclusionFee int64             `yaml:"max-inclusion-fee"`
+}
+
 type ICONRelayerChainConfig struct {
 	Type  string                      `json:"type"`
 	Value ICONRelayerChainConfigValue `json:"value"`
@@ -103,6 +115,11 @@ type EVMRelayerChainConfig struct {
 type CosmosRelayerChainConfig struct {
 	Type  string                        `json:"type"`
 	Value CosmosRelayerChainConfigValue `json:"value"`
+}
+
+type SolanaRelayerChainConfig struct {
+	Type  string                        `json:"type"`
+	Value SolanaRelayerChainConfigValue `json:"value"`
 }
 
 const (

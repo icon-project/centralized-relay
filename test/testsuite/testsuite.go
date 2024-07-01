@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains/cosmos"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
+	"github.com/icon-project/centralized-relay/test/chains/solana"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
 
@@ -289,6 +290,9 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 		interchainTestConfig := toInterchantestConfig(ibcChainConfig)
 		chain, err := cosmos.NewCosmosRemotenet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
 		return chain, err
+	case "solana":
+		chain = solana.NewSolanaRemoteNet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		return chain, nil
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)
 	}
