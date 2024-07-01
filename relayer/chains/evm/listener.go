@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -55,7 +57,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		subscribeStart = time.NewTicker(time.Second * 1)
 		latestHeight   = p.latestHeight(ctx)
 		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
-		resetChannel   = make(chan struct{})
+		errChan        = make(chan error)
 	)
 
 	for {
@@ -63,20 +65,22 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case <-ctx.Done():
 			p.log.Debug("evm listener: done")
 			return nil
-		case <-resetChannel:
+		case err := <-errChan:
+			if p.isConnectionError(err) {
+				client, err := p.client.Reconnect()
+				if err != nil {
+					p.log.Error("failed to reconnect", zap.Error(err))
+				} else {
+					p.client = client
+				}
+			}
 			startHeight = p.GetLastSavedBlockHeight()
 			latestHeight = p.latestHeight(ctx)
 			concurrency = p.GetConcurrency(ctx, startHeight, latestHeight)
-			client, err := p.client.Reconnect()
-			if err != nil {
-				p.log.Error("failed to reconnect", zap.Error(err))
-			} else {
-				p.client = client
-			}
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
-			go p.Subscribe(ctx, blockInfoChan, resetChannel)
+			go p.Subscribe(ctx, blockInfoChan, errChan)
 
 			var blockReqs []*blockReq
 			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
@@ -150,6 +154,10 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 	return nil, err
 }
 
+func (p *Provider) isConnectionError(err error) bool {
+	return strings.Contains(err.Error(), "timeout") || errors.Is(err, context.DeadlineExceeded)
+}
+
 func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
 	if lbn == nil && lbn.Logs == nil {
 		return nil, nil
@@ -210,7 +218,7 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan struct{}) error {
+func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
@@ -218,7 +226,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
-		resetCh <- struct{}{}
+		resetCh <- err
 		return err
 	}
 	defer sub.Unsubscribe()
@@ -230,7 +238,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			return nil
 		case err := <-sub.Err():
 			p.log.Error("subscription error", zap.Error(err))
-			resetCh <- struct{}{}
+			resetCh <- err
 			return err
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
@@ -252,7 +260,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 		case <-time.After(time.Minute * 2):
 			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
 				p.log.Error("connection error", zap.Error(err))
-				resetCh <- struct{}{}
+				resetCh <- err
 				return err
 			}
 		}
