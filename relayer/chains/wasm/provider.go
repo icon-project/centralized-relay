@@ -388,11 +388,11 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageK
 		receiptMsgRes := types.QueryReceiptMsgResponse{}
 		return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
 	case events.CallMessage:
-		return true, nil
+		return false, nil
 	case events.ExecuteRollback:
-		return true, nil
+		return false, nil
 	default:
-		return false, fmt.Errorf("unknown event type")
+		return true, fmt.Errorf("unknown event type")
 	}
 }
 

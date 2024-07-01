@@ -32,11 +32,11 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.Messag
 		defer cancel()
 		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
 	case events.CallMessage:
-		return true, nil
+		return false, nil
 	case events.ExecuteRollback:
-		return true, nil
+		return false, nil
 	default:
-		return false, fmt.Errorf("unknown event type")
+		return true, fmt.Errorf("unknown event type")
 	}
 }
 
