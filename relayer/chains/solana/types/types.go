@@ -12,6 +12,8 @@ const (
 	MethodSetFee    = "set_fee"
 	MethodClaimFees = "claim_fees"
 
+	MethodRevertMessage = "revert_message"
+
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 

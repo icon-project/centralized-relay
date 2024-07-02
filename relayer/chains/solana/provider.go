@@ -137,6 +137,93 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRevertMessage)
+	if err != nil {
+		return err
+	}
+
+	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.String())
+	if err != nil {
+		return err
+	}
+
+	rollbackAc := types.RollbackAccount{}
+	if err := p.client.GetAccountInfo(ctx, xcallRollbackAc.String(), &rollbackAc); err != nil {
+		return err
+	}
+
+	dstNetIDBytes, err := borsh.Serialize(rollbackAc.Rollback.To)
+	if err != nil {
+		return err
+	}
+
+	snBytes, err := borsh.Serialize(sn)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, dstNetIDBytes...)
+	instructionData = append(instructionData, snBytes...)
+
+	connConfigAdr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  p.wallet.PublicKey(),
+			IsSigner:   true,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey:  connConfigAdr,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey: solana.SystemProgramID,
+		},
+	}
+
+	if len(rollbackAc.Rollback.Protocols) > 0 {
+		// Todo append remaining accounts to accounts slice
+		_, err := p.pdaRegistry.XcallDefaultConn.GetAddress(rollbackAc.Rollback.To)
+		if err != nil {
+			return err
+		}
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID:        progID,
+			AccountValues: accounts,
+			DataBytes:     instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("revert message successful")
+
 	return nil
 }
 
