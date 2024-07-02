@@ -34,6 +34,11 @@ type Provider struct {
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	processingChan      chan struct{}
+}
+
+func (r *Provider) ProcessingChan() chan struct{} {
+	return r.processingChan
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -65,6 +70,11 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 		return err
 	}
 	p.kms = kms
+	concLvl := provider.DefaultConcurrencyLevel
+	if p.cfg.ConcurrencyLevel != 0 {
+		concLvl = p.cfg.ConcurrencyLevel
+	}
+	p.processingChan = make(chan struct{}, concLvl)
 	return nil
 }
 

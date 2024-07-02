@@ -29,6 +29,10 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
+func (r *Provider) ProcessingChan() chan struct{} {
+	return r.processingChan
+}
+
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 

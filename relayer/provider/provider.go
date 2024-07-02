@@ -10,6 +10,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DefaultConcurrencyLevel = 16
+)
+
 type Config interface {
 	NewProvider(context.Context, *zap.Logger, string, bool, string) (ChainProvider, error)
 	SetWallet(string)
@@ -29,6 +33,7 @@ type ChainProvider interface {
 	Name() string
 	Init(context.Context, string, kms.KMS) error
 	Type() string
+	ProcessingChan() chan struct{}
 	Config() Config
 	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
@@ -53,15 +58,16 @@ type ChainProvider interface {
 
 // CommonConfig is the common configuration for all chain providers
 type CommonConfig struct {
-	ChainName     string                  `json:"-" yaml:"-"`
-	RPCUrl        string                  `json:"rpc-url" yaml:"rpc-url"`
-	StartHeight   uint64                  `json:"start-height" yaml:"start-height"`
-	Address       string                  `json:"address" yaml:"address"`
-	Contracts     types.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	FinalityBlock uint64                  `json:"finality-block" yaml:"finality-block"`
-	NID           string                  `json:"nid" yaml:"nid"`
-	HomeDir       string                  `json:"-" yaml:"-"`
-	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+	ChainName        string                  `json:"-" yaml:"-"`
+	RPCUrl           string                  `json:"rpc-url" yaml:"rpc-url"`
+	StartHeight      uint64                  `json:"start-height" yaml:"start-height"`
+	Address          string                  `json:"address" yaml:"address"`
+	Contracts        types.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	FinalityBlock    uint64                  `json:"finality-block" yaml:"finality-block"`
+	NID              string                  `json:"nid" yaml:"nid"`
+	HomeDir          string                  `json:"-" yaml:"-"`
+	Disabled         bool                    `json:"disabled" yaml:"disabled"`
+	ConcurrencyLevel int                     `json:"concurrency_level" yaml:"concurrency_level"`
 }
 
 // Enabled returns true if the provider is enabled

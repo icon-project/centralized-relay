@@ -62,6 +62,7 @@ type Provider struct {
 	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	processingChan      chan struct{}
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -135,6 +136,11 @@ func (c *Config) Enabled() bool {
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
+	concLvl := provider.DefaultConcurrencyLevel
+	if p.cfg.ConcurrencyLevel != 0 {
+		concLvl = p.cfg.ConcurrencyLevel
+	}
+	p.processingChan = make(chan struct{}, concLvl)
 	return nil
 }
 

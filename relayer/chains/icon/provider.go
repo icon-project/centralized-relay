@@ -92,6 +92,7 @@ type Provider struct {
 	contracts           map[string]providerTypes.EventMap
 	networkID           types.HexInt
 	LastSavedHeightFunc func() uint64
+	processingChan      chan struct{}
 }
 
 func (p *Provider) NID() string {
@@ -100,6 +101,11 @@ func (p *Provider) NID() string {
 
 func (p *Provider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
 	p.kms = kms
+	concLvl := provider.DefaultConcurrencyLevel
+	if p.cfg.ConcurrencyLevel != 0 {
+		concLvl = p.cfg.ConcurrencyLevel
+	}
+	p.processingChan = make(chan struct{}, concLvl)
 	return nil
 }
 

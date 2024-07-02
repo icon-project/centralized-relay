@@ -230,7 +230,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				}
 
 				message.ToggleProcessing()
-
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
@@ -245,9 +244,19 @@ func (r *Relayer) processMessages(ctx context.Context) {
 					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
 					continue
 				}
+				if len(dst.Provider.ProcessingChan()) == cap(dst.Provider.ProcessingChan()) {
+					r.log.Info("queue full", zap.Any("chain", dst.Provider.NID()))
+					continue
+				}
+				addToQueue(dst.Provider.ProcessingChan())
 				go r.RouteMessage(ctx, message, dst, src)
 			case events.CallMessage:
 				if ok := src.shouldExecuteCall(ctx, message); ok {
+					if len(src.Provider.ProcessingChan()) == cap(src.Provider.ProcessingChan()) {
+						r.log.Info("queue full", zap.Any("chain", src.Provider.NID()))
+						continue
+					}
+					addToQueue(src.Provider.ProcessingChan())
 					message.ToggleProcessing()
 					go r.ExecuteCall(ctx, message, src)
 				}
@@ -333,6 +342,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
 	}
+	markDone(dst.Provider.ProcessingChan())
 }
 
 // ExecuteCall
@@ -357,6 +367,15 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 		dst.log.Error("error occured during message route", zap.Error(err))
 		r.HandleMessageFailed(msg, dst, dst)
 	}
+	markDone(dst.Provider.ProcessingChan())
+}
+
+func markDone(cn chan struct{}) {
+	<-cn
+}
+
+func addToQueue(cn chan struct{}) {
+	cn <- struct{}{}
 }
 
 func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
@@ -378,7 +397,6 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 			zap.Uint8("count", routeMessage.Retry),
 		)
 	}
-	return
 }
 
 // PruneDB removes all the messages from db

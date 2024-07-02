@@ -34,6 +34,10 @@ type blockReq struct {
 	retry      int
 }
 
+func (r *Provider) ProcessingChan() chan struct{} {
+	return r.processingChan
+}
+
 func (r *Provider) latestHeight(ctx context.Context) uint64 {
 	height, err := r.client.GetBlockNumber(ctx)
 	if err != nil {
