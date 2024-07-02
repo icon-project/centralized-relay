@@ -104,6 +104,12 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 				return nil, err
 			}
 			messages = append(messages, msg)
+		case RollbackMessage:
+			msg, err := p.parseRollbackMessageEvent(height.Uint64(), event)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, msg)
 		}
 	}
 	return messages, nil
@@ -162,5 +168,24 @@ func (p *Provider) parseCallMessageEvent(height uint64, e *types.EventNotificati
 		Data:          data,
 		Sn:            sn,
 		Src:           src[0],
+	}, nil
+}
+
+// parseRollbackMessage parses RollbackMessage event
+func (p *Provider) parseRollbackMessageEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 2 {
+		return nil, fmt.Errorf("expected indexed: 2, got: %d indexed", indexdedLen)
+	}
+	sn, err := types.HexInt(e.Indexed[1]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
+	}
+
+	return &providerTypes.Message{
+		MessageHeight: height,
+		EventType:     p.GetEventName(e.Indexed[0]),
+		Dst:           p.NID(),
+		Src:           p.NID(),
+		Sn:            sn,
 	}, nil
 }

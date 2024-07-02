@@ -41,6 +41,11 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
+	case events.RollbackMessage:
+		msg := &types.ExecuteRollback{
+			Sn: types.NewHexInt(message.Sn.Int64()),
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteRollback), nil
 	case events.SetAdmin:
 		msg := &types.SetAdmin{
 			Relayer: message.Src,

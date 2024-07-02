@@ -91,7 +91,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
 		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		tx, err = p.client.ExecuteRollback(opts, message.Sn)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)

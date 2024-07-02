@@ -63,6 +63,8 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", err
 	}
+	done := p.SetSDKContext()
+	defer done()
 	if err := p.client.ImportArmor(p.NID(), privFile, passphrase); err != nil {
 		return "", err
 	}

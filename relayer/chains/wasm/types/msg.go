@@ -167,7 +167,7 @@ type ExecExecuteRollback struct {
 }
 
 type ExecuteRollback struct {
-	Sn string `json:"sn"`
+	Sn string `json:"sequence_no"`
 }
 
 func NewExecExecuteRollback(sn *big.Int) *ExecExecuteRollback {

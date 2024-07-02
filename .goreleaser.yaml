@@ -60,7 +60,7 @@ builds:
     ldflags:
       - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
-      - -extldflags '-Wl,-z,muldefs -lm'
+      - -extldflags '-static'
     tags:
       - muslc
       - netgo
