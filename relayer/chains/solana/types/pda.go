@@ -6,13 +6,12 @@ const ()
 
 type PDA struct {
 	SeedPrefix string
-	Seeds      []string
 	ProgramID  solana.PublicKey
 }
 
-func (pda PDA) GetAddress() (solana.PublicKey, error) {
+func (pda PDA) GetAddress(additionalSeeds ...string) (solana.PublicKey, error) {
 	seeds := [][]byte{[]byte(pda.SeedPrefix)}
-	for _, sd := range pda.Seeds {
+	for _, sd := range additionalSeeds {
 		seeds = append(seeds, []byte(sd))
 	}
 
@@ -28,7 +27,8 @@ type PDARegistry struct {
 	XcallConfig PDA
 	XcallReply  PDA
 
-	ConnConfig PDA
+	ConnConfig     PDA
+	ConnNetworkFee PDA
 }
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
@@ -36,6 +36,7 @@ func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry
 		XcallConfig: PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
 		XcallReply:  PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
 
-		ConnConfig: PDA{SeedPrefix: "config", ProgramID: connProgramID},
+		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
+		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
 	}
 }

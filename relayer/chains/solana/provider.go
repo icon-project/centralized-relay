@@ -146,6 +146,88 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetFee)
+	if err != nil {
+		return err
+	}
+
+	netIDBytes, err := borsh.Serialize(networkID)
+	if err != nil {
+		return err
+	}
+
+	msgFeeBytes, err := borsh.Serialize(msgFee)
+	if err != nil {
+		return err
+	}
+
+	resFeeBytes, err := borsh.Serialize(resFee)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, netIDBytes...)
+	instructionData = append(instructionData, msgFeeBytes...)
+	instructionData = append(instructionData, resFeeBytes...)
+
+	networkFeeAddr, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	if err != nil {
+		return err
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  networkFeeAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey: solana.SystemProgramID,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("set fee successful")
+
 	return nil
 }
 

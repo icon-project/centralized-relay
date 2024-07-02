@@ -8,6 +8,7 @@ import (
 
 const (
 	MethodSetAdmin    = "set_admin"
+	MethodSetFee      = "set_fee"
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 
