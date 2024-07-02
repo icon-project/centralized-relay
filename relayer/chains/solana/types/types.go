@@ -7,6 +7,13 @@ import (
 )
 
 const (
+	MethodSetAdmin = "set_admin"
+
+	MethodSetFee    = "set_fee"
+	MethodClaimFees = "claim_fees"
+
+	MethodRevertMessage = "revert_message"
+
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 
@@ -17,6 +24,8 @@ const (
 	EventSendMessage     = "SendMessage"
 	EventCallMessage     = "CallMessage"
 	EventRollbackMessage = "RollbackMessage"
+
+	SolanaDenom = "lamport"
 )
 
 type SolEvent struct {

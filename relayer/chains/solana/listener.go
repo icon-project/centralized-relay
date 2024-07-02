@@ -25,19 +25,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.log.Info("key restore successful: ", zap.String("public-key", p.wallet.PublicKey().String()))
 	}
 
-	// if err := p.InitXcall(ctx); err != nil {
-	// 	p.log.Error("failed to init xcall", zap.Error(err))
-	// }
-
-	// return nil
-
-	if err := p.SendMessage(ctx, &relayertypes.Message{
-		Dst:  "0x3.icon",
-		Data: []byte("hello"),
-	}); err != nil {
-		p.log.Error("failed to send message", zap.Error(err))
-	}
-
 	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
 	fromSignature := ""
 

@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 )
 
@@ -23,6 +25,8 @@ type Provider struct {
 	txmut    *sync.Mutex
 	xcallIdl *IDL
 	connIdl  *IDL
+
+	pdaRegistry *types.PDARegistry
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -62,29 +66,357 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 	return nil, fmt.Errorf("method not implemented")
 }
 
-// SetAdmin transfers the ownership of sui connection module to new address
+// SetAdmin transfers the ownership of solana connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetAdmin)
+	if err != nil {
+		return err
+	}
+
+	newAdmin, err := solana.PublicKeyFromBase58(adminAddr)
+	if err != nil {
+		return err
+	}
+
+	newAdminBytes, err := borsh.Serialize(newAdmin)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, newAdminBytes...)
+
+	payerAccount := solana.AccountMeta{
+		PublicKey:  p.wallet.PublicKey(),
+		IsWritable: true,
+		IsSigner:   true,
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&payerAccount,
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("set admin successful")
+
 	return nil
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRevertMessage)
+	if err != nil {
+		return err
+	}
+
+	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.String())
+	if err != nil {
+		return err
+	}
+
+	rollbackAc := types.RollbackAccount{}
+	if err := p.client.GetAccountInfo(ctx, xcallRollbackAc.String(), &rollbackAc); err != nil {
+		return err
+	}
+
+	dstNetIDBytes, err := borsh.Serialize(rollbackAc.Rollback.To)
+	if err != nil {
+		return err
+	}
+
+	snBytes, err := borsh.Serialize(sn)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, dstNetIDBytes...)
+	instructionData = append(instructionData, snBytes...)
+
+	connConfigAdr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  p.wallet.PublicKey(),
+			IsSigner:   true,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey:  connConfigAdr,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey: solana.SystemProgramID,
+		},
+	}
+
+	if len(rollbackAc.Rollback.Protocols) > 0 {
+		// Todo append remaining accounts to accounts slice
+		_, err := p.pdaRegistry.XcallDefaultConn.GetAddress(rollbackAc.Rollback.To)
+		if err != nil {
+			return err
+		}
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID:        progID,
+			AccountValues: accounts,
+			DataBytes:     instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("revert message successful")
+
 	return nil
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	return 0, nil
+	fee := struct {
+		MessageFee  uint64
+		ResponseFee uint64
+		Bump        uint8
+	}{}
+
+	networkFeeAc, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := p.client.GetAccountInfo(ctx, networkFeeAc.String(), &fee); err != nil {
+		return 0, err
+	}
+
+	if responseFee {
+		return fee.MessageFee + fee.ResponseFee, nil
+	}
+
+	return fee.MessageFee, nil
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetFee)
+	if err != nil {
+		return err
+	}
+
+	netIDBytes, err := borsh.Serialize(networkID)
+	if err != nil {
+		return err
+	}
+
+	msgFeeBytes, err := borsh.Serialize(msgFee)
+	if err != nil {
+		return err
+	}
+
+	resFeeBytes, err := borsh.Serialize(resFee)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, netIDBytes...)
+	instructionData = append(instructionData, msgFeeBytes...)
+	instructionData = append(instructionData, resFeeBytes...)
+
+	networkFeeAddr, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	if err != nil {
+		return err
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  networkFeeAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey: solana.SystemProgramID,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("set fee successful")
+
 	return nil
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodClaimFees)
+	if err != nil {
+		return err
+	}
+
+	instructionData := discriminator
+
+	claimFeeAddr, err := p.pdaRegistry.ConnClaimFees.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  claimFeeAddr,
+					IsWritable: true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("claim fees successful")
+
 	return nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {
-	return nil, nil
+	accAddr, err := solana.PublicKeyFromBase58(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.client.GetBalance(ctx, accAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &relayertypes.Coin{
+		Denom:  types.SolanaDenom,
+		Amount: res.Value,
+	}, nil
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayertypes.Message) (bool, error) {
