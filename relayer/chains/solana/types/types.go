@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	MethodSetAdmin    = "set_admin"
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 

@@ -27,11 +27,15 @@ func (pda PDA) GetAddress() (solana.PublicKey, error) {
 type PDARegistry struct {
 	XcallConfig PDA
 	XcallReply  PDA
+
+	ConnConfig PDA
 }
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
 	return &PDARegistry{
 		XcallConfig: PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
 		XcallReply:  PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
+
+		ConnConfig: PDA{SeedPrefix: "config", ProgramID: connProgramID},
 	}
 }

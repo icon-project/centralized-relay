@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 )
 
@@ -64,9 +66,75 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 	return nil, fmt.Errorf("method not implemented")
 }
 
-// SetAdmin transfers the ownership of sui connection module to new address
+// SetAdmin transfers the ownership of solana connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetAdmin)
+	if err != nil {
+		return err
+	}
+
+	newAdmin, err := solana.PublicKeyFromBase58(adminAddr)
+	if err != nil {
+		return err
+	}
+
+	newAdminBytes, err := borsh.Serialize(newAdmin)
+	if err != nil {
+		return err
+	}
+
+	instructionData := append(discriminator, newAdminBytes...)
+
+	payerAccount := solana.AccountMeta{
+		PublicKey:  p.wallet.PublicKey(),
+		IsWritable: true,
+		IsSigner:   true,
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&payerAccount,
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("set admin successful")
+
 	return nil
+
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
