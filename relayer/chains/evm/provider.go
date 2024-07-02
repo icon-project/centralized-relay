@@ -44,8 +44,7 @@ var (
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
-	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
-	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
+	GasPriceCap           uint64 `json:"gas-price-cap" yaml:"gas-price-cap"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
 	BlockBatchSize        uint64 `json:"block-batch-size" yaml:"block-batch-size"`
 }
@@ -257,7 +256,8 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		p.log.Warn("failed to get gas tip", zap.Error(err))
 	}
-	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
+	// add 20% buffer to gas fee cap
+	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(120)).Div(gasPrice, big.NewInt(100))
 	txOpts.GasTipCap = gasTip
 	return txOpts, nil
 }
