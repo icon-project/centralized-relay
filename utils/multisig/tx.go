@@ -3,7 +3,6 @@ package multisig
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -23,7 +22,8 @@ func CreateMultisigTx(
     feePerOutput uint64,
     chainParam *chaincfg.Params,
     changeReceiverAddress string,
-    sourcePKScript []byte,
+    relayersPKScript []byte,
+	userPKScript []byte,
 ) (*wire.MsgTx, *txscript.MultiPrevOutFetcher, error) {
 	msgTx := wire.NewMsgTx(wire.TxVersion)
 
@@ -42,9 +42,16 @@ func CreateMultisigTx(
 		msgTx.AddTxIn(txIn)
 		totalInputAmount += in.OutputAmount
 
+		var pkScript []byte
+		if (in.IsRelayersMultisig) {
+			pkScript = relayersPKScript
+		} else {
+			pkScript = userPKScript
+		}
+
 		prevOuts.AddPrevOut(*outPoint, &wire.TxOut{
 			Value:    int64(in.OutputAmount),
-			PkScript: sourcePKScript,
+			PkScript: pkScript,
 		})
 	}
 
@@ -113,9 +120,12 @@ func PartSignOnRawExternalTx(
 	privKey string,
 	msgTx *wire.MsgTx,
 	inputs []*UTXO,
-	multisigWallet *MultisigWallet,
-	indexTapLeaf int,
+	relayersPKScript []byte,
+	relayersTapLeaf txscript.TapLeaf,
+	userPKScript []byte,
+	userTapLeaf txscript.TapLeaf,
 	chainParam *chaincfg.Params,
+	isMasterRelayer bool,
 ) ([][]byte, error) {
 	wif, err := btcutil.DecodeWIF(privKey)
 	if err != nil {
@@ -135,87 +145,89 @@ func PartSignOnRawExternalTx(
 		}
 		outPoint := wire.NewOutPoint(utxoHash, in.OutputIdx)
 
+		var pkScript []byte
+		if (in.IsRelayersMultisig) {
+			pkScript = relayersPKScript
+		} else {
+			pkScript = userPKScript
+		}
+
 		prevOuts.AddPrevOut(*outPoint, &wire.TxOut{
 			Value:    int64(in.OutputAmount),
-			PkScript: multisigWallet.PKScript,
+			PkScript: pkScript,
 		})
 	}
 	txSigHashes := txscript.NewTxSigHashes(msgTx, prevOuts)
 
 	sigs := [][]byte{}
 	for i := range msgTx.TxIn {
-		sig, err := txscript.RawTxInTapscriptSignature(
-			msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), multisigWallet.PKScript, multisigWallet.TapLeaves[indexTapLeaf], txscript.SigHashAll, wif.PrivKey)
-		if err != nil {
-			return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
-		}
-		fmt.Printf("PartSignOnRawExternalTx sig len : %v\n", len(sig))
+		if (inputs[i].IsRelayersMultisig) {
+			sig, err := txscript.RawTxInTapscriptSignature(
+				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), relayersPKScript, relayersTapLeaf, txscript.SigHashAll, wif.PrivKey)
+			if err != nil {
+				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
+			}
 
-		sigs = append(sigs, sig)
+			sigs = append(sigs, sig)
+		} else if (isMasterRelayer) {
+			sig, err := txscript.RawTxInTapscriptSignature(
+				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), userPKScript, userTapLeaf, txscript.SigHashAll, wif.PrivKey)
+			if err != nil {
+				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
+			}
+
+			sigs = append(sigs, sig)
+		} else {
+			sigs = append(sigs, []byte{})
+		}
 	}
 
 	return sigs, nil
+}
+
+func TransposeSigs(sigs [][][]byte) [][][]byte {
+	xl := len(sigs[0])
+    yl := len(sigs)
+    result := make([][][]byte, xl)
+
+    for i := range result {
+        result[i] = make([][]byte, yl)
+    }
+    for i := 0; i < xl; i++ {
+        for j := 0; j < yl; j++ {
+            result[i][j] = sigs[j][i]
+        }
+    }
+    return result
 }
 
 // combine all the signatures to create the signed tx
 // input: unsigned tx message, signatures, multisig struct
 // output: signed tx message, tx hash
 func CombineMultisigSigs(
-	multisigInfo *MultisigInfo,
-    multisigWallet *MultisigWallet,
+	relayersMultisigTapLeafScript []byte,
+	relayersMultisigControlBlock []byte,
+	userMultisigTapLeafScript []byte,
+	userMultisigControlBlock []byte,
     msgTx *wire.MsgTx,
-    totalSigs [][][]byte,
+	inputs []*UTXO,
+    transposedSigs [][][]byte,
 ) (*wire.MsgTx, error) {
-	// combine multisigs and finalize tx
-	numSig := uint(0)
-	sigs := make([][][]byte, len(msgTx.TxIn))
-	for i := range sigs {
-		sigs[i] = [][]byte{}
-	}
-
-	for _, sigsFromOneSigner := range totalSigs {
-		if numSig == uint(multisigInfo.NumberRequiredSigs) {
-			for indexInput := range sigsFromOneSigner {
-				if indexInput >= len(sigs) {
-					return nil, errors.New("invalid length of sigs")
-				}
-				sigs[indexInput] = append(sigs[indexInput], []byte{})
-			}
-		} else {
-			for indexInput, sig := range sigsFromOneSigner {
-				if indexInput >= len(sigs) {
-					return nil, errors.New("invalid length of sigs")
-				}
-
-				sigs[indexInput] = append(sigs[indexInput], sig)
-			}
-			numSig++
-		}
-	}
-
-	for idxInput, v := range sigs {
-		ctrlBlock := multisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(multisigWallet.SharedPublicKey)
-		ctrlBlockBytes, err := ctrlBlock.ToBytes()
-		if err != nil {
-			return nil, fmt.Errorf("error including control block: %v", err)
-		}
-
+	for idxInput, v := range transposedSigs {
 		reverseV := [][]byte{}
 		for i := len(v) - 1; i >= 0; i-- {
-			reverseV = append(reverseV, v[i])
+			if (len(v[i]) != 0) {
+				reverseV = append(reverseV, v[i])
+			}
 		}
+
 		witness := append([][]byte{}, reverseV...)
-		witness = append(witness, multisigWallet.TapLeaves[0].Script)
-		witness = append(witness, ctrlBlockBytes)
 
-		witnessHexStr := []string{}
-		for _, w := range witness {
-			witnessHexStr = append(witnessHexStr, hex.EncodeToString(w))
-			fmt.Printf("w idxInput %v - %v\n", idxInput, witnessHexStr)
-
+		if (inputs[idxInput].IsRelayersMultisig) {
+			witness = append(witness, relayersMultisigTapLeafScript, relayersMultisigControlBlock)
+		} else {
+			witness = append(witness, userMultisigTapLeafScript, userMultisigControlBlock)
 		}
-
-		fmt.Printf("Len witness %v: %v \n", idxInput, len(v)+len(multisigWallet.TapLeaves[0].Script)+len(ctrlBlockBytes))
 
 		msgTx.TxIn[idxInput].Witness = witness
 	}

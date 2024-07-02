@@ -22,14 +22,14 @@ func GeneratePrivateKeyFromSeed(seed []byte, chainParam *chaincfg.Params) *btcec
 	return privateKey
 }
 
-func randomKeys(n int, chainParam *chaincfg.Params) ([]string, [][]byte, []*btcutil.AddressPubKey) {
+func randomKeys(n int, chainParam *chaincfg.Params, seeds []int) ([]string, [][]byte, []*btcutil.AddressPubKey) {
 
 	privKeys := []string{}
 	pubKeys := [][]byte{}
 	ECPubKeys := []*btcutil.AddressPubKey{}
 
 	for i := 0; i < n; i++ {
-		privKey := GeneratePrivateKeyFromSeed([]byte{byte(i)}, chainParam)
+		privKey := GeneratePrivateKeyFromSeed([]byte{byte(seeds[i])}, chainParam)
 		wif, _ := btcutil.NewWIF(privKey, chainParam, true)
 
 		ECPubKey, _ := btcutil.NewAddressPubKey(wif.SerializePubKey(), chainParam)
@@ -42,9 +42,8 @@ func randomKeys(n int, chainParam *chaincfg.Params) ([]string, [][]byte, []*btcu
 	return privKeys, pubKeys, ECPubKeys
 }
 
-
-func randomMultisigInfo(n int, k int, chainParam *chaincfg.Params) ([]string, *MultisigInfo) {
-	privKeys, pubKeys, EcPubKeys := randomKeys(n, chainParam)
+func randomMultisigInfo(n int, k int, chainParam *chaincfg.Params, seeds []int) ([]string, *MultisigInfo) {
+	privKeys, pubKeys, EcPubKeys := randomKeys(n, chainParam, seeds)
 	vaultInfo := MultisigInfo{
 		PubKeys:            pubKeys,
 		EcPubKeys:          EcPubKeys,
@@ -52,5 +51,4 @@ func randomMultisigInfo(n int, k int, chainParam *chaincfg.Params) ([]string, *M
 	}
 
 	return privKeys, &vaultInfo
-
 }
