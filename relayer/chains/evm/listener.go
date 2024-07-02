@@ -55,8 +55,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
-		latestHeight   = p.latestHeight(ctx)
-		concurrency    = p.GetConcurrency(ctx, startHeight, latestHeight)
 		errChan        = make(chan error)
 	)
 
@@ -67,20 +65,23 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			return nil
 		case err := <-errChan:
 			if p.isConnectionError(err) {
+				p.log.Error("connection error", zap.Error(err))
 				client, err := p.client.Reconnect()
 				if err != nil {
 					p.log.Error("failed to reconnect", zap.Error(err))
 				} else {
+					p.log.Info("client reconnected")
 					p.client = client
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
-			latestHeight = p.latestHeight(ctx)
-			concurrency = p.GetConcurrency(ctx, startHeight, latestHeight)
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
 			go p.Subscribe(ctx, blockInfoChan, errChan)
+
+			latestHeight := p.latestHeight(ctx)
+			concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
 
 			var blockReqs []*blockReq
 			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
@@ -155,7 +156,7 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 }
 
 func (p *Provider) isConnectionError(err error) bool {
-	return strings.Contains(err.Error(), "timeout") || errors.Is(err, context.DeadlineExceeded)
+	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
@@ -259,7 +260,6 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			}
 		case <-time.After(time.Minute * 2):
 			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
-				p.log.Error("connection error", zap.Error(err))
 				resetCh <- err
 				return err
 			}
