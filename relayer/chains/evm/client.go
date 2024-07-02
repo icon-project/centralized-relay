@@ -44,11 +44,7 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 	}
 
 	reconnectFunc := func() (IClient, error) {
-		newClient, err := newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
-		if err != nil {
-			return nil, err
-		}
-		return newClient, nil
+		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
 	}
 
 	return &Client{
@@ -239,6 +235,5 @@ func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<
 
 // Reconnect
 func (c *Client) Reconnect() (IClient, error) {
-	c.eth.Close()
 	return c.reconnect()
 }
