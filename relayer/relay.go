@@ -237,7 +237,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				if err != nil {
 					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
 					if connutil.ShouldReconnect(err) {
-						fmt.Println("Read timed out, swithicn to next provider")
+						dst.log.Info("switching rpc provider", zap.Any("error", err))
 						dst.Provider.SwitchRPCProvider(ctx)
 					}
 					message.ToggleProcessing()
@@ -367,7 +367,7 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 func (r *Relayer) HandleMessageFailed(ctx context.Context, routeMessage *types.RouteMessage, dst, src *ChainRuntime, err error) {
 	routeMessage.ToggleProcessing()
 	if connutil.ShouldReconnect(err) {
-		fmt.Println("Read timed out, swithicn to next provider")
+		dst.log.Info("switching rpc provider", zap.Any("error", err))
 		dst.Provider.SwitchRPCProvider(ctx)
 	}
 	if routeMessage.Retry >= types.MaxTxRetry {

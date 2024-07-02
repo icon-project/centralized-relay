@@ -2,7 +2,6 @@ package icon
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -87,7 +86,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 						return
 					}
 					if connutil.ShouldReconnect(err) {
-						fmt.Println("Read timed out, swithicn to next provider")
+						p.log.Info("switching rpc provider", zap.Any("error", err))
 						p.SwitchRPCProvider(ctx)
 					}
 					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
