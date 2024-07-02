@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	MethodSetAdmin    = "set_admin"
-	MethodSetFee      = "set_fee"
+	MethodSetAdmin = "set_admin"
+
+	MethodSetFee    = "set_fee"
+	MethodClaimFees = "claim_fees"
+
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 

@@ -134,7 +134,6 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 	p.log.Info("set admin successful")
 
 	return nil
-
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
@@ -232,6 +231,68 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodClaimFees)
+	if err != nil {
+		return err
+	}
+
+	instructionData := discriminator
+
+	claimFeeAddr, err := p.pdaRegistry.ConnClaimFees.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	progID, err := p.connIdl.GetProgramID()
+	if err != nil {
+		return err
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: progID,
+			AccountValues: solana.AccountMetaSlice{
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  claimFeeAddr,
+					IsWritable: true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return err
+	}
+
+	p.log.Info("claim fees successful")
+
 	return nil
 }
 
