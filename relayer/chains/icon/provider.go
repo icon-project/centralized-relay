@@ -47,6 +47,10 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}, nil
 }
 
+func (p *Provider) ReloadConfigs(cfg interface{}) {
+	p.cfg = cfg.(*Config)
+}
+
 func (c *Config) Validate() error {
 	if c.RPCUrl == "" {
 		return fmt.Errorf("icon provider rpc endpoint is empty")

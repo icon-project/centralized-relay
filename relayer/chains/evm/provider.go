@@ -99,6 +99,10 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}, nil
 }
 
+func (p *Provider) ReloadConfigs(cfg interface{}) {
+	p.cfg = cfg.(*Config)
+}
+
 func (p *Provider) NID() string {
 	return p.cfg.NID
 }

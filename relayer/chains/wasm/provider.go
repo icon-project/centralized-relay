@@ -36,6 +36,10 @@ type Provider struct {
 	routerMutex         *sync.Mutex
 }
 
+func (p *Provider) ReloadConfigs(cfg interface{}) {
+	p.cfg = cfg.(*Config)
+}
+
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return p.client.GetLatestBlockHeight(ctx)
 }

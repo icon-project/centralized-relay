@@ -3,6 +3,8 @@ package relayer
 import (
 	"context"
 	"fmt"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/events"
@@ -60,9 +62,11 @@ type Relayer struct {
 	messageStore  *store.MessageStore
 	blockStore    *store.BlockStore
 	finalityStore *store.FinalityStore
+	sigChan       chan os.Signal
 }
 
-func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
+func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool,
+	sigChan chan os.Signal) (*Relayer, error) {
 	// if fresh clearing db
 	if fresh {
 		if err := db.ClearStore(); err != nil {
@@ -104,6 +108,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 		messageStore:  messageStore,
 		blockStore:    blockStore,
 		finalityStore: finalityStore,
+		sigChan:       sigChan,
 	}, nil
 }
 
@@ -121,6 +126,14 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Println("panic occurred during starting listener", err)
+				if r.sigChan != nil {
+					r.sigChan <- syscall.SIGTERM
+				}
+			}
+		}()
 		eg.Go(func() error {
 			return chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
 		})
