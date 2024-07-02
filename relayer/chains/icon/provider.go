@@ -28,11 +28,15 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	if err := c.sanitize(); err != nil {
 		return nil, err
 	}
-
-	client := NewClient(ctx, c.RPCUrl, log)
+	rpcEp := c.RPCUrl
+	if len(c.RPCUrls) >= 1 {
+		rpcEp = c.RPCUrls[0]
+	}
+	client := NewClient(ctx, rpcEp, log)
 	NetworkInfo, err := client.GetNetworkInfo()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get network id: %v", err)
+	for err != nil {
+		client = NewClient(ctx, getNextEp(c.RPCUrls, client.Endpoint), log)
+		NetworkInfo, err = client.GetNetworkInfo()
 	}
 
 	c.ChainName = chainName
@@ -47,8 +51,22 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}, nil
 }
 
+func (p *Provider) SwitchRPCProvider(ctx context.Context) {
+	currentEp := p.client.Endpoint
+	p.client = NewClient(ctx, getNextEp(p.cfg.RPCUrls, currentEp), p.log)
+}
+
+func getNextEp(endpoints []string, currentEp string) string {
+	for _, ep := range endpoints {
+		if ep != currentEp {
+			return ep
+		}
+	}
+	return currentEp
+}
+
 func (c *Config) Validate() error {
-	if c.RPCUrl == "" {
+	if c.RPCUrl == "" && len(c.RPCUrls) < 1 {
 		return fmt.Errorf("icon provider rpc endpoint is empty")
 	}
 

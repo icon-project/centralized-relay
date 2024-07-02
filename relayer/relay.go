@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/connutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -235,6 +236,10 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
 				if err != nil {
 					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
+					if connutil.ShouldReconnect(err) {
+						fmt.Println("Read timed out, swithicn to next provider")
+						dst.Provider.SwitchRPCProvider(ctx)
+					}
 					message.ToggleProcessing()
 					continue
 				}
@@ -331,7 +336,7 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	m.IncrementRetry()
 	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
 		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
-		r.HandleMessageFailed(m, dst, src)
+		r.HandleMessageFailed(ctx, m, dst, src, err)
 	}
 }
 
@@ -355,12 +360,16 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 	msg.IncrementRetry()
 	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
 		dst.log.Error("error occured during message route", zap.Error(err))
-		r.HandleMessageFailed(msg, dst, dst)
+		r.HandleMessageFailed(ctx, msg, dst, dst, err)
 	}
 }
 
-func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
+func (r *Relayer) HandleMessageFailed(ctx context.Context, routeMessage *types.RouteMessage, dst, src *ChainRuntime, err error) {
 	routeMessage.ToggleProcessing()
+	if connutil.ShouldReconnect(err) {
+		fmt.Println("Read timed out, swithicn to next provider")
+		dst.Provider.SwitchRPCProvider(ctx)
+	}
 	if routeMessage.Retry >= types.MaxTxRetry {
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
 			r.log.Error("error occured when storing the message after max retry", zap.Error(err))
@@ -378,7 +387,6 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 			zap.Uint8("count", routeMessage.Retry),
 		)
 	}
-	return
 }
 
 // PruneDB removes all the messages from db

@@ -2,32 +2,16 @@ package icon
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/goloop/common"
+	"github.com/icon-project/centralized-relay/utils/connutil"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
-
-type btpBlockResponse struct {
-	Height    int64
-	Hash      common.HexHash
-	Header    *types.BlockHeader
-	EventLogs []*types.EventLog
-}
-
-type btpBlockRequest struct {
-	height   int64
-	hash     types.HexBytes
-	indexes  [][]types.HexInt
-	events   [][][]types.HexInt
-	err      error
-	retry    uint8
-	response *btpBlockResponse
-}
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
@@ -101,6 +85,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
 						return
+					}
+					if connutil.ShouldReconnect(err) {
+						fmt.Println("Read timed out, swithicn to next provider")
+						p.SwitchRPCProvider(ctx)
 					}
 					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
 					time.Sleep(time.Second * 3)

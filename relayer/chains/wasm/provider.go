@@ -36,6 +36,10 @@ type Provider struct {
 	routerMutex         *sync.Mutex
 }
 
+func (p *Provider) SwitchRPCProvider(ctx context.Context) {
+	// TODO implement client switching
+}
+
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return p.client.GetLatestBlockHeight(ctx)
 }
