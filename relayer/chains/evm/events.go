@@ -28,7 +28,7 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 		switch contractName {
 		case providerTypes.XcallContract:
 			sig[CallMessage] = events.CallMessage
-			sig[RollbackMessage] = events.ExecuteRollback
+			sig[RollbackMessage] = events.RollbackMessage
 		case providerTypes.ConnectionContract:
 			sig[EmitMessage] = events.EmitMessage
 		}

@@ -145,7 +145,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerType
 		return status == types.NewHexInt(1), p.client.Call(callParam, &status)
 	case events.CallMessage:
 		return false, nil
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		return false, nil
 	default:
 		return true, fmt.Errorf("unknown event type")

@@ -104,7 +104,9 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 			messages = append(messages, msg)
 		case EventTypeWasmRollbackMessage:
 			msg := &relayerTypes.Message{
-				EventType: events.ExecuteRollback,
+				EventType: events.RollbackMessage,
+				Src:       p.NID(),
+				Dst:       p.NID(),
 			}
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
@@ -132,7 +134,7 @@ func (p *Config) eventMap() map[string]relayerTypes.EventMap {
 		switch contractName {
 		case relayerTypes.XcallContract:
 			event.SigType[EventTypeWasmCallMessage] = events.CallMessage
-			event.SigType[EventTypeWasmRollbackMessage] = events.ExecuteRollback
+			event.SigType[EventTypeWasmRollbackMessage] = events.RollbackMessage
 		case relayerTypes.ConnectionContract:
 			event.SigType[EventTypeWasmMessage] = events.EmitMessage
 		}
@@ -164,7 +166,7 @@ func (p *Config) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMa
 				wasmMessggeType = EventTypeWasmMessage
 			case events.CallMessage:
 				wasmMessggeType = EventTypeWasmCallMessage
-			case events.ExecuteRollback:
+			case events.RollbackMessage:
 				wasmMessggeType = EventTypeWasmRollbackMessage
 			}
 			eventList = append(eventList, sdkTypes.Event{

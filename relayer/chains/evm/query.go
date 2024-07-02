@@ -33,7 +33,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.Messag
 		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
 	case events.CallMessage:
 		return false, nil
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		return false, nil
 	default:
 		return true, fmt.Errorf("unknown event type")

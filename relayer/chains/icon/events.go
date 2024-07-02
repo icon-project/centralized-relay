@@ -22,7 +22,7 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 		case providerTypes.XcallContract:
 			event.SigType = map[string]string{
 				CallMessage:     events.CallMessage,
-				RollbackMessage: events.ExecuteRollback,
+				RollbackMessage: events.RollbackMessage,
 			}
 		case providerTypes.ConnectionContract:
 			event.SigType = map[string]string{EmitMessage: events.EmitMessage}

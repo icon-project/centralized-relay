@@ -369,7 +369,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 	msg := &providerTypes.Message{
-		EventType: events.ExecuteRollback,
+		EventType: events.RollbackMessage,
 		Sn:        sn,
 	}
 	tx, err := p.SendTransaction(ctx, opts, msg)
@@ -455,7 +455,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		abi, err := bridgeContract.XcallMetaData.GetAbi()
 		if err != nil {
 			return 0, err
