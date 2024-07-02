@@ -72,8 +72,6 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 func (p *Provider) Wallet() sdkTypes.AccAddress {
 	if p.wallet == nil {
 		ctx := context.Background()
-		done := p.SetSDKContext()
-		defer done()
 		if err := p.RestoreKeystore(ctx); err != nil {
 			p.logger.Error("failed to restore keystore", zap.Error(err))
 			return nil
