@@ -26,8 +26,8 @@ type OutputTx struct {
 }
 
 type UTXO struct {
-	WalletAddress string `bson:"wallet_address" json:"walletAddress"`
-	TxHash        string `bson:"tx_hash" json:"txHash"`
-	OutputIdx     uint32 `bson:"output_idx" json:"outputIdx"`
-	OutputAmount  uint64 `bson:"output_amount" json:"outputAmount"`
+	IsRelayersMultisig	bool `bson:"is_relayers_multisig" json:"isRelayersMultisig"`
+	TxHash        		string `bson:"tx_hash" json:"txHash"`
+	OutputIdx     		uint32 `bson:"output_idx" json:"outputIdx"`
+	OutputAmount  		uint64 `bson:"output_amount" json:"outputAmount"`
 }
