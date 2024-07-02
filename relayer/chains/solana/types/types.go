@@ -22,6 +22,8 @@ const (
 	EventSendMessage     = "SendMessage"
 	EventCallMessage     = "CallMessage"
 	EventRollbackMessage = "RollbackMessage"
+
+	SolanaDenom = "lamport"
 )
 
 type SolEvent struct {

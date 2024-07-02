@@ -297,7 +297,20 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes.Coin, error) {
-	return nil, nil
+	accAddr, err := solana.PublicKeyFromBase58(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.client.GetBalance(ctx, accAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &relayertypes.Coin{
+		Denom:  types.SolanaDenom,
+		Amount: res.Value,
+	}, nil
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayertypes.Message) (bool, error) {

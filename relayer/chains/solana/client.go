@@ -20,6 +20,8 @@ type IClient interface {
 	GetAccountInfoRaw(ctx context.Context, addr string) (*solrpc.Account, error)
 	GetAccountInfo(ctx context.Context, acAddr string, accPtr interface{}) error
 
+	GetBalance(ctx context.Context, accAddr solana.PublicKey) (*solrpc.GetBalanceResult, error)
+
 	FetchIDL(ctx context.Context, idlAddress string, idlPtr interface{}) error
 
 	GetSignatureStatus(
@@ -90,6 +92,10 @@ func (cl Client) GetAccountInfo(ctx context.Context, acAddr string, accPtr inter
 	}
 
 	return nil
+}
+
+func (cl Client) GetBalance(ctx context.Context, accAddr solana.PublicKey) (*solrpc.GetBalanceResult, error) {
+	return cl.rpc.GetBalance(ctx, accAddr, solrpc.CommitmentFinalized)
 }
 
 func idlAddrFromProgID(progID string) (string, error) {
