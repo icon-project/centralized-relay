@@ -1,0 +1,37 @@
+global:
+    timeout: {{ timeout }}
+    kms-key-id: {{ kms_key_id }}
+chains:
+    eth:
+        type: {{ eth_type }}
+        value:
+            rpc-url: {{ eth_rpc_url }}
+            websocket-url: {{ eth_websocket_url }}
+            verifier-rpc-url: "{{ eth_verifier_rpc_url }}"
+            start-height: {{ eth_start_height }}
+            address: {{ eth_address }}
+            gas-price: {{ eth_gas_price }}
+            gas-min: {{ eth_gas_min }}
+            gas-limit: {{ eth_gas_limit }}
+            contracts:
+                connection: {{ eth_contracts_connection }}
+                xcall: {{ eth_contracts_xcall }}
+            concurrency: {{ eth_concurrency }}
+            finality-block: {{ eth_finality_block }}
+            block-interval: {{ eth_block_interval }}
+            nid: {{ eth_nid }}
+    icon:
+        type: {{ icon_type }}
+        value:
+            rpc-url: {{ icon_rpc_url }}
+            address: {{ icon_address }}
+            start-height: {{ icon_start_height }}
+            block-interval: {{ icon_block_interval }}
+            contracts:
+                connection: {{ icon_contracts_connection }}
+                xcall: {{ icon_contracts_xcall }}
+            network-id: {{ icon_network_id }}
+            finality-block: {{ icon_finality_block }}
+            nid: {{ icon_nid }}
+            step-min: {{ icon_step_min }}
+            step-limit: {{ icon_step_limit }}

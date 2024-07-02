@@ -1,0 +1,13 @@
+---
+- name: Configure and start centralized relay
+  hosts: your_target_host
+  vars_files:
+    - vars.yml
+  tasks:
+    - name: Create config file
+      template:
+        src: config_template.j2
+        dest: ~/.centralized-relay/config/config.yaml
+    - name: Run centralized-relay start command
+      become: yes
+      command: centralized-relay start
