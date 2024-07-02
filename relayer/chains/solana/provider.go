@@ -141,7 +141,26 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	return 0, nil
+	fee := struct {
+		MessageFee  uint64
+		ResponseFee uint64
+		Bump        uint8
+	}{}
+
+	networkFeeAc, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := p.client.GetAccountInfo(ctx, networkFeeAc.String(), &fee); err != nil {
+		return 0, err
+	}
+
+	if responseFee {
+		return fee.MessageFee + fee.ResponseFee, nil
+	}
+
+	return fee.MessageFee, nil
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
