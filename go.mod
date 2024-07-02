@@ -3,8 +3,8 @@ module github.com/icon-project/centralized-relay
 go 1.22
 
 require (
-	github.com/CosmWasm/wasmd v0.50.0
-	github.com/cometbft/cometbft v0.38.7
+	github.com/CosmWasm/wasmd v0.51.0
+	github.com/cometbft/cometbft v0.38.9
 	github.com/cosmos/cosmos-sdk v0.50.7
 	github.com/cosmos/relayer/v2 v2.5.2
 	github.com/ethereum/go-ethereum v1.14.5
@@ -30,7 +30,8 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	cosmossdk.io/x/upgrade v0.1.1 // indirect
-	github.com/CosmWasm/wasmvm v1.5.0 // indirect
+	github.com/CosmWasm/wasmvm/v2 v2.0.0 // indirect
+	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.9 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
@@ -46,7 +47,9 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/cespare/cp v1.1.1 // indirect
 	github.com/cosmos/ibc-go/v8 v8.0.0 // indirect
+	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
+	github.com/ethereum/go-verkle v0.1.1-0.20240306133620-7d920df305f0 // indirect
 	github.com/evalphobia/logrus_fluent v0.5.4 // indirect
 	github.com/fluent/fluent-logger-golang v1.9.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
@@ -60,12 +63,15 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/labstack/echo/v4 v4.11.3 // indirect
 	github.com/labstack/gommon v0.4.1 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/prometheus/client_golang v1.19.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
@@ -255,12 +261,10 @@ require (
 	github.com/zondax/ledger-go v0.14.3 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/oauth2 v0.20.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
 	google.golang.org/api v0.180.0 // indirect
 	google.golang.org/genproto v0.0.0-20240513163218-0867130af1f8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240513163218-0867130af1f8 // indirect
