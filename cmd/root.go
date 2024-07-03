@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const appName = "centralized-relay"
@@ -187,9 +189,33 @@ func newRootLogger(format string, debug bool) (*zap.Logger, error) {
 		level = zap.DebugLevel
 	}
 
-	core := zapcore.NewTee(zapcore.NewCore(enc, os.Stderr, level))
-
+	logfileName := filepath.Join(homePath, "logs", appName+".log")
+	syncer := zap.CombineWriteSyncers(os.Stdout, getWriteSyncer(logfileName))
+	core := zapcore.NewCore(enc, syncer, level)
 	return zap.New(core), nil
+}
+
+type WriteSyncer struct {
+	io.Writer
+}
+
+func (ws WriteSyncer) Sync() error {
+	return nil
+}
+
+func getWriteSyncer(logName string) zapcore.WriteSyncer {
+	var ioWriter = &lumberjack.Logger{
+		Filename:   logName,
+		MaxSize:    1,  // MB
+		MaxBackups: 3,  // number of backups
+		MaxAge:     28, //days
+		LocalTime:  true,
+		Compress:   false, // disabled by default
+	}
+	var sw = WriteSyncer{
+		ioWriter,
+	}
+	return sw
 }
 
 // withUsage wraps a PositionalArgs to display usage only when the PositionalArgs
