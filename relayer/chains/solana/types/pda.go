@@ -32,6 +32,7 @@ type PDARegistry struct {
 	ConnConfig     PDA
 	ConnNetworkFee PDA
 	ConnClaimFees  PDA
+	ConnReceipt    PDA
 }
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
@@ -44,6 +45,7 @@ func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
 		ConnClaimFees:  PDA{SeedPrefix: "claim_fees", ProgramID: connProgramID},
+		ConnReceipt:    PDA{SeedPrefix: "receipt", ProgramID: connProgramID},
 	}
 }
 

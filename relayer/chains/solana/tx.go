@@ -3,6 +3,8 @@ package solana
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -201,5 +203,19 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	return false, nil
+	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(strconv.Itoa(int(key.Sn)))
+	if err != nil {
+		return false, err
+	}
+
+	receipt := struct{}{}
+
+	if err := p.client.GetAccountInfo(ctx, receiptAc.String(), &receipt); err != nil {
+		if strings.Contains(err.Error(), "AccountNotInitialized") {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
 }
