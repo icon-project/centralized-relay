@@ -94,9 +94,8 @@ func TestCreateTx(t *testing.T) {
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
 
 	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, prevOuts, err := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
+	msgTx, err := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
 	fmt.Println("msgTx: ", msgTx)
-	fmt.Println("prevOuts: ", prevOuts)
 	fmt.Println("err: ", err)
 }
 
@@ -123,7 +122,7 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
 
 	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, _, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
+	msgTx, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX
@@ -204,7 +203,7 @@ func TestMultisigUserSwap(t *testing.T) {
 	userMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
 
 	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, _, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, relayersMultisigWallet.PKScript, userMultisigWallet.PKScript)
+	msgTx, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, relayersMultisigWallet.PKScript, userMultisigWallet.PKScript)
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX

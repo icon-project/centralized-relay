@@ -15,7 +15,6 @@ type MultisigInfo struct {
 type MultisigWallet struct {
 	TapScriptTree *txscript.IndexedTapScriptTree
 	TapLeaves     []txscript.TapLeaf
-
 	PKScript        []byte
 	SharedPublicKey *btcec.PublicKey
 }
