@@ -182,8 +182,22 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	return instructions, []solana.PrivateKey{p.wallet.PrivateKey}, nil
 }
 
-func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayertypes.Receipt, error) {
-	return nil, nil
+func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (*relayertypes.Receipt, error) {
+	txSignature, err := solana.SignatureFromBase58(txSign)
+	if err != nil {
+		return nil, err
+	}
+
+	txn, err := p.client.GetTransaction(ctx, txSignature, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &relayertypes.Receipt{
+		TxHash: txSign,
+		Height: txn.Slot,
+		Status: txn.Meta.Err == nil,
+	}, nil
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
