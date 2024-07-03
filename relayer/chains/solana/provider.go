@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sync"
@@ -63,7 +64,38 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	return nil, fmt.Errorf("method not implemented")
+	blockRes, err := p.client.GetBlock(ctx, messageKey.Height)
+	if err != nil {
+		return nil, err
+	}
+
+	messages := []*relayertypes.Message{}
+
+	for _, txn := range blockRes.Transactions {
+		event := types.SolEvent{
+			Slot:      txn.Slot,
+			Signature: txn.MustGetTransaction().Signatures[0],
+			Logs:      txn.Meta.LogMessages,
+		}
+
+		messages, err := p.parseMessagesFromEvent(event)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+		}
+		for _, msg := range messages {
+			p.log.Info("Detected event log: ",
+				zap.Uint64("height", msg.MessageHeight),
+				zap.String("event-type", msg.EventType),
+				zap.Uint64("sn", msg.Sn),
+				zap.Uint64("req-id", msg.ReqID),
+				zap.String("src", msg.Src),
+				zap.String("dst", msg.Dst),
+				zap.Any("data", hex.EncodeToString(msg.Data)),
+			)
+			messages = append(messages, msg)
+		}
+	}
+	return messages, nil
 }
 
 // SetAdmin transfers the ownership of solana connection module to new address
