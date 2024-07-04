@@ -25,7 +25,6 @@ type IDL struct {
 	Instructions []IdlInstruction `json:"instructions"`
 	Accounts     []IdlAccount     `json:"accounts"`
 	Events       []IdlEvent       `json:"events"`
-	Types        []IdlType        `json:"types"`
 }
 
 type IdlInstruction struct {
@@ -44,19 +43,8 @@ type IdlAccount struct {
 }
 
 type IdlField struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
-// IdlDS DS means data structure
-type IdlDS struct {
-	Kind   string     `json:"kind"`
-	Fields []IdlField `json:"fields"`
-}
-
-type IdlType struct {
-	Name string `json:"name"`
-	Type IdlDS  `json:"type"`
+	Name string      `json:"name"`
+	Type interface{} `json:"type"`
 }
 
 type IdlMetadata struct {

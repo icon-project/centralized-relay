@@ -19,8 +19,6 @@ type Config struct {
 	XcallProgramID      string `yaml:"xcall-program-id"`
 	ConnectionProgramID string `yaml:"connection-program-id"`
 
-	XcallStateAccount string `yaml:"xcall-state-account"`
-
 	NID         string `yaml:"nid"`
 	HomeDir     string `yaml:"home-dir"`
 	GasLimit    uint64 `yaml:"gas-limit"`
@@ -56,7 +54,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		return nil, err
 	}
 
-	connProgID, err := xcallIdl.GetProgramID()
+	connProgID, err := connIdl.GetProgramID()
 	if err != nil {
 		return nil, err
 	}

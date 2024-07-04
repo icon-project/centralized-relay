@@ -3,7 +3,7 @@ package solana
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"math/big"
 	"strings"
 	"time"
 
@@ -159,7 +159,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		IsSigner:   true,
 	}
 
-	xcallStatePubKey, err := solana.PublicKeyFromBase58(p.cfg.XcallStateAccount)
+	xcallStatePubKey, err := solana.PublicKeyFromBase58("")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -203,7 +203,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(strconv.Itoa(int(key.Sn)))
+	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(key.Sn).Bytes())
 	if err != nil {
 		return false, err
 	}

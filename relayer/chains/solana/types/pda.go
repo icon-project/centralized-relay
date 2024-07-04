@@ -9,11 +9,10 @@ type PDA struct {
 	ProgramID  solana.PublicKey
 }
 
-func (pda PDA) GetAddress(additionalSeeds ...string) (solana.PublicKey, error) {
+func (pda PDA) GetAddress(additionalSeeds ...[]byte) (solana.PublicKey, error) {
 	seeds := [][]byte{[]byte(pda.SeedPrefix)}
-	for _, sd := range additionalSeeds {
-		seeds = append(seeds, []byte(sd))
-	}
+
+	seeds = append(seeds, additionalSeeds...)
 
 	addr, _, err := solana.FindProgramAddress(seeds, pda.ProgramID)
 	if err != nil {

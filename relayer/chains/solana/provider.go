@@ -174,7 +174,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 
-	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.String())
+	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.Bytes())
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 
 	if len(rollbackAc.Rollback.Protocols) > 0 {
 		// Todo append remaining accounts to accounts slice
-		_, err := p.pdaRegistry.XcallDefaultConn.GetAddress(rollbackAc.Rollback.To)
+		_, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(rollbackAc.Rollback.To))
 		if err != nil {
 			return err
 		}
@@ -266,13 +266,13 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 		Bump        uint8
 	}{}
 
-	networkFeeAc, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	networkFeeAc, err := p.pdaRegistry.ConnNetworkFee.GetAddress([]byte(networkID))
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get network account fee address")
 	}
 
 	if err := p.client.GetAccountInfo(ctx, networkFeeAc.String(), &fee); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get account info: %w", err)
 	}
 
 	if responseFee {
@@ -283,6 +283,10 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return err
+	}
+
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetFee)
 	if err != nil {
 		return err
@@ -307,7 +311,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	instructionData = append(instructionData, msgFeeBytes...)
 	instructionData = append(instructionData, resFeeBytes...)
 
-	networkFeeAddr, err := p.pdaRegistry.ConnNetworkFee.GetAddress(networkID)
+	networkFeeAddr, err := p.pdaRegistry.ConnNetworkFee.GetAddress([]byte(networkID))
 	if err != nil {
 		return err
 	}
@@ -327,17 +331,17 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			ProgID: progID,
 			AccountValues: solana.AccountMetaSlice{
 				&solana.AccountMeta{
-					PublicKey:  p.wallet.PublicKey(),
+					PublicKey:  networkFeeAddr,
 					IsWritable: true,
-					IsSigner:   true,
 				},
 				&solana.AccountMeta{
 					PublicKey:  connConfigAddr,
 					IsWritable: true,
 				},
 				&solana.AccountMeta{
-					PublicKey:  networkFeeAddr,
+					PublicKey:  p.wallet.PublicKey(),
 					IsWritable: true,
+					IsSigner:   true,
 				},
 				&solana.AccountMeta{
 					PublicKey: solana.SystemProgramID,
