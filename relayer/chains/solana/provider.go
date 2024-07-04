@@ -160,10 +160,10 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 	}
 
 	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
-		return err
+		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
-	p.log.Info("set admin successful")
+	p.log.Info("set admin successful", zap.String("tx-sign", txSign.String()))
 
 	return nil
 }
@@ -251,10 +251,10 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	}
 
 	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
-		return err
+		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
-	p.log.Info("revert message successful")
+	p.log.Info("revert message successful", zap.String("tx-sign", txSign.String()))
 
 	return nil
 }
@@ -364,10 +364,10 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	}
 
 	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
-		return err
+		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
-	p.log.Info("set fee successful")
+	p.log.Info("set fee successful", zap.String("tx-sign", txSign.String()))
 
 	return nil
 }
@@ -430,10 +430,10 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	}
 
 	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
-		return err
+		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
-	p.log.Info("claim fees successful")
+	p.log.Info("claim fees successful", zap.String("tx-sign", txSign.String()))
 
 	return nil
 }
