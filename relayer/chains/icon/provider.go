@@ -144,17 +144,17 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerType
 		var status types.HexInt
 		return status == types.NewHexInt(1), p.client.Call(callParam, &status)
 	case events.CallMessage:
-		return true, nil
-	case events.ExecuteRollback:
-		return true, nil
+		return false, nil
+	case events.RollbackMessage:
+		return false, nil
 	default:
-		return false, fmt.Errorf("unknown event type")
+		return true, fmt.Errorf("unknown event type")
 	}
 }
 
 // ReverseMessage reverts a message
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	params := map[string]interface{}{"_sn": types.NewHexInt(sn.Int64())}
+	params := map[string]interface{}{"sn": types.NewHexInt(sn.Int64())}
 	message := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]), params, MethodRevertMessage)
 	txHash, err := p.SendTransaction(ctx, message)
 	if err != nil {

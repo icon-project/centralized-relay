@@ -1,10 +1,10 @@
 FROM --platform=$BUILDPLATFORM golang:alpine AS build-env
 
-RUN apk add --update --no-cache make musl-dev gcc binutils-gold
+RUN apk add --update --no-cache make musl-dev gcc binutils-gold git
 
 ARG BUILDPLATFORM=arm64
 ARG TARGETPLATFORM=arm64
-ARG COSMWASM_VERSION=2.0.0
+ARG COSMWASM_VERSION=2.0.1
 
 RUN wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.aarch64.a -O /usr/lib/libwasmvm.aarch64.a && \
     wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.x86_64.a -O /usr/lib/libwasmvm.x86_64.a
