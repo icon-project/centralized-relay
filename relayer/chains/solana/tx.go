@@ -211,7 +211,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	receipt := struct{}{}
 
 	if err := p.client.GetAccountInfo(ctx, receiptAc.String(), &receipt); err != nil {
-		if strings.Contains(err.Error(), "AccountNotInitialized") {
+		if strings.Contains(err.Error(), "not found") {
 			return false, nil
 		} else {
 			return false, err
