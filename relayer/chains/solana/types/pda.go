@@ -23,10 +23,11 @@ func (pda PDA) GetAddress(additionalSeeds ...[]byte) (solana.PublicKey, error) {
 }
 
 type PDARegistry struct {
-	XcallConfig      PDA
-	XcallReply       PDA
-	XcallRollback    PDA
-	XcallDefaultConn PDA
+	XcallConfig          PDA
+	XcallReply           PDA
+	XcallRollback        PDA
+	XcallDefaultConn     PDA
+	XcallPendingResponse PDA
 
 	ConnConfig     PDA
 	ConnNetworkFee PDA
@@ -36,10 +37,11 @@ type PDARegistry struct {
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
 	return &PDARegistry{
-		XcallConfig:      PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
-		XcallReply:       PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
-		XcallRollback:    PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
-		XcallDefaultConn: PDA{SeedPrefix: "conn", ProgramID: xcallProgramID},
+		XcallConfig:          PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
+		XcallReply:           PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
+		XcallRollback:        PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
+		XcallDefaultConn:     PDA{SeedPrefix: "conn", ProgramID: xcallProgramID},
+		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
 
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},

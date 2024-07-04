@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -128,14 +129,9 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		return err
 	}
 
-	progID, err := p.connIdl.GetProgramID()
-	if err != nil {
-		return err
-	}
-
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID: progID,
+			ProgID: p.connIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
 				&payerAccount,
 				&solana.AccountMeta{
@@ -219,20 +215,40 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 
 	if len(rollbackAc.Rollback.Protocols) > 0 {
 		// Todo append remaining accounts to accounts slice
-		_, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(rollbackAc.Rollback.To))
+		defaultConnAddr, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(rollbackAc.Rollback.To))
 		if err != nil {
 			return err
 		}
-	}
 
-	progID, err := p.connIdl.GetProgramID()
-	if err != nil {
-		return err
+		msgBytes := []byte{195}
+		msgBytes = append(msgBytes, sn.Bytes()...)
+		msgBytes = append(msgBytes, []byte{0, 128}...)
+
+		h := sha256.Sum256(msgBytes)
+
+		pendingResponseAddr, err := p.pdaRegistry.XcallPendingResponse.GetAddress(h[:])
+		if err != nil {
+			return err
+		}
+
+		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.Bytes())
+		if err != nil {
+			return err
+		}
+
+		accounts = append(accounts,
+			&solana.AccountMeta{PublicKey: defaultConnAddr, IsWritable: true},
+			&solana.AccountMeta{PublicKey: pendingResponseAddr, IsWritable: true},
+			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+			&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
+			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+		)
+
 	}
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID:        progID,
+			ProgID:        p.connIdl.GetProgramID(),
 			AccountValues: accounts,
 			DataBytes:     instructionData,
 		},
@@ -321,14 +337,9 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return err
 	}
 
-	progID, err := p.connIdl.GetProgramID()
-	if err != nil {
-		return err
-	}
-
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID: progID,
+			ProgID: p.connIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
 				&solana.AccountMeta{
 					PublicKey:  networkFeeAddr,
@@ -390,14 +401,9 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		return err
 	}
 
-	progID, err := p.connIdl.GetProgramID()
-	if err != nil {
-		return err
-	}
-
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID: progID,
+			ProgID: p.connIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
 				&solana.AccountMeta{
 					PublicKey:  p.wallet.PublicKey(),

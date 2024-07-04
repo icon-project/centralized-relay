@@ -15,8 +15,9 @@ func (idl *IDL) GetInstructionDiscriminator(name string) ([]byte, error) {
 	return nil, fmt.Errorf("instruction not found")
 }
 
-func (idl *IDL) GetProgramID() (solana.PublicKey, error) {
-	return solana.PublicKeyFromBase58(idl.Address)
+func (idl *IDL) GetProgramID() solana.PublicKey {
+	id, _ := solana.PublicKeyFromBase58(idl.Address)
+	return id
 }
 
 type IDL struct {

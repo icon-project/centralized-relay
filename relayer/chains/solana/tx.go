@@ -148,11 +148,6 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	progID, err := p.xcallIdl.GetProgramID()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	payerAccount := solana.AccountMeta{
 		PublicKey:  p.wallet.PublicKey(),
 		IsWritable: true,
@@ -175,7 +170,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID:        progID,
+			ProgID:        p.xcallIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{&payerAccount, &xcallStateAccount},
 			DataBytes:     instructionData,
 		},

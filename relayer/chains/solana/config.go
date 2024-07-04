@@ -49,17 +49,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		}
 	}
 
-	xcallProgID, err := xcallIdl.GetProgramID()
-	if err != nil {
-		return nil, err
-	}
-
-	connProgID, err := connIdl.GetProgramID()
-	if err != nil {
-		return nil, err
-	}
-
-	pdaRegistry := types.NewPDARegistry(xcallProgID, connProgID)
+	pdaRegistry := types.NewPDARegistry(xcallIdl.GetProgramID(), connIdl.GetProgramID())
 
 	return &Provider{
 		log:         logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),

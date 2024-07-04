@@ -181,10 +181,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 }
 
 func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
-	progId, err := p.xcallIdl.GetProgramID()
-	if err != nil {
-		return nil, err
-	}
+	progId := p.xcallIdl.GetProgramID()
 
 	limit := 1000
 	opts := &solrpc.GetSignaturesForAddressOpts{
