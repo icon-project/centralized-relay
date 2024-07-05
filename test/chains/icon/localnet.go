@@ -797,3 +797,12 @@ func (in *IconRemotenet) ExecCallTxCommand(ctx context.Context, scoreAddress, me
 
 	return in.NodeCommand(command...)
 }
+
+func (in *IconRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
+	index := []*string{&sn}
+	_, err := in.FindEvent(ctx, startHeight, "xcall", "RollbackExecuted(int)", index)
+	if err != nil {
+		return "", err
+	}
+	return "0", nil
+}
