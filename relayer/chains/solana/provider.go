@@ -101,6 +101,10 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of solana connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return err
+	}
+
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetAdmin)
 	if err != nil {
 		return err
@@ -165,6 +169,10 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return err
+	}
+
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRevertMessage)
 	if err != nil {
 		return err
@@ -384,6 +392,10 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return err
+	}
+
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodClaimFees)
 	if err != nil {
 		return err

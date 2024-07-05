@@ -28,6 +28,8 @@ type PDARegistry struct {
 	XcallRollback        PDA
 	XcallDefaultConn     PDA
 	XcallPendingResponse PDA
+	XcallProxyRequest    PDA
+	XcallSuccessRes      PDA
 
 	ConnConfig     PDA
 	ConnNetworkFee PDA
@@ -42,6 +44,8 @@ func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry
 		XcallRollback:        PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
 		XcallDefaultConn:     PDA{SeedPrefix: "conn", ProgramID: xcallProgramID},
 		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
+		XcallProxyRequest:    PDA{SeedPrefix: "proxy", ProgramID: xcallProgramID},
+		XcallSuccessRes:      PDA{SeedPrefix: "success", ProgramID: xcallProgramID},
 
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},

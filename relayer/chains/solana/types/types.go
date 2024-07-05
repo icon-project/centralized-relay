@@ -14,12 +14,15 @@ const (
 
 	MethodRevertMessage = "revert_message"
 
+	MethodDecodeCsMessage = "decode_cs_message"
+
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
 
 	ChainType = "solana"
 
-	EventLogPrefix = "Program data: "
+	EventLogPrefix      = "Program data: "
+	ProgramReturnPrefix = "Program return: "
 
 	EventSendMessage     = "SendMessage"
 	EventCallMessage     = "CallMessage"

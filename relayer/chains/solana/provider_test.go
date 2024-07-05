@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/assert"
 )
@@ -86,4 +88,27 @@ func TestEventLogParse(t *testing.T) {
 	assert.NoError(t, err)
 
 	fmt.Printf("TestEvent: %+v\n", ev)
+}
+
+func TestCsMessageDecode(t *testing.T) {
+	msg := types.CsMessage{
+		Variant: borsh.Enum(types.CsMessageResult),
+		Result: types.CsMessageResultType{
+			SequenceNo:   big.NewInt(100),
+			ResponseCode: types.CsResponseSuccess,
+			Message:      []byte("hello"),
+		},
+	}
+
+	msgBytes, err := borsh.Serialize(msg)
+	assert.NoError(t, err)
+
+	fmt.Println("Serialized bytes:", msgBytes)
+
+	decodedMsg := types.CsMessage{}
+
+	err = borsh.Deserialize(&decodedMsg, msgBytes)
+	assert.NoError(t, err)
+
+	fmt.Printf("\nDecoded Msg: %+v\n", decodedMsg)
 }

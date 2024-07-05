@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math/big"
 	"strings"
@@ -139,7 +140,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	if err != nil {
 		return nil, nil, err
 	}
-	snArg, err := borsh.Serialize(msg.Sn)
+	connSnArg, err := borsh.Serialize(msg.Sn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,30 +149,122 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	payerAccount := solana.AccountMeta{
-		PublicKey:  p.wallet.PublicKey(),
-		IsWritable: true,
-		IsSigner:   true,
-	}
-
-	xcallStatePubKey, err := solana.PublicKeyFromBase58("")
+	csMessage, err := p.decodeCsMessage(context.Background(), msg.Data)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	xcallStateAccount := solana.AccountMeta{
-		PublicKey:  xcallStatePubKey,
-		IsWritable: true,
+	sn := new(big.Int)
+	if csMessage.Variant == borsh.Enum(types.CsMessageRequest) {
+		sn = csMessage.Request.SequenceNo
+	} else {
+		sn = csMessage.Result.SequenceNo
+	}
+
+	snArg, err := borsh.Serialize(sn)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	instructionData := append(discriminator, srcArg...)
-	instructionData = append(instructionData, snArg...)
+	instructionData = append(instructionData, connSnArg...)
 	instructionData = append(instructionData, dataArg...)
+	instructionData = append(instructionData, snArg...)
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connReceiptAddr, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(msg.Sn).Bytes())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  p.wallet.PublicKey(),
+			IsWritable: true,
+			IsSigner:   true,
+		},
+		&solana.AccountMeta{
+			PublicKey:  connConfigAddr,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey:  connReceiptAddr,
+			IsWritable: true,
+		},
+		&solana.AccountMeta{
+			PublicKey: solana.SystemProgramID,
+		},
+	}
+
+	xcallConfigAddr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress([]byte("req-id"))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	xcallDefaultConn, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(msg.Src))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if csMessage.Variant == borsh.Enum(types.CsMessageRequest) {
+
+		accounts = append(
+			accounts,
+			solana.AccountMetaSlice{
+				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+			}...,
+		)
+
+	} else {
+		successResAddr, err := p.pdaRegistry.XcallSuccessRes.GetAddress(csMessage.Result.SequenceNo.Bytes())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(csMessage.Result.SequenceNo.Bytes())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		accounts = append(
+			accounts,
+			solana.AccountMetaSlice{
+				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+				&solana.AccountMeta{PublicKey: successResAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
+				&solana.AccountMeta{PublicKey: p.wallet.PublicKey(), IsWritable: true},
+			}...,
+		)
+	}
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
 			ProgID:        p.xcallIdl.GetProgramID(),
-			AccountValues: solana.AccountMetaSlice{&payerAccount, &xcallStateAccount},
+			AccountValues: accounts,
 			DataBytes:     instructionData,
 		},
 	}
@@ -213,4 +306,76 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		}
 	}
 	return true, nil
+}
+
+func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMessage, error) {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return nil, err
+	}
+
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodDecodeCsMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	msgBorshBytes, err := borsh.Serialize(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	instructionData := append(discriminator, msgBorshBytes...)
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID: p.xcallIdl.GetProgramID(),
+			AccountValues: solana.AccountMetaSlice{
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
+			},
+			DataBytes: instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+		return nil, fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
+	}
+
+	txnres, err := p.client.GetTransaction(ctx, txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+	}
+
+	for _, log := range txnres.Meta.LogMessages {
+		if strings.HasPrefix(log, types.ProgramReturnPrefix) {
+			returnLog := strings.Replace(log, types.ProgramReturnPrefix, "", 1)
+			returnLogBytes, err := base64.StdEncoding.DecodeString(returnLog)
+			if err != nil {
+				return nil, err
+			}
+
+			csMsg := types.CsMessage{}
+			if err := borsh.Deserialize(&csMsg, returnLogBytes); err != nil {
+				return nil, err
+			}
+
+			return &csMsg, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to return value")
 }
