@@ -155,10 +155,10 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	}
 
 	sn := new(big.Int)
-	if csMessage.Variant == borsh.Enum(types.CsMessageRequest) {
-		sn = csMessage.Request.SequenceNo
+	if csMessage.MessageType == types.CsMessageRequest {
+		sn = &csMessage.Request.SequenceNo
 	} else {
-		sn = csMessage.Result.SequenceNo
+		sn = &csMessage.Result.SequenceNo
 	}
 
 	snArg, err := borsh.Serialize(sn)
@@ -205,6 +205,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
+	//reqId = config.LastReqId + 1
 	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress([]byte("req-id"))
 	if err != nil {
 		return nil, nil, err
@@ -215,7 +216,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	if csMessage.Variant == borsh.Enum(types.CsMessageRequest) {
+	if csMessage.MessageType == types.CsMessageRequest {
 
 		accounts = append(
 			accounts,
@@ -223,10 +224,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request creator
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response creator
+
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
@@ -250,10 +253,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
+
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request creator
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response
+				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response creator
+
 				&solana.AccountMeta{PublicKey: successResAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: p.wallet.PublicKey(), IsWritable: true},

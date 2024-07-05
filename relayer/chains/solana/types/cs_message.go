@@ -2,39 +2,37 @@ package types
 
 import (
 	"math/big"
-
-	"github.com/near/borsh-go"
 )
 
 type CsMessage struct {
-	Variant borsh.Enum `borsh_enum:"true"`
-	Request CsMessageRequestType
-	Result  CsMessageResultType
+	MessageType CsMessageType
+	Request     *CsMessageRequestType
+	Result      *CsMessageResultType
 }
 
 type CsMessageRequestType struct {
-	From       string
+	From       struct{ Address string }
 	To         string
-	SequenceNo *big.Int
+	SequenceNo big.Int
 	MsgType    MessageType
 	Data       []byte
 	Protocols  []string
 }
 
 type CsMessageResultType struct {
-	SequenceNo   *big.Int
+	SequenceNo   big.Int
 	ResponseCode CsResponseType
 	Message      []byte
 }
 
-type CsResponseType borsh.Enum
+type CsResponseType uint8
 
 const (
 	CsResponseFailure CsResponseType = iota
 	CsResponseSuccess
 )
 
-type MessageType borsh.Enum
+type MessageType uint8
 
 const (
 	CallMessage MessageType = iota
@@ -42,7 +40,7 @@ const (
 	CallMessagePersisted
 )
 
-type CsMessageType borsh.Enum
+type CsMessageType uint8
 
 const (
 	CsMessageRequest CsMessageType = iota

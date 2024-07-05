@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
@@ -91,24 +90,17 @@ func TestEventLogParse(t *testing.T) {
 }
 
 func TestCsMessageDecode(t *testing.T) {
-	msg := types.CsMessage{
-		Variant: borsh.Enum(types.CsMessageResult),
-		Result: types.CsMessageResultType{
-			SequenceNo:   big.NewInt(100),
-			ResponseCode: types.CsResponseSuccess,
-			Message:      []byte("hello"),
-		},
-	}
+	msgLog := "AQABAQAAAAAAAAAAAAAAAAAAAAFEAAAA+EKHaWN4L2FiY4RpY29uAQKEAAECA+2sQ2dYUWNaMjZZTENvcU0xd1VLNG5DWEJ3dGJOZVZab1pndDh1ZVZKOEJ2YTE="
 
-	msgBytes, err := borsh.Serialize(msg)
+	msgBytes, err := base64.StdEncoding.DecodeString(msgLog)
 	assert.NoError(t, err)
 
-	fmt.Println("Serialized bytes:", msgBytes)
+	fmt.Println("Msg Bytes:", msgBytes)
 
-	decodedMsg := types.CsMessage{}
+	msg := types.CsMessage{}
 
-	err = borsh.Deserialize(&decodedMsg, msgBytes)
+	err = borsh.Deserialize(&msg, msgBytes[:])
+
 	assert.NoError(t, err)
-
-	fmt.Printf("\nDecoded Msg: %+v\n", decodedMsg)
+	fmt.Printf("\nDecoded Msg: %+v\n", msg.Result)
 }
