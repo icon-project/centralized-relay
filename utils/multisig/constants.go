@@ -1,3 +1,3 @@
 package multisig
 
-const MIN_SAT = 546
+const MIN_SAT = 100

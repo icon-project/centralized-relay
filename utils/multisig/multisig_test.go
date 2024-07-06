@@ -15,7 +15,7 @@ import (
 )
 
 func TestGenerateKeys(t *testing.T) {
-	chainParam := &chaincfg.RegressionNetParams
+	chainParam := &chaincfg.SigNetParams
 
 	for i := 0; i < 3; i++ {
 		privKey := GeneratePrivateKeyFromSeed([]byte{byte(i)}, chainParam)
@@ -29,7 +29,7 @@ func TestGenerateKeys(t *testing.T) {
 }
 
 func TestLoadWalletFromPrivateKey(t *testing.T) {
-	chainParam := &chaincfg.RegressionNetParams
+	chainParam := &chaincfg.SigNetParams
 
 	wif, _ := btcutil.DecodeWIF("cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy")
 	pubKey := wif.SerializePubKey();
@@ -40,32 +40,23 @@ func TestLoadWalletFromPrivateKey(t *testing.T) {
 }
 
 func TestRandomKeys(t *testing.T) {
-	randomKeys(3, &chaincfg.RegressionNetParams, []int{0, 1, 2})
+	randomKeys(3, &chaincfg.SigNetParams, []int{0, 1, 2})
 }
 
 func TestBuildMultisigTapScript(t *testing.T) {
-	// 2/3: bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz
-	// 3/3: bcrt1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslstaag7h
-	totalSigs := 3
+	totalSigs := 2
 	numSigsRequired := 2
-	chainParam := &chaincfg.RegressionNetParams
-	// 3 for multisig vault, 1 for recovery key
-	_, pubKeys, ECPubKeys := randomKeys(totalSigs, chainParam, []int{0, 1, 2})
+	chainParam := &chaincfg.SigNetParams
 
-	fmt.Printf("Len pub key: %v\n", len(pubKeys[0]))
-
-	multisigInfo := &MultisigInfo{
-		PubKeys:            pubKeys,
-		EcPubKeys:          ECPubKeys,
-		NumberRequiredSigs: numSigsRequired,
-	}
+	_, multisigInfo := randomMultisigInfo(totalSigs, numSigsRequired, chainParam, []int{0, 3})
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+
 	multisigAddress, err := AddressOnChain(chainParam, multisigWallet)
 	fmt.Println("address, err : ", multisigAddress, err)
 }
 
 func TestCreateTx(t *testing.T) {
-	chainParam := &chaincfg.RegressionNetParams
+	chainParam := &chaincfg.SigNetParams
 
 	inputs := []*UTXO{
 		// 2/3 - empty data
@@ -90,39 +81,36 @@ func TestCreateTx(t *testing.T) {
 		},
 	}
 
-	_, multisigInfo := randomMultisigInfo(3, 2, chainParam, []int{0, 1, 2})
-	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
-
 	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, err := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
+	msgTx, err := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, 0)
 	fmt.Println("msgTx: ", msgTx)
 	fmt.Println("err: ", err)
 }
 
 func TestMultisigUserClaimLiquidity(t *testing.T) {
-	chainParam := &chaincfg.RegressionNetParams
+	chainParam := &chaincfg.SigNetParams
 
 	inputs := []*UTXO{
 		{
-			IsRelayersMultisig: true,
-			TxHash:        "62d19039c9d0eec493f3a1440f0fab65c525b1426b675445b01f26ddf1d8fa42",
+			IsRelayersMultisig: false,
+			TxHash:        "e16260c0de027d2f12ea8bbf6fa68fa57a26a3797d44bea27867cbfc6c1f0470",
 			OutputIdx:     0,
-			OutputAmount:  10000,
+			OutputAmount:  778,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "bcrt1p65j57tzjufnjmt4fgx5xexfry6f3f87sggl02gl7fcxuky4x34fscyjejf",
-			Amount:          8000,
+			ReceiverAddress: "tb1pfhttx6vvskhgv6h0w9rss3k63r0zy8vnmwrap0jvraqm5wme6vtsglfta8",
+			Amount:          556,
 		},
 	}
 
-	privKeys, multisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	privKeys, multisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3})
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
 
-	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, multisigWallet.PKScript, nil)
+	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+	msgTx, _ := CreateMultisigTx(inputs, outputs, 222, chainParam, changeReceiverAddress, 0)
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX
@@ -169,41 +157,37 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 }
 
 func TestMultisigUserSwap(t *testing.T) {
-	chainParam := &chaincfg.RegressionNetParams
+	chainParam := &chaincfg.SigNetParams
 
 	inputs := []*UTXO{
 		{
-			IsRelayersMultisig: true,
-			TxHash:        "62d19039c9d0eec493f3a1440f0fab65c525b1426b675445b01f26ddf1d8fa42",
+			IsRelayersMultisig: false,
+			TxHash:        "63181e1932a78e0735ce04d0989b50a37decc8ed6f6db071688ac83c95df6cb4",
 			OutputIdx:     0,
-			OutputAmount:  10000,
+			OutputAmount:  1168,
 		},
 		{
-			IsRelayersMultisig: false,
-			TxHash:        "8f476a9a520f548e7b60512f5c14c5c6253a289dde02d146a02ca22892a2877a",
-			OutputIdx:     0,
-			OutputAmount:  20000,
+			IsRelayersMultisig: true,
+			TxHash:        "555a2bb0ed3587edf108c626d2a43a16fedb1ff7ff7ceb8e7dbcc98da29c5dce",
+			OutputIdx:     1,
+			OutputAmount:  4900,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "bcrt1p65j57tzjufnjmt4fgx5xexfry6f3f87sggl02gl7fcxuky4x34fscyjejf",
-			Amount:          8000,
-		},
-		{
-			ReceiverAddress: "bcrt1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslstaag7h",
-			Amount:          8000,
+			ReceiverAddress: "tb1pfhttx6vvskhgv6h0w9rss3k63r0zy8vnmwrap0jvraqm5wme6vtsglfta8",
+			Amount:          1834,
 		},
 	}
 
 	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
 	relayersMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
-	userPrivKeys, _ := randomMultisigInfo(2, 2, chainParam, []int{0, 3})
-	userMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3})
+	userMultisigWallet, _ := GenerateMultisigWallet(userMultisigInfo)
 
-	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, _ := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, relayersMultisigWallet.PKScript, userMultisigWallet.PKScript)
+	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+	msgTx, _ := CreateMultisigTx(inputs, outputs, 333, chainParam, changeReceiverAddress, 0)
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX
@@ -232,7 +216,7 @@ func TestMultisigUserSwap(t *testing.T) {
 	totalSigs = append(totalSigs, sigs2)
 
 	// USER SIGN TX
-	userSigs, _ := UserSignTx(userPrivKeys[1], msgTx, inputs, userMultisigWallet, 0, chainParam)
+	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, relayersMultisigWallet.PKScript, relayersMultisigWallet.TapLeaves[0], userMultisigWallet.PKScript, userMultisigWallet.TapLeaves[0], chainParam, true)
 	// add user sign to total sigs
 	for i := range msgTx.TxIn {
 		if (!inputs[i].IsRelayersMultisig) {
@@ -243,16 +227,16 @@ func TestMultisigUserSwap(t *testing.T) {
 
 	// MATSTER RELAYER COMBINE SIGNS
 	transposedSigs := TransposeSigs(totalSigs)
+
 	relayersMultisigTapLeafScript := relayersMultisigWallet.TapLeaves[0].Script
 	ctrlBlock := relayersMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(relayersMultisigWallet.SharedPublicKey)
-	relayersMultisigControlBlock, _ := ctrlBlock.ToBytes()
+	relayersMultisigControlBlockBytes, _ := ctrlBlock.ToBytes()
 
 	userMultisigTapLeafScript := userMultisigWallet.TapLeaves[0].Script
 	userCtrlBlock := userMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(userMultisigWallet.SharedPublicKey)
-	userMultisigControlBlock, _ := userCtrlBlock.ToBytes()
+	userMultisigControlBlockBytes, _ := userCtrlBlock.ToBytes()
 
-	signedMsgTx, err := CombineMultisigSigs(relayersMultisigTapLeafScript, relayersMultisigControlBlock, userMultisigTapLeafScript, userMultisigControlBlock, msgTx, inputs, transposedSigs)
-
+	signedMsgTx, err := CombineMultisigSigs(relayersMultisigTapLeafScript, relayersMultisigControlBlockBytes, userMultisigTapLeafScript, userMultisigControlBlockBytes, msgTx, inputs, transposedSigs)
 
 	var signedTx bytes.Buffer
 	signedMsgTx.Serialize(&signedTx)

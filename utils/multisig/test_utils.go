@@ -55,8 +55,8 @@ func postRequestSignSlaveRelayer1(c *gin.Context) {
         return
     }
 
-	chainParam := &chaincfg.RegressionNetParams
-	privKeys, multisigInfo := randomMultisigInfo(3, 2, chainParam, []int{0, 1, 2})
+	chainParam := &chaincfg.SigNetParams
+	privKeys, multisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
 
 	sigs, _ := PartSignOnRawExternalTx(privKeys[1], input.MsgTx, input.Inputs, multisigWallet.PKScript, multisigWallet.TapLeaves[0], nil, txscript.TapLeaf{}, chainParam, false)
@@ -73,62 +73,10 @@ func postRequestSignSlaveRelayer2(c *gin.Context) {
         return
     }
 
-	chainParam := &chaincfg.RegressionNetParams
-	privKeys, multisigInfo := randomMultisigInfo(3, 2, chainParam, []int{0, 1, 2})
+	chainParam := &chaincfg.SigNetParams
+	privKeys, multisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
 	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
 
 	sigs, _ := PartSignOnRawExternalTx(privKeys[2], input.MsgTx, input.Inputs, multisigWallet.PKScript, multisigWallet.TapLeaves[0], nil, txscript.TapLeaf{}, chainParam, false)
     c.IndentedJSON(http.StatusOK, sigs)
-}
-
-func UserSignTx(
-	privKey string,
-	msgTx *wire.MsgTx,
-	inputs []*UTXO,
-	multisigWallet *MultisigWallet,
-	indexTapLeaf int,
-	chainParam *chaincfg.Params,
-) ([][]byte, error) {
-	wif, err := btcutil.DecodeWIF(privKey)
-	if err != nil {
-		return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when generate btc private key from seed: %v", err)
-	}
-
-	// sign on each TxIn
-	if len(inputs) != len(msgTx.TxIn) {
-		return nil, fmt.Errorf("[PartSignOnRawExternalTx] Len of Public seeds %v and len of TxIn %v are not correct", len(inputs), len(msgTx.TxIn))
-	}
-
-	prevOuts := txscript.NewMultiPrevOutFetcher(nil)
-	for _, in := range inputs {
-		utxoHash, err := chainhash.NewHashFromStr(in.TxHash)
-		if err != nil {
-			return nil, err
-		}
-		outPoint := wire.NewOutPoint(utxoHash, in.OutputIdx)
-
-		prevOuts.AddPrevOut(*outPoint, &wire.TxOut{
-			Value:    int64(in.OutputAmount),
-			PkScript: multisigWallet.PKScript,
-		})
-	}
-	txSigHashes := txscript.NewTxSigHashes(msgTx, prevOuts)
-
-	sigs := [][]byte{}
-	for i := range msgTx.TxIn {
-		if (!inputs[i].IsRelayersMultisig) {
-			sig, err := txscript.RawTxInTapscriptSignature(
-				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), multisigWallet.PKScript, multisigWallet.TapLeaves[indexTapLeaf], txscript.SigHashAll, wif.PrivKey)
-			if err != nil {
-				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
-			}
-			fmt.Printf("PartSignOnRawExternalTx sig len : %v\n", len(sig))
-
-			sigs = append(sigs, sig)
-		} else {
-			sigs = append(sigs, []byte{})
-		}
-	}
-
-	return sigs, nil
 }
