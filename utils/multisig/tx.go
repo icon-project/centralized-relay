@@ -22,10 +22,12 @@ func CreateMultisigTx(
     feePerOutput uint64,
     chainParam *chaincfg.Params,
     changeReceiverAddress string,
-    relayersPKScript []byte,
-	userPKScript []byte,
+	lockTime uint32,
 ) (*wire.MsgTx, error) {
 	msgTx := wire.NewMsgTx(wire.TxVersion)
+	if lockTime > 0 {
+		msgTx.LockTime = lockTime
+	}
 
 	// add TxIns into raw tx
 	// totalInputAmount in external unit
@@ -153,17 +155,17 @@ func PartSignOnRawExternalTx(
 	for i := range msgTx.TxIn {
 		if (inputs[i].IsRelayersMultisig) {
 			sig, err := txscript.RawTxInTapscriptSignature(
-				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), relayersPKScript, relayersTapLeaf, txscript.SigHashAll, wif.PrivKey)
+				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), relayersPKScript, relayersTapLeaf, txscript.SigHashDefault, wif.PrivKey)
 			if err != nil {
-				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
+				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when relayers-multisig key signing on raw btc tx: %v", err)
 			}
 
 			sigs = append(sigs, sig)
 		} else if (isMasterRelayer) {
 			sig, err := txscript.RawTxInTapscriptSignature(
-				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), userPKScript, userTapLeaf, txscript.SigHashAll, wif.PrivKey)
+				msgTx, txSigHashes, i, int64(inputs[i].OutputAmount), userPKScript, userTapLeaf, txscript.SigHashDefault, wif.PrivKey)
 			if err != nil {
-				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when signing on raw btc tx: %v", err)
+				return nil, fmt.Errorf("[PartSignOnRawExternalTx] Error when user-multisig key signing on raw btc tx: %v", err)
 			}
 
 			sigs = append(sigs, sig)
