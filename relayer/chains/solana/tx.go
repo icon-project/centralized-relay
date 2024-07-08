@@ -27,7 +27,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -42,7 +42,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	return nil
 }
 
-func (p *Provider) prepareAndSimulateTx(ctx context.Context, instructions []solana.Instruction, signers []solana.PrivateKey) (*solana.Transaction, error) {
+func (p *Provider) prepareTx(ctx context.Context, instructions []solana.Instruction, signers []solana.PrivateKey) (*solana.Transaction, error) {
 	latestBlockHash, err := p.client.GetLatestBlockHash(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest block hash: %w", err)
@@ -52,15 +52,6 @@ func (p *Provider) prepareAndSimulateTx(ctx context.Context, instructions []sola
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new tx: %w", err)
 	}
-
-	// simres, err := p.client.SimulateTx(ctx, tx, nil)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to simulate tx: %w", err)
-	// }
-
-	// if p.cfg.GasLimit != 0 && p.cfg.GasLimit < *simres.UnitsConsumed {
-	// 	return nil, fmt.Errorf("budget requirement is too high: %d greater than allowed limit: %d", *simres.UnitsConsumed, p.cfg.GasLimit)
-	// }
 
 	_, err = tx.Sign(
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -145,7 +136,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	if err != nil {
 		return nil, nil, err
 	}
-	connSnArg, err := borsh.Serialize(msg.Sn)
+	connSnArg, err := borsh.Serialize(new(big.Int).SetUint64(msg.Sn))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,7 +174,8 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	connReceiptAddr, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(msg.Sn).Bytes())
+	connSnBigInt := new(big.Int).SetUint64(msg.Sn)
+	connReceiptAddr, err := p.pdaRegistry.ConnReceipt.GetAddress(connSnBigInt.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,7 +211,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 
 	nextReqID := xcallConfigAc.LastReqID.Add(&xcallConfigAc.LastReqID, new(big.Int).SetUint64(1))
 
-	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(nextReqID.Bytes())
+	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(nextReqID.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -262,12 +254,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		)
 
 	} else {
-		successResAddr, err := p.pdaRegistry.XcallSuccessRes.GetAddress(csMessage.Result.SequenceNo.Bytes())
+		successResAddr, err := p.pdaRegistry.XcallSuccessRes.GetAddress(csMessage.Result.SequenceNo.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return nil, nil, err
 		}
 
-		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(csMessage.Result.SequenceNo.Bytes())
+		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(csMessage.Result.SequenceNo.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -301,13 +293,13 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 				&solana.AccountMeta{PublicKey: p.wallet.PublicKey(), IsWritable: true},
 			}...,
 		)
-
 	}
 
-	accounts = append(accounts, remainingAccounts...)
+	// accounts = append(accounts, remainingAccounts...)
+
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID:        p.xcallIdl.GetProgramID(),
+			ProgID:        p.connIdl.GetProgramID(),
 			AccountValues: accounts,
 			DataBytes:     instructionData,
 		},
@@ -335,7 +327,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(key.Sn).Bytes())
+	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(key.Sn).FillBytes(make([]byte, 16)))
 	if err != nil {
 		return false, err
 	}
@@ -385,7 +377,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}

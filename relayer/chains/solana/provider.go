@@ -149,7 +149,7 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -178,7 +178,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 
-	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.Bytes())
+	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 			return err
 		}
 
-		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.Bytes())
+		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return err
 		}
@@ -264,7 +264,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -372,7 +372,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -437,7 +437,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareAndSimulateTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}

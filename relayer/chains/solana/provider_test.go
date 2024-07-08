@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
@@ -104,4 +105,9 @@ func TestCsMessageDecode(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Printf("\nDecoded Msg Request: %+v\n", msg.Request)
 	fmt.Printf("\nDecoded Msg Result: %+v\n", msg.Result)
+}
+
+func TestBigInt(t *testing.T) {
+	bytes := new(big.Int).SetUint64(4).FillBytes(make([]byte, 16))
+	fmt.Println("Bytes: ", bytes)
 }
