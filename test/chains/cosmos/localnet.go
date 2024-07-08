@@ -1131,7 +1131,6 @@ func (c *CosmosRemotenet) Height(ctx context.Context) (uint64, error) {
 }
 
 func (c *CosmosRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
-	// testcase := ctx.Value("testcase").(string)
 	xCallKey := "xcall" //fmt.Sprintf("xcall-%s", testcase)
 	index := fmt.Sprintf("wasm-RollbackExecuted.sn CONTAINS '%s'", sn)
 	_, err := c.FindEvent(ctx, startHeight, xCallKey, index)
