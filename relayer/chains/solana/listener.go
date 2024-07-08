@@ -19,12 +19,6 @@ import (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		p.log.Error("failed to restore keystore", zap.Error(err))
-	} else {
-		p.log.Info("key restore successful: ", zap.String("public-key", p.wallet.PublicKey().String()))
-	}
-
 	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
 	fromSignature := ""
 

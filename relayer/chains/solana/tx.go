@@ -136,7 +136,7 @@ func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Ins
 }
 
 func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
-	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodRecvMessage)
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRecvMessage)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,7 +158,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 
 	csMessage, err := p.decodeCsMessage(context.Background(), msg.Data)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to decode cs message: %w", err)
 	}
 
 	sn := new(big.Int)
@@ -405,8 +405,9 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 	}
 
 	for _, log := range txnres.Meta.LogMessages {
-		if strings.HasPrefix(log, types.ProgramReturnPrefix) {
-			returnLog := strings.Replace(log, types.ProgramReturnPrefix, "", 1)
+		xcallReturnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, p.cfg.XcallProgramID)
+		if strings.HasPrefix(log, xcallReturnPrefix) {
+			returnLog := strings.Replace(log, xcallReturnPrefix, "", 1)
 			returnLogBytes, err := base64.StdEncoding.DecodeString(returnLog)
 			if err != nil {
 				return nil, err

@@ -90,7 +90,7 @@ func TestEventLogParse(t *testing.T) {
 }
 
 func TestCsMessageDecode(t *testing.T) {
-	msgLog := "AQABAQAAAAAAAAAAAAAAAAAAAAFEAAAA+EKHaWN4L2FiY4RpY29uAQKEAAECA+2sQ2dYUWNaMjZZTENvcU0xd1VLNG5DWEJ3dGJOZVZab1pndDh1ZVZKOEJ2YTE="
+	msgLog := "AAEzAAAAMHgzLmljb24vaHhiNmI1NzkxYmUwYjVlZjY3MDYzYjNjMTBiODQwZmI4MTUxNGRiMmZkLAAAADhRNEZ2c0hDV0s2OEV6WXRzc3RkRll3VUwxU0hDaXVMUFJESmsxZ2FLaVE4AwAAAAAAAAAAAAAAAAAAAAABAAAAkAEAAAAsAAAAR3Z6ZnlQQnNuaXdWbm40S2pHNG9nS2VxOXl5cXhIamR5aU11WlJtaHBZOWUA"
 
 	msgBytes, err := base64.StdEncoding.DecodeString(msgLog)
 	assert.NoError(t, err)
@@ -102,5 +102,6 @@ func TestCsMessageDecode(t *testing.T) {
 	err = borsh.Deserialize(&msg, msgBytes[:])
 
 	assert.NoError(t, err)
-	fmt.Printf("\nDecoded Msg: %+v\n", msg.Result)
+	fmt.Printf("\nDecoded Msg Request: %+v\n", msg.Request)
+	fmt.Printf("\nDecoded Msg Result: %+v\n", msg.Result)
 }
