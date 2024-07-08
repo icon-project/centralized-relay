@@ -18,6 +18,10 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return err
+	}
+
 	instructions, signers, err := p.MakeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
