@@ -178,13 +178,13 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 
-	xcallRollbackAc, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
+	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return err
 	}
 
 	rollbackAc := types.RollbackAccount{}
-	if err := p.client.GetAccountInfo(ctx, xcallRollbackAc.String(), &rollbackAc); err != nil {
+	if err := p.client.GetAccountInfo(ctx, xcallRollbackAddr, &rollbackAc); err != nil {
 		return err
 	}
 
@@ -295,7 +295,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 		return 0, fmt.Errorf("failed to get network account fee address")
 	}
 
-	if err := p.client.GetAccountInfo(ctx, networkFeeAc.String(), &fee); err != nil {
+	if err := p.client.GetAccountInfo(ctx, networkFeeAc, &fee); err != nil {
 		return 0, fmt.Errorf("failed to get account info: %w", err)
 	}
 

@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
@@ -108,6 +107,17 @@ func TestCsMessageDecode(t *testing.T) {
 }
 
 func TestBigInt(t *testing.T) {
-	bytes := new(big.Int).SetUint64(4).FillBytes(make([]byte, 16))
-	fmt.Println("Bytes: ", bytes)
+	xcallProgID, err := solana.PublicKeyFromBase58("7Ya5FjxuYScJhkjRs4WK9cxFXnvfw6Eby89W3xNkUQyF")
+	assert.NoError(t, err)
+	configAddr, _, err := solana.FindProgramAddress([][]byte{[]byte("config")}, xcallProgID)
+	assert.NoError(t, err)
+
+	fmt.Println("Xcall Config Addr: ", configAddr)
+
+	pda := types.PDA{SeedPrefix: "config", ProgramID: xcallProgID}
+
+	addr, err := pda.GetAddress()
+	assert.NoError(t, err)
+
+	fmt.Println("Addr: ", addr)
 }

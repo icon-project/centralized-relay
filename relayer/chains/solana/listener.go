@@ -18,6 +18,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	MaxSupportedTxVersion = 0
+)
+
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
 	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
 	fromSignature := ""
@@ -69,7 +73,8 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 }
 
 func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
-	txn, err := p.client.GetTransaction(ctx, sign, nil)
+	txVersion := uint64(0)
+	txn, err := p.client.GetTransaction(ctx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
 		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
 	}

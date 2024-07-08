@@ -136,10 +136,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	if err != nil {
 		return nil, nil, err
 	}
-	connSnArg, err := borsh.Serialize(new(big.Int).SetUint64(msg.Sn))
+
+	connSnArg, err := borsh.Serialize(*new(big.Int).SetUint64(msg.Sn))
 	if err != nil {
 		return nil, nil, err
 	}
+
 	dataArg, err := borsh.Serialize(msg.Data)
 	if err != nil {
 		return nil, nil, err
@@ -152,11 +154,11 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, fmt.Errorf("failed to decode cs message: %w", err)
 	}
 
-	sn := new(big.Int)
+	var sn big.Int
 	if csMessage.MessageType == types.CsMessageRequest {
-		sn = &csMessage.Request.SequenceNo
+		sn = csMessage.Request.SequenceNo
 	} else {
-		sn = &csMessage.Result.SequenceNo
+		sn = csMessage.Result.SequenceNo
 	}
 
 	snArg, err := borsh.Serialize(sn)
@@ -205,7 +207,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	}
 
 	xcallConfigAc := types.XcallConfigAccount{}
-	if err := p.client.GetAccountInfo(context.Background(), xcallConfigAddr.String(), &xcallConfigAddr); err != nil {
+	if err := p.client.GetAccountInfo(context.Background(), xcallConfigAddr, &xcallConfigAc); err != nil {
 		return nil, nil, err
 	}
 
@@ -230,7 +232,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	if csMessage.MessageType == types.CsMessageRequest {
 		pendingRequest := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
 		pendingRequestCreator := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
-		if len(csMessage.Request.Protocols) > 0 {
+		if len(csMessage.Request.Protocols) > 1 {
 			pendingReqAddr, err := p.pdaRegistry.XcallPendingRequest.GetAddress(msgHash[:])
 			if err != nil {
 				return nil, nil, err
@@ -252,7 +254,6 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
 			}...,
 		)
-
 	} else {
 		successResAddr, err := p.pdaRegistry.XcallSuccessRes.GetAddress(csMessage.Result.SequenceNo.FillBytes(make([]byte, 16)))
 		if err != nil {
@@ -265,7 +266,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		}
 
 		rollbackAc := types.RollbackAccount{}
-		if err := p.client.GetAccountInfo(context.Background(), rollbackAddr.String(), &rollbackAc); err != nil {
+		if err := p.client.GetAccountInfo(context.Background(), rollbackAddr, &rollbackAc); err != nil {
 			return nil, nil, err
 		}
 
@@ -295,7 +296,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		)
 	}
 
-	// accounts = append(accounts, remainingAccounts...)
+	accounts = append(accounts, remainingAccounts...)
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
@@ -334,7 +335,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 
 	receipt := struct{}{}
 
-	if err := p.client.GetAccountInfo(ctx, receiptAc.String(), &receipt); err != nil {
+	if err := p.client.GetAccountInfo(ctx, receiptAc, &receipt); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil
 		} else {
