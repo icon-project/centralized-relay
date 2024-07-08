@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"math/big"
@@ -149,6 +150,8 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
+	msgHash := sha256.Sum256(msg.Data)
+
 	csMessage, err := p.decodeCsMessage(context.Background(), msg.Data)
 	if err != nil {
 		return nil, nil, err
@@ -205,8 +208,14 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	//reqId = config.LastReqId + 1
-	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress([]byte("req-id"))
+	xcallConfigAc := types.XcallConfigAccount{}
+	if err := p.client.GetAccountInfo(context.Background(), xcallConfigAddr.String(), &xcallConfigAddr); err != nil {
+		return nil, nil, err
+	}
+
+	nextReqID := xcallConfigAc.LastReqID.Add(&xcallConfigAc.LastReqID, new(big.Int).SetUint64(1))
+
+	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(nextReqID.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -216,17 +225,29 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
+	remainingAccounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
+		&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
+		&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
+	}
+
 	if csMessage.MessageType == types.CsMessageRequest {
+		pendingRequest := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
+		pendingRequestCreator := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
+		if len(csMessage.Request.Protocols) > 0 {
+			pendingReqAddr, err := p.pdaRegistry.XcallPendingRequest.GetAddress(msgHash[:])
+			if err != nil {
+				return nil, nil, err
+			}
+			pendingRequest.PublicKey = pendingReqAddr
+			pendingRequestCreator.PublicKey = p.wallet.PublicKey()
+		}
 
-		accounts = append(
-			accounts,
+		remainingAccounts = append(
+			remainingAccounts,
 			solana.AccountMetaSlice{
-				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
-				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
-				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
-
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request creator
+				pendingRequest,
+				pendingRequestCreator,
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response creator
 
@@ -247,25 +268,39 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 			return nil, nil, err
 		}
 
+		rollbackAc := types.RollbackAccount{}
+		if err := p.client.GetAccountInfo(context.Background(), rollbackAddr.String(), &rollbackAc); err != nil {
+			return nil, nil, err
+		}
+
+		pendingResponse := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
+		pendingResponseCreator := &solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}
+		if len(rollbackAc.Rollback.Protocols) > 0 {
+			pendingReqAddr, err := p.pdaRegistry.XcallPendingRequest.GetAddress(msgHash[:])
+			if err != nil {
+				return nil, nil, err
+			}
+			pendingResponse.PublicKey = pendingReqAddr
+			pendingResponseCreator.PublicKey = p.wallet.PublicKey()
+		}
+
 		accounts = append(
 			accounts,
 			solana.AccountMetaSlice{
-				&solana.AccountMeta{PublicKey: xcallConfigAddr, IsWritable: true},
-				&solana.AccountMeta{PublicKey: xcallProxyReqAddr, IsWritable: true},
-				&solana.AccountMeta{PublicKey: xcallDefaultConn, IsWritable: true},
-
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request
 				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending request creator
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response
-				&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true}, //pending response creator
+				pendingResponse,        //pending response
+				pendingResponseCreator, //pending response creator
 
 				&solana.AccountMeta{PublicKey: successResAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
 				&solana.AccountMeta{PublicKey: p.wallet.PublicKey(), IsWritable: true},
 			}...,
 		)
+
 	}
 
+	accounts = append(accounts, remainingAccounts...)
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
 			ProgID:        p.xcallIdl.GetProgramID(),

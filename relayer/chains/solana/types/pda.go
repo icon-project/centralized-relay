@@ -1,6 +1,10 @@
 package types
 
-import "github.com/gagliardetto/solana-go"
+import (
+	"math/big"
+
+	"github.com/gagliardetto/solana-go"
+)
 
 const ()
 
@@ -27,9 +31,10 @@ type PDARegistry struct {
 	XcallReply           PDA
 	XcallRollback        PDA
 	XcallDefaultConn     PDA
-	XcallPendingResponse PDA
 	XcallProxyRequest    PDA
 	XcallSuccessRes      PDA
+	XcallPendingRequest  PDA
+	XcallPendingResponse PDA
 
 	ConnConfig     PDA
 	ConnNetworkFee PDA
@@ -43,9 +48,10 @@ func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry
 		XcallReply:           PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
 		XcallRollback:        PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
 		XcallDefaultConn:     PDA{SeedPrefix: "conn", ProgramID: xcallProgramID},
-		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
 		XcallProxyRequest:    PDA{SeedPrefix: "proxy", ProgramID: xcallProgramID},
 		XcallSuccessRes:      PDA{SeedPrefix: "success", ProgramID: xcallProgramID},
+		XcallPendingRequest:  PDA{SeedPrefix: "req", ProgramID: xcallProgramID},
+		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
 
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
@@ -66,4 +72,14 @@ type RollbackAccount struct {
 	Rollback ContractRollback
 	Owner    solana.PublicKey
 	Bump     uint8
+}
+
+type XcallConfigAccount struct {
+	Admin       solana.PublicKey
+	FeeHandler  solana.PublicKey
+	NetworkID   string
+	ProtocolFee string
+	SequenceNo  big.Int
+	LastReqID   big.Int
+	Bump        uint8
 }
