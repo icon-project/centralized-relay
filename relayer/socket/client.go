@@ -2,7 +2,6 @@ package socket
 
 import (
 	"fmt"
-	"math/big"
 	"net"
 
 	jsoniter "github.com/json-iterator/go"
@@ -21,6 +20,7 @@ const (
 	EventGetFee         Event = "GetFee"
 	EventSetFee         Event = "SetFee"
 	EventClaimFee       Event = "ClaimFee"
+	EventSetBlock       Event = "SetBlock"
 )
 
 var (
@@ -178,7 +178,7 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRelayMessage, error) {
+func (c *Client) RelayMessage(chain string, height uint64, sn uint64) (*ResRelayMessage, error) {
 	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
 	if err := c.send(EventRelayMessage, req); err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 }
 
 // MessageRemove sends MessageRemove event to socket
-func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, error) {
+func (c *Client) MessageRemove(chain string, sn uint64) (*ResMessageRemove, error) {
 	req := &ReqMessageRemove{Chain: chain, Sn: sn}
 	if err := c.send(EventMessageRemove, req); err != nil {
 		return nil, err
@@ -263,7 +263,7 @@ func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFe
 }
 
 // SetFee sends SetFee event to socket
-func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSetFee, error) {
+func (c *Client) SetFee(chain, network string, msgFee, resFee uint64) (*ResSetFee, error) {
 	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
 	if err := c.send(EventSetFee, req); err != nil {
 		return nil, err

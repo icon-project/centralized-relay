@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -94,7 +93,7 @@ func (c *contractState) setFee() *cobra.Command {
 				return err
 			}
 			defer client.Close()
-			res, err := client.SetFee(c.chain, c.network, new(big.Int).SetUint64(c.msgFee), new(big.Int).SetUint64(c.resFee))
+			res, err := client.SetFee(c.chain, c.network, c.msgFee, c.resFee)
 			if err != nil {
 				return err
 			}

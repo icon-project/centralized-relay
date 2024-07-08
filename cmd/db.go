@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"strings"
 
@@ -122,7 +121,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
+			result, err := client.RelayMessage(d.chain, d.height, d.sn)
 			if err != nil {
 				return err
 			}
@@ -151,7 +150,7 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			}
 			defer client.Close()
 
-			result, err := client.MessageRemove(d.chain, new(big.Int).SetUint64(d.sn))
+			result, err := client.MessageRemove(d.chain, d.sn)
 			if err != nil {
 				return err
 			}
@@ -283,20 +282,11 @@ func printLabels(labels ...any) {
 	fmt.Printf(labelCell, border...)
 }
 
-func printValues(values ...any) {
-	padStr := `%-10s`
-	padInt := `%-10d`
+func printValues(values ...interface{}) {
+	padStr := `%-10v`
 	var valueCell string
-	for _, val := range values {
-		if _, ok := val.(string); ok {
-			valueCell += padStr + " "
-		} else if _, ok := val.(int); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint64); ok {
-			valueCell += padInt + " "
-		}
+	for range values {
+		valueCell += padStr + " "
 	}
 	valueCell += "\n"
 	fmt.Printf(valueCell, values...)

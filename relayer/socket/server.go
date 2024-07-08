@@ -146,7 +146,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		store := s.rly.GetMessageStore()
-		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err
@@ -171,7 +171,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		if req.Height != 0 {
-			msgs, err := src.Provider.GenerateMessages(context.Background(), types.NewMessagekeyWithMessageHeight(&types.MessageKey{Src: req.Chain, Sn: req.Sn}, req.Height))
+			msgs, err := src.Provider.GenerateMessages(context.Background(), types.NewMessagekeyWithMessageHeight(&types.MessageKey{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}, req.Height))
 			if err != nil {
 				return nil, err
 			}
@@ -186,7 +186,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		}
 
 		store := s.rly.GetMessageStore()
-		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
+		key := &types.MessageKey{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}
 		message, err := store.GetMessage(key)
 		if err != nil {
 			return nil, err
@@ -250,7 +250,7 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
+		if err := chain.Provider.SetFee(context.Background(), req.Network, new(big.Int).SetUint64(req.MsgFee), new(big.Int).SetUint64(req.ResFee)); err != nil {
 			return nil, err
 		}
 		data, err := jsoniter.Marshal(&ResSetFee{"Success"})
