@@ -78,7 +78,7 @@ type XcallConfigAccount struct {
 	Admin       solana.PublicKey
 	FeeHandler  solana.PublicKey
 	NetworkID   string
-	ProtocolFee string
+	ProtocolFee uint64
 	SequenceNo  big.Int
 	LastReqID   big.Int
 	Bump        uint8
