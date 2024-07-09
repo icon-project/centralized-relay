@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -15,12 +16,22 @@ import (
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/near/borsh-go"
+	"go.uber.org/zap"
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return err
 	}
+
+	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
+		zap.Uint64("sn", message.Sn),
+		zap.Uint64("req-id", message.ReqID),
+		zap.String("event-type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
 	instructions, signers, err := p.MakeCallInstructions(message)
 	if err != nil {
@@ -111,6 +122,7 @@ func (p *Provider) executeRouteCallback(
 			&relayertypes.TxResponse{
 				Height: int64(txResult.Slot),
 				TxHash: sign.String(),
+				Code:   relayertypes.Success,
 			},
 			nil,
 		)
