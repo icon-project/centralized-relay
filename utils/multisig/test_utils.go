@@ -53,9 +53,9 @@ func postRequestSignSlaveRelayer1(c *gin.Context) {
 	}
 
 	chainParam := &chaincfg.SigNetParams
-	privKeys, _ := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	privKeys, _, _ := randomKeys(1, chainParam, []int{1})
 	msgTx, _ := ParseTx(input.MsgTx)
-	sigs, _ := PartSignOnRawExternalTx(privKeys[1], msgTx, input.UTXOs, input.TapSigInfo, chainParam, false)
+	sigs, _ := PartSignOnRawExternalTx(privKeys[0], msgTx, input.UTXOs, input.TapSigInfo, chainParam, false)
 
 	c.IndentedJSON(http.StatusOK, sigs)
 }
@@ -71,9 +71,9 @@ func postRequestSignSlaveRelayer2(c *gin.Context) {
 	}
 
 	chainParam := &chaincfg.SigNetParams
-	privKeys, _ := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	privKeys, _, _ := randomKeys(1, chainParam, []int{2})
 	msgTx, _ := ParseTx(input.MsgTx)
-	sigs, _ := PartSignOnRawExternalTx(privKeys[2], msgTx, input.UTXOs,  input.TapSigInfo, chainParam, false)
+	sigs, _ := PartSignOnRawExternalTx(privKeys[0], msgTx, input.UTXOs,  input.TapSigInfo, chainParam, false)
 
 	c.IndentedJSON(http.StatusOK, sigs)
 }
