@@ -44,15 +44,18 @@ func TestRandomKeys(t *testing.T) {
 }
 
 func TestBuildMultisigTapScript(t *testing.T) {
-	totalSigs := 2
-	numSigsRequired := 2
 	chainParam := &chaincfg.SigNetParams
 
-	_, multisigInfo := randomMultisigInfo(totalSigs, numSigsRequired, chainParam, []int{0, 3})
-	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+	_, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
+	_, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
-	multisigAddress, err := AddressOnChain(chainParam, multisigWallet)
-	fmt.Println("address, err : ", multisigAddress, err)
+	relayersMultisigAddress, err := AddressOnChain(chainParam, relayersMultisigWallet)
+	fmt.Println("relayersMultisigAddress, err : ", relayersMultisigAddress, err)
+
+	userMultisigAddress, err := AddressOnChain(chainParam, userMultisigWallet)
+	fmt.Println("userMultisigAddress, err : ", userMultisigAddress, err)
 }
 
 func TestMultisigUserClaimLiquidity(t *testing.T) {
@@ -74,8 +77,8 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 		},
 	}
 
-	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
-	relayersMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
+	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
 	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, relayersMultisigWallet, &MultisigWallet{}, chainParam, changeReceiverAddress, 0)
@@ -152,10 +155,10 @@ func TestMultisigUserSwap(t *testing.T) {
 		},
 	}
 
-	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
-	relayersMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3})
-	userMultisigWallet, _ := GenerateMultisigWallet(userMultisigInfo)
+	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
 	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, relayersMultisigWallet, userMultisigWallet, chainParam, changeReceiverAddress, 0)
