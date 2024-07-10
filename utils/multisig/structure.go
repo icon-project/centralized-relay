@@ -30,3 +30,11 @@ type UTXO struct {
 	OutputIdx     		uint32 `bson:"output_idx" json:"outputIdx"`
 	OutputAmount  		uint64 `bson:"output_amount" json:"outputAmount"`
 }
+
+type TapSigParams struct {
+	TxSigHashes			*txscript.TxSigHashes `bson:"tx_sig_hashes" json:"txSigHashes"`
+	RelayersPKScript	[]byte `bson:"relayers_PK_script" json:"relayersPKScript"`
+	RelayersTapLeaf		txscript.TapLeaf `bson:"relayers_tap_leaf" json:"relayersTapLeaf"`
+	UserPKScript		[]byte `bson:"user_PK_script" json:"userPKScript"`
+	UserTapLeaf			txscript.TapLeaf `bson:"user_tap_leaf" json:"userTapLeaf"`
+}

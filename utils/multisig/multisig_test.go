@@ -55,66 +55,41 @@ func TestBuildMultisigTapScript(t *testing.T) {
 	fmt.Println("address, err : ", multisigAddress, err)
 }
 
-func TestCreateTx(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
-
-	inputs := []*UTXO{
-		// 2/3 - empty data
-		{
-			IsRelayersMultisig: true,
-			TxHash:        "62d19039c9d0eec493f3a1440f0fab65c525b1426b675445b01f26ddf1d8fa42",
-			OutputIdx:     0,
-			OutputAmount:  10000,
-		},
-		{
-			IsRelayersMultisig: true,
-			TxHash:        "8f476a9a520f548e7b60512f5c14c5c6253a289dde02d146a02ca22892a2877a",
-			OutputIdx:     0,
-			OutputAmount:  20000,
-		},
-	}
-
-	outputs := []*OutputTx{
-		{
-			ReceiverAddress: "bcrt1p65j57tzjufnjmt4fgx5xexfry6f3f87sggl02gl7fcxuky4x34fscyjejf",
-			Amount:          8000,
-		},
-	}
-
-	changeReceiverAddress := "bcrt1phdyt24adauupp7tawuu9ksl7gvtflr70raj3f2dzwzn06q5vhyhq0l43lz"
-	msgTx, err := CreateMultisigTx(inputs, outputs, 1000, chainParam, changeReceiverAddress, 0)
-	fmt.Println("msgTx: ", msgTx)
-	fmt.Println("err: ", err)
-}
-
 func TestMultisigUserClaimLiquidity(t *testing.T) {
 	chainParam := &chaincfg.SigNetParams
 
 	inputs := []*UTXO{
 		{
-			IsRelayersMultisig: false,
-			TxHash:        "e16260c0de027d2f12ea8bbf6fa68fa57a26a3797d44bea27867cbfc6c1f0470",
-			OutputIdx:     0,
-			OutputAmount:  778,
+			IsRelayersMultisig: true,
+			TxHash:        "9ed822adb7c3623fcc6776bc93dadb030bf3b887e36975521d540c2a49510e27",
+			OutputIdx:     1,
+			OutputAmount:  3901,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
 			ReceiverAddress: "tb1pfhttx6vvskhgv6h0w9rss3k63r0zy8vnmwrap0jvraqm5wme6vtsglfta8",
-			Amount:          556,
+			Amount:          1000,
 		},
 	}
 
-	privKeys, multisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3})
-	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	relayersMultisigWallet, _ := GenerateMultisigWallet(relayersMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
-	msgTx, _ := CreateMultisigTx(inputs, outputs, 222, chainParam, changeReceiverAddress, 0)
+	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, relayersMultisigWallet, &MultisigWallet{}, chainParam, changeReceiverAddress, 0)
+	tapSigParams := TapSigParams {
+		TxSigHashes: txSigHashes,
+		RelayersPKScript: relayersMultisigWallet.PKScript,
+		RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
+		UserPKScript: []byte{},
+		UserTapLeaf: txscript.TapLeaf{},
+	}
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX
-	sigs, err := PartSignOnRawExternalTx(privKeys[0], msgTx, inputs, multisigWallet.PKScript, multisigWallet.TapLeaves[0], nil, txscript.TapLeaf{}, chainParam, true)
+	sigs, err := PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
 	if err != nil {
 		fmt.Println("err sign: ", err)
 	}
@@ -123,8 +98,9 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	router := SetUpRouter()
 	// create post body using an instance of the requestSignInput struct
 	rsi := requestSignInput{
-		MsgTx: msgTx,
-		Inputs:  inputs,
+		MsgTx:	hexRawTx,
+		UTXOs:	inputs,
+		TapSigInfo:	tapSigParams,
 	}
 	requestJson, _ := json.Marshal(rsi)
 
@@ -139,12 +115,7 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	totalSigs = append(totalSigs, sigs2)
 
 	// MATSTER RELAYER COMBINE SIGNS
-	transposedSigs := TransposeSigs(totalSigs)
-	relayersMultisigTapLeafScript := multisigWallet.TapLeaves[0].Script
-	ctrlBlock := multisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(multisigWallet.SharedPublicKey)
-	relayersMultisigControlBlock, _ := ctrlBlock.ToBytes()
-
-	signedMsgTx, err := CombineMultisigSigs(relayersMultisigTapLeafScript, relayersMultisigControlBlock, nil, nil, msgTx, inputs, transposedSigs)
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, relayersMultisigWallet, totalSigs)
 
 	var signedTx bytes.Buffer
 	signedMsgTx.Serialize(&signedTx)
@@ -162,15 +133,15 @@ func TestMultisigUserSwap(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "63181e1932a78e0735ce04d0989b50a37decc8ed6f6db071688ac83c95df6cb4",
+			TxHash:        "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
 			OutputIdx:     0,
-			OutputAmount:  1168,
+			OutputAmount:  1501,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "555a2bb0ed3587edf108c626d2a43a16fedb1ff7ff7ceb8e7dbcc98da29c5dce",
+			TxHash:        "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
 			OutputIdx:     1,
-			OutputAmount:  4900,
+			OutputAmount:  4234,
 		},
 	}
 
@@ -187,11 +158,18 @@ func TestMultisigUserSwap(t *testing.T) {
 	userMultisigWallet, _ := GenerateMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
-	msgTx, _ := CreateMultisigTx(inputs, outputs, 333, chainParam, changeReceiverAddress, 0)
+	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, relayersMultisigWallet, userMultisigWallet, chainParam, changeReceiverAddress, 0)
+	tapSigParams := TapSigParams {
+		TxSigHashes: txSigHashes,
+		RelayersPKScript: relayersMultisigWallet.PKScript,
+		RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
+		UserPKScript: userMultisigWallet.PKScript,
+		UserTapLeaf: userMultisigWallet.TapLeaves[0],
+	}
 
 	totalSigs := [][][]byte{}
 	// MATSTER RELAYER SIGN TX
-	sigs, err := PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, relayersMultisigWallet.PKScript, relayersMultisigWallet.TapLeaves[0], userMultisigWallet.PKScript, userMultisigWallet.TapLeaves[0], chainParam, true)
+	sigs, err := PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
 	if err != nil {
 		fmt.Println("err sign: ", err)
 	}
@@ -200,8 +178,9 @@ func TestMultisigUserSwap(t *testing.T) {
 	router := SetUpRouter()
 	// create post body using an instance of the requestSignInput struct
 	rsi := requestSignInput{
-		MsgTx: msgTx,
-		Inputs:  inputs,
+		MsgTx:	hexRawTx,
+		UTXOs:	inputs,
+		TapSigInfo:	tapSigParams,
 	}
 	requestJson, _ := json.Marshal(rsi)
 
@@ -216,7 +195,8 @@ func TestMultisigUserSwap(t *testing.T) {
 	totalSigs = append(totalSigs, sigs2)
 
 	// USER SIGN TX
-	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, relayersMultisigWallet.PKScript, relayersMultisigWallet.TapLeaves[0], userMultisigWallet.PKScript, userMultisigWallet.TapLeaves[0], chainParam, true)
+	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, tapSigParams, chainParam, true)
+
 	// add user sign to total sigs
 	for i := range msgTx.TxIn {
 		if (!inputs[i].IsRelayersMultisig) {
@@ -226,17 +206,7 @@ func TestMultisigUserSwap(t *testing.T) {
 	fmt.Println("--------totalSig: ", totalSigs)
 
 	// MATSTER RELAYER COMBINE SIGNS
-	transposedSigs := TransposeSigs(totalSigs)
-
-	relayersMultisigTapLeafScript := relayersMultisigWallet.TapLeaves[0].Script
-	ctrlBlock := relayersMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(relayersMultisigWallet.SharedPublicKey)
-	relayersMultisigControlBlockBytes, _ := ctrlBlock.ToBytes()
-
-	userMultisigTapLeafScript := userMultisigWallet.TapLeaves[0].Script
-	userCtrlBlock := userMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(userMultisigWallet.SharedPublicKey)
-	userMultisigControlBlockBytes, _ := userCtrlBlock.ToBytes()
-
-	signedMsgTx, err := CombineMultisigSigs(relayersMultisigTapLeafScript, relayersMultisigControlBlockBytes, userMultisigTapLeafScript, userMultisigControlBlockBytes, msgTx, inputs, transposedSigs)
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, userMultisigWallet, totalSigs)
 
 	var signedTx bytes.Buffer
 	signedMsgTx.Serialize(&signedTx)
@@ -258,7 +228,6 @@ func TestGenSharedInternalPubKey(t *testing.T) {
 }
 
 func TestParseTx(t *testing.T) {
-	// hexSignedTx := "02000000000104f6ce922d4b636e81b5fe301d541f14a07ca8b5ee9e7c9637479fbb77ae76ac9c0000000000ffffffffd9a54f6610fbc9b56cea421230b79edf5c48d92052c13c166656591f2d9ed1fd0000000000ffffffff7b02c2d6a2c8d14d3a1c717f4093306a2c485b4a0cff672ed26715555dff1fde0000000000fffffffff6ce922d4b636e81b5fe301d541f14a07ca8b5ee9e7c9637479fbb77ae76ac9c0100000000ffffffff05f82a000000000000225120863583d69b5e4ce5edd053d72148074b6fe8968dc9175d9e1610282faf0ff3cd3c3d0900000000002251203cb3f6132189f271733e94476de372e022ea84dc2cb914c7ff691c453ddce563bcb1000000000000160014a355d136171b816b2b2f08d531cf94555d796751e803000000000000225120863583d69b5e4ce5edd053d72148074b6fe8968dc9175d9e1610282faf0ff3cda22d020000000000225120863583d69b5e4ce5edd053d72148074b6fe8968dc9175d9e1610282faf0ff3cd01401bdbfd310cbd31807024070825fc5a3fec6e7b37eb1d359dd3027727e5719c52e68b178f438d18c9218b13e3d95b8e3bd8efe1b422778fb88a59a8e5d4a7ba1601418f67cd9c4799e32ac9aed36c14a60e0a2442c4497cddb176ae118a9aeec099f0eaa68901681b0d6df6cdf45c062b70b73171d002d2c50345ea3c53bc51b6e8198301410315713b00ab6f47392e947e90aa4c67c37b77f9c76d1c5cb80a0df5f725dde2b883177dda0abe8dcbc7e06453c2720fa0eefea78e4b905a333929ee03e065bf830140430cc6f8e554c98930c7e67e9512bdc3c73a6944a60a58033607a9b195c857d0426ef570fb6640b07234ef33402a2ce22c66199ec57cbda27ce6028d3258f53100000000"
 	hexSignedTx := "01000000000101bcbbb24bd5953d424debb9a24c8009298771eecd3ac0d3c4b219d906a319dfa80000000000e803000002e803000000000000225120d5254f2c52e2672daea941a86c99232693149fd0423ef523fe4e0dcb12a68d53401f000000000000225120d5254f2c52e2672daea941a86c99232693149fd0423ef523fe4e0dcb12a68d530540f4085e4f85eb81b8bd6afd77f728ea75716108cb29cd02aa031def6be65e97e98db40430554669d7b64476d76fd9ae6646529b7abfeee1ac4ad67de0bce9608040f3fc057a9ad0e4a0132040826e2c8e3ca0678ebd515146b8825f527f31195e1966d8424cdf9e963b7335178cab820534e1bd4ede4e8addf47c1bc449a764cec400962c7b22626173655661756c7441646472657373223a22222c22726563656976657241646472657373223a22227d7520fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2ac2030edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052ba201e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833ba529c21c0636e6671d0135074f83177c5e456191043de9bd54744423b88d6b1ab4751650f00000000"
 	msgTx, err := ParseTx(hexSignedTx)
 	if err != nil {
