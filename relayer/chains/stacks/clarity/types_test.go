@@ -208,10 +208,10 @@ func TestClarityStringUTF8(t *testing.T) {
 }
 
 func TestClarityList(t *testing.T) {
-	intValue1, _ := NewInt(big.NewInt(1))
-	intValue2, _ := NewInt(big.NewInt(2))
-	intValue3, _ := NewInt(big.NewInt(3))
-	intValue4, _ := NewInt(big.NewInt(-4))
+	intValue1, _ := NewInt(1)
+	intValue2, _ := NewInt(2)
+	intValue3, _ := NewInt(3)
+	intValue4, _ := NewInt(-4)
 
 	list := NewList([]ClarityValue{intValue1, intValue2, intValue3, intValue4})
 
@@ -221,35 +221,37 @@ func TestClarityList(t *testing.T) {
 	expected := "070000000400000000000000000000000000000000010000000000000000000000000000000002000000000000000000000000000000000300fffffffffffffffffffffffffffffffc"
 	assert.Equal(t, expected, hex.EncodeToString(serialized))
 
-	// deserialized, err := DeserializeClarityValue(serialized)
-	// require.NoError(t, err)
+	deserialized, err := DeserializeClarityValue(serialized)
+	require.NoError(t, err)
 
-	// deserializedList, ok := deserialized.(*List)
-	// assert.True(t, ok)
-	// assert.Equal(t, 3, len(deserializedList.Values))
-	// assert.Equal(t, intValue1, deserializedList.Values[0])
-	// assert.Equal(t, intValue2, deserializedList.Values[1])
-	// assert.Equal(t, intValue3, deserializedList.Values[2])
-	// assert.Equal(t, intValue4, deserializedList.Values[3])
+	deserializedList, ok := deserialized.(*List)
+
+	assert.True(t, ok)
+	assert.Equal(t, 4, len(deserializedList.Values))
+	assert.Equal(t, intValue1.Value, deserializedList.Values[0].(*Int).Value)
+	assert.Equal(t, intValue2.Value, deserializedList.Values[1].(*Int).Value)
+	assert.Equal(t, intValue3.Value, deserializedList.Values[2].(*Int).Value)
+	assert.Equal(t, intValue4.Value, deserializedList.Values[3].(*Int).Value)
 }
 
-// func TestClarityTuple(t *testing.T) {
-// 	tuple := NewTuple(map[string]ClarityValue{
-// 		"a": func() ClarityValue { v, _ := NewInt(big.NewInt(1)); return v }(),
-// 		"b": NewBool(true),
-// 		"c": NewStringASCII("hello"),
-// 	})
+func TestClarityTuple(t *testing.T) {
+	intValue, _ := NewInt(1)
+	tuple := NewTuple(map[string]ClarityValue{
+		"a": intValue,
+		"b": NewBool(true),
+		"c": NewStringASCII("hello"),
+	})
 
-// 	serialized, err := tuple.Serialize()
-// 	assert.NoError(t, err)
+	serialized, err := tuple.Serialize()
+	require.NoError(t, err)
 
-// 	deserialized, err := DeserializeClarityValue(serialized)
-// 	assert.NoError(t, err)
+	deserialized, err := DeserializeClarityValue(serialized)
+	require.NoError(t, err)
 
-// 	deserializedTuple, ok := deserialized.(*Tuple)
-// 	assert.True(t, ok)
-// 	assert.Equal(t, 3, len(deserializedTuple.Data))
-// 	assert.Equal(t, big.NewInt(1), deserializedTuple.Data["a"].(*Int).Value)
-// 	assert.Equal(t, true, deserializedTuple.Data["b"].(Bool))
-// 	assert.Equal(t, "hello", deserializedTuple.Data["c"].(*StringASCII).Data)
-// }
+	deserializedTuple, ok := deserialized.(*Tuple)
+	require.True(t, ok)
+	assert.Equal(t, 3, len(deserializedTuple.Data))
+	assert.Equal(t, intValue.Value, deserializedTuple.Data["a"].(*Int).Value)
+	assert.Equal(t, true, deserializedTuple.Data["b"].(Bool).Bool())
+	assert.Equal(t, "hello", deserializedTuple.Data["c"].(*StringASCII).Data)
+}

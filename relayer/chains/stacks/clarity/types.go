@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 )
 
@@ -165,9 +166,13 @@ func (b Bool) Type() ClarityType {
 
 func (b Bool) Serialize() ([]byte, error) {
 	if b {
-		return []byte{0x03}, nil
+		return []byte{byte(ClarityTypeBoolTrue)}, nil
 	}
-	return []byte{0x04}, nil
+	return []byte{byte(ClarityTypeBoolFalse)}, nil
+}
+
+func (b Bool) Bool() bool {
+	return bool(b)
 }
 
 type StringASCII struct {
@@ -227,7 +232,7 @@ func (l *List) Serialize() ([]byte, error) {
 	for _, value := range l.Values {
 		serialized, err := value.Serialize()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error serializing list item: %w", err)
 		}
 		result = append(result, serialized...)
 	}
@@ -248,13 +253,25 @@ func (t *Tuple) Type() ClarityType {
 }
 
 func (t *Tuple) Serialize() ([]byte, error) {
-	var result []byte
-	for k, v := range t.Data {
-		result = append(result, []byte(k)...)
-		result = append(result, 0x00)
+	result := []byte{byte(ClarityTypeTuple)}
+	lenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBytes, uint32(len(t.Data)))
+	result = append(result, lenBytes...)
+
+	keys := make([]string, 0, len(t.Data))
+	for k := range t.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		v := t.Data[k]
+		keyBytes := []byte(k)
+		result = append(result, byte(len(keyBytes)))
+		result = append(result, keyBytes...)
 		serialized, err := v.Serialize()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error serializing tuple value: %w", err)
 		}
 		result = append(result, serialized...)
 	}
@@ -268,19 +285,19 @@ func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 
 	switch ClarityType(data[0]) {
 	case ClarityTypeInt:
-		if len(data) != CLARITY_INT_BYTE_SIZE+1 {
+		if len(data) < CLARITY_INT_BYTE_SIZE+1 {
 			return nil, fmt.Errorf("invalid int data length")
 		}
-		value := new(big.Int).SetBytes(data[1:])
+		value := new(big.Int).SetBytes(data[1 : CLARITY_INT_BYTE_SIZE+1])
 		if data[1]&0x80 != 0 {
 			value.Sub(value, new(big.Int).Lsh(big.NewInt(1), CLARITY_INT_SIZE))
 		}
 		return &Int{Value: value}, nil
 	case ClarityTypeUInt:
-		if len(data) != CLARITY_INT_BYTE_SIZE+1 {
+		if len(data) < CLARITY_INT_BYTE_SIZE+1 {
 			return nil, fmt.Errorf("invalid uint data length")
 		}
-		value := new(big.Int).SetBytes(data[1:])
+		value := new(big.Int).SetBytes(data[1 : CLARITY_INT_BYTE_SIZE+1])
 		return &UInt{Value: value}, nil
 	case ClarityTypeBuffer:
 		if len(data) < 5 {
@@ -314,25 +331,7 @@ func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 		}
 		return &StringUTF8{Data: string(data[5 : 5+length])}, nil
 	case ClarityTypeList:
-		if len(data) < 5 {
-			return nil, fmt.Errorf("invalid list data length")
-		}
-		length := binary.BigEndian.Uint32(data[1:5])
-		values := make([]ClarityValue, 0, length)
-		offset := 5
-		for i := uint32(0); i < length; i++ {
-			if offset >= len(data) {
-				return nil, fmt.Errorf("invalid list data")
-			}
-			value, err := DeserializeClarityValue(data[offset:])
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, value)
-			serialized, _ := value.Serialize()
-			offset += len(serialized)
-		}
-		return &List{Values: values}, nil
+		return deserializeList(data[1:])
 	case ClarityTypeTuple:
 		return deserializeTuple(data[1:])
 	default:
@@ -351,7 +350,7 @@ func deserializeList(data []byte) (*List, error) {
 	values := make([]ClarityValue, 0, length)
 	for i := uint32(0); i < length; i++ {
 		if len(data) == 0 {
-			return nil, fmt.Errorf("unexpected end of list data")
+			return nil, fmt.Errorf("invalid list data: unexpected end")
 		}
 
 		value, err := DeserializeClarityValue(data)
@@ -368,24 +367,27 @@ func deserializeList(data []byte) (*List, error) {
 }
 
 func deserializeTuple(data []byte) (*Tuple, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("invalid tuple data: too short")
+	}
+
+	length := binary.BigEndian.Uint32(data[:4])
+	data = data[4:]
+
 	tupleData := make(map[string]ClarityValue)
-
-	for len(data) > 0 {
-		keyEnd := 0
-		for keyEnd < len(data) && data[keyEnd] != 0 {
-			keyEnd++
-		}
-
-		if keyEnd == len(data) {
-			return nil, fmt.Errorf("invalid tuple data: key not null-terminated")
-		}
-
-		key := string(data[:keyEnd])
-		data = data[keyEnd+1:]
-
+	for i := uint32(0); i < length; i++ {
 		if len(data) == 0 {
-			return nil, fmt.Errorf("unexpected end of tuple data")
+			return nil, fmt.Errorf("invalid tuple data: unexpected end")
 		}
+
+		keyLen := int(data[0])
+		data = data[1:]
+		if len(data) < keyLen {
+			return nil, fmt.Errorf("invalid tuple data: key length exceeds remaining data")
+		}
+
+		key := string(data[:keyLen])
+		data = data[keyLen:]
 
 		value, err := DeserializeClarityValue(data)
 		if err != nil {
