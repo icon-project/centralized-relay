@@ -9,25 +9,23 @@ import (
 	"net/http/httptest"
 
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
 	"github.com/gin-gonic/gin"
 )
 
 func SetUpRouter() *gin.Engine{
-    router := gin.Default()
+	router := gin.Default()
 	router.POST("/requestSign1", postRequestSignSlaveRelayer1)
 	router.POST("/requestSign2", postRequestSignSlaveRelayer2)
 
-    return router
+	return router
 }
 
 func requestSign(url string, requestJson []byte, router *gin.Engine) [][]byte{
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(requestJson))
-    w := httptest.NewRecorder()
-    router.ServeHTTP(w, req)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-    responseData, _ := io.ReadAll(w.Body)
+	responseData, _ := io.ReadAll(w.Body)
 
 	sigs := [][]byte{}
 	err := json.Unmarshal(responseData, &sigs)
@@ -39,42 +37,43 @@ func requestSign(url string, requestJson []byte, router *gin.Engine) [][]byte{
 }
 
 type requestSignInput struct {
-    MsgTx  *wire.MsgTx  `json:"msgTx"`
-    Inputs  []*UTXO  `json:"inputs"`
+	MsgTx  string  `json:"msgTx"`
+	UTXOs  []*UTXO  `json:"UTXOs"`
+	TapSigInfo TapSigParams `json:"tapSigInfo"`
 }
 
 func postRequestSignSlaveRelayer1(c *gin.Context) {
-    var input requestSignInput
+	var input requestSignInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": err.Error(),
-        })
-        return
-    }
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
 	chainParam := &chaincfg.SigNetParams
-	privKeys, multisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
-	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+	privKeys, _ := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	msgTx, _ := ParseTx(input.MsgTx)
+	sigs, _ := PartSignOnRawExternalTx(privKeys[1], msgTx, input.UTXOs, input.TapSigInfo, chainParam, false)
 
-	sigs, _ := PartSignOnRawExternalTx(privKeys[1], input.MsgTx, input.Inputs, multisigWallet.PKScript, multisigWallet.TapLeaves[0], nil, txscript.TapLeaf{}, chainParam, false)
-    c.IndentedJSON(http.StatusOK, sigs)
+	c.IndentedJSON(http.StatusOK, sigs)
 }
 
 func postRequestSignSlaveRelayer2(c *gin.Context) {
-    var input requestSignInput
+	var input requestSignInput
 
-    if err := c.ShouldBindJSON(&input); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": err.Error(),
-        })
-        return
-    }
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
 	chainParam := &chaincfg.SigNetParams
-	privKeys, multisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
-	multisigWallet, _ := GenerateMultisigWallet(multisigInfo)
+	privKeys, _ := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2})
+	msgTx, _ := ParseTx(input.MsgTx)
+	sigs, _ := PartSignOnRawExternalTx(privKeys[2], msgTx, input.UTXOs,  input.TapSigInfo, chainParam, false)
 
-	sigs, _ := PartSignOnRawExternalTx(privKeys[2], input.MsgTx, input.Inputs, multisigWallet.PKScript, multisigWallet.TapLeaves[0], nil, txscript.TapLeaf{}, chainParam, false)
-    c.IndentedJSON(http.StatusOK, sigs)
+	c.IndentedJSON(http.StatusOK, sigs)
 }

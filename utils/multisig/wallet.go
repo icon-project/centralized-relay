@@ -13,9 +13,6 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 )
 
-// hardcode temporarily
-const SharedRandomHex = "304575862a092eb80b87dcbafdaac720687694f451ef063b4fb109071f9252ee"
-
 func toXOnly(pubKey []byte) []byte {
 	if len(pubKey) == 33 {
 		return pubKey[1:33]
@@ -101,7 +98,7 @@ func genSharedInternalPubKey(sharedRandom *big.Int) (*btcec.PublicKey, []byte, e
 // input: multisig info (public keys, number of sigs required)
 // output: multisig struct
 func GenerateMultisigWallet(
-    multisigInfo *MultisigInfo,
+	multisigInfo *MultisigInfo,
 ) (*MultisigWallet, error) {
 
 	// Taptree structure:
@@ -117,7 +114,7 @@ func GenerateMultisigWallet(
 
 	tapScriptRootHash := tapScriptTree.RootNode.TapHash()
 
-	sharedRandomBytes, _ := hex.DecodeString(SharedRandomHex)
+	sharedRandomBytes, _ := hex.DecodeString(SHARED_RANDOM_HEX)
 	sharedRandom := new(big.Int).SetBytes(sharedRandomBytes)
 
 	sharedPublicKey, _, err := genSharedInternalPubKey(sharedRandom)
