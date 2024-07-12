@@ -118,7 +118,7 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	totalSigs = append(totalSigs, sigs2)
 
 	// MATSTER RELAYER COMBINE SIGNS
-	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, relayersMultisigWallet, totalSigs)
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, 0, relayersMultisigWallet, 0, totalSigs)
 
 	var signedTx bytes.Buffer
 	signedMsgTx.Serialize(&signedTx)
@@ -209,7 +209,7 @@ func TestMultisigUserSwap(t *testing.T) {
 	fmt.Println("--------totalSig: ", totalSigs)
 
 	// MATSTER RELAYER COMBINE SIGNS
-	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, userMultisigWallet, totalSigs)
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, 0, userMultisigWallet, 0, totalSigs)
 
 	var signedTx bytes.Buffer
 	signedMsgTx.Serialize(&signedTx)
@@ -245,4 +245,55 @@ func TestParseTx(t *testing.T) {
 	for _, txOut := range msgTx.TxOut {
 		fmt.Printf("txOut: %+v\n ", txOut)
 	}
+}
+
+func TestUserRecoveryTimeLock(t *testing.T) {
+	chainParam := &chaincfg.SigNetParams
+
+	inputs := []*UTXO{
+		{
+			IsRelayersMultisig: false,
+			TxHash:        "69c88fa67f3c5aad9b4494618046969f4a8e0dfccaa10def6dbbb5ff192c9924",
+			OutputIdx:     1,
+			OutputAmount:  7308,
+		},
+	}
+
+	outputs := []*OutputTx{
+		{
+			ReceiverAddress: "tb1pnlfh96hs3sc0tvanxhqlcfnwz32shff726f8yt6vay4tk62y4c9sluydah",
+			Amount:          1500,
+		},
+	}
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1p2u4dx80df4xa87fxzw8wrqh698xxa2deu9nyfkjkrfd3fgk3l8dqc0tg3t"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+	tapSigParams := TapSigParams {
+		TxSigHashes: txSigHashes,
+		RelayersPKScript: []byte{},
+		RelayersTapLeaf: txscript.TapLeaf{},
+		UserPKScript: userMultisigWallet.PKScript,
+		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+	}
+
+	totalSigs := [][][]byte{}
+
+	// USER SIGN TX
+	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, tapSigParams, chainParam, true)
+	totalSigs = append(totalSigs, userSigs)
+
+	// COMBINE SIGNS
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, userMultisigWallet, 0, userMultisigWallet, 1, totalSigs)
+
+	var signedTx bytes.Buffer
+	signedMsgTx.Serialize(&signedTx)
+	hexSignedTx := hex.EncodeToString(signedTx.Bytes())
+	signedMsgTxID := signedMsgTx.TxHash().String()
+
+	fmt.Println("hexSignedTx: ", hexSignedTx)
+	fmt.Println("signedMsgTxID: ", signedMsgTxID)
+	fmt.Println("err sign: ", err)
 }

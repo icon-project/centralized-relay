@@ -183,7 +183,7 @@ func TransposeSigs(sigs [][][]byte) [][][]byte {
 			result[i][j] = sigs[j][i]
 		}
 	}
-	
+
 	return result
 }
 
@@ -194,15 +194,17 @@ func CombineMultisigSigs(
 	msgTx *wire.MsgTx,
 	inputs []*UTXO,
 	relayersMultisigWallet *MultisigWallet,
+	relayersIndexTapLeaf int,
 	userMultisigWallet *MultisigWallet,
+	userIndexTapLeaf int,
 	totalSigs [][][]byte,
 ) (*wire.MsgTx, error) {
-	relayersMultisigTapLeafScript := relayersMultisigWallet.TapLeaves[0].Script
-	relayersMultisigControlBlock := relayersMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(relayersMultisigWallet.SharedPublicKey)
+	relayersMultisigTapLeafScript := relayersMultisigWallet.TapLeaves[relayersIndexTapLeaf].Script
+	relayersMultisigControlBlock := relayersMultisigWallet.TapScriptTree.LeafMerkleProofs[relayersIndexTapLeaf].ToControlBlock(relayersMultisigWallet.SharedPublicKey)
 	relayersMultisigControlBlockBytes, _ := relayersMultisigControlBlock.ToBytes()
 
-	userMultisigTapLeafScript := userMultisigWallet.TapLeaves[0].Script
-	userMultisigControlBlock := userMultisigWallet.TapScriptTree.LeafMerkleProofs[0].ToControlBlock(userMultisigWallet.SharedPublicKey)
+	userMultisigTapLeafScript := userMultisigWallet.TapLeaves[userIndexTapLeaf].Script
+	userMultisigControlBlock := userMultisigWallet.TapScriptTree.LeafMerkleProofs[userIndexTapLeaf].ToControlBlock(userMultisigWallet.SharedPublicKey)
 	userMultisigControlBlockBytes, _ := userMultisigControlBlock.ToBytes()
 
 	transposedSigs := TransposeSigs(totalSigs)
