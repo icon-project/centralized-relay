@@ -11,7 +11,7 @@ type MultisigInfo struct {
 	EcPubKeys          []*btcutil.AddressPubKey
 	NumberRequiredSigs int
 	RecoveryPubKey     []byte
-	RecoveryBlockHeight uint64
+	RecoveryLockTime uint64
 }
 
 type MultisigWallet struct {
