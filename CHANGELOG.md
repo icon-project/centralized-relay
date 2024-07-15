@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2024-07-01
+
+### Fixed
+
+- Restore the keystore when it is not found
+
+### Removed
+
+- Redunant sequence increment for the cosmos chain
+
 ## [1.3.3] - 2024-07-01
 
 ### Fixed
