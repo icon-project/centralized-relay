@@ -26,10 +26,10 @@ func CreateMultisigTx(
 	changeReceiverAddress string,
 	lockTime uint32,
 ) (*wire.MsgTx, string, *txscript.TxSigHashes, error) {
-	msgTx := wire.NewMsgTx(wire.TxVersion)
-	if lockTime > 0 {
-		msgTx.LockTime = lockTime
-	}
+	msgTx := wire.NewMsgTx(2)
+	// if lockTime > 0 {
+	// 	msgTx.LockTime = lockTime
+	// }
 
 	// add TxIns into raw tx
 	// totalInputAmount in external unit
@@ -42,7 +42,7 @@ func CreateMultisigTx(
 		}
 		outPoint := wire.NewOutPoint(utxoHash, in.OutputIdx)
 		txIn := wire.NewTxIn(outPoint, nil, nil)
-		txIn.Sequence = uint32(feePerOutput)
+		txIn.Sequence = lockTime
 		msgTx.AddTxIn(txIn)
 		totalInputAmount += in.OutputAmount
 

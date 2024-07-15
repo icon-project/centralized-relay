@@ -48,18 +48,16 @@ func buildMultisigTapScript(numSigsRequired int, pubKeys [][]byte) ([]byte, stri
 }
 
 // Point time lock contract script
-// use OP_CHECKLOCKTIMEVERIFY
+// use OP_CHECKLOCKTIMEVERIFY or OP_CHECKSEQUENCEVERIFY
 func buildPTLCTapScript(
-	expiredBlkHeight uint64,
+	lockTime uint64,
 	pubKey []byte,
 ) ([]byte, string, error) {
-
 	// <blockHeight> OP_CHECKLOCKTIMEVERIFY OP_DROP <PubKey> OP_CHECKSIG
-
 	builder := txscript.NewScriptBuilder()
-	// builder.AddData(new(big.Int).SetUint64(expiredBlkHeight).Bytes()) // TODO: need to fixed length?
-	builder.AddInt64(int64(expiredBlkHeight))
-	builder.AddOp(txscript.OP_CHECKLOCKTIMEVERIFY)
+	builder.AddInt64(int64(lockTime))
+	// builder.AddOp(txscript.OP_CHECKLOCKTIMEVERIFY)
+	builder.AddOp(txscript.OP_CHECKSEQUENCEVERIFY)
 	builder.AddOp(txscript.OP_DROP)
 	builder.AddData(toXOnly(pubKey))
 	builder.AddOp(txscript.OP_CHECKSIG)
@@ -169,10 +167,10 @@ func BuildMultisigWallet(
 		return nil, fmt.Errorf("build script multisig err %v", err)
 	}
 
-	if multisigInfo.RecoveryBlockHeight == 0 {
+	if multisigInfo.RecoveryLockTime == 0 {
 		return buildMultisigWalletFromScripts([][]byte{script1})
 	} else {
-		script2, _, err := buildPTLCTapScript(multisigInfo.RecoveryBlockHeight, multisigInfo.RecoveryPubKey)
+		script2, _, err := buildPTLCTapScript(multisigInfo.RecoveryLockTime, multisigInfo.RecoveryPubKey)
 		if err != nil {
 			return nil, fmt.Errorf("build script PTLC err %v", err)
 		}

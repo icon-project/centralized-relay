@@ -253,24 +253,24 @@ func TestUserRecoveryTimeLock(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "69c88fa67f3c5aad9b4494618046969f4a8e0dfccaa10def6dbbb5ff192c9924",
+			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
 			OutputIdx:     1,
-			OutputAmount:  7308,
+			OutputAmount:  3808,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "tb1pnlfh96hs3sc0tvanxhqlcfnwz32shff726f8yt6vay4tk62y4c9sluydah",
-			Amount:          1500,
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          1000,
 		},
 	}
 
 	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
-	changeReceiverAddress := "tb1p2u4dx80df4xa87fxzw8wrqh698xxa2deu9nyfkjkrfd3fgk3l8dqc0tg3t"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 333, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
 		RelayersPKScript: []byte{},
