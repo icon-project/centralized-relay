@@ -84,7 +84,7 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
-		p.wallet.SetSequence(account.GetSequence() + 1)
+		p.wallet.SetSequence(account.GetSequence())
 		return p.client.SetAddress(account.GetAddress())
 	}
 	return p.wallet.GetAddress()
