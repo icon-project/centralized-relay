@@ -45,7 +45,7 @@ test-all:
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.4
-LIBWASM_VERSION 		 ?= v2.0.1
+LIBWASM_VERSION 		 ?= v2.1.0
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
@@ -60,7 +60,7 @@ release-dry-run:
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		--clean --skip-validate --skip-publish
+		--clean --auto-snapshot
 
 .PHONY: release
 release:
