@@ -307,6 +307,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 func (p *Provider) ClaimFee(ctx context.Context) error {
 	msg := &providerTypes.Message{
 		EventType: events.ClaimFee,
+		Sn:        big.NewInt(0),
 	}
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
@@ -321,7 +322,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		return err
 	}
 	if receipt.Status != 1 {
-		return fmt.Errorf("failed to revert message: %s", err)
+		return fmt.Errorf("failed to claim fee: %s", err)
 	}
 	return nil
 }

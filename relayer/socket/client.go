@@ -2,6 +2,7 @@ package socket
 
 import (
 	"fmt"
+	"math/big"
 	"net"
 
 	jsoniter "github.com/json-iterator/go"
@@ -20,7 +21,8 @@ const (
 	EventGetFee         Event = "GetFee"
 	EventSetFee         Event = "SetFee"
 	EventClaimFee       Event = "ClaimFee"
-	EventSetBlock       Event = "SetBlock"
+	EventCurrentHeight  Event = "CurrentHeight"
+	EventChainConfig    Event = "ChainConfig"
 )
 
 var (
@@ -109,7 +111,11 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		}
 		return res, nil
 	case EventError:
-		return nil, ErrUnknown
+		res := new(ErrResponse)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(res.Error)
 	case EventRevertMessage:
 		res := new(ResRevertMessage)
 		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
@@ -178,7 +184,7 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn uint64) (*ResRelayMessage, error) {
+func (c *Client) RelayMessage(chain string, height, sn uint64) (*ResRelayMessage, error) {
 	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
 	if err := c.send(EventRelayMessage, req); err != nil {
 		return nil, err

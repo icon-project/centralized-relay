@@ -130,9 +130,10 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			return nil
 		},
 	}
-	d.messageMsgIDFlag(rly, true)
-	d.messageChainFlag(rly, true)
+	d.messageMsgIDFlag(rly, false)
+	d.messageChainFlag(rly, false)
 	d.messageHeightFlag(rly)
+	rly.MarkFlagsOneRequired("height", "sn")
 	return rly
 }
 
