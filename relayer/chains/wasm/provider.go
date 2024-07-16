@@ -128,11 +128,13 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case <-subscribeStarter.C:
 			subscribeStarter.Stop()
 			for _, event := range p.contracts {
-				go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
-					Address: event.Address,
-					Method:  event.GetWasmMsgType(),
-					Height:  latestHeight,
-				}, resetFunc)
+				for msgType := range event.SigType {
+					go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
+						Address: event.Address,
+						Method:  msgType,
+						Height:  latestHeight,
+					}, resetFunc)
+				}
 			}
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()
@@ -140,7 +142,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
-				continue
+				pollHeightTicker.Reset(time.Second * 3)
 			}
 		default:
 			if startHeight < latestHeight {
@@ -176,7 +178,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 	switch message.EventType {
 	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	case events.CallMessage, events.ExecuteRollback:
+	case events.CallMessage, events.RollbackMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
@@ -365,25 +367,34 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-	queryMsg := &types.QueryReceiptMsg{
-		GetReceipt: &types.GetReceiptMsg{
-			SrcNetwork: key.Src,
-			ConnSn:     key.Sn.String(),
-		},
-	}
-	rawQueryMsg, err := jsoniter.Marshal(queryMsg)
-	if err != nil {
-		return false, err
-	}
+	switch key.EventType {
+	case events.EmitMessage:
+		queryMsg := &types.QueryReceiptMsg{
+			GetReceipt: &types.GetReceiptMsg{
+				SrcNetwork: key.Src,
+				ConnSn:     key.Sn.String(),
+			},
+		}
+		rawQueryMsg, err := jsoniter.Marshal(queryMsg)
+		if err != nil {
+			return false, err
+		}
 
-	res, err := p.client.QuerySmartContract(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], rawQueryMsg)
-	if err != nil {
-		p.logger.Error("failed to check if message is received: ", zap.Error(err))
-		return false, err
-	}
+		res, err := p.client.QuerySmartContract(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], rawQueryMsg)
+		if err != nil {
+			p.logger.Error("failed to check if message is received: ", zap.Error(err))
+			return false, err
+		}
 
-	receiptMsgRes := types.QueryReceiptMsgResponse{}
-	return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
+		receiptMsgRes := types.QueryReceiptMsgResponse{}
+		return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
+	case events.CallMessage:
+		return false, nil
+	case events.RollbackMessage:
+		return false, nil
+	default:
+		return true, fmt.Errorf("unknown event type")
+	}
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
@@ -476,7 +487,7 @@ func (p *Provider) SetAdmin(ctx context.Context, address string) error {
 func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	msg := &relayTypes.Message{
 		Sn:        sn,
-		EventType: events.ExecuteRollback,
+		EventType: events.RollbackMessage,
 	}
 	_, err := p.call(ctx, msg)
 	return err
@@ -645,7 +656,7 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	case events.SetFee:
 		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
 		return jsoniter.Marshal(setFee)
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		executeRollback := types.NewExecExecuteRollback(message.Sn)
 		return jsoniter.Marshal(executeRollback)
 	default:
