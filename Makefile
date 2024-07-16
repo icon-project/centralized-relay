@@ -1,7 +1,6 @@
 VERSION := $(shell echo $(shell git describe --tags) | sed 's/^v//')
 COMMIT  := $(shell git log -1 --format='%H')
 DIRTY := $(shell git status --porcelain | wc -l | xargs)
-
 GOPATH := $(shell go env GOPATH)
 GOBIN := $(GOPATH)/bin
 
@@ -13,29 +12,29 @@ all: lint install
 
 ldflags = -X github.com/icon-project/centralized-relay/cmd.Version=$(VERSION) \
 					-X github.com/icon-project/centralized-relay.Commit=$(COMMIT) \
-					-X github.com/icon-project/centralized-relay.Dirty=$(DIRTY)
+					-X github.com/icon-project/centralized-relay.Dirty=$(DIRTY) \
+					-s -w
 
 ldflags += $(LDFLAGS)
 ldflags := $(strip $(ldflags))
 
-BUILD_FLAGS := -ldflags '$(ldflags)'
+BUILD_FLAGS := -mod=readonly -trimpath -ldflags '$(ldflags)'
 
 build: go.sum
-ifeq ($(OS),Windows_NT)
 	@echo "building centralized-relay binary..."
-	@go build -mod=readonly $(BUILD_FLAGS) -o build/centralized-relay main.go
-else
-	@echo "building centralized-relay binary..."
-	@go build  $(BUILD_FLAGS) -o build/centralized-relay main.go
-endif
+	ifeq ($(OS),Windows_NT)
+		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
+	else
+		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
+	endif
 
 build-docker:
 	@echo "building centralized docker image..."
 	docker build . -t centralized-relay
 
 install: go.sum
-	@echo "installing centralized-relay binary..."
-	@go build -mod=readonly $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
+	@echo "--> Installing centralized-relay binary to $(GOBIN)"
+	@go build $(BUILD_FLAGS) -o $(GOBIN)/centralized-relay main.go
 
 
 e2e-test:
@@ -45,8 +44,8 @@ test-all:
 	@go test -v ./...
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.22.3
-LIBWASM_VERSION 		 ?= v2.0.0
+GOLANG_CROSS_VERSION  ?= v1.22.4
+LIBWASM_VERSION 		 ?= v2.0.1
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2

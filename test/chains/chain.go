@@ -23,6 +23,7 @@ type Chain interface {
 	XCall(ctx context.Context, targetChain Chain, keyName, _to string, data, rollback []byte) (*XCallResponse, error)
 	FindCallMessage(ctx context.Context, startHeight uint64, from, to, sn string) (string, string, error)
 	FindCallResponse(ctx context.Context, startHeight uint64, sn string) (string, error)
+	FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error)
 	GetContractAddress(key string) string
 	DeployXCallMockApp(ctx context.Context, keyName string, connections []XCallConnection) error
 }

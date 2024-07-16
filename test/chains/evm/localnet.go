@@ -619,3 +619,15 @@ func getPrivateKey(key string) (*ecdsa.PrivateKey, common.Address, error) {
 	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
 	return privateKey, fromAddress, nil
 }
+
+func (an *EVMRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
+	_sn, _ := big.NewInt(0).SetString(sn, 10)
+	topics := []common.Hash{common.HexToHash(RollbackExecuted.hash), common.BytesToHash(_sn.Bytes())}
+	_, err := an.FindEvent(ctx, startHeight, RollbackExecuted, topics)
+	if err != nil {
+		fmt.Printf("Topics %v", topics)
+		return "", err
+	}
+
+	return "0", nil
+}

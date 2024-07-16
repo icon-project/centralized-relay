@@ -214,8 +214,7 @@ func (x *XCallTestSuite) testRollback(ctx context.Context, t *testing.T, chainA,
 		return err
 	}
 	time.Sleep(3 * time.Second)
-	// TODO: will be removed later
-	// _, err = chainA.ExecuteRollback(ctx, res.SerialNo)
+	_, err = chainA.FindRollbackExecutedMessage(ctx, height, res.SerialNo)
 	assert.NoErrorf(t, err, "error on excute rollback- %w", err)
 	fmt.Println("Data Transfer Testing Without Rollback from " + chainA.Config().ChainID + " to " + chainB.Config().ChainID + " with data " + msg + " and rollback:" + rollback + " PASSED")
 	return err
