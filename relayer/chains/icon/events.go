@@ -8,8 +8,9 @@ import (
 
 // All the events
 const (
-	EmitMessage = "Message(str,int,bytes)"
-	CallMessage = "CallMessage(str,str,int,int,bytes)"
+	EmitMessage     = "Message(str,int,bytes)"
+	CallMessage     = "CallMessage(str,str,int,int,bytes)"
+	RollbackMessage = "RollbackMessage(int)"
 )
 
 // EventSigToEventType converts event signature to event type
@@ -19,7 +20,10 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 		event := providerTypes.EventMap{ContractName: contractName, Address: addr}
 		switch contractName {
 		case providerTypes.XcallContract:
-			event.SigType = map[string]string{CallMessage: events.CallMessage}
+			event.SigType = map[string]string{
+				CallMessage:     events.CallMessage,
+				RollbackMessage: events.RollbackMessage,
+			}
 		case providerTypes.ConnectionContract:
 			event.SigType = map[string]string{EmitMessage: events.EmitMessage}
 		}
