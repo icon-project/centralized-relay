@@ -70,10 +70,10 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 
 // Wallet returns the wallet of the provider
 func (p *Provider) Wallet() sdkTypes.AccAddress {
-	if p.wallet == nil {
-		ctx := context.Background()
-		done := p.SetSDKContext()
-		defer done()
+	ctx := context.Background()
+	done := p.SetSDKContext()
+	defer done()
+	if p.wallet == nil || p.wallet.GetAddress().Empty() {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			p.logger.Error("failed to restore keystore", zap.Error(err))
 			return nil
@@ -84,7 +84,6 @@ func (p *Provider) Wallet() sdkTypes.AccAddress {
 			return nil
 		}
 		p.wallet = account
-		p.wallet.SetSequence(account.GetSequence() + 1)
 		return p.client.SetAddress(account.GetAddress())
 	}
 	return p.wallet.GetAddress()
