@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	CodeTypeOK  uint32 = 0
-	CodeTypeErr uint32 = 1
-	ChainType          = "cosmos"
+	CodeTypeOK     uint32 = 0
+	CodeTypeErr    uint32 = 1
+	ChainType             = "cosmos"
+	ResultsPerPage        = 25
 )
 
 var (

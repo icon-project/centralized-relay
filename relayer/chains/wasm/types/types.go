@@ -21,11 +21,11 @@ type TxSearchParam struct {
 func (param *TxSearchParam) BuildQuery() string {
 	startHeight := &Query{
 		Field: "tx.height", Value: param.StartHeight,
-		Operator: QueryOperator.Gte,
+		Operator: QueryOperator.Gt,
 	}
 	endHeight := &Query{
 		Field: "tx.height", Value: param.EndHeight,
-		Operator: QueryOperator.Lte,
+		Operator: QueryOperator.Lt,
 	}
 
 	var attribQueries []QueryExpression

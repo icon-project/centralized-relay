@@ -146,7 +146,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		default:
 			if startHeight < latestHeight {
-				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
@@ -418,7 +418,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{Start: messageKey.Height, End: messageKey.Height})
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +556,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
-	perPage := 25
+	perPage := types.ResultsPerPage
 	searchParam := types.TxSearchParam{
 		StartHeight: heightInfo.Start,
 		EndHeight:   heightInfo.End,
@@ -691,19 +691,17 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 					p.logger.Error("failed to fetch block messages", zap.Error(err))
 					continue
 				}
-				var messages []*relayTypes.Message
 				for _, block := range blockInfo {
-					messages = append(messages, block.Messages...)
-				}
-				blockInfoChan <- &relayTypes.BlockInfo{
-					Height:   heightRange.End,
-					Messages: messages,
+					blockInfoChan <- &relayTypes.BlockInfo{
+						Height:   block.Height,
+						Messages: block.Messages,
+					}
 				}
 			}
 		}(wg, heightStream)
 	}
 	wg.Wait()
-	return toHeight + 1
+	return toHeight
 }
 
 // SubscribeMessageEvents subscribes to the message events
