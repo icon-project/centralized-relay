@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2024-07-17
+
+### Added
+
+- Support for the rollbackMessage event
+- Cosmwasmvm `v2.1.0` support
+
+### Changed
+
+- Use rpc instead of the websocket filterLogs `eth_getLogs` for the evm chain
+
 ## [1.3.4] - 2024-07-01
 
 ### Fixed
