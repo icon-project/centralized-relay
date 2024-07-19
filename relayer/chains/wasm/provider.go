@@ -577,7 +577,6 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 			defer wg.Done()
 			searchParam.Events = append(searchParam.Events, event)
 			if p.cfg.PreferGetAPI() {
-				perPage := 2
 				page := 1
 				requestUrl := p.cfg.RPCUrl + "/tx_search?query=\"" +
 					searchParam.BuildGetQuery() + "\"&per_page=" + strconv.Itoa(perPage) +
