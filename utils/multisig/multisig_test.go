@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/bxelab/runestone"
 )
 
 func TestGenerateKeys(t *testing.T) {
@@ -353,4 +354,14 @@ func TestTransferRune(t *testing.T) {
 	fmt.Println("hexSignedTx: ", hexSignedTx)
 	fmt.Println("signedMsgTxID: ", signedMsgTxID)
 	fmt.Println("err sign: ", err)
+
+	// Decipher runestone
+	r := &runestone.Runestone{}
+	artifact, err := r.Decipher(signedMsgTx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	a, _ := json.Marshal(artifact)
+	fmt.Printf("Artifact: %s\n", string(a))
 }
