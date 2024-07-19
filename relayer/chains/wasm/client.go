@@ -2,6 +2,8 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strconv"
 
 	jsoniter "github.com/json-iterator/go"
@@ -18,6 +20,8 @@ import (
 	"github.com/cosmos/go-bip39"
 
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
+
+	netHttp "net/http"
 
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -36,6 +40,7 @@ type IClient interface {
 	PrepareTx(ctx context.Context, txf tx.Factory, msgs ...sdkTypes.Msg) ([]byte, error)
 	BroadcastTx(txBytes []byte) (*sdkTypes.TxResponse, error)
 	TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error)
+	GetTxSearch(ctx context.Context, requestUrl string) (*types.ResultTxSearch, error)
 	GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error)
 	QuerySmartContract(ctx context.Context, address string, queryData []byte) (*wasmTypes.QuerySmartContractStateResponse, error)
 	CreateAccount(name, pass string) (string, string, error)
@@ -187,6 +192,23 @@ func (c *Client) GetKeyByAddr(addr sdkTypes.Address) (*keyring.Record, error) {
 
 func (c *Client) TxSearch(ctx context.Context, param types.TxSearchParam) (*coretypes.ResultTxSearch, error) {
 	return c.ctx.Client.TxSearch(ctx, param.BuildQuery(), param.Prove, param.Page, param.PerPage, param.OrderBy)
+}
+
+func (c *Client) GetTxSearch(ctx context.Context, requestUrl string) (*types.ResultTxSearch, error) {
+	resp, err := netHttp.Get(requestUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var txRes types.GetTxSearchRes
+	if err := json.Unmarshal(bodyBytes, &txRes); err != nil {
+		return nil, err
+	}
+	return txRes.Result, nil
 }
 
 // Set the address to be used for the transactions

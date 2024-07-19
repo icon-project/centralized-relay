@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -565,33 +566,65 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 
 	var (
 		wg           sync.WaitGroup
-		messages     coreTypes.ResultTxSearch
-		messagesChan = make(chan *coreTypes.ResultTxSearch)
+		messages     types.ResultTxSearch
+		messagesChan = make(chan *types.ResultTxSearch)
 		errorChan    = make(chan error)
 	)
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *types.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
 			searchParam.Events = append(searchParam.Events, event)
-			res, err := p.client.TxSearch(ctx, searchParam)
-			if err != nil {
-				errorChan <- err
-				return
-			}
-			if res.TotalCount > perPage {
-				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					searchParam.Page = &i
-					resNext, err := p.client.TxSearch(ctx, searchParam)
+			if p.cfg.PreferGetAPI() {
+				perPage := 2
+				page := 1
+				requestUrl := p.cfg.RPCUrl + "/tx_search?query=\"" +
+					searchParam.BuildGetQuery() + "\"&per_page=" + strconv.Itoa(perPage) +
+					"&page=" + strconv.Itoa(page)
+				res, err := p.client.GetTxSearch(ctx, requestUrl)
+				if err != nil {
+					errorChan <- err
+					return
+				}
+				totalCount, err := strconv.Atoi(res.TotalCount)
+				if err != nil {
+					errorChan <- err
+					return
+				}
+				for totalCount > (perPage * page) {
+					page++
+					requestUrl = p.cfg.RPCUrl + "/tx_search?query=\"" +
+						searchParam.BuildGetQuery() + "\"&per_page=" + strconv.Itoa(perPage) +
+						"&page=" + strconv.Itoa(page)
+					resNext, err := p.client.GetTxSearch(ctx, requestUrl)
 					if err != nil {
 						errorChan <- err
 						return
 					}
 					res.Txs = append(res.Txs, resNext.Txs...)
 				}
+				messagesChan <- res
+			} else {
+				res, err := p.client.TxSearch(ctx, searchParam)
+				if err != nil {
+					errorChan <- err
+					return
+				}
+				if res.TotalCount > perPage {
+					for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
+						searchParam.Page = &i
+						resNext, err := p.client.TxSearch(ctx, searchParam)
+						if err != nil {
+							errorChan <- err
+							return
+						}
+						res.Txs = append(res.Txs, resNext.Txs...)
+					}
+				}
+				txRes := coreTypesToInternalType(res)
+				messagesChan <- txRes
 			}
-			messagesChan <- res
 		}(&wg, searchParam, messagesChan, errorChan)
 		select {
 		case msgs := <-messagesChan:
@@ -605,7 +638,25 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	return p.getMessagesFromTxList(messages.Txs)
 }
 
-func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
+func coreTypesToInternalType(coreType *coreTypes.ResultTxSearch) *types.ResultTxSearch {
+	var txs []*types.ResultTx
+	for _, tx := range coreType.Txs {
+		txresult := types.ExecTxResult{
+			Log: tx.TxResult.Log,
+		}
+		txn := &types.ResultTx{
+			Height:   strconv.Itoa(int(tx.Height)),
+			TxResult: txresult,
+		}
+		txs = append(txs, txn)
+	}
+	return &types.ResultTxSearch{
+		TotalCount: strconv.Itoa(coreType.TotalCount),
+		Txs:        txs,
+	}
+}
+
+func (p *Provider) getMessagesFromTxList(resultTxList []*types.ResultTx) ([]*relayTypes.BlockInfo, error) {
 	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
 		var eventsList []*EventsList
@@ -615,11 +666,12 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 
 		for _, event := range eventsList {
 			msgs, err := p.ParseMessageFromEvents(event.Events)
+			height, _ := strconv.ParseUint(resultTx.Height, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 			for _, msg := range msgs {
-				msg.MessageHeight = uint64(resultTx.Height)
+				msg.MessageHeight = height
 				p.logger.Info("Detected eventlog",
 					zap.Uint64("height", msg.MessageHeight),
 					zap.String("target_network", msg.Dst),
@@ -627,8 +679,9 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 					zap.String("event_type", msg.EventType),
 				)
 			}
+
 			messages = append(messages, &relayTypes.BlockInfo{
-				Height:   uint64(resultTx.Height),
+				Height:   uint64(height),
 				Messages: msgs,
 			})
 		}

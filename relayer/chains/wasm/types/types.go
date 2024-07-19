@@ -47,6 +47,35 @@ func (param *TxSearchParam) BuildQuery() string {
 	return finalQuery.GetQuery()
 }
 
+func (param *TxSearchParam) BuildGetQuery() string {
+	startHeight := &Query{
+		Field: "tx.height", Value: param.StartHeight - 1,
+		Operator: QueryOperator.Gt,
+	}
+	endHeight := &Query{
+		Field: "tx.height", Value: param.EndHeight + 1,
+		Operator: QueryOperator.Lt,
+	}
+
+	var attribQueries []QueryExpression
+
+	for _, event := range param.Events {
+		for _, attrib := range event.Attributes {
+			field := fmt.Sprintf("%s.%s", event.Type, attrib.Key)
+			attribQueries = append(attribQueries, &Query{Field: field, Value: attrib.Value})
+		}
+	}
+
+	eventQuery := &CompositeQuery{Or: false, Queries: attribQueries}
+
+	finalQuery := &CompositeQuery{
+		Or:      false,
+		Queries: []QueryExpression{startHeight, endHeight, eventQuery},
+	}
+
+	return finalQuery.GetQuery()
+}
+
 type TxResultWaitResponse struct {
 	Height int64 `json:"height"`
 	Result struct {
@@ -91,4 +120,24 @@ type SubscribeOpts struct {
 type HeightRange struct {
 	Start uint64
 	End   uint64
+}
+
+// Result of querying for a tx
+type GetTxSearchRes struct {
+	Result *ResultTxSearch `json:"result"`
+}
+
+type ResultTx struct {
+	Height   string       `json:"height"`
+	TxResult ExecTxResult `json:"tx_result"`
+}
+
+// Result of searching for txs
+type ResultTxSearch struct {
+	Txs        []*ResultTx `json:"txs"`
+	TotalCount string      `json:"total_count"`
+}
+
+type ExecTxResult struct {
+	Log string ` json:"log,omitempty"` // nondeterministic
 }

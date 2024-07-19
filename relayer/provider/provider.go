@@ -62,6 +62,7 @@ type CommonConfig struct {
 	NID           string                  `json:"nid" yaml:"nid"`
 	HomeDir       string                  `json:"-" yaml:"-"`
 	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+	PreferGet     bool                    `json:"prefer-get" yaml:"prefer-get"`
 }
 
 // Enabled returns true if the provider is enabled
@@ -86,4 +87,8 @@ func (pc *CommonConfig) Validate() error {
 		return fmt.Errorf("home-dir cannot be empty")
 	}
 	return nil
+}
+
+func (c *CommonConfig) PreferGetAPI() bool {
+	return c.PreferGet
 }
