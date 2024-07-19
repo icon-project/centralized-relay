@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/CosmWasm/wasmd v0.52.0
+	github.com/avast/retry-go/v4 v4.5.1
 	github.com/cometbft/cometbft v0.38.10
 	github.com/cosmos/cosmos-sdk v0.50.8
 	github.com/cosmos/relayer/v2 v2.5.2

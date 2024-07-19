@@ -10,6 +10,7 @@ import (
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	"github.com/avast/retry-go/v4"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
@@ -23,6 +24,11 @@ import (
 )
 
 var _ provider.ChainProvider = (*Provider)(nil)
+
+const (
+	retryAttempts = 3
+	retryDelay    = (500 * time.Millisecond)
+)
 
 type Provider struct {
 	logger              *zap.Logger
@@ -575,21 +581,31 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
 			searchParam.Events = append(searchParam.Events, event)
-			res, err := p.client.TxSearch(ctx, searchParam)
+			res, err := retry.DoWithData(
+				func() (*coreTypes.ResultTxSearch, error) {
+					rs, err := p.client.TxSearch(ctx, searchParam)
+					if err != nil {
+						return nil, err
+					}
+					if rs.TotalCount > perPage {
+						for i := 2; i <= int(rs.TotalCount/perPage)+1; i++ {
+							searchParam.Page = &i
+							resNext, err := retry.DoWithData(
+								func() (*coreTypes.ResultTxSearch, error) {
+									return p.client.TxSearch(ctx, searchParam)
+								}, retry.Attempts(retryAttempts), retry.Delay(retryDelay), retry.LastErrorOnly(true))
+							if err != nil {
+								return nil, err
+							}
+							rs.Txs = append(rs.Txs, resNext.Txs...)
+						}
+					}
+					return rs, err
+				}, retry.Attempts(retryAttempts), retry.Delay(retryDelay), retry.LastErrorOnly(true),
+			)
 			if err != nil {
 				errorChan <- err
 				return
-			}
-			if res.TotalCount > perPage {
-				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					searchParam.Page = &i
-					resNext, err := p.client.TxSearch(ctx, searchParam)
-					if err != nil {
-						errorChan <- err
-						return
-					}
-					res.Txs = append(res.Txs, resNext.Txs...)
-				}
 			}
 			messagesChan <- res
 		}(&wg, searchParam, messagesChan, errorChan)
