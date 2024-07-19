@@ -1,27 +1,21 @@
 package cosmos
 
 import (
-	"context"
 	"time"
 
 	"github.com/docker/docker/client"
 	"github.com/icon-project/centralized-relay/test/chains"
-	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
-	"github.com/strangelove-ventures/interchaintest/v8/chain/cosmos"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
-	rpcclient "github.com/cometbft/cometbft/rpc/client"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/icon-project/icon-bridge/common/codec"
 )
 
 type CosmosRemotenet struct {
-	*cosmos.CosmosChain
-	cfg          ibcLocal.ChainConfig
-	keyName      string
+	cfg          chains.ChainConfig
 	filepath     map[string]string
 	IBCAddresses map[string]string     `json:"addresses"`
 	Wallets      map[string]ibc.Wallet `json:"wallets"`
@@ -34,15 +28,8 @@ type CosmosRemotenet struct {
 	Rpcclient    *rpchttp.HTTP
 }
 
-func (c *CosmosRemotenet) Config() ibcLocal.ChainConfig {
+func (c *CosmosRemotenet) Config() chains.ChainConfig {
 	return c.cfg
-}
-
-func (c *CosmosRemotenet) OverrideConfig(key string, value any) {
-	if value == nil {
-		return
-	}
-	c.cfg.ConfigFileOverrides[key] = value
 }
 
 type Query struct {
@@ -89,32 +76,6 @@ type DappInit struct {
 type GetProtocolFee struct{}
 
 type GetAdmin struct{}
-
-type CosmosTestnet struct {
-	bin              string
-	keystorePath     string
-	keyPassword      string
-	scorePaths       map[string]string
-	defaultStepLimit string
-	url              string
-	Client           rpcclient.Client
-	ChainID          string
-}
-
-func (it *CosmosTestnet) DeployXCallMockApp(ctx context.Context, connection chains.XCallConnection) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *CosmosTestnet) GetIBCAddress(key string) string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *CosmosTestnet) SetupXCall(ctx context.Context, portId, keyName string) error {
-	//TODO implement me
-	panic("implement me")
-}
 
 type Result struct {
 	NodeInfo struct {
@@ -254,4 +215,22 @@ type CallServiceMessageResponse struct {
 
 func (csr *CallServiceMessageResponse) RlpEncode() ([]byte, error) {
 	return codec.RLP.MarshalToBytes(csr)
+}
+
+type QueryContractResponse struct {
+	Contracts []string `json:"contracts"`
+}
+
+type CosmosTx struct {
+	TxHash string `json:"txhash"`
+	Code   int    `json:"code"`
+	RawLog string `json:"raw_log"`
+}
+
+type CodeInfo struct {
+	CodeID string `json:"code_id"`
+}
+
+type CodeInfosResponse struct {
+	CodeInfos []CodeInfo `json:"code_infos"`
 }

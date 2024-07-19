@@ -2,7 +2,7 @@ package wasm
 
 import (
 	"fmt"
-	"strconv"
+	"math/big"
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	EventTypeWasmMessage     = "wasm-Message"
-	EventTypeWasmCallMessage = "wasm-CallMessage"
+	EventTypeWasmMessage         = "wasm-Message"
+	EventTypeWasmCallMessage     = "wasm-CallMessage"
+	EventTypeWasmRollbackMessage = "wasm-RollbackMessage"
 
 	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"
@@ -63,8 +64,8 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 					}
 					msg.Data = data
 				case EventAttrKeyConnSn:
-					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
@@ -83,9 +84,9 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyReqID:
-					reqID, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
-						return nil, fmt.Errorf("failed to parse reqId from event")
+					reqID, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
+						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.ReqID = reqID
 				case EventAttrKeyData:
@@ -93,8 +94,25 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				case EventAttrKeyFrom:
 					msg.Src = attr.Value
 				case EventAttrKeySn:
-					sn, err := strconv.ParseUint(attr.Value, 10, strconv.IntSize)
-					if err != nil {
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
+						return nil, fmt.Errorf("failed to parse connSn from event")
+					}
+					msg.Sn = sn
+				}
+			}
+			messages = append(messages, msg)
+		case EventTypeWasmRollbackMessage:
+			msg := &relayerTypes.Message{
+				EventType: events.RollbackMessage,
+				Src:       p.NID(),
+				Dst:       p.NID(),
+			}
+			for _, attr := range ev.Attributes {
+				switch attr.Key {
+				case EventAttrKeySn:
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
 						return nil, fmt.Errorf("failed to parse connSn from event")
 					}
 					msg.Sn = sn
@@ -109,15 +127,16 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 }
 
 // EventSigToEventType converts event signature to event type
-func (p *ProviderConfig) eventMap() map[string]relayerTypes.EventMap {
+func (p *Config) eventMap() map[string]relayerTypes.EventMap {
 	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
+		event := relayerTypes.EventMap{ContractName: contractName, Address: addr, SigType: make(map[string]string)}
 		switch contractName {
 		case relayerTypes.XcallContract:
-			event.SigType = map[string]string{EventTypeWasmCallMessage: events.CallMessage}
+			event.SigType[EventTypeWasmCallMessage] = events.CallMessage
+			event.SigType[EventTypeWasmRollbackMessage] = events.RollbackMessage
 		case relayerTypes.ConnectionContract:
-			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
+			event.SigType[EventTypeWasmMessage] = events.EmitMessage
 		}
 		eventMap[addr] = event
 	}
@@ -136,7 +155,7 @@ func (p *Provider) GetAddressByEventType(eventType string) string {
 	return ""
 }
 
-func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
+func (p *Config) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMap) []sdkTypes.Event {
 	var eventList []sdkTypes.Event
 
 	for addr, contract := range eventMap {
@@ -147,6 +166,8 @@ func (p *ProviderConfig) GetMonitorEventFilters(eventMap map[string]relayerTypes
 				wasmMessggeType = EventTypeWasmMessage
 			case events.CallMessage:
 				wasmMessggeType = EventTypeWasmCallMessage
+			case events.RollbackMessage:
+				wasmMessggeType = EventTypeWasmRollbackMessage
 			}
 			eventList = append(eventList, sdkTypes.Event{
 				Type: wasmMessggeType,

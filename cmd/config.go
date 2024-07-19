@@ -176,6 +176,9 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	// build providers for each chain
 	chains := make(relayer.Chains)
 	for chainName, pcfg := range c.ProviderConfigs {
+		if !pcfg.Value.(provider.Config).Enabled() {
+			continue
+		}
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
 			a.homePath, a.debug, chainName,
@@ -219,8 +222,10 @@ type ProviderConfigYAMLWrapper struct {
 // NOTE: Add new ProviderConfig types in the map here with the key set equal to the type of ChainProvider (e.g. cosmos, substrate, etc.)
 func (pcw *ProviderConfigWrapper) UnmarshalJSON(data []byte) error {
 	customTypes := map[string]reflect.Type{
-		"icon": reflect.TypeOf(icon.Config{}),
-		"evm":  reflect.TypeOf(evm.Config{}),
+		"icon":   reflect.TypeOf(icon.Config{}),
+		"evm":    reflect.TypeOf(evm.Config{}),
+		"cosmos": reflect.TypeOf(wasm.Config{}),
+		"sui":    reflect.TypeOf(sui.Config{}),
 	}
 	val, err := UnmarshalJSONProviderConfig(data, customTypes)
 	if err != nil {
@@ -251,7 +256,7 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 	case "evm":
 		iw.Value = new(evm.Config)
 	case "cosmos":
-		iw.Value = new(wasm.ProviderConfig)
+		iw.Value = new(wasm.Config)
 	case "sui":
 		iw.Value = new(sui.Config)
 	default:
@@ -264,7 +269,10 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 // UnmarshalJSONProviderConfig contains the custom unmarshalling logic for ProviderConfig structs
 func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Type) (any, error) {
 	m := map[string]any{
-		"icon": reflect.TypeOf(icon.Config{}),
+		"icon":   reflect.TypeOf(icon.Config{}),
+		"evm":    reflect.TypeOf(evm.Config{}),
+		"cosmos": reflect.TypeOf(wasm.Config{}),
+		"sui":    reflect.TypeOf(sui.Config{}),
 	}
 	if err := jsoniter.Unmarshal(data, &m); err != nil {
 		return nil, err

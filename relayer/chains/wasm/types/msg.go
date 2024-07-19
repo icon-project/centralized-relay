@@ -2,7 +2,7 @@ package types
 
 import (
 	"fmt"
-	"strconv"
+	"math/big"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -49,7 +49,7 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 	return &ExecRecvMsg{
 		RecvMessage: &ReceiveMessage{
 			SrcNetwork: message.Src,
-			ConnSn:     strconv.FormatUint(message.Sn, 10),
+			ConnSn:     message.Sn.String(),
 			Msg:        hexstr.NewFromByte(message.Data),
 		},
 	}
@@ -57,7 +57,7 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 
 func NewExecExecMsg(message *relayTypes.Message) *ExecExecMsg {
 	exec := &ExecMessage{
-		ReqID: strconv.FormatUint(message.ReqID, 10),
+		ReqID: message.ReqID.String(),
 	}
 	if err := jsoniter.Unmarshal(message.Data, &exec.Data); err != nil {
 		return nil
@@ -132,12 +132,12 @@ type ExecSetFee struct {
 	SetFee *SetFee `json:"set_fee"`
 }
 
-func NewExecSetFee(networkID string, msgFee, resFee uint64) *ExecSetFee {
+func NewExecSetFee(networkID string, msgFee, resFee *big.Int) *ExecSetFee {
 	return &ExecSetFee{
 		SetFee: &SetFee{
 			NetworkID:   networkID,
-			MessageFee:  strconv.FormatUint(msgFee, 10),
-			ResponseFee: strconv.FormatUint(resFee, 10),
+			MessageFee:  msgFee.String(),
+			ResponseFee: resFee.String(),
 		},
 	}
 }
@@ -167,13 +167,13 @@ type ExecExecuteRollback struct {
 }
 
 type ExecuteRollback struct {
-	Sn string `json:"sn"`
+	Sn string `json:"sequence_no"`
 }
 
-func NewExecExecuteRollback(sn uint64) *ExecExecuteRollback {
+func NewExecExecuteRollback(sn *big.Int) *ExecExecuteRollback {
 	return &ExecExecuteRollback{
 		ExecuteRollback: &ExecuteRollback{
-			Sn: strconv.FormatUint(sn, 10),
+			Sn: sn.String(),
 		},
 	}
 }

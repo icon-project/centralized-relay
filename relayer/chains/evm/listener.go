@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/big"
 	"runtime"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	BlockInterval              = 2 * time.Second
-	BlockHeightPollInterval    = 60 * time.Second
-	defaultReadTimeout         = 15 * time.Second
+	defaultReadTimeout         = 60 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
+	maxBlockRange              = 50
+	maxBlockQueryFailedRetry   = 3
 	DefaultFinalityBlock       = 10
 )
 
@@ -30,15 +30,14 @@ type BnOptions struct {
 	Concurrency uint64
 }
 
-type bnq struct {
-	h     uint64
-	v     *types.BlockNotification
-	err   error
-	retry int
+type blockReq struct {
+	start, end uint64
+	err        error
+	retry      int
 }
 
-func (r *Provider) latestHeight() uint64 {
-	height, err := r.client.GetBlockNumber()
+func (r *Provider) latestHeight(ctx context.Context) uint64 {
+	height, err := r.client.GetBlockNumber(ctx)
 	if err != nil {
 		r.log.Error("Evm listener: failed to GetBlockNumber", zap.Error(err))
 		return 0
@@ -56,135 +55,110 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
-	subscribeStart := time.NewTicker(time.Second * 1)
+	var (
+		subscribeStart = time.NewTicker(time.Second * 1)
+		errChan        = make(chan error)
+	)
 
-	next, latest := startHeight, p.latestHeight()
-	concurrency := p.GetConcurrency(ctx, startHeight, latest)
-	// block notification channel
-	// (buffered: to avoid deadlock)
-	// increase concurrency parameter for faster sync
-	bnch := make(chan *types.BlockNotification, concurrency)
-	// last unverified block notification
-	var lbn *types.BlockNotification
-	// Loop started
 	for {
 		select {
 		case <-ctx.Done():
 			p.log.Debug("evm listener: done")
 			return nil
+		case err := <-errChan:
+			if p.isConnectionError(err) {
+				p.log.Error("connection error", zap.Error(err))
+				client, err := p.client.Reconnect()
+				if err != nil {
+					p.log.Error("failed to reconnect", zap.Error(err))
+				} else {
+					p.log.Info("client reconnected")
+					p.client = client
+				}
+			}
+			startHeight = p.GetLastSavedBlockHeight()
+			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
-			go p.Subscribe(ctx, subscribeStart, blockInfoChan)
+			go p.Subscribe(ctx, blockInfoChan, errChan)
 
-		case bn := <-bnch:
-			// process all notifications
-			for ; bn != nil; next++ {
-				if lbn != nil {
-					p.log.Debug("block-notification received", zap.Uint64("height", lbn.Height.Uint64()),
-						zap.Int64("gas-used", int64(lbn.Header.GasUsed)))
+			latestHeight := p.latestHeight(ctx)
+			concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
 
-					messages, err := p.FindMessages(ctx, lbn)
-					if err != nil {
-						return errors.Wrapf(err, "receiveLoop: callback: %v", err)
-					}
-					blockInfoChan <- &relayertypes.BlockInfo{
-						Height:   lbn.Height.Uint64(),
-						Messages: messages,
-					}
-				}
-
-				if lbn, bn = bn, nil; len(bnch) > 0 {
-					bn = <-bnch
-				}
+			var blockReqs []*blockReq
+			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
 			}
-			// remove unprocessed notifications
-			for len(bnch) > 0 {
-				<-bnch
-			}
+			totalReqs := len(blockReqs)
+			// Calculate the size of each chunk
+			chunkSize := (totalReqs + concurrency - 1) / concurrency
 
-		default:
-			if next >= latest {
-				continue
-			}
+			var wg sync.WaitGroup
 
-			qch := make(chan *bnq, cap(bnch))
-			for i := next; i < latest && len(qch) < cap(qch); i++ {
-				qch <- &bnq{i, nil, nil, 3} // fill bch with requests
-			}
-			bns := make([]*types.BlockNotification, 0, len(qch))
-			for q := range qch {
-				switch {
-				case q.err != nil:
-					if q.retry > 0 {
-						if !strings.HasSuffix(q.err.Error(), "requested block number greater than current block number") {
-							q.retry--
-							q.v, q.err = nil, nil
-							qch <- q
+			for i := 0; i < totalReqs; i += chunkSize {
+				wg.Add(1)
+
+				go func(blockReqsChunk []*blockReq, wg *sync.WaitGroup) {
+					defer wg.Done()
+					for _, br := range blockReqsChunk {
+						filter := ethereum.FilterQuery{
+							FromBlock: new(big.Int).SetUint64(br.start),
+							ToBlock:   new(big.Int).SetUint64(br.end),
+							Addresses: p.blockReq.Addresses,
+							Topics:    p.blockReq.Topics,
+						}
+						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+						logs, err := p.getLogsRetry(ctx, filter, br.retry)
+						if err != nil {
+							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 							continue
 						}
-						if latest >= q.h {
-							latest = q.h - 1
-						}
-					}
-					// r.Log.Debugf("receiveLoop: bnq: h=%d:%v, %v", q.h, q.v.Header.Hash(), q.err)
-					bns = append(bns, nil)
-					if len(bns) == cap(bns) {
-						close(qch)
-					}
-
-				case q.v != nil:
-					bns = append(bns, q.v)
-					if len(bns) == cap(bns) {
-						close(qch)
-					}
-				default:
-					go func(q *bnq) {
-						defer func() {
-							qch <- q
-						}()
-						if q.v == nil {
-							q.v = new(types.BlockNotification)
-						}
-						q.v.Height = new(big.Int).SetUint64(q.h)
-						q.v.Header, q.err = p.client.GetHeaderByHeight(ctx, q.v.Height)
-						if q.err != nil {
-							q.err = errors.Wrapf(q.err, "GetEvmHeaderByHeight %v", q.err)
-							return
-						}
-						ht := big.NewInt(q.v.Height.Int64())
-
-						if q.v.Header.GasUsed > 0 {
-							p.blockReq.FromBlock = ht
-							p.blockReq.ToBlock = ht
-							q.v.Logs, q.err = p.client.FilterLogs(ctx, p.blockReq)
-							if q.err != nil {
-								q.err = errors.Wrapf(q.err, "FilterLogs: %v", q.err)
-								return
+						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+						for _, log := range logs {
+							message, err := p.getRelayMessageFromLog(log)
+							if err != nil {
+								p.log.Error("failed to get relay message from log", zap.Error(err))
+								continue
+							}
+							p.log.Info("Detected eventlog",
+								zap.String("target_network", message.Dst),
+								zap.Uint64("sn", message.Sn.Uint64()),
+								zap.String("event_type", message.EventType),
+								zap.String("tx_hash", log.TxHash.String()),
+								zap.Uint64("block_number", log.BlockNumber),
+							)
+							blockInfoChan <- &relayertypes.BlockInfo{
+								Height:   log.BlockNumber,
+								Messages: []*relayertypes.Message{message},
 							}
 						}
-					}(q)
-				}
-			}
-			// filter nil
-			_bns_, bns := bns, bns[:0]
-			for _, v := range _bns_ {
-				if v != nil {
-					bns = append(bns, v)
-				}
-			}
-			// sort and forward notifications
-			if len(bns) > 0 {
-				sort.SliceStable(bns, func(i, j int) bool {
-					return bns[i].Height.Uint64() < bns[j].Height.Uint64()
-				})
-				for i, v := range bns {
-					if v.Height.Uint64() == next+uint64(i) {
-						bnch <- v
 					}
-				}
+				}(blockReqs[i:min(i+chunkSize, totalReqs)], &wg)
 			}
+			go func() {
+				wg.Wait()
+			}()
 		}
 	}
+}
+
+func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery, retry int) ([]ethTypes.Log, error) {
+	var logs []ethTypes.Log
+	var err error
+	for i := 0; i < retry; i++ {
+		logs, err = p.client.FilterLogs(ctx, filter)
+		if err == nil {
+			return logs, nil
+		}
+		p.log.Error("failed to get logs", zap.Error(err), zap.Int("retry", i+1))
+		time.Sleep(time.Second * 30)
+	}
+	return nil, err
+}
+
+func (p *Provider) isConnectionError(err error) bool {
+	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
@@ -200,7 +174,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 		p.log.Info("Detected eventlog",
 			zap.Uint64("height", lbn.Height.Uint64()),
 			zap.String("target_network", message.Dst),
-			zap.Uint64("sn", message.Sn),
+			zap.Uint64("sn", message.Sn.Uint64()),
 			zap.String("event_type", message.EventType),
 		)
 		messages = append(messages, message)
@@ -209,7 +183,7 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 }
 
 func (p *Provider) GetConcurrency(ctx context.Context, startHeight, currentHeight uint64) int {
-	diff := int(currentHeight - startHeight)
+	diff := int((currentHeight-startHeight)/p.cfg.BlockBatchSize) + 1
 	cpu := runtime.NumCPU()
 	if diff <= cpu {
 		return diff
@@ -247,27 +221,28 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfoChan chan *relayertypes.BlockInfo) {
-	ch := make(chan ethTypes.Log)
+func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
+	ch := make(chan ethTypes.Log, 10)
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
-		ticker.Reset(time.Second * 3)
-		return
+		resetCh <- err
+		return err
 	}
 	defer sub.Unsubscribe()
-	p.log.Info("Subscribed to new blocks", zap.Uint64("from", p.blockReq.FromBlock.Uint64()), zap.Any("address", p.blockReq.Addresses))
+	defer close(ch)
+	p.log.Info("Subscribed to new blocks", zap.Any("address", p.blockReq.Addresses))
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case err := <-sub.Err():
 			p.log.Error("subscription error", zap.Error(err))
-			ticker.Reset(time.Second * 3)
-			return
+			resetCh <- err
+			return err
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
 			if err != nil {
@@ -276,7 +251,7 @@ func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfo
 			}
 			p.log.Info("Detected eventlog",
 				zap.String("target_network", message.Dst),
-				zap.Uint64("sn", message.Sn),
+				zap.Uint64("sn", message.Sn.Uint64()),
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
 				zap.Uint64("block_number", log.BlockNumber),
@@ -284,6 +259,11 @@ func (p *Provider) Subscribe(ctx context.Context, ticker *time.Ticker, blockInfo
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
+			}
+		case <-time.After(time.Minute * 2):
+			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+				resetCh <- err
+				return err
 			}
 		}
 	}

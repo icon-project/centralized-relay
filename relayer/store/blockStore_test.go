@@ -1,16 +1,18 @@
 package store
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/stretchr/testify/assert"
 )
 
-var testDBName = "./testdb"
+var testDBName = "/tmp/testdb3"
 
 func TestBlockStore(t *testing.T) {
 	testdb, err := lvldb.NewLvlDB(testDBName)
+	fmt.Println(testDBName)
 	if err != nil {
 		assert.Fail(t, "error while creating test db ", err)
 	}
