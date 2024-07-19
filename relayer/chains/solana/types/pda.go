@@ -13,6 +13,8 @@ type PDA struct {
 	ProgramID  solana.PublicKey
 }
 
+type AddressTables map[solana.PublicKey]solana.PublicKeySlice
+
 func (pda PDA) GetAddress(additionalSeeds ...[]byte) (solana.PublicKey, error) {
 	seeds := [][]byte{[]byte(pda.SeedPrefix)}
 
@@ -35,11 +37,13 @@ type PDARegistry struct {
 	XcallSuccessRes      PDA
 	XcallPendingRequest  PDA
 	XcallPendingResponse PDA
+	XcallALT             PDA
 
 	ConnConfig     PDA
 	ConnNetworkFee PDA
 	ConnClaimFees  PDA
 	ConnReceipt    PDA
+	ConnALT        PDA
 }
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
@@ -53,10 +57,14 @@ func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry
 		XcallPendingRequest:  PDA{SeedPrefix: "req", ProgramID: xcallProgramID},
 		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
 
+		XcallALT: PDA{SeedPrefix: "alt", ProgramID: xcallProgramID}, // address lookup table for xcall
+
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
 		ConnClaimFees:  PDA{SeedPrefix: "claim_fees", ProgramID: connProgramID},
 		ConnReceipt:    PDA{SeedPrefix: "receipt", ProgramID: connProgramID},
+
+		ConnALT: PDA{SeedPrefix: "alt", ProgramID: connProgramID}, // address lookup table for conn
 	}
 }
 

@@ -12,11 +12,16 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/alt"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/near/borsh-go"
 	"go.uber.org/zap"
+)
+
+const (
+	defaultTxConfirmationTime = 2 * time.Second
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
@@ -33,12 +38,17 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
-	instructions, signers, err := p.MakeCallInstructions(message)
+	instructions, signers, addressTables, err := p.MakeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
-	tx, err := p.prepareTx(ctx, instructions, signers)
+	opts := []solana.TransactionOption{
+		solana.TransactionPayer(p.wallet.PublicKey()),
+		solana.TransactionAddressTables(addressTables),
+	}
+
+	tx, err := p.prepareTx(ctx, instructions, signers, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -53,13 +63,18 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	return nil
 }
 
-func (p *Provider) prepareTx(ctx context.Context, instructions []solana.Instruction, signers []solana.PrivateKey) (*solana.Transaction, error) {
+func (p *Provider) prepareTx(
+	ctx context.Context,
+	instructions []solana.Instruction,
+	signers []solana.PrivateKey,
+	opts ...solana.TransactionOption,
+) (*solana.Transaction, error) {
 	latestBlockHash, err := p.client.GetLatestBlockHash(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest block hash: %w", err)
 	}
 
-	tx, err := solana.NewTransaction(instructions, *latestBlockHash, solana.TransactionPayer(p.wallet.PublicKey()))
+	tx, err := solana.NewTransaction(instructions, *latestBlockHash, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new tx: %w", err)
 	}
@@ -107,7 +122,7 @@ func (p *Provider) executeRouteCallback(
 	msg *relayertypes.Message,
 	callback relayertypes.TxResponseFunc,
 ) {
-	txResult, err := p.waitForTxConfirmation(3*time.Second, sign)
+	txResult, err := p.waitForTxConfirmation(defaultTxConfirmationTime, sign)
 	if err != nil {
 		callback(
 			msg.MessageKey(),
@@ -129,12 +144,112 @@ func (p *Provider) executeRouteCallback(
 	}
 }
 
-func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
+func (p *Provider) CreateLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
+	recentSlot, err := p.client.GetLatestBlockHeight(ctx)
+	if err != nil {
+		return nil, err
+	}
+	altCreateInstruction, accountAddr, err := alt.CreateLookupTable(
+		p.wallet.PublicKey(),
+		p.wallet.PublicKey(),
+		recentSlot,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareTx(
+		context.Background(),
+		[]solana.Instruction{altCreateInstruction},
+		signers,
+		solana.TransactionPayer(p.wallet.PublicKey()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
+	if err != nil {
+		return nil, err
+	}
+
+	return &accountAddr, nil
+}
+
+func (p *Provider) ExtendLookupTableAccount(ctx context.Context, acTableAddr solana.PublicKey, addresses solana.PublicKeySlice) error {
+	payer := p.wallet.PublicKey()
+	altExtendInstruction := alt.ExtendLookupTable(
+		acTableAddr,
+		p.wallet.PublicKey(),
+		&payer,
+		addresses,
+	)
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareTx(
+		context.Background(),
+		[]solana.Instruction{altExtendInstruction},
+		signers,
+		solana.TransactionPayer(p.wallet.PublicKey()),
+	)
+	if err != nil {
+		return err
+	}
+
+	txSign, err := p.client.SendTx(ctx, tx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *Provider) GetLookupTableAccount(accountID solana.PublicKey) (*alt.LookupTableAccount, error) {
+	acInfo, err := p.client.GetAccountInfoRaw(context.Background(), accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	account, err := alt.DeserializeLookupTable(acInfo.Data.GetBinary())
+	if err != nil {
+		return nil, err
+	}
+
+	if account.ProgramState == alt.ProgramStateUninitialized {
+		return nil, fmt.Errorf("account program not initialized")
+	}
+
+	if !account.IsActive() {
+		return nil, fmt.Errorf("account deactivated")
+	}
+
+	return account, nil
+}
+
+func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, types.AddressTables, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage:
-		return p.getRecvMessageIntruction(msg)
+		instructions, signers, err := p.getRecvMessageIntruction(msg)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		//TODO update conn lookup table
+		return instructions, signers, nil, nil
 	default:
-		return nil, nil, fmt.Errorf("invalid event type in message")
+		return nil, nil, nil, fmt.Errorf("invalid event type in message")
 	}
 }
 
