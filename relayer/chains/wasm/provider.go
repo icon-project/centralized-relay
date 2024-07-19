@@ -3,6 +3,7 @@ package wasm
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"runtime"
 	"strings"
@@ -567,41 +568,85 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
 		messagesChan = make(chan *coreTypes.ResultTxSearch)
-		errorChan    = make(chan error)
+		errorChan    = make(chan error, len(p.eventList))
+		sema         = make(chan struct{}, len(p.eventList))
 	)
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
+		go func(event sdkTypes.Event) {
 			defer wg.Done()
-			searchParam.Events = append(searchParam.Events, event)
-			res, err := p.client.TxSearch(ctx, searchParam)
+			sema <- struct{}{}
+			defer func() { <-sema }()
+
+			localSearchParam := searchParam
+			localSearchParam.Events = append(localSearchParam.Events, event)
+
+			localMessages := new(coreTypes.ResultTxSearch)
+			var err error
+			retryCount := 0
+			for retryCount < 3 {
+				localMessages, err = p.client.TxSearch(ctx, localSearchParam)
+				if err == nil {
+					break
+				}
+				retryCount++
+				time.Sleep((time.Second * 3) * time.Duration(retryCount*retryCount))
+			}
+
 			if err != nil {
 				errorChan <- err
 				return
 			}
-			if res.TotalCount > perPage {
-				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					searchParam.Page = &i
-					resNext, err := p.client.TxSearch(ctx, searchParam)
+
+			if localMessages.TotalCount > perPage {
+				for i := 2; i <= int(localMessages.TotalCount/perPage)+1; i++ {
+					localSearchParam.Page = &i
+					resNext, err := p.client.TxSearch(ctx, localSearchParam)
 					if err != nil {
 						errorChan <- err
 						return
 					}
-					res.Txs = append(res.Txs, resNext.Txs...)
+					localMessages.Txs = append(localMessages.Txs, resNext.Txs...)
 				}
 			}
-			messagesChan <- res
-		}(&wg, searchParam, messagesChan, errorChan)
+			messagesChan <- localMessages
+		}(event)
+	}
+
+	go func() {
+		wg.Wait()
+		close(messagesChan)
+		close(errorChan)
+	}()
+
+	var errors []error
+	for {
 		select {
-		case msgs := <-messagesChan:
-			messages.Txs = append(messages.Txs, msgs.Txs...)
-			messages.TotalCount += msgs.TotalCount
-		case err := <-errorChan:
-			p.logger.Error("failed to fetch block messages", zap.Error(err))
+		case msgs, ok := <-messagesChan:
+			if !ok {
+				messagesChan = nil
+			} else {
+				messages.Txs = append(messages.Txs, msgs.Txs...)
+				messages.TotalCount += msgs.TotalCount
+			}
+		case err, ok := <-errorChan:
+			if !ok {
+				errorChan = nil
+			} else {
+				errors = append(errors, err)
+			}
+		}
+		if messagesChan == nil && errorChan == nil {
+			break
 		}
 	}
-	wg.Wait()
+
+	if len(errors) > 0 {
+		p.logger.Error("Errors occurred while fetching block messages", zap.Errors("errors", errors))
+		return nil, fmt.Errorf("errors occurred while fetching block messages: %v", errors)
+	}
+
 	return p.getMessagesFromTxList(messages.Txs)
 }
 
@@ -686,18 +731,30 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
 			defer wg.Done()
 			for heightRange := range heightStream {
-				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
-				if err != nil {
-					p.logger.Error("failed to fetch block messages", zap.Error(err))
-					continue
-				}
-				var messages []*relayTypes.Message
-				for _, block := range blockInfo {
-					messages = append(messages, block.Messages...)
-				}
-				blockInfoChan <- &relayTypes.BlockInfo{
-					Height:   heightRange.End,
-					Messages: messages,
+				var (
+					attempts    int
+					maxAttempts = 5
+					baseDelay   = 3 * time.Second
+					maxDelay    = 60 * time.Second
+				)
+				for {
+					blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+					if err == nil {
+						for _, block := range blockInfo {
+							blockInfoChan <- block
+						}
+					}
+					attempts++
+					if attempts >= maxAttempts {
+						p.logger.Error("fetchBlockMessages failed", zap.Int("attempt", attempts), zap.Error(err))
+						continue
+					}
+					delay := time.Duration(math.Pow(2, float64(attempts))) * baseDelay
+					if delay > maxDelay {
+						delay = maxDelay
+					}
+					p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Int("attempt", attempts), zap.Duration("retrying_in", delay), zap.Error(err))
+					time.Sleep(delay)
 				}
 			}
 		}(wg, heightStream)
