@@ -37,7 +37,7 @@ type Config struct {
 	SignModeStr            string        `json:"sign-mode" yaml:"sign-mode"`
 	Simulate               bool          `json:"simulate" yaml:"simulate"`
 	ExtraCodec             string        `json:"extra-codecs" yaml:"extra-codecs"`
-	BlockBatchSize         int           `json:"block-batch-size" yaml:"block-batch-size"`
+	BlockBatchSize         uint64        `json:"block-batch-size" yaml:"block-batch-size"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath string, _ bool, chainName string) (provider.ChainProvider, error) {
@@ -98,8 +98,6 @@ func (pc *Config) Validate() error {
 func (pc *Config) sanitize() (*Config, error) {
 	if pc.BlockBatchSize == 0 {
 		pc.BlockBatchSize = 50
-	} else if pc.BlockBatchSize < 0 {
-		pc.BlockBatchSize = 1
 	}
 	return pc, nil
 }

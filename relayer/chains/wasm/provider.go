@@ -517,13 +517,12 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	heightChan := make(chan *types.HeightRange)
 	go func(fromHeight, toHeight uint64, heightChan chan *types.HeightRange) {
 		defer close(heightChan)
-		batchSize := uint64(p.cfg.BlockBatchSize)
 		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + batchSize}:
-				fromHeight += batchSize
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize}:
+				fromHeight += p.cfg.BlockBatchSize
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
@@ -681,7 +680,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight)/int(p.cfg.BlockBatchSize) + 1
+	diff := int(toHeight-fromHeight/p.cfg.BlockBatchSize) + 1
 
 	numOfPipelines := p.getNumOfPipelines(diff)
 	wg := &sync.WaitGroup{}
