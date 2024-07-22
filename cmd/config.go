@@ -181,7 +181,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 			a.homePath, a.debug, chainName,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
+			return nil, fmt.Errorf("failed to build ChainProviders: %w chain: %s", err, chainName)
 		}
 		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID)
 		if err != nil {

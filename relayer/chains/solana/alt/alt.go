@@ -5,11 +5,11 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/near/borsh-go"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/bincode"
 )
 
 const (
-	InstructionCreateLookupTable uint8 = iota
+	InstructionCreateLookupTable uint32 = iota
 	InstructionFreezeLookupTable
 	InstructionExtendLookupTable
 	InstructionDeactivateLookupTable
@@ -38,19 +38,21 @@ func CreateLookupTable(
 		return nil, solana.PublicKey{}, err
 	}
 
-	slotBorsh, err := borsh.Serialize(recentSlot)
+	recentSlotBytes, err := bincode.Serialize(recentSlot)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	bumpBorsh, err := borsh.Serialize(bump)
+	bumpBytes, err := bincode.Serialize(bump)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	instructionData := []byte{InstructionCreateLookupTable}
-	instructionData = append(instructionData, slotBorsh...)
-	instructionData = append(instructionData, bumpBorsh...)
+	discriminantBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(discriminantBytes, InstructionCreateLookupTable)
+	instructionData := discriminantBytes
+	instructionData = append(instructionData, recentSlotBytes...)
+	instructionData = append(instructionData, bumpBytes...)
 
 	keys := solana.AccountMetaSlice{
 		{PublicKey: address, IsSigner: false, IsWritable: true},
@@ -73,18 +75,23 @@ func ExtendLookupTable(
 	payerAddr *solana.PublicKey,
 	addresses solana.PublicKeySlice,
 ) solana.Instruction {
-	instructionData := []byte{InstructionExtendLookupTable}
-	addressesBytes, _ := borsh.Serialize(addresses)
+	discriminantBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(discriminantBytes, InstructionExtendLookupTable)
+	instructionData := discriminantBytes
+	addressesBytes, err := bincode.Serialize(addresses)
+	if err != nil {
+		panic(err)
+	}
 	instructionData = append(instructionData, addressesBytes...)
 
 	keys := solana.AccountMetaSlice{
-		{PublicKey: tableAddr, IsWritable: true},
-		{PublicKey: authorityAddr, IsSigner: true},
+		{PublicKey: tableAddr, IsWritable: true, IsSigner: false},
+		{PublicKey: authorityAddr, IsWritable: false, IsSigner: true},
 	}
 
 	if payerAddr != nil {
 		keys = append(keys, solana.AccountMetaSlice{
-			{PublicKey: *payerAddr, IsSigner: true},
+			{PublicKey: *payerAddr, IsSigner: true, IsWritable: true},
 			{PublicKey: system.ProgramID, IsSigner: false, IsWritable: false},
 		}...)
 	}
@@ -102,13 +109,15 @@ func ExtendLookupTable(
 func FreezeLookupTable(
 	tableAddr, authorityAddr solana.PublicKey,
 ) solana.Instruction {
+	discriminantBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(discriminantBytes, InstructionFreezeLookupTable)
 	return &solana.GenericInstruction{
 		ProgID: lookupTableProgramID,
 		AccountValues: solana.AccountMetaSlice{
 			&solana.AccountMeta{PublicKey: tableAddr, IsWritable: true},
 			&solana.AccountMeta{PublicKey: authorityAddr, IsSigner: true},
 		},
-		DataBytes: []byte{InstructionFreezeLookupTable},
+		DataBytes: discriminantBytes,
 	}
 }
 
@@ -118,13 +127,15 @@ func FreezeLookupTable(
 func DeactivateLookupTable(
 	tableAddr, authorityAddr solana.PublicKey,
 ) solana.Instruction {
+	discriminantBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(discriminantBytes, InstructionDeactivateLookupTable)
 	return &solana.GenericInstruction{
 		ProgID: lookupTableProgramID,
 		AccountValues: solana.AccountMetaSlice{
 			&solana.AccountMeta{PublicKey: tableAddr, IsWritable: true},
 			&solana.AccountMeta{PublicKey: authorityAddr, IsSigner: true},
 		},
-		DataBytes: []byte{InstructionDeactivateLookupTable},
+		DataBytes: discriminantBytes,
 	}
 }
 
@@ -134,6 +145,8 @@ func DeactivateLookupTable(
 func CloseLookupTable(
 	tableAddr, authorityAddr, recipientAddr solana.PublicKey,
 ) solana.Instruction {
+	discriminantBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(discriminantBytes, InstructionCloseLookupTable)
 	return &solana.GenericInstruction{
 		ProgID: lookupTableProgramID,
 		AccountValues: solana.AccountMetaSlice{
@@ -141,6 +154,6 @@ func CloseLookupTable(
 			&solana.AccountMeta{PublicKey: authorityAddr, IsSigner: true},
 			&solana.AccountMeta{PublicKey: recipientAddr},
 		},
-		DataBytes: []byte{InstructionCloseLookupTable},
+		DataBytes: discriminantBytes,
 	}
 }

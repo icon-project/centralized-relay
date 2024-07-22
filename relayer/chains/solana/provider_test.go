@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/alt"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/assert"
@@ -120,4 +121,43 @@ func TestBigInt(t *testing.T) {
 	assert.NoError(t, err)
 
 	fmt.Println("Addr: ", addr)
+}
+
+func TestExtendLookupTable(t *testing.T) {
+	tableAddr, _ := solana.PublicKeyFromBase58("HJ6JRbBAPFfeUtiiD2VKAoTH9w7ZCyCGZSaevFFCZtsJ")
+	authority, _ := solana.PublicKeyFromBase58("FUarP2p5EnxD66vVDL4PWRoWMzA56ZVHG24hpEDFShEz")
+
+	addr1, _ := solana.PublicKeyFromBase58("9aE476sH92Vz7DMPyq5WLPkrKWivxeuTKEFKd2sZZcde")
+	addr2, _ := solana.PublicKeyFromBase58("2xNweLHLqrbx4zo1waDvgWJHgsUpPj8Y8icbAFeR4a8i")
+	addresses := solana.PublicKeySlice{addr1, addr2}
+
+	expectedData := []byte{
+		2, 0, 0, 0,
+		2, 0, 0, 0, 0, 0, 0, 0,
+		127, 96, 107, 250, 152, 133, 208, 224, 73, 251, 113, 151, 128, 139, 86, 80, 101, 70, 138, 50, 141, 153, 218, 110, 56, 39, 122, 181, 120, 55, 86, 185,
+		29, 11, 113, 4, 101, 239, 39, 167, 201, 112, 156, 239, 236, 36, 251, 140, 76, 199, 150, 228, 218, 214, 20, 123, 180, 181, 103, 160, 71, 251, 237, 123,
+	}
+
+	ins := alt.ExtendLookupTable(tableAddr, authority, nil, addresses)
+
+	actualData, err := ins.Data()
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedData, actualData)
+}
+
+func TestGetLookupAccount(t *testing.T) {
+	acData := []byte{
+		1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 84, 176, 0, 0, 0, 0, 0, 0, 0, 1, 93, 50,
+		105, 173, 228, 54, 251, 71, 232, 235, 85, 94, 2, 72, 159, 136, 154, 169, 126, 147, 158, 138,
+		34, 80, 203, 137, 250, 29, 223, 82, 226, 157, 0, 0, 201, 58, 234, 217, 141, 202, 49, 220, 114,
+		198, 42, 55, 222, 248, 182, 167, 185, 171, 252, 249, 154, 158, 84, 243, 9, 165, 106, 55, 136,
+		250, 196, 132, 255, 86, 146, 250, 112, 188, 234, 19, 220, 98, 78, 56, 46, 136, 210, 141, 229,
+		7, 195, 223, 133, 136, 183, 200, 219, 183, 84, 77, 213, 114, 25, 221,
+	}
+
+	ac, err := alt.DeserializeLookupTable(acData)
+	assert.NoError(t, err)
+
+	fmt.Printf("Account %+v", ac)
 }
