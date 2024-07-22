@@ -2,36 +2,11 @@ package socket
 
 import (
 	"fmt"
-	"math/big"
 	"net"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
-)
-
-const (
-	EventGetBlock       Event = "GetBlock"
-	EventGetMessageList Event = "GetMessageList"
-	EventRelayMessage   Event = "RelayMessage"
-	EventMessageRemove  Event = "MessageRemove"
-	EventPruneDB        Event = "PruneDB"
-	EventRevertMessage  Event = "RevertMessage"
-	EventError          Event = "Error"
-	EventGetFee         Event = "GetFee"
-	EventSetFee         Event = "SetFee"
-	EventClaimFee       Event = "ClaimFee"
-	EventCurrentHeight  Event = "CurrentHeight"
-	EventChainConfig    Event = "ChainConfig"
-)
-
-var (
-	ErrUnknownEvent    = fmt.Errorf("unknown event")
-	ErrSocketClosed    = fmt.Errorf("socket closed")
-	ErrInvalidResponse = func(err error) error {
-		return fmt.Errorf("invalid response: %v", err)
-	}
-	ErrUnknown = fmt.Errorf("unknown error")
 )
 
 type Client struct {

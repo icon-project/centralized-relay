@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -9,6 +10,15 @@ import (
 )
 
 type Event string
+
+var (
+	ErrUnknownEvent    = fmt.Errorf("unknown event")
+	ErrSocketClosed    = fmt.Errorf("socket closed")
+	ErrInvalidResponse = func(err error) error {
+		return fmt.Errorf("invalid response: %v", err)
+	}
+	ErrUnknown = fmt.Errorf("unknown error")
+)
 
 type Message struct {
 	Event Event  `json:"event"`
@@ -124,4 +134,9 @@ type ReqClaimFee struct {
 // ResClaimFee sends ClaimFee event to socket
 type ResClaimFee struct {
 	Status string `json:"status"`
+}
+
+type ResCurrentBlockHeight struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
 }
