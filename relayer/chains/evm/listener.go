@@ -21,8 +21,9 @@ const (
 	defaultReadTimeout         = 60 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
-	maxBlockQueryFailedRetry   = 3
+	maxBlockQueryFailedRetry   = 5
 	DefaultFinalityBlock       = 10
+	BlockSyncInterval          = 3 * time.Second
 )
 
 type BnOptions struct {
@@ -81,6 +82,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			go p.Subscribe(ctx, blockInfoChan, errChan)
 
 			latestHeight := p.latestHeight(ctx)
+			if startHeight == 0 {
+				startHeight = latestHeight
+			}
 			concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
 
 			var blockReqs []*blockReq
@@ -106,13 +110,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 							Addresses: p.blockReq.Addresses,
 							Topics:    p.blockReq.Topics,
 						}
-						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
 						logs, err := p.getLogsRetry(ctx, filter, br.retry)
 						if err != nil {
 							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 							continue
 						}
-						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+						time.Sleep(BlockSyncInterval)
 						for _, log := range logs {
 							message, err := p.getRelayMessageFromLog(log)
 							if err != nil {
