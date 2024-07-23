@@ -150,11 +150,12 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						if err := borsh.Deserialize(&cmEvent, eventBytes); err != nil {
 							return nil, fmt.Errorf("failed to decode call message event: %w", err)
 						}
+						fromNID := strings.Split(cmEvent.FromNetworkAddress, "/")[0]
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.CallMessage,
 							Sn:            cmEvent.Sn.Uint64(),
 							ReqID:         cmEvent.ReqId.Uint64(),
-							Src:           cmEvent.From,
+							Src:           fromNID,
 							Dst:           cmEvent.To,
 							Data:          cmEvent.Data,
 							MessageHeight: solEvent.Slot,

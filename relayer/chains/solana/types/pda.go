@@ -15,6 +15,19 @@ type PDA struct {
 
 type AddressTables map[solana.PublicKey]solana.PublicKeySlice
 
+func GetPDA(progID solana.PublicKey, prefix string, additionalSeeds ...[]byte) (solana.PublicKey, error) {
+	seeds := [][]byte{[]byte(prefix)}
+
+	seeds = append(seeds, additionalSeeds...)
+
+	addr, _, err := solana.FindProgramAddress(seeds, progID)
+	if err != nil {
+		return solana.PublicKey{}, err
+	}
+
+	return addr, nil
+}
+
 func (pda PDA) GetAddress(additionalSeeds ...[]byte) (solana.PublicKey, error) {
 	seeds := [][]byte{[]byte(pda.SeedPrefix)}
 

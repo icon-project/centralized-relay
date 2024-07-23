@@ -18,6 +18,9 @@ const (
 
 	MethodSendMessage = "send_message"
 	MethodRecvMessage = "recv_message"
+	MethodExecuteCall = "execute_call"
+
+	MethodQueryExecuteCallAccounts = "query_execute_call_accounts"
 
 	ChainType = "solana"
 
@@ -44,13 +47,18 @@ type SendMessageEvent struct {
 }
 
 type CallMessageEvent struct {
-	From  string
-	To    string
-	Sn    big.Int
-	ReqId big.Int
-	Data  []byte
+	FromNetworkAddress string
+	To                 string
+	Sn                 big.Int
+	ReqId              big.Int
+	Data               []byte
 }
 
 type RollbackMessageEvent struct {
 	Sn big.Int
+}
+
+type QueryAccountsResponse struct {
+	Accounts  []solana.AccountMeta
+	Remaining uint32
 }

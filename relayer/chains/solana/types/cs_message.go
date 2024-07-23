@@ -46,3 +46,8 @@ const (
 	CsMessageRequest CsMessageType = iota
 	CsMessageResult
 )
+
+type ProxyRequestAccount struct {
+	ReqMessage CsMessageRequestType
+	Bump       uint8
+}
