@@ -12,8 +12,8 @@ import (
 type Event string
 
 type Message struct {
-	Event Event
-	Data  []byte
+	Event Event  `json:"event"`
+	Data  []byte `json:"data"`
 }
 
 type Server struct {
@@ -22,42 +22,42 @@ type Server struct {
 }
 
 type ReqMessageList struct {
-	Chain      string
-	Pagination *store.Pagination
+	Chain      string            `json:"chain"`
+	Pagination *store.Pagination `json:"pagination"`
 }
 
 type ReqGetBlock struct {
-	Chain string
-	All   bool
+	Chain string `json:"chain"`
+	All   bool   `json:"all"`
 }
 
 type ReqRelayMessage struct {
-	Chain  string
-	Sn     *big.Int
-	Height uint64
+	Chain  string   `json:"chain"`
+	Sn     *big.Int `json:"sn"`
+	Height uint64   `json:"height"`
 }
 
 type ReqMessageRemove struct {
-	Chain string
-	Sn    *big.Int
+	Chain string   `json:"chain"`
+	Sn    *big.Int `json:"sn"`
 }
 
 type ResMessageRemove struct {
-	Sn     *big.Int
-	Chain  string
-	Dst    string
-	Height uint64
-	Event  string
+	Sn     *big.Int `json:"sn"`
+	Chain  string   `json:"chain"`
+	Dst    string   `json:"dst"`
+	Height uint64   `json:"height"`
+	Event  string   `json:"event"`
 }
 
 type ResMessageList struct {
-	Messages []*types.RouteMessage
-	Total    int
+	Messages []*types.RouteMessage `json:"messages"`
+	Total    int                   `json:"total"`
 }
 
 type ResGetBlock struct {
-	Chain  string
-	Height uint64
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
 }
 
 type ResRelayMessage struct {
@@ -65,57 +65,91 @@ type ResRelayMessage struct {
 }
 
 type ReqPruneDB struct {
-	Chain string
+	Chain string `json:"chain"`
 }
 
 type ResPruneDB struct {
-	Status string
+	Status string `json:"status"`
 }
 
 type ErrResponse struct {
-	Error string
+	Error string `json:"error"`
 }
 
 type ReqRevertMessage struct {
-	Chain string
-	Sn    uint64
+	Chain string `json:"chain"`
+	Sn    uint64 `json:"sn"`
 }
 
 type ResRevertMessage struct {
-	Sn uint64
+	Sn uint64 `json:"sn"`
 }
 
 type ReqGetFee struct {
-	Chain    string
-	Network  string
-	Response bool
+	Chain    string `json:"chain"`
+	Network  string `json:"network"`
+	Response bool   `json:"response"`
 }
 
 type ResGetFee struct {
-	Chain    string
-	Fee      uint64
-	Response bool
+	Chain    string `json:"chain"`
+	Fee      uint64 `json:"fee"`
+	Response bool   `json:"response"`
 }
 
 // ReqSetFee sends SetFee event to socket
 type ReqSetFee struct {
-	Chain   string
-	Network string
-	MsgFee  *big.Int
-	ResFee  *big.Int
+	Chain   string   `json:"chain"`
+	Network string   `json:"network"`
+	MsgFee  *big.Int `json:"msg_fee"`
+	ResFee  *big.Int `json:"res_fee"`
 }
 
 // ResSetFee sends SetFee event to socket
 type ResSetFee struct {
-	Status string
+	Status string `json:"status"`
 }
 
 // ReqClaimFee sends ClaimFee event to socket
 type ReqClaimFee struct {
-	Chain string
+	Chain string `json:"chain"`
 }
 
 // ResClaimFee sends ClaimFee event to socket
 type ResClaimFee struct {
-	Status string
+	Status string `json:"status"`
+}
+
+type ReqChainHeight struct {
+	Chain string `json:"chain"`
+}
+
+type ResChainHeight struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
+}
+
+type ReqProcessedBlock struct {
+	Chain string `json:"chain"`
+}
+
+type ReqSetProcessedBlock struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
+}
+
+type ResProcessedBlock struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
+}
+
+type ReqRangeBlockQuery struct {
+	Chain      string `json:"chain"`
+	FromHeight uint64 `json:"from_height"`
+	ToHeight   uint64 `json:"to_height"`
+}
+
+type ResRangeBlockQuery struct {
+	Chain string           `json:"chain"`
+	Msgs  []*types.Message `json:"messages"`
 }

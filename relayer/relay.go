@@ -252,13 +252,15 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, blockInfo *types.BlockInfo) {
 	src.LastBlockHeight = blockInfo.Height
-
 	for _, msg := range blockInfo.Messages {
 		msg := types.NewRouteMessage(msg)
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
 			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
+	}
+	if src.LastBlockHeight > (src.LastSavedHeight + 50) {
+		r.SaveBlockHeight(ctx, src, src.LastBlockHeight)
 	}
 }
 
@@ -472,6 +474,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	fmt.Println("saving block height/....")
 	for nid, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
@@ -483,6 +486,7 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 			continue
 		}
 	}
+
 }
 
 // cleanExpiredMessages

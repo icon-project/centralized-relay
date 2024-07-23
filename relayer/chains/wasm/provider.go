@@ -19,6 +19,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	jsoniter "github.com/json-iterator/go"
+	errs "github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -34,6 +35,7 @@ type Provider struct {
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	reloadChan          chan struct{}
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -584,6 +586,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
 					searchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
+
 					if err != nil {
 						errorChan <- err
 						return
@@ -771,6 +774,16 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 					zap.String("event_type", msg.EventType),
 				)
 			}
+		case <-p.reloadChan:
+			p.logger.Info("config reloaded")
+			resetFunc()
+			startHeight := p.GetLastSavedHeight()
+			latestHeight, _ := p.QueryLatestHeight(ctx)
+			if startHeight < latestHeight {
+				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+			}
+			return errs.New("config reload")
 		default:
 			if !p.client.IsConnected() {
 				p.logger.Warn("http client stopped")
@@ -795,4 +808,30 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedHeight returns the last saved height
 func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return p.GetLastSavedHeight(), nil
+}
+
+func (p *Provider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
+	p.reloadChan <- struct{}{}
+	return nil
+}
+
+func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	heightRange := &types.HeightRange{
+		Start: fromHeight,
+		End:   toHeight,
+	}
+	blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+	if err != nil {
+		p.logger.Error("failed to fetch block messages", zap.Error(err))
+		return nil, err
+	}
+	var messages []*relayTypes.Message
+	for _, block := range blockInfo {
+		messages = append(messages, block.Messages...)
+	}
+	return messages, nil
 }

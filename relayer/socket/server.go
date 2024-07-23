@@ -275,6 +275,80 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventClaimFee, data}, nil
+	case EventGetLatestHeight:
+		req := new(ReqChainHeight)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		height, err := chain.Provider.QueryLatestHeight(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResChainHeight{Chain: req.Chain, Height: height})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetLatestHeight, data}, nil
+	case EventGetLatestProcessedBlock:
+		req := new(ReqProcessedBlock)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		height, err := chain.Provider.GetLastProcessedBlockHeight(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResProcessedBlock{Chain: req.Chain, Height: height})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetLatestProcessedBlock, data}, nil
+	case EventSetLatestProcessedBlock:
+		req := new(ReqSetProcessedBlock)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		chain.LastSavedHeight = req.Height
+		chain.Provider.SetLastProcessedBlockHeight(context.Background(), req.Height)
+		height, err := chain.Provider.GetLastProcessedBlockHeight(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResProcessedBlock{Chain: req.Chain, Height: height})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventSetLatestProcessedBlock, data}, nil
+	case EventGetBlockRange:
+		req := new(ReqRangeBlockQuery)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		msgs, err := chain.Provider.QueryBlockMessages(context.Background(), req.FromHeight, req.ToHeight)
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResRangeBlockQuery{Chain: req.Chain, Msgs: msgs})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetBlockRange, data}, nil
 	default:
 		return nil, fmt.Errorf("invalid request")
 	}

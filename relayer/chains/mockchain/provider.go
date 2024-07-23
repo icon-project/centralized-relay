@@ -205,3 +205,15 @@ func (p *MockProvider) SetFee(context.Context, string, *big.Int, *big.Int) error
 func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
 
 }
+
+func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return 0, nil
+}
+
+func (p *MockProvider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
+	return nil
+}
+
+func (p *MockProvider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
+	return nil, nil
+}

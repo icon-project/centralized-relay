@@ -95,6 +95,19 @@ type Provider struct {
 	LastSavedHeightFunc func() uint64
 }
 
+func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return p.GetLastSavedBlockHeight(), nil
+}
+
+func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
+	return nil, fmt.Errorf("not implemented for icon")
+}
+
+func (p *Provider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
+	p.client.CloseAllMonitor()
+	return nil
+}
+
 func (p *Provider) NID() string {
 	return p.cfg.NID
 }
