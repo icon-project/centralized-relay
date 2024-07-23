@@ -474,7 +474,6 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	fmt.Println("saving block height/....")
 	for nid, chain := range r.chains {
 		height, err := chain.Provider.QueryLatestHeight(ctx)
 		if err != nil {
