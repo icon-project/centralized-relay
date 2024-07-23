@@ -195,7 +195,7 @@ func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
 }
 
 func (m *MessageCache) GetCacheKey(key *MessageKey) string {
-	return key.Src + "-" + key.Dst + "-" + key.Sn.String()
+	return key.Src + "-" + key.EventType + "-" + key.Sn.String()
 }
 
 func (m *MessageCache) HasCacheKey(cacheKey string) bool {
