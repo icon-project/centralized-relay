@@ -7,16 +7,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	provider "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
-func (p *Provider) QueryLatestHeight(ctx context.Context) (height uint64, err error) {
-	height, err = p.client.GetBlockNumber()
-	if err != nil {
-		return 0, err
-	}
-	return
+func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
+	return p.client.GetBlockNumber(ctx)
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *types.Message) (bool, error) {
@@ -28,7 +26,18 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *types.Mess
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.MessageKey) (bool, error) {
-	return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, big.NewInt(0).SetUint64(messageKey.Sn))
+	switch messageKey.EventType {
+	case events.EmitMessage:
+		ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
+		defer cancel()
+		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
+	case events.CallMessage:
+		return false, nil
+	case events.RollbackMessage:
+		return false, nil
+	default:
+		return true, fmt.Errorf("unknown event type")
+	}
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
@@ -41,17 +50,17 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, 
 
 // TODO: may not be need anytime soon so its ok to implement later on
 func (p *Provider) GenerateMessages(ctx context.Context, key *types.MessageKeyWithMessageHeight) ([]*types.Message, error) {
-	header, err := p.client.GetHeaderByHeight(ctx, big.NewInt(0).SetUint64(key.Height))
+	header, err := p.client.GetHeaderByHeight(ctx, new(big.Int).SetUint64(key.Height))
 	if err != nil {
 		return nil, err
 	}
-	p.blockReq.FromBlock = big.NewInt(0).SetUint64(key.Height)
-	p.blockReq.ToBlock = big.NewInt(0).SetUint64(key.Height)
+	p.blockReq.FromBlock = new(big.Int).SetUint64(key.Height)
+	p.blockReq.ToBlock = new(big.Int).SetUint64(key.Height)
 	logs, err := p.client.FilterLogs(ctx, p.blockReq)
 	if err != nil {
 		return nil, err
 	}
-	return p.FindMessages(ctx, &provider.BlockNotification{Height: big.NewInt(0).SetUint64(key.Height), Header: header, Logs: logs, Hash: header.Hash()})
+	return p.FindMessages(ctx, &provider.BlockNotification{Height: new(big.Int).SetUint64(key.Height), Header: header, Logs: logs, Hash: header.Hash()})
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
@@ -63,10 +72,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	finalizedReceipt := &types.Receipt{
 		TxHash: txHash,
 		Height: receipt.BlockNumber.Uint64(),
-	}
-
-	if receipt.Status == 1 {
-		finalizedReceipt.Status = true
+		Status: receipt.Status == ethTypes.ReceiptStatusSuccessful,
 	}
 
 	return finalizedReceipt, nil

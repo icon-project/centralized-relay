@@ -47,14 +47,16 @@ type IClient interface {
 	Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error)
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
+	GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error)
 }
 
 type Client struct {
 	ctx sdkClient.Context
+	aq  authTypes.QueryClient
 }
 
-func newClient(ctx *sdkClient.Context) *Client {
-	return &Client{*ctx}
+func newClient(ctx sdkClient.Context) *Client {
+	return &Client{ctx, authTypes.NewQueryClient(ctx.GRPCClient)}
 }
 
 func (c *Client) BuildTxFactory() (tx.Factory, error) {
@@ -117,25 +119,23 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 }
 
 func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
-	qc := authTypes.NewQueryClient(c.ctx.GRPCClient)
-	res, err := qc.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
+	res, err := c.aq.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
 	if err != nil {
 		return nil, err
 	}
 
 	var account sdkTypes.AccountI
 
-	if err := c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account); err != nil {
-		return nil, err
-	}
-
-	return account, nil
+	return account, c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account)
 }
 
 // Create new AccountI
 func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 	// create hdpath
-	kb := keyring.NewInMemory(c.ctx.Codec)
+	kb := keyring.NewInMemory(c.ctx.Codec, func(options *keyring.Options) {
+		options.SupportedAlgos = types.SupportedAlgorithms
+		options.SupportedAlgosLedger = types.SupportedAlgorithmsLedger
+	})
 	hdPath := hd.CreateHDPath(sdkTypes.CoinType, 0, 0).String()
 	bip39seed, err := bip39.NewEntropy(256)
 	if err != nil {
@@ -167,9 +167,6 @@ func (c *Client) CreateAccount(uid, passphrase string) (string, string, error) {
 
 // Load private key from keyring
 func (c *Client) ImportArmor(uid string, armor []byte, passphrase string) error {
-	if _, err := c.ctx.Keyring.Key(uid); err == nil {
-		return nil
-	}
 	return c.ctx.Keyring.ImportPrivKey(uid, string(armor), passphrase)
 }
 
@@ -229,14 +226,19 @@ func (c *Client) GetFee(ctx context.Context, addr string, queryData []byte) (uin
 	return fee, nil
 }
 
+// GetNetworkInfo returns the network information
+func (c *Client) GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error) {
+	return c.ctx.Client.Status(ctx)
+}
+
 // Subscribe
 func (c *Client) Subscribe(ctx context.Context, _, query string) (<-chan coretypes.ResultEvent, error) {
-	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "client", query)
+	return c.ctx.Client.(*http.HTTP).Subscribe(ctx, "subscribe", query)
 }
 
 // Unsubscribe
 func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
-	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "client", query)
+	return c.ctx.Client.(*http.HTTP).Unsubscribe(ctx, "unsubscribe", query)
 }
 
 // IsConnected returns if the client is connected to the network

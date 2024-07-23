@@ -26,17 +26,16 @@ var (
 			if fi, err := os.Stat(home); err == nil && fi.IsDir() {
 				return home
 			}
-			return "."
 		}
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "."
+			home = "."
 		}
 		return filepath.Join(home, ".centralized-relay")
 	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "v1.1.0"
+	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.

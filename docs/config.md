@@ -43,6 +43,7 @@ global:
   timeout: 10s
   kms-key-id: f5c550ca-a6f2-4597-895c-4846ab8e4ad2
 chains:
+
   avalanche:
     type: evm
     value:
@@ -60,6 +61,7 @@ chains:
       block-interval: 2s
       finality-block: 10
       nid: 0xa869.fuji
+
   icon:
     type: icon
     value:
@@ -100,6 +102,34 @@ chains:
       sign-mode: SIGN_MODE_DIRECT
       simulate: true
       finality-block: 10
+
+  injective:
+    type: cosmos
+    value:
+      disabled: false
+      chain-id: injective-888
+      nid: injective
+      rpc-url: https://testnet.sentry.tm.injective.network:443
+      grpc-url: testnet.sentry.chain.grpc.injective.network:443
+      keyring-backend: memory
+      address: inj1z32lg50k9kre0m7394klt827tsdq60a3mnd9n0
+      account-prefix: inj
+      start-height: 0
+      contracts:
+        xcall: inj1mxqp64mphz2t79hz7dr4xl9593v7mrpy3srehm
+        connection: inj1fhn37xp52cgjesvt8ne47acej7vpe3vvued3p9
+      denomination: inj
+      gas-prices: 900000000000inj
+      gas-adjustment: 1.5
+      max-gas-amount: 4000000
+      min-gas-amount: 20000
+      tx-confirmation-interval: 6s
+      broadcast-mode: sync
+      sign-mode: SIGN_MODE_DIRECT
+      extra-codecs: injective
+      simulate: true
+      finality-block: 10
+
 ```
 
 ## Explantion
@@ -125,6 +155,7 @@ Common configuration.
 | address | The keystore/wallet for the chain currently being used. | --- | --- | string |
 | contracts | The contracts for the chain. | xcall, connection | --- | map |
 | nid | The NID for the chain. | any | 0x2.icon, archway, 0xa869.fuji | string |
+| disabled | Whether the chain is disabled. | `true`, `false` | `true` | bool |
 
 Chain specific configurations.
 
@@ -136,6 +167,7 @@ Chain specific configurations.
 | gas-min | The minimum gas price allowed for the transcation to process. | 0 | 0 | int |
 | gas-limit | The maximum allowed gas limit for the transcation. | 100056000 | 100056000 | int |
 | block-interval | The block interval for the chain. | > 0s | 2s | duration |
+| gas-adjustment | The gas adjustment percentage. Percentage that will be added to gas limit, calculated using estimated value | --- | 5 | int |
 
 ### ICON
 
@@ -146,6 +178,7 @@ Chain specific configurations.
 | step-limit | The maximum step limit for the chain. | 2000000000000000000 | 2000000000000000000 | int |
 | finality-block | The finality block for the chain. | --- | 10 | int |
 | rpc-url | The RPC URL for the chain. | any valid rpc url specific to the chain | <https://lisbon.net.solidwallet.io/api/v3/> | url |
+| step-adjustment | The step adjustment percentage. Value will be calculated from estimated steps.  | --- | 5 | int |
 
 ### COSMOS
 
@@ -167,3 +200,4 @@ Chain specific configurations.
 | sign-mode | The sign mode for the chain. | `SIGN_MODE_DIRECT`, `SIGN_MODE_LEGACY_AMINO_JSON` | `SIGN_MODE_DIRECT` | string |
 | simulate | Whether to use simulation before transcation. | `true`, `false` | `true` | bool |
 | finality-block | The finality block for the chain. | 10 | 10 | int |
+| extra-codecs | The extra codecs for the chain. | injective | injective | string |

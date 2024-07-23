@@ -28,6 +28,7 @@ type Config struct {
 
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
+	Disabled bool   `json:"disabled" yaml:"disabled"`
 }
 
 type DappModule struct {
@@ -68,4 +69,9 @@ func (pc *Config) GetWallet() string {
 func (pc *Config) Validate() error {
 	//Todo
 	return nil
+}
+
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
 }

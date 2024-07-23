@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"math/big"
 	"strings"
 	"time"
 
@@ -58,9 +58,9 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
 			zap.String("event-type", msg.EventType),
-			zap.Uint64("sn", msg.Sn),
+			zap.Any("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
-			zap.Uint64("req-id", msg.ReqID),
+			zap.Any("req-id", msg.ReqID),
 			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
@@ -113,12 +113,11 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if emitEvent.ConnectionID != p.cfg.ConnectionID {
 			return nil, fmt.Errorf(types.InvalidEventError)
 		}
-
-		sn, err := strconv.Atoi(emitEvent.Sn)
-		if err != nil {
+		sn, ok := new(big.Int).SetString(emitEvent.Sn, 10)
+		if !ok {
 			return nil, err
 		}
-		msg.Sn = uint64(sn)
+		msg.Sn = sn
 		msg.Data = emitEvent.Msg
 		msg.Dst = emitEvent.To
 
@@ -129,11 +128,11 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 			return nil, err
 		}
 		msg.Data = callMsgEvent.Data
-		reqID, err := strconv.Atoi(callMsgEvent.ReqId)
-		if err != nil {
+		reqID, ok := new(big.Int).SetString(callMsgEvent.ReqId, 10)
+		if !ok {
 			return nil, err
 		}
-		msg.ReqID = uint64(reqID)
+		msg.ReqID = reqID
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
 
@@ -143,11 +142,12 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {
 			return nil, err
 		}
-		sn, err := strconv.Atoi(rollbackMsgEvent.Sn)
-		if err != nil {
-			return nil, err
+
+		sn, ok := new(big.Int).SetString(rollbackMsgEvent.Sn, 10)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse sn from rollback event")
 		}
-		msg.Sn = uint64(sn)
+		msg.Sn = sn
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
 		msg.Data = rollbackMsgEvent.Data
@@ -186,9 +186,9 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 	p.log.Info("Detected event log: ",
 		zap.Uint64("checkpoint", msg.MessageHeight),
 		zap.String("event-type", msg.EventType),
-		zap.Uint64("sn", msg.Sn),
+		zap.Any("sn", msg.Sn),
 		zap.String("dst", msg.Dst),
-		zap.Uint64("req-id", msg.ReqID),
+		zap.Any("req-id", msg.ReqID),
 		zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 		zap.Any("data", hex.EncodeToString(msg.Data)),
 	)

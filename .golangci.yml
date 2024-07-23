@@ -1,10 +1,9 @@
 linters:
   enable:
-    - deadcode
+    - unused
     - gofmt
-    - golint
+    - revive
     - govet
     - ineffassign
-    - structcheck
     - typecheck
-    - varcheck
+    - staticcheck

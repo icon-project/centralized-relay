@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"sync"
@@ -9,13 +10,13 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 10
+	MaxTxRetry         uint8 = 5
 	StaleMarkCount           = MaxTxRetry * 3
-	SpecialRetryCount  uint8 = 2
+	RouteDuration            = 3 * time.Second
 	XcallContract            = "xcall"
 	ConnectionContract       = "connection"
 	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 5 * time.Second
+	RetryInterval            = 3*time.Second + RouteDuration
 )
 
 type BlockInfo struct {
@@ -24,14 +25,14 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst             string `json:"dst"`
-	Src             string `json:"src"`
-	Sn              uint64 `json:"sn"`
-	Data            []byte `json:"data"`
-	MessageHeight   uint64 `json:"messageHeight"`
-	EventType       string `json:"eventType"`
-	ReqID           uint64 `json:"reqID,omitempty"`
-	DappModuleCapID string `json:"dappModuleCapID,omitempty"`
+	Dst             string   `json:"dst"`
+	Src             string   `json:"src"`
+	Sn              *big.Int `json:"sn"`
+	Data            []byte   `json:"data"`
+	MessageHeight   uint64   `json:"messageHeight"`
+	EventType       string   `json:"eventType"`
+	ReqID           *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
 
 	TxInfo []byte `json:"-"`
 }
@@ -57,16 +58,23 @@ func (c ContractConfigMap) Validate() error {
 	return nil
 }
 
+// GetWasmMsgType returns the wasm message type
+func (m *EventMap) GetWasmMsgType() string {
+	for wasmType := range m.SigType {
+		return wasmType
+	}
+	return ""
+}
+
 func (m *Message) MessageKey() *MessageKey {
 	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
 }
 
 type RouteMessage struct {
 	*Message
-	Retry       uint8
-	Processing  bool
-	MarkedStale bool
-	LastTry     time.Time
+	Retry      uint8
+	Processing bool
+	LastTry    time.Time
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
@@ -88,17 +96,13 @@ func (r *RouteMessage) ToggleProcessing() {
 	r.Processing = !r.Processing
 }
 
-func (r *RouteMessage) ToggleStale() {
-	r.MarkedStale = !r.MarkedStale
-}
-
 func (r *RouteMessage) GetRetry() uint8 {
 	return r.Retry
 }
 
 // ResetLastTry resets the last try time to the current time plus the retry interval
 func (r *RouteMessage) AddNextTry() {
-	r.LastTry = time.Now().Add(RetryInterval)
+	r.LastTry = time.Now().Add(RetryInterval * time.Duration(math.Pow(2, float64(r.Retry)))) // exponential backoff
 }
 
 func (r *RouteMessage) IsProcessing() bool {
@@ -107,7 +111,7 @@ func (r *RouteMessage) IsProcessing() bool {
 
 // stale means message which is expired
 func (r *RouteMessage) IsStale() bool {
-	return r.MarkedStale || r.Retry >= StaleMarkCount
+	return r.Retry >= StaleMarkCount
 }
 
 // IsElasped checks if the last try is elasped by the duration
@@ -133,13 +137,13 @@ const (
 )
 
 type MessageKey struct {
-	Sn        uint64
+	Sn        *big.Int
 	Src       string
 	Dst       string
 	EventType string
 }
 
-func NewMessageKey(sn uint64, src string, dst string, eventType string) *MessageKey {
+func NewMessageKey(sn *big.Int, src string, dst string, eventType string) *MessageKey {
 	return &MessageKey{sn, src, dst, eventType}
 }
 

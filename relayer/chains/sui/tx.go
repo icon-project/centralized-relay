@@ -51,7 +51,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.Sn))
+		snU128, err := bcs.NewUint128FromBigInt(message.Sn)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgObject, Val: module.ConfigID},
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 			}
 		case ModuleXcallManager:
@@ -101,7 +101,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgObject, Val: module.ConfigID},
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 			}
 		case ModuleAssetManager:
@@ -125,7 +125,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
 				{Type: CallArgObject, Val: suiClockObjectId},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 			}
 		case ModuleBalancedDollar:
@@ -140,7 +140,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID))},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 			}
 
@@ -158,7 +158,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, fmt.Errorf("failed to get module cap id %s: %w", message.DappModuleCapID, err)
 		}
 
-		snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(message.Sn))
+		snU128, err := bcs.NewUint128FromBigInt(message.Sn)
 		if err != nil {
 			return nil, err
 		}
@@ -450,35 +450,45 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 	return receipt, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	snU128, err := bcs.NewUint128FromBigInt(bcs.NewBigIntFromUint64(key.Sn))
-	if err != nil {
-		return false, err
-	}
-	suiMessage := p.NewSuiMessage(
-		[]string{},
-		[]SuiCallArg{
-			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-			{Type: CallArgPure, Val: p.cfg.ConnectionID},
-			{Type: CallArgPure, Val: key.Src},
-			{Type: CallArgPure, Val: snU128},
-		}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetReceipt)
-	var msgReceived bool
-	wallet, err := p.Wallet()
-	if err != nil {
-		return msgReceived, err
+func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes.MessageKey) (bool, error) {
+	switch messageKey.EventType {
+	case events.EmitMessage:
+		snU128, err := bcs.NewUint128FromBigInt(messageKey.Sn)
+		if err != nil {
+			return false, err
+		}
+		suiMessage := p.NewSuiMessage(
+			[]string{},
+			[]SuiCallArg{
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgPure, Val: p.cfg.ConnectionID},
+				{Type: CallArgPure, Val: messageKey.Src},
+				{Type: CallArgPure, Val: snU128},
+			}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetReceipt)
+		var msgReceived bool
+		wallet, err := p.Wallet()
+		if err != nil {
+			return msgReceived, err
+		}
+
+		txBytes, err := p.preparePTB(suiMessage)
+		if err != nil {
+			return msgReceived, err
+		}
+
+		if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &msgReceived); err != nil {
+			return msgReceived, err
+		}
+
+		return msgReceived, nil
+	case events.CallMessage:
+		return false, nil
+	case events.RollbackMessage:
+		return false, nil
+	default:
+		return true, fmt.Errorf("unknown event type")
 	}
 
-	txBytes, err := p.preparePTB(suiMessage)
-	if err != nil {
-		return msgReceived, err
-	}
-
-	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &msgReceived); err != nil {
-		return msgReceived, err
-	}
-
-	return msgReceived, nil
 }
 
 func (p *Provider) getWithdrawTokentype(ctx context.Context, message *relayertypes.Message) (*string, error) {

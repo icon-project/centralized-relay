@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/docker/docker/client"
-	setup "github.com/icon-project/centralized-relay/test"
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
@@ -33,13 +32,6 @@ type Interchain struct {
 
 	// Set to true after Build is called once.
 	built bool
-
-	// Map of relayer-chain pairs to address and mnemonic, set during Build().
-	// Not yet exposed through any exported API.
-	relayerWallets map[relayerChain]ibc.Wallet
-
-	// Map of chain to additional genesis wallets to include at chain start.
-	AdditionalGenesisWallets map[chains.Chain][]ibc.WalletAmount
 
 	// Set during Build and cleaned up in the Close method.
 	cs *chainSet
@@ -99,11 +91,6 @@ func (ic *Interchain) AddChain(chain chains.Chain, additionalGenesisWallets ...i
 	if len(additionalGenesisWallets) == 0 {
 		return ic
 	}
-
-	if ic.AdditionalGenesisWallets == nil {
-		ic.AdditionalGenesisWallets = make(map[chains.Chain][]ibc.WalletAmount)
-	}
-	ic.AdditionalGenesisWallets[chain] = additionalGenesisWallets
 
 	return ic
 }
@@ -203,30 +190,6 @@ func (ic *Interchain) BuildChains(ctx context.Context, rep *testreporter.Relayer
 	}
 	ic.cs = newChainSet(ic.log, chains)
 
-	// Initialize the chains (pull docker images, etc.).
-	if err := ic.cs.Initialize(ctx, opts.TestName, opts.Client, opts.NetworkID); err != nil {
-		return fmt.Errorf("failed to initialize chains: %w", err)
-	}
-
-	// err := ic.generateRelayerWallets(ctx) // Build the relayer wallet mapping.
-	// if err != nil {
-	// 	return err
-	// }
-
-	// walletAmounts, err := ic.genesisWalletAmounts(ctx)
-	// if err != nil {
-	// 	// Error already wrapped with appropriate detail.
-	// 	return err
-	// }
-
-	// if err := ic.cs.Start(ctx, opts.TestName, walletAmounts); err != nil {
-	// 	return fmt.Errorf("failed to start chains: %w", err)
-	// }
-
-	if err := ic.cs.TrackBlocks(ctx, opts.TestName, opts.BlockDatabaseFile, opts.GitSha); err != nil {
-		return fmt.Errorf("failed to track blocks: %w", err)
-	}
-
 	return nil
 }
 
@@ -269,7 +232,7 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 		}
 	}
 	content, _ := yaml.Marshal(config)
-	for r, _ := range ic.relayerChains() {
+	for r := range ic.relayerChains() {
 		if err := r.CreateConfig(ctx, content); err != nil {
 			return fmt.Errorf("failed to restore config to relayer %s : %w", ic.relayers[r], err)
 		}
@@ -288,73 +251,7 @@ func (ic *Interchain) WithLog(log *zap.Logger) *Interchain {
 // Close cleans up any resources created during Build,
 // and returns any relevant errors.
 func (ic *Interchain) Close() error {
-	return ic.cs.Close()
-}
-
-func (ic *Interchain) genesisWalletAmounts(ctx context.Context) (map[chains.Chain][]ibc.WalletAmount, error) {
-	// Faucet addresses are created separately because they need to be explicitly added to the chains.
-	faucetWallet, err := ic.cs.CreateCommonAccount(ctx, setup.FaucetAccountKeyName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create faucet accounts: %w", err)
-	}
-
-	// Wallet amounts for genesis.
-	walletAmounts := make(map[chains.Chain][]ibc.WalletAmount, len(ic.cs.chains))
-
-	// Add faucet for each chain first.
-	for c := range ic.chains {
-		// The values are nil at this point, so it is safe to directly assign the slice.
-		walletAmounts[c] = []ibc.WalletAmount{
-			{
-				Address: faucetWallet[c].FormattedAddress(),
-				Amount:  100_000_000_000_000, // Faucet wallet gets 100T units of denom.
-			},
-		}
-
-		if ic.AdditionalGenesisWallets != nil {
-			walletAmounts[c] = append(walletAmounts[c], ic.AdditionalGenesisWallets[c]...)
-		}
-	}
-
-	// Then add all defined relayer wallets.
-	for rc, wallet := range ic.relayerWallets {
-		c := rc.C
-		walletAmounts[c] = append(walletAmounts[c], ibc.WalletAmount{
-			Address: wallet.FormattedAddress(),
-			Amount:  100_000_000_000_000, // Every wallet gets 1t units of denom.
-		})
-	}
-
-	return walletAmounts, nil
-}
-
-// generateRelayerWallets populates ic.relayerWallets.
-func (ic *Interchain) generateRelayerWallets(ctx context.Context) error {
-	if ic.relayerWallets != nil {
-		panic(fmt.Errorf("cannot call generateRelayerWallets more than once"))
-	}
-
-	relayerChains := ic.relayerChains()
-	ic.relayerWallets = make(map[relayerChain]ibc.Wallet, len(relayerChains))
-	for r, chains := range relayerChains {
-		for _, c := range chains {
-			// Just an ephemeral unique name, only for the local use of the keyring.
-			accountName := "relayer-" + c.Config().Name
-			newWallet, err := c.BuildRelayerWallet(ctx, accountName)
-			if err != nil {
-				return err
-			}
-			ic.relayerWallets[relayerChain{R: r, C: c}] = newWallet
-		}
-	}
-
 	return nil
-}
-
-// relayerChain is a tuple of a Relayer and a Chain.
-type relayerChain struct {
-	R ibc.Relayer
-	C chains.Chain
 }
 
 // relayerChains builds a mapping of relayers to the chains they connect to.

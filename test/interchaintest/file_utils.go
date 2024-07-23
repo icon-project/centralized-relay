@@ -26,11 +26,6 @@ func CleanBackupConfig() {
 
 }
 
-// for saving data in particular format
-func BackupConfig(chain chains.Chain) error {
-	return nil
-}
-
 func GetLocalFileContent(fileName string) ([]byte, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -56,8 +51,4 @@ func GetLocalFileContent(fileName string) ([]byte, error) {
 		return nil, fmt.Errorf("unable to get content: %w", err)
 	}
 	return buffer, nil
-}
-
-func RestoreConfig(chain chains.Chain) error {
-	return nil
 }

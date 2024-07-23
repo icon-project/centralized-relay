@@ -1,0 +1,20 @@
+# Top-most EditorConfig file
+root = true
+
+# Set the default charset to UTF-8
+[*]
+charset = utf-8
+
+# Use spaces for indentation
+[*.go]
+indent_style = space
+indent_size = 4
+
+# Trim trailing whitespace
+trim_trailing_whitespace = true
+
+# Ensure a newline at the end of each file
+insert_final_newline = true
+
+# Set the line endings to LF (Unix-style)
+end_of_line = lf

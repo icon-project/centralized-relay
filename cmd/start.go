@@ -24,6 +24,7 @@ func startCmd(a *appState) *cobra.Command {
 			$ %s start # start all the registered chains
 		`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			a.log.Info("Starting relayer", zap.String("version", Version))
 			chains := a.config.Chains.GetAll()
 
 			flushInterval, err := cmd.Flags().GetDuration(flagFlushInterval)

@@ -133,7 +133,7 @@ func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) erro
 		for id, cn := range createdChains {
 			if id != idx {
 				connections = append(connections, chains.XCallConnection{
-					Nid:         cn.(ibc.Chain).Config().ChainID,
+					Nid:         cn.Config().ChainID,
 					Destination: cn.GetContractAddress("connection"),
 					Connection:  "connection",
 				})
@@ -192,12 +192,12 @@ func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguratio
 func (s *E2ETestSuite) GetRelayerWallets(relayer ibc.Relayer) (ibc.Wallet, ibc.Wallet, error) {
 	chains := s.GetChains()
 	chainA, chainB := chains[0], chains[1]
-	chainARelayerWallet, ok := relayer.GetWallet(chainA.(ibc.Chain).Config().ChainID)
+	chainARelayerWallet, ok := relayer.GetWallet(chainA.Config().ChainID)
 	if !ok {
 		return nil, nil, fmt.Errorf("unable to find chain A relayer wallet")
 	}
 
-	chainBRelayerWallet, ok := relayer.GetWallet(chainB.(ibc.Chain).Config().ChainID)
+	chainBRelayerWallet, ok := relayer.GetWallet(chainB.Config().ChainID)
 	if !ok {
 		return nil, nil, fmt.Errorf("unable to find chain B relayer wallet")
 	}
@@ -281,20 +281,18 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 	var (
 		chain chains.Chain
 	)
-	ibcChainConfig := cfg.ChainConfig.GetIBCChainConfig(&chain)
 	switch cfg.ChainConfig.Type {
 	case "icon":
-		chain = icon.NewIconRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain = icon.NewIconRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "evm":
-		chain = evm.NewEVMRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain = evm.NewEVMRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "wasm", "cosmos":
-		interchainTestConfig := toInterchantestConfig(ibcChainConfig)
-		chain, err := cosmos.NewCosmosRemotenet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
+		chain, err := cosmos.NewCosmosRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, err
 	case "sui":
-		chain := sui.NewSuiRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain := sui.NewSuiRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)

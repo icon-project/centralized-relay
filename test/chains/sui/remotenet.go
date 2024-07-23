@@ -22,7 +22,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/test/chains"
-	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
@@ -63,7 +62,7 @@ const (
 	connectionName                              = "centralized-1"
 )
 
-func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
+func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig chains.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
 	suiClient, err := suisdkClient.Dial(testconfig.RPCUri)
 	if err != nil {
 		panic("error connecting sui rpc")
@@ -81,27 +80,8 @@ func NewSuiRemotenet(testName string, log *zap.Logger, chainConfig ibcLocal.Chai
 	}
 }
 
-func (an *SuiRemotenet) Config() ibcLocal.ChainConfig {
+func (an *SuiRemotenet) Config() chains.ChainConfig {
 	return an.cfg
-}
-
-// Initialize initializes node structs so that things like initializing keys can be done before starting the chain
-func (an *SuiRemotenet) Initialize(ctx context.Context, testName string, cli *client.Client, networkID string) error {
-	return nil
-}
-
-func (an *SuiRemotenet) BuildRelayerWallet(ctx context.Context, keyName string) (ibcLocal.Wallet, error) {
-	return nil, nil
-}
-
-func (an *SuiRemotenet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibcLocal.Wallet, error) {
-	return nil, nil
-}
-
-// CreateKey implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).CreateKey of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) CreateKey(ctx context.Context, keyName string) error {
-	panic("unimplemented")
 }
 
 // DeployContract implements chains.Chain.
@@ -218,7 +198,7 @@ func (an *SuiRemotenet) ExecBin(ctx context.Context, command ...string) ([]byte,
 // Exec implements chains.Chain.
 // Subtle: this method shadows the method (*CosmosChain).Exec of SuiRemotenet.CosmosChain.
 func (an *SuiRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
-	job := dockerutil.NewImage(an.log, an.DockerClient, an.Network, an.testName, an.cfg.Images[0].Repository, an.cfg.Images[0].Version)
+	job := dockerutil.NewImage(an.log, an.DockerClient, an.Network, an.testName, an.cfg.Images.Repository, an.cfg.Images.Version)
 
 	bindPaths := []string{
 		an.testconfig.ContractsPath + ":/xcall",
@@ -229,41 +209,6 @@ func (an *SuiRemotenet) Exec(ctx context.Context, cmd []string, env []string) (s
 	}
 	res := job.Run(ctx, cmd, opts)
 	return res.Stdout, res.Stderr, res.Err
-}
-
-// ExecuteCall implements chains.Chain.
-func (an *SuiRemotenet) ExecuteCall(ctx context.Context, reqId string, data string) (context.Context, error) {
-	panic("won't implement")
-}
-
-// ExecuteContractDevnet implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).ExecuteContractDevnet of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) ExecuteContract(ctx context.Context, contractAddress string, keyName string, methodName string, param map[string]interface{}) (context.Context, error) {
-	panic("unimplemented")
-}
-
-// ExecuteRollback implements chains.Chain.
-func (an *SuiRemotenet) ExecuteRollback(ctx context.Context, sn string) (context.Context, error) {
-
-	testcase := ctx.Value("testcase").(string)
-	dappKey := fmt.Sprintf("dapp-%s", testcase)
-	params := []SuiCallArg{
-		{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StateSuffix]},
-		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
-		{Type: CallArgPure, Val: sn},
-	}
-	msg := an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "execute_rollback")
-	resp, err := an.callContract(ctx, msg)
-	if err != nil {
-		return ctx, err
-	}
-	return context.WithValue(ctx, "IsRollbackEventFound", an.findSn(resp, "::main::RollbackExecuted") == sn), nil
-}
-
-// ExportState implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).ExportState of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) ExportState(ctx context.Context, height int64) (string, error) {
-	panic("unimplemented")
 }
 
 // FindCallMessage implements chains.Chain.
@@ -360,29 +305,6 @@ func (an *SuiRemotenet) FindTargetXCallMessage(ctx context.Context, target chain
 	return &chains.XCallResponse{SerialNo: sn, RequestID: reqId, Data: destData}, err
 }
 
-// FindTxs implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).FindTxs of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
-	return nil, nil
-}
-
-// GetAddress implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).GetAddress of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) GetAddress(ctx context.Context, keyName string) ([]byte, error) {
-	panic("unimplemented")
-}
-
-// GetBalance implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).GetBalance of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) GetBalance(ctx context.Context, address string, denom string) (int64, error) {
-	panic("unimplemented")
-}
-
-// GetBlockByHeight implements chains.Chain.
-func (an *SuiRemotenet) GetBlockByHeight(ctx context.Context) (context.Context, error) {
-	panic("unimplemented")
-}
-
 // GetContractAddress implements chains.Chain.
 func (an *SuiRemotenet) GetContractAddress(key string) string {
 	if key == "connection" {
@@ -402,27 +324,10 @@ func (an *SuiRemotenet) GetGRPCAddress() string {
 	return an.testconfig.RPCUri
 }
 
-// GetGasFeesInNativeDenom implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).GetGasFeesInNativeDenom of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
-	panic("unimplemented")
-}
-
-// GetHostGRPCAddress implements chains.Chain.
-// Subtle: this method shadows the method (*CosmosChain).GetHostGRPCAddress of SuiRemotenet.CosmosChain.
-func (an *SuiRemotenet) GetHostGRPCAddress() string {
-	panic("unimplemented")
-}
-
 // GetHostRPCAddress implements chains.Chain.
 // Subtle: this method shadows the method (*CosmosChain).GetHostRPCAddress of SuiRemotenet.CosmosChain.
 func (an *SuiRemotenet) GetHostRPCAddress() string {
 	return an.testconfig.RPCUri
-}
-
-// GetLastBlock implements chains.Chain.
-func (an *SuiRemotenet) GetLastBlock(ctx context.Context) (context.Context, error) {
-	panic("unimplemented")
 }
 
 // GetRPCAddress implements chains.Chain.
@@ -584,15 +489,15 @@ func (an *SuiRemotenet) callContract(ctx context.Context, msg *SuiMessage) (*typ
 func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	if an.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		an.IBCAddresses["xcall"] = "0x0e314ebdf048db710a912608059d1d7547c137187daf82da2f90421ff7891916"
-		an.IBCAddresses[xcallAdmin] = "0xb3a96316522087300776f4834964a0c81f5dbd962ed9f078e7d2576d57217632"
-		an.IBCAddresses[xcallStorage] = "0x510e5055bee544563758db466dbcf867b6160d41b4f40ab418ba1bb3fefd3cdb"
-		an.IBCAddresses["connectionCap"] = "0xc0b9ec3196256269b1aca95ff50e640e905b55cbf39d96cbb2ff0417c8c4190f"
+		an.IBCAddresses["xcall"] = "0x024bb2ef51d49bace743297d18a7ce17ee0a39d541832826f9d1ed9516b31a95"
+		an.IBCAddresses[xcallAdmin] = "0xe1c8d2e988ffc4ba8080dce6e490192c63717d25899025d97eab99e8548d8862"
+		an.IBCAddresses[xcallStorage] = "0xbc74501f4a771b9126e67d4eec781c13dcc6c790d54af789e96f9264b1eed2d8"
+		an.IBCAddresses["connectionCap"] = "0xba6d692ff0e2ef4deb2676f24fda5bced79abac2026b4b1f70c51f3651da02d2"
 		dappKey := fmt.Sprintf("dapp-%s", testcase)
-		an.IBCAddresses[dappKey] = "0x67e275f897570b9f6d11a321811e1dd37f15dcdf29a4e73dddcc4ad0596f1247"
-		an.IBCAddresses[dappKey+WitnessSuffix] = "0x9070d1fd0e93536e05d6e7f437f1bd6161c236b7de41a8dac9f694c201e15856"
-		an.IBCAddresses[dappKey+StateSuffix] = "0x4b5f9fc46f3f8c681cbdef787b260fec3a7550160185dcd6ea9656b1dd4cc19c"
-		an.IBCAddresses[dappKey+IdCapSuffix] = "0x031cfd9e3ccf82ba772e0911155335b9d00bfa152f7e51aa8503c595cf1c6686"
+		an.IBCAddresses[dappKey] = "0x42c6f06edd37db92d68a6cd08713972fae7be8e7e358678400cb10d3657fa210"
+		an.IBCAddresses[dappKey+WitnessSuffix] = "0xa43e19bc8e56e236e4756e23ed011d1d65980b835778ac2d4f7c77d21ab0c2c9"
+		an.IBCAddresses[dappKey+StateSuffix] = "0xa28f7dda0671e405e0684867de55c9f3fdc7bdf50bba2e9d485ab2ad081d6a9a"
+		an.IBCAddresses[dappKey+IdCapSuffix] = "0x33c9150bca7c5f05b3e20ac7c82efdff0ceb4a73d7c7ed907067f4787b5534b1"
 		return nil
 	}
 	//deploy rlp
@@ -695,7 +600,7 @@ func (an *SuiRemotenet) Start(testName string, ctx context.Context, additionalGe
 
 // XCall implements chains.Chain.
 func (an *SuiRemotenet) XCall(ctx context.Context, targetChain chains.Chain, keyName string, _to string, data []byte, rollback []byte) (*chains.XCallResponse, error) {
-	height, err := targetChain.(ibcLocal.Chain).Height(ctx)
+	height, err := targetChain.Height(ctx)
 	if err != nil {
 		return nil, err
 	}
