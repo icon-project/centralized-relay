@@ -21,6 +21,7 @@ const (
 	MethodExecuteCall = "execute_call"
 
 	MethodQueryExecuteCallAccounts = "query_execute_call_accounts"
+	MethodQueryRecvMessageAccounts = "query_recv_message_accounts"
 
 	ChainType = "solana"
 
