@@ -31,26 +31,17 @@ func debugCmd(a *appState) *cobra.Command {
 		Short:   "Commands for troubleshooting the relayer",
 		Aliases: []string{"dbg"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s dbg [command]`, appName)),
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return state.closeSocket()
-		},
 	}
 
 	heightCmd := &cobra.Command{
 		Use:   "height",
 		Short: "Get latest height of the chain",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return state.closeSocket()
-		},
 	}
 	heightCmd.AddCommand(state.getLatestHeight(a))
 
 	blockCmd := &cobra.Command{
 		Use:   "block",
 		Short: "Get latest processed block of the chain",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return state.closeSocket()
-		},
 	}
 	blockCmd.AddCommand(state.getLatestProcessedBlock(a))
 
@@ -92,9 +83,6 @@ func (c *DebugState) getLatestHeight(app *appState) *cobra.Command {
 		Short:   "Get the latest chain height",
 		Aliases: []string{"g"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s dbg height get --chain [chain-id]`, appName)),
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return c.closeSocket()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := c.getSocket(app)
 			if err != nil {
@@ -106,7 +94,6 @@ func (c *DebugState) getLatestHeight(app *appState) *cobra.Command {
 			}
 			res, err := client.GetLatestHeight(c.chain)
 			if err != nil {
-				fmt.Println(err)
 				return err
 			}
 			printLabels("Chain", "Latest Chain Height")
@@ -125,9 +112,6 @@ func (c *DebugState) getLatestProcessedBlock(app *appState) *cobra.Command {
 		Short:   "Get the latest chain height",
 		Aliases: []string{"g"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s dbg block get --chain [chain-id]`, appName)),
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return c.closeSocket()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := c.getSocket(app)
 			if err != nil {
