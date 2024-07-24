@@ -370,8 +370,7 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 		},
 	}
 
-	//TODO fetch accounts
-	executeCalAccounts, err := p.fetchExecuteCallAccounts(*msg)
+	executeCalAccounts, err := p.fetchExecuteCallAccounts(msg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -399,15 +398,15 @@ func (p *Provider) fetchRecvMessageAccounts(
 
 	res, err := p.queryRecvMessageAccounts(msg, xcallSn, msgType, page, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query recv message accounts: %w", err)
 	}
 	accounts = append(accounts, res.Accounts...)
 
-	for res.Remaining != 0 {
+	for res.HasNextPage {
 		page++
 		res, err = p.queryRecvMessageAccounts(msg, xcallSn, msgType, page, limit)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to query recv message accounts: %w", err)
 		}
 		accounts = append(accounts, res.Accounts...)
 	}
@@ -476,11 +475,6 @@ func (p *Provider) queryRecvMessageAccounts(
 
 	accounts := solana.AccountMetaSlice{
 		&solana.AccountMeta{
-			PublicKey:  p.wallet.PublicKey(),
-			IsWritable: true,
-			IsSigner:   true,
-		},
-		&solana.AccountMeta{
 			PublicKey:  connConfigAddr,
 			IsWritable: false,
 			IsSigner:   false,
@@ -510,9 +504,15 @@ func (p *Provider) queryRecvMessageAccounts(
 		})
 	}
 
+	accounts = append(accounts, &solana.AccountMeta{
+		PublicKey:  p.xcallIdl.GetProgramID(),
+		IsWritable: false,
+		IsSigner:   false,
+	})
+
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
-			ProgID:        p.xcallIdl.GetProgramID(),
+			ProgID:        p.connIdl.GetProgramID(),
 			AccountValues: accounts,
 			DataBytes:     instructionData,
 		},
@@ -546,7 +546,7 @@ func (p *Provider) queryRecvMessageAccounts(
 	}
 
 	acRes := types.QueryAccountsResponse{}
-	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+	if err := parseReturnValueFromLogs(p.connIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
 		return nil, fmt.Errorf("failed to parse return value: %w", err)
 	}
 
@@ -564,7 +564,7 @@ func (p *Provider) fetchExecuteCallAccounts(msg *relayertypes.Message) (solana.A
 	}
 	accounts = append(accounts, res.Accounts...)
 
-	for res.Remaining != 0 {
+	for res.HasNextPage {
 		page++
 		res, err = p.queryExecuteCallAccounts(msg, page, limit)
 		if err != nil {
@@ -794,9 +794,9 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 			ProgID: p.xcallIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
 				&solana.AccountMeta{
-					PublicKey:  p.wallet.PublicKey(),
-					IsWritable: true,
-					IsSigner:   true,
+					PublicKey:  solana.SystemProgramID,
+					IsWritable: false,
+					IsSigner:   false,
 				},
 			},
 			DataBytes: instructionData,
@@ -805,7 +805,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 
 	signers := []solana.PrivateKey{p.wallet.PrivateKey}
 
-	tx, err := p.prepareTx(ctx, instructions, signers)
+	tx, err := p.prepareTx(ctx, instructions, signers, solana.TransactionPayer(p.wallet.PublicKey()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
@@ -814,6 +814,8 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
+
+	p.log.Info("Tx send successful", zap.String("tx-hash", txSign.String()))
 
 	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
 		return nil, fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)

@@ -60,6 +60,9 @@ type RollbackMessageEvent struct {
 }
 
 type QueryAccountsResponse struct {
-	Accounts  []solana.AccountMeta
-	Remaining uint32
+	Accounts      []solana.AccountMeta
+	TotalAccounts uint8
+	Limit         uint8
+	Page          uint8
+	HasNextPage   bool
 }
