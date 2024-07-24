@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  master:
+    build: .
+    container_name: master
+    environment:
+      - GO_ENV=master
+      - API_KEY=....
+      - SLAVE_PORT=8080
+    ports:
+      - "8080:8080"
+    networks:
+      - private
+
+  slave:
+    build: .
+    container_name: slave
+    environment:
+      - GO_ENV=slave
+      - API_KEY=....
+      - SLAVE_PORT=8081
+    ports:
+      - "8081:8081"
+    networks:
+      - private
+
+networks:
+  private:
+    driver: bridge
