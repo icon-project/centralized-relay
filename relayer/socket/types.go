@@ -37,6 +37,17 @@ type ReqRelayMessage struct {
 	Height uint64   `json:"height"`
 }
 
+type ReqRelayRangeMessage struct {
+	Chain      string `json:"chain"`
+	FromHeight uint64 `json:"from_height"`
+	ToHeight   uint64 `json:"to_height"`
+}
+
+type ResRelayRangeMessage struct {
+	Chain    string                `json:"chain"`
+	Messages []*types.RouteMessage `json:"messages"`
+}
+
 type ReqMessageRemove struct {
 	Chain string   `json:"chain"`
 	Sn    *big.Int `json:"sn"`
@@ -131,11 +142,6 @@ type ResChainHeight struct {
 
 type ReqProcessedBlock struct {
 	Chain string `json:"chain"`
-}
-
-type ReqSetProcessedBlock struct {
-	Chain  string `json:"chain"`
-	Height uint64 `json:"height"`
 }
 
 type ResProcessedBlock struct {

@@ -63,7 +63,6 @@ type Provider struct {
 	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
-	reloadChan          chan struct{}
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -98,17 +97,11 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		contracts:    p.eventMap(),
 		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
 		routerMutex:  new(sync.Mutex),
-		reloadChan:   make(chan struct{}, 1),
 	}, nil
 }
 
 func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
 	return p.GetLastSavedBlockHeight(), nil
-}
-
-func (p *Provider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
-	p.reloadChan <- struct{}{}
-	return nil
 }
 
 func (p *Provider) NID() string {

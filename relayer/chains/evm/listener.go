@@ -263,10 +263,6 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				resetCh <- err
 				return err
 			}
-		case <-p.reloadChan:
-			err := errors.New("config reloaded")
-			resetCh <- err
-			return err
 		}
 	}
 }

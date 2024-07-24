@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -100,12 +103,53 @@ func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, err
 }
 
 func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
-	return nil, fmt.Errorf("not implemented for icon")
-}
-
-func (p *Provider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
-	p.client.CloseAllMonitor()
-	return nil
+	var messages []*providerTypes.Message
+	eventReq := &types.EventRequest{
+		Height:           types.NewHexInt(int64(fromHeight)),
+		EventFilter:      p.GetMonitorEventFilters(),
+		Logs:             types.NewHexInt(1),
+		ProgressInterval: types.NewHexInt(25),
+	}
+	ctxMonitorBlock, cancelMonitorBlock := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelMonitorBlock()
+	err := p.client.MonitorEvent(ctxMonitorBlock, eventReq, nil, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			if v.Progress != "" {
+				height, err := v.Progress.Value()
+				if err != nil {
+					p.log.Error("failed to get progress height", zap.Error(err))
+					return err
+				}
+				if height > int64(toHeight) {
+					return nil
+				}
+				return nil
+			}
+			msgs, err := p.parseMessageEvent(v)
+			if err != nil {
+				p.log.Error("failed to parse message event", zap.Error(err))
+				return err
+			}
+			for _, msg := range msgs {
+				p.log.Info("Detected eventlog",
+					zap.Uint64("height", msg.MessageHeight),
+					zap.String("target_network", msg.Dst),
+					zap.Uint64("sn", msg.Sn.Uint64()),
+					zap.String("tx_hash", v.Hash.String()),
+					zap.String("event_type", msg.EventType),
+				)
+				messages = append(messages, msg)
+			}
+		}
+		return nil
+	}, func(conn *websocket.Conn, err error) {})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return messages, nil
+		}
+		return nil, err
+	}
+	return messages, nil
 }
 
 func (p *Provider) NID() string {

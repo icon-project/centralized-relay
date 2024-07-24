@@ -73,7 +73,6 @@ func (pc *Config) NewProvider(ctx context.Context, log *zap.Logger, homePath str
 		contracts:   contracts,
 		eventList:   pc.GetMonitorEventFilters(contracts),
 		routerMutex: new(sync.Mutex),
-		reloadChan:  make(chan struct{}, 1),
 	}, nil
 }
 

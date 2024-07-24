@@ -14,6 +14,7 @@ const (
 	EventGetBlock                Event = "GetBlock"
 	EventGetMessageList          Event = "GetMessageList"
 	EventRelayMessage            Event = "RelayMessage"
+	EventRelayRangeMessage       Event = "RelayRangeMessage"
 	EventMessageRemove           Event = "MessageRemove"
 	EventPruneDB                 Event = "PruneDB"
 	EventRevertMessage           Event = "RevertMessage"
@@ -23,8 +24,8 @@ const (
 	EventClaimFee                Event = "ClaimFee"
 	EventGetLatestHeight         Event = "GetLatestHeight"
 	EventGetLatestProcessedBlock Event = "GetLatestProcessedBlock"
-	EventSetLatestProcessedBlock Event = "SetLatestProcessedBlock"
 	EventGetBlockRange           Event = "GetBlockRange"
+	EventGetConfig               Event = "GetConfig"
 )
 
 var (
@@ -146,13 +147,12 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		return res, nil
 	case EventGetLatestProcessedBlock:
 		res := new(ResProcessedBlock)
-		fmt.Println("result", res)
 		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
 		return res, nil
-	case EventSetLatestProcessedBlock:
-		res := new(ResProcessedBlock)
+	case EventRelayRangeMessage:
+		res := new(ResRelayRangeMessage)
 		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
 			return nil, err
 		}
@@ -219,6 +219,22 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 	res, ok := data.(*ResRelayMessage)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+func (c *Client) RelayRangeMessage(chain string, fromHeight, toHeight uint64) (*ResRelayRangeMessage, error) {
+	req := &ReqRelayRangeMessage{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
+	if err := c.send(EventRelayRangeMessage, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResRelayRangeMessage)
+	if !ok {
+		return &ResRelayRangeMessage{}, nil
 	}
 	return res, nil
 }
@@ -344,22 +360,6 @@ func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
 func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, error) {
 	req := &ReqGetBlock{Chain: chain}
 	if err := c.send(EventGetLatestProcessedBlock, req); err != nil {
-		return nil, err
-	}
-	data, err := c.read()
-	if err != nil {
-		return nil, err
-	}
-	res, ok := data.(*ResProcessedBlock)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
-	}
-	return res, nil
-}
-
-func (c *Client) SetLatestHeight(chain string, height uint64) (*ResProcessedBlock, error) {
-	req := &ReqSetProcessedBlock{Chain: chain, Height: height}
-	if err := c.send(EventSetLatestProcessedBlock, req); err != nil {
 		return nil, err
 	}
 	data, err := c.read()

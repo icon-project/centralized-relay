@@ -51,7 +51,6 @@ type ChainProvider interface {
 	ClaimFee(context.Context) error
 
 	GetLastProcessedBlockHeight(ctx context.Context) (uint64, error)
-	SetLastProcessedBlockHeight(ctx context.Context, height uint64) error
 	QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error)
 }
 

@@ -210,10 +210,6 @@ func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64,
 	return 0, nil
 }
 
-func (p *MockProvider) SetLastProcessedBlockHeight(ctx context.Context, height uint64) error {
-	return nil
-}
-
 func (p *MockProvider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
 	return nil, nil
 }

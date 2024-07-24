@@ -259,9 +259,6 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
 	}
-	if src.LastBlockHeight > (src.LastSavedHeight + 50) {
-		r.SaveBlockHeight(ctx, src, src.LastBlockHeight)
-	}
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64) error {
