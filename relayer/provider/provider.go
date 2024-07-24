@@ -35,6 +35,7 @@ type ChainProvider interface {
 	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error)
 	SetLastSavedHeightFunc(func() uint64)
+	SaveHeightFunc(func(ht uint64) uint64)
 	MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error)
 	SetAdmin(context.Context, string) error
 
@@ -49,6 +50,8 @@ type ChainProvider interface {
 	GetFee(context.Context, string, bool) (uint64, error)
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
+	IsBackLogProcessing() bool
+	GetBatchSize() uint64
 }
 
 // CommonConfig is the common configuration for all chain providers

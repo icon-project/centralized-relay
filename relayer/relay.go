@@ -94,6 +94,12 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 		chainRuntime.Provider.SetLastSavedHeightFunc(func() uint64 {
 			return chainRuntime.LastSavedHeight
 		})
+		chainRuntime.Provider.SaveHeightFunc(func(height uint64) uint64 {
+			blockStore.StoreBlock(height, chainRuntime.Provider.NID())
+			chainRuntime.LastSavedHeight = height
+			chainRuntime.LastSavedHeight = height
+			return chainRuntime.LastSavedHeight
+		})
 	}
 
 	return &Relayer{
@@ -258,6 +264,12 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
 			r.log.Error("failed to store a message in db", zap.Error(err))
+		}
+	}
+	//Don;t save large block differences, it will be captured via periodic saving height function
+	if src.LastBlockHeight < (src.LastSavedHeight + src.Provider.GetBatchSize()) {
+		if err := r.SaveBlockHeight(ctx, src, src.LastBlockHeight); err != nil {
+			r.log.Error("failed to save block height", zap.Error(err))
 		}
 	}
 }
@@ -478,9 +490,11 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 			r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
 			continue
 		}
-		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
-			r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
-			continue
+		if !chain.Provider.IsBackLogProcessing() {
+			if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
+				r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
+				continue
+			}
 		}
 	}
 }

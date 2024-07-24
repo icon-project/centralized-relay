@@ -277,3 +277,15 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
 }
+
+func (p *Provider) SaveHeightFunc(f func(ht uint64) uint64) {
+
+}
+
+func (p *Provider) IsBackLogProcessing() bool {
+	return false
+}
+
+func (p *Provider) GetBatchSize() uint64 {
+	return 50
+}

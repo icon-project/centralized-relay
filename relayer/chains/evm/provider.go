@@ -49,6 +49,8 @@ type Config struct {
 	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
 	BlockBatchSize        uint64 `json:"block-batch-size" yaml:"block-batch-size"`
+	Redundancy            string `json:"redundancy-check" yaml:"redundancy-check"`
+	Fetch                 string `json:"fetch" yaml:"fetch"`
 }
 
 type Provider struct {
@@ -62,7 +64,9 @@ type Provider struct {
 	contracts           map[string]providerTypes.EventMap
 	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
+	saveHeightFunc      func(uint64) uint64
 	routerMutex         *sync.Mutex
+	backlogProcessing   bool
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -90,13 +94,14 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}
 
 	return &Provider{
-		cfg:          p,
-		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
-		client:       client,
-		blockReq:     p.GetMonitorEventFilters(),
-		contracts:    p.eventMap(),
-		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
-		routerMutex:  new(sync.Mutex),
+		cfg:               p,
+		log:               log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
+		client:            client,
+		blockReq:          p.GetMonitorEventFilters(),
+		contracts:         p.eventMap(),
+		NonceTracker:      types.NewNonceTracker(client.PendingNonceAt),
+		routerMutex:       new(sync.Mutex),
+		backlogProcessing: true,
 	}, nil
 }
 
@@ -478,4 +483,16 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) SaveHeightFunc(f func(ht uint64) uint64) {
+	p.saveHeightFunc = f
+}
+
+func (p *Provider) IsBackLogProcessing() bool {
+	return p.backlogProcessing
+}
+
+func (p *Provider) GetBatchSize() uint64 {
+	return p.cfg.BlockBatchSize
 }
