@@ -114,37 +114,34 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 	defer cancelMonitorBlock()
 	err := p.client.MonitorEvent(ctxMonitorBlock, eventReq, nil, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
 		if !errors.Is(ctx.Err(), context.Canceled) {
-			if v.Progress != "" {
-				height, err := v.Progress.Value()
-				if err != nil {
-					p.log.Error("failed to get progress height", zap.Error(err))
-					return err
-				}
-				if height > int64(toHeight) {
-					return nil
-				}
-				return nil
-			}
 			msgs, err := p.parseMessageEvent(v)
 			if err != nil {
 				p.log.Error("failed to parse message event", zap.Error(err))
 				return err
 			}
+			shouldBreak := false
 			for _, msg := range msgs {
-				p.log.Info("Detected eventlog",
-					zap.Uint64("height", msg.MessageHeight),
-					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn.Uint64()),
-					zap.String("tx_hash", v.Hash.String()),
-					zap.String("event_type", msg.EventType),
-				)
-				messages = append(messages, msg)
+				if msg.MessageHeight > toHeight {
+					shouldBreak = true
+				} else {
+					p.log.Info("Found eventlog",
+						zap.Uint64("height", msg.MessageHeight),
+						zap.String("target_network", msg.Dst),
+						zap.Uint64("sn", msg.Sn.Uint64()),
+						zap.String("tx_hash", v.Hash.String()),
+						zap.String("event_type", msg.EventType),
+					)
+					messages = append(messages, msg)
+				}
+			}
+			if shouldBreak {
+				cancelMonitorBlock()
 			}
 		}
 		return nil
 	}, func(conn *websocket.Conn, err error) {})
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return messages, nil
 		}
 		return nil, err

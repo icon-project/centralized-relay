@@ -318,19 +318,10 @@ func printLabels(labels ...any) {
 }
 
 func printValues(values ...any) {
-	padStr := `%-10s`
-	padInt := `%-10d`
+	padStr := `%-10v`
 	var valueCell string
-	for _, val := range values {
-		if _, ok := val.(string); ok {
-			valueCell += padStr + " "
-		} else if _, ok := val.(int); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint64); ok {
-			valueCell += padInt + " "
-		}
+	for range values {
+		valueCell += padStr + " "
 	}
 	valueCell += "\n"
 	fmt.Printf(valueCell, values...)

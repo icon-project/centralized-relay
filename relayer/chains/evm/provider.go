@@ -489,8 +489,8 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 	filter := ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromHeight),
 		ToBlock:   new(big.Int).SetUint64(toHeight),
-		// Addresses: p.blockReq.Addresses,
-		Topics: p.blockReq.Topics,
+		Addresses: p.blockReq.Addresses,
+		Topics:    p.blockReq.Topics,
 	}
 	p.log.Info("queryting", zap.Uint64("start", fromHeight), zap.Uint64("end", toHeight))
 	logs, _ := p.getLogsRetry(ctx, filter, 1)
@@ -500,7 +500,7 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 			p.log.Error("failed to get relay message from log", zap.Error(err))
 			continue
 		}
-		p.log.Info("Detected eventlog",
+		p.log.Info("Found eventlog",
 			zap.String("target_network", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
 			zap.String("event_type", message.EventType),
