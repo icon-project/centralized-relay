@@ -250,7 +250,7 @@ func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Ins
 	case relayerevents.CallMessage:
 		instructions, signers, err := p.getExecuteCallInstruction(msg)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("failed to get execute call instructions: %w", err)
 		}
 		return instructions, signers, nil, nil
 	default:
@@ -338,12 +338,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 }
 
 func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
-	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodExecuteCall)
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodExecuteCall)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	reqIdBytes, err := borsh.Serialize(msg.ReqID)
+	reqIdBytes, err := borsh.Serialize(*new(big.Int).SetUint64(msg.ReqID))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -370,11 +370,11 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 		},
 	}
 
-	executeCalAccounts, err := p.fetchExecuteCallAccounts(msg)
+	executeCallAccounts, err := p.fetchExecuteCallAccounts(msg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to fetch execute call accounts: %w", err)
 	}
-	accounts = append(accounts, executeCalAccounts...)
+	accounts = append(accounts, executeCallAccounts...)
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
@@ -586,12 +586,12 @@ func (p *Provider) queryExecuteCallAccounts(
 	page uint8,
 	limit uint8,
 ) (*types.QueryAccountsResponse, error) {
-	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodQueryExecuteCallAccounts)
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodQueryExecuteCallAccounts)
 	if err != nil {
 		return nil, err
 	}
 
-	reqIdBytes, err := borsh.Serialize(msg.ReqID)
+	reqIdBytes, err := borsh.Serialize(*new(big.Int).SetUint64(msg.ReqID))
 	if err != nil {
 		return nil, err
 	}
@@ -628,17 +628,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	xcallDefaultConnAddr, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(msg.Src))
-	if err != nil {
-		return nil, err
-	}
-
 	accounts := solana.AccountMetaSlice{
-		&solana.AccountMeta{
-			PublicKey:  p.wallet.PublicKey(),
-			IsWritable: true,
-			IsSigner:   true,
-		},
 		&solana.AccountMeta{
 			PublicKey:  xcallConfigAddr,
 			IsWritable: false,
@@ -649,17 +639,14 @@ func (p *Provider) queryExecuteCallAccounts(
 			IsWritable: false,
 			IsSigner:   false,
 		},
-		&solana.AccountMeta{
-			PublicKey:  xcallDefaultConnAddr,
-			IsWritable: false,
-			IsSigner:   false,
-		},
 	}
 
 	xcallProxyReqAcc := types.ProxyRequestAccount{}
 	if err := p.client.GetAccountInfo(context.Background(), xcallProxyReqAddr, &xcallProxyReqAcc); err != nil {
 		return nil, err
 	}
+
+	programIds := []solana.PublicKey{}
 
 	for _, connProgID := range xcallProxyReqAcc.ReqMessage.Protocols {
 		connPubKey, err := solana.PublicKeyFromBase58(connProgID)
@@ -673,9 +660,12 @@ func (p *Provider) queryExecuteCallAccounts(
 
 		accounts = append(accounts, &solana.AccountMeta{
 			PublicKey:  connConfigAddr,
-			IsWritable: false,
+			IsWritable: true,
 			IsSigner:   false,
 		})
+
+		programIds = append(programIds, connPubKey)
+
 	}
 
 	dappPubKey, err := solana.PublicKeyFromBase58(xcallProxyReqAcc.ReqMessage.To)
@@ -686,12 +676,21 @@ func (p *Provider) queryExecuteCallAccounts(
 	if err != nil {
 		return nil, err
 	}
+	programIds = append(programIds, dappPubKey)
 
 	accounts = append(accounts, &solana.AccountMeta{
 		PublicKey:  dappConfigAddr,
-		IsWritable: false,
+		IsWritable: true,
 		IsSigner:   false,
 	})
+
+	for _, progID := range programIds {
+		accounts = append(accounts, &solana.AccountMeta{
+			PublicKey:  progID,
+			IsWritable: false,
+			IsSigner:   false,
+		})
+	}
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
