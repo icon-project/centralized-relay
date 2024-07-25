@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"runtime"
 	"strings"
@@ -62,6 +61,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	if err != nil {
 		return err
 	}
+
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 	if p.cfg.Redundancy == WsRedundancy {
 		return p.listenWithWsRedundancy(ctx, startHeight, blockInfoChan)
@@ -77,6 +77,7 @@ func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint6
 		subscribeStart = time.NewTicker(time.Second * 1)
 		errChan        = make(chan types.ErrorMessageRpc)
 	)
+	var restartLists []string
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,12 +86,10 @@ func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint6
 		case pkt := <-internalChan:
 			cacheKey := GetBlockInfoKey(pkt)
 			if cache.Contains(cacheKey) {
-				fmt.Println("Sending packet.....")
+				cache.Remove(cacheKey)
 				blockInfoChan <- pkt
 			} else {
-				fmt.Println("Holding packet as it is not yet ")
 				cache.Add(cacheKey, nil)
-				fmt.Println(cache.Keys())
 			}
 		case err := <-errChan:
 			if p.isConnectionError(err.Error) {
@@ -109,71 +108,95 @@ func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint6
 						p.log.Info("client reconnected")
 						p.clients[index] = nclient
 					}
+					restartLists = append(restartLists, p.clients[index].GetRPCUrl())
 				}
+			} else {
+				index := -1
+				for lindex, lclient := range p.clients {
+					if lclient.GetRPCUrl() == err.RPCUrl {
+						index = lindex
+					}
+				}
+				restartLists = append(restartLists, p.clients[index].GetRPCUrl())
 			}
 			startHeight = p.GetLastSavedBlockHeight()
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
 			latestHeight := p.latestHeight(ctx)
+			restartIndex := -1
 			for _, client := range p.clients {
-				go p.Subscribe(ctx, client, internalChan, errChan, latestHeight)
+				if len(restartLists) == 0 {
+					go p.Subscribe(ctx, client, internalChan, errChan, latestHeight)
+				}
+				for idx, rpc := range restartLists {
+					if rpc == client.GetRPCUrl() {
+						restartIndex = idx
+						go p.Subscribe(ctx, client, internalChan, errChan, latestHeight)
+					}
+				}
 			}
-			concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
-			var blockReqs []*blockReq
-			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
-				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
-			}
-			totalReqs := len(blockReqs)
-			// Calculate the size of each chunk
-			chunkSize := (totalReqs + concurrency - 1) / concurrency
+			restartLists = restartLists[:0]
+			if restartIndex == 1 || len(restartLists) == 0 {
+				concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
+				var blockReqs []*blockReq
+				if startHeight == 0 {
+					startHeight = latestHeight
+				}
+				for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+					end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+					blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
+				}
+				totalReqs := len(blockReqs)
+				// Calculate the size of each chunk
+				chunkSize := (totalReqs + concurrency - 1) / concurrency
 
-			var wg sync.WaitGroup
+				var wg sync.WaitGroup
 
-			for i := 0; i < totalReqs; i += chunkSize {
-				wg.Add(1)
+				for i := 0; i < totalReqs; i += chunkSize {
+					wg.Add(1)
 
-				go func(blockReqsChunk []*blockReq, wg *sync.WaitGroup) {
-					defer wg.Done()
-					for _, br := range blockReqsChunk {
-						filter := ethereum.FilterQuery{
-							FromBlock: new(big.Int).SetUint64(br.start),
-							ToBlock:   new(big.Int).SetUint64(br.end),
-							Addresses: p.blockReq.Addresses,
-							Topics:    p.blockReq.Topics,
-						}
-						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-						logs, err := p.getLogsRetry(ctx, filter, br.retry)
-						if err != nil {
-							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-							continue
-						}
-						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-						for _, log := range logs {
-							message, err := p.getRelayMessageFromLog(log)
+					go func(blockReqsChunk []*blockReq, wg *sync.WaitGroup) {
+						defer wg.Done()
+						for _, br := range blockReqsChunk {
+							filter := ethereum.FilterQuery{
+								FromBlock: new(big.Int).SetUint64(br.start),
+								ToBlock:   new(big.Int).SetUint64(br.end),
+								Addresses: p.blockReq.Addresses,
+								Topics:    p.blockReq.Topics,
+							}
+							p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Any("host", p.GetClient().GetRPCUrl()))
+							logs, err := p.getLogsRetry(ctx, filter, br.retry)
 							if err != nil {
-								p.log.Error("failed to get relay message from log", zap.Error(err))
+								p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 								continue
 							}
-							p.log.Info("Detected eventlog",
-								zap.String("target_network", message.Dst),
-								zap.Uint64("sn", message.Sn.Uint64()),
-								zap.String("event_type", message.EventType),
-								zap.String("tx_hash", log.TxHash.String()),
-								zap.Uint64("block_number", log.BlockNumber),
-							)
-							blockInfoChan <- &relayertypes.BlockInfo{
-								Height:   log.BlockNumber,
-								Messages: []*relayertypes.Message{message},
+							p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+							for _, log := range logs {
+								message, err := p.getRelayMessageFromLog(log)
+								if err != nil {
+									p.log.Error("failed to get relay message from log", zap.Error(err))
+									continue
+								}
+								p.log.Info("Detected eventlog",
+									zap.String("target_network", message.Dst),
+									zap.Uint64("sn", message.Sn.Uint64()),
+									zap.String("event_type", message.EventType),
+									zap.String("tx_hash", log.TxHash.String()),
+									zap.Uint64("block_number", log.BlockNumber),
+								)
+								blockInfoChan <- &relayertypes.BlockInfo{
+									Height:   log.BlockNumber,
+									Messages: []*relayertypes.Message{message},
+								}
 							}
 						}
-					}
-				}(blockReqs[i:min(i+chunkSize, totalReqs)], &wg)
+					}(blockReqs[i:min(i+chunkSize, totalReqs)], &wg)
+				}
+				go func() {
+					wg.Wait()
+				}()
 			}
-			go func() {
-				wg.Wait()
-			}()
 			p.backlogProcessing = false
 		}
 	}
@@ -415,9 +438,11 @@ func (p *Provider) Subscribe(ctx context.Context, client IClient,
 	sub, err := client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
+		//TODO: required for some rpcs, review
+		// FromBlock: new(big.Int).SetUint64(latestHeight),
 	}, ch)
 	if err != nil {
-		p.log.Error("failed to subscribe", zap.Error(err))
+		p.log.Error("failed to subscribe", zap.Error(err), zap.Any("host", client.GetRPCUrl()))
 		resetCh <- types.ErrorMessageRpc{Error: err, RPCUrl: client.GetRPCUrl()}
 		return err
 	}
