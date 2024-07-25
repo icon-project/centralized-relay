@@ -16,12 +16,14 @@ const (
 
 	MethodDecodeCsMessage = "decode_cs_message"
 
-	MethodSendMessage = "send_message"
-	MethodRecvMessage = "recv_message"
-	MethodExecuteCall = "execute_call"
+	MethodSendMessage     = "send_message"
+	MethodRecvMessage     = "recv_message"
+	MethodExecuteCall     = "execute_call"
+	MethodExecuteRollback = "execute_rollback"
 
-	MethodQueryExecuteCallAccounts = "query_execute_call_accounts"
-	MethodQueryRecvMessageAccounts = "query_recv_message_accounts"
+	MethodQueryRecvMessageAccounts     = "query_recv_message_accounts"
+	MethodQueryExecuteCallAccounts     = "query_execute_call_accounts"
+	MethodQueryExecuteRollbackAccounts = "query_execute_rollback_accounts"
 
 	ChainType = "solana"
 

@@ -2,6 +2,8 @@ package types
 
 import (
 	"math/big"
+
+	"github.com/gagliardetto/solana-go"
 )
 
 type CsMessage struct {
@@ -50,4 +52,16 @@ const (
 type ProxyRequestAccount struct {
 	ReqMessage CsMessageRequestType
 	Bump       uint8
+}
+
+type XcallRollback struct {
+	From      solana.PublicKey
+	To        struct{ Address string }
+	Enabled   bool
+	Rollback  []byte
+	Protocols []string
+}
+type XcallRollbackAccount struct {
+	Rollback XcallRollback
+	Bump     uint8
 }
