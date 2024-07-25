@@ -58,6 +58,7 @@ type ChainProvider interface {
 type CommonConfig struct {
 	ChainName     string                  `json:"-" yaml:"-"`
 	RPCUrl        string                  `json:"rpc-url" yaml:"rpc-url"`
+	RPCUrls       []string                `json:"rpc-urls" yaml:"rpc-urls"`
 	StartHeight   uint64                  `json:"start-height" yaml:"start-height"`
 	Address       string                  `json:"address" yaml:"address"`
 	Contracts     types.ContractConfigMap `json:"contracts" yaml:"contracts"`

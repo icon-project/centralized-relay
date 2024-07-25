@@ -15,7 +15,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 
 	switch topic {
 	case EmitMessageHash:
-		msg, err := p.client.ParseConnectionMessage(log)
+		msg, err := p.GetClient().ParseConnectionMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
@@ -28,7 +28,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			Data:          msg.Msg,
 		}, nil
 	case CallMessageHash:
-		msg, err := p.client.ParseCallMessage(log)
+		msg, err := p.GetClient().ParseCallMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
@@ -42,7 +42,7 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 			ReqID:         msg.ReqId,
 		}, nil
 	case RollbackMessageHash:
-		msg, err := p.client.ParseRollbackMessage(log)
+		msg, err := p.GetClient().ParseRollbackMessage(log)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing message:%v ", err)
 		}
