@@ -69,14 +69,20 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return p.listenNormalWsNPoll(ctx, startHeight, blockInfoChan)
 	}
 }
+func getRequiredQuorum(size int) int {
+	return (size / 2) + 1
+}
 
 func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
-	cache := expirable.NewLRU[string, any](1000, nil, time.Hour*6)
+	cache := expirable.NewLRU[string, int](1000, nil, time.Hour*6)
 	internalChan := make(chan *relayertypes.BlockInfo)
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
 		errChan        = make(chan types.ErrorMessageRpc)
 	)
+	if len(p.clients) < 2 {
+		panic("for ws redendancy, there must be more than one ws url")
+	}
 	var restartLists []string
 	for {
 		select {
@@ -86,10 +92,15 @@ func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint6
 		case pkt := <-internalChan:
 			cacheKey := GetBlockInfoKey(pkt)
 			if cache.Contains(cacheKey) {
-				cache.Remove(cacheKey)
-				blockInfoChan <- pkt
+				if val, ok := cache.Get(cacheKey); ok {
+					if val >= getRequiredQuorum(len(p.clients)) {
+						cache.Remove(cacheKey)
+					} else {
+						cache.Add(cacheKey, val+1)
+					}
+				}
 			} else {
-				cache.Add(cacheKey, nil)
+				cache.Add(cacheKey, 1)
 			}
 		case err := <-errChan:
 			if p.isConnectionError(err.Error) {
