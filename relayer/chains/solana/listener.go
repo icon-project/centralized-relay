@@ -128,7 +128,9 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 			discriminator := eventLogBytes[:8]
 			eventBytes := eventLogBytes[8:]
 
-			for _, ev := range p.xcallIdl.Events {
+			allEvents := append(p.xcallIdl.Events, p.connIdl.Events...)
+
+			for _, ev := range allEvents {
 				if slices.Equal(ev.Discriminator, discriminator) {
 					switch ev.Name {
 					case types.EventSendMessage:
@@ -156,7 +158,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 							Sn:            cmEvent.Sn.Uint64(),
 							ReqID:         cmEvent.ReqId.Uint64(),
 							Src:           fromNID,
-							Dst:           cmEvent.To,
+							Dst:           p.NID(),
 							Data:          cmEvent.Data,
 							MessageHeight: solEvent.Slot,
 						})
