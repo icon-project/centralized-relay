@@ -306,9 +306,10 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 		}
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
+				zap.Uint64("sn", key.Sn),
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
-				zap.Uint64("sn", key.Sn),
+				zap.String("event_type", key.EventType),
 				zap.String("tx_hash", response.TxHash),
 			)
 
@@ -345,12 +346,12 @@ func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst 
 	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
-				zap.String("dst", dst.Provider.NID()),
-				zap.String("tx_hash", response.TxHash),
 				zap.Uint64("sn", key.Sn),
-				zap.String("event_type", msg.EventType),
+				zap.String("src", key.Src),
+				zap.String("dst", key.Dst),
 				zap.Uint64("request_id", msg.ReqID),
-				zap.Int64("height", response.Height),
+				zap.String("event_type", msg.EventType),
+				zap.String("tx_hash", response.TxHash),
 			)
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
