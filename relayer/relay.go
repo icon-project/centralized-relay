@@ -98,6 +98,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 			blockStore.StoreBlock(height, chainRuntime.Provider.NID())
 			chainRuntime.LastSavedHeight = height
 			chainRuntime.LastSavedHeight = height
+			log.Info("Saving height from chain ", zap.String("nid", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 			return chainRuntime.LastSavedHeight
 		})
 	}
@@ -485,12 +486,13 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	for nid, chain := range r.chains {
-		height, err := chain.Provider.QueryLatestHeight(ctx)
-		if err != nil {
-			r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
-			continue
-		}
 		if !chain.Provider.IsBackLogProcessing() {
+			height, err := chain.Provider.QueryLatestHeight(ctx)
+			if err != nil {
+				r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
+				continue
+			}
+
 			if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
 				r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
 				continue
