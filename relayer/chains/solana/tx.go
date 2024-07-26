@@ -32,8 +32,8 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	p.log.Info("starting to route message",
 		zap.String("src", message.Src),
 		zap.String("dst", message.Dst),
-		zap.Uint64("sn", message.Sn),
-		zap.Uint64("req-id", message.ReqID),
+		zap.Any("sn", message.Sn),
+		zap.Any("req-id", message.ReqID),
 		zap.String("event-type", message.EventType),
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
@@ -275,7 +275,7 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 		return nil, nil, err
 	}
 
-	connSnArg, err := borsh.Serialize(*new(big.Int).SetUint64(msg.Sn))
+	connSnArg, err := borsh.Serialize(*msg.Sn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -349,7 +349,7 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 		return nil, nil, err
 	}
 
-	reqIdBytes, err := borsh.Serialize(*new(big.Int).SetUint64(msg.ReqID))
+	reqIdBytes, err := borsh.Serialize(*msg.ReqID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -399,7 +399,7 @@ func (p *Provider) getExecuteRollbackInstruction(msg *relayertypes.Message) ([]s
 		return nil, nil, err
 	}
 
-	snBytes, err := borsh.Serialize(*new(big.Int).SetUint64(msg.Sn))
+	snBytes, err := borsh.Serialize(*msg.Sn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -480,7 +480,7 @@ func (p *Provider) queryRecvMessageAccounts(
 		return nil, err
 	}
 
-	connSnArg, err := borsh.Serialize(*new(big.Int).SetUint64(msg.Sn))
+	connSnArg, err := borsh.Serialize(*msg.Sn)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +635,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	reqIdBytes, err := borsh.Serialize(*new(big.Int).SetUint64(msg.ReqID))
+	reqIdBytes, err := borsh.Serialize(*msg.ReqID)
 	if err != nil {
 		return nil, err
 	}
@@ -666,8 +666,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	reqIdBigInt := new(big.Int).SetUint64(msg.ReqID)
-	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(reqIdBigInt.FillBytes(make([]byte, 16)))
+	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(msg.ReqID.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return nil, err
 	}
@@ -817,8 +816,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	snBigInt := new(big.Int).SetUint64(msg.Sn)
-	snBytes, err := borsh.Serialize(*snBigInt)
+	snBytes, err := borsh.Serialize(*msg.Sn)
 	if err != nil {
 		return nil, err
 	}
@@ -843,7 +841,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(snBigInt.FillBytes(make([]byte, 16)))
+	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(msg.Sn.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return nil, err
 	}
@@ -945,7 +943,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(new(big.Int).SetUint64(key.Sn).FillBytes(make([]byte, 16)))
+	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return false, err
 	}

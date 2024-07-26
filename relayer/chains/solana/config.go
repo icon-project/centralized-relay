@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Disabled  bool   `yaml:"disabled" json:"disabled"`
 	ChainName string `yaml:"-"`
 
 	RPCUrl  string `yaml:"rpc-url"`
@@ -73,4 +74,8 @@ func (pc *Config) GetWallet() string {
 func (pc *Config) Validate() error {
 	//Todo
 	return nil
+}
+
+func (pc *Config) Enabled() bool {
+	return !pc.Disabled
 }

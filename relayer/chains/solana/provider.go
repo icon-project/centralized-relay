@@ -87,8 +87,8 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 			p.log.Info("Detected event log: ",
 				zap.Uint64("height", msg.MessageHeight),
 				zap.String("event-type", msg.EventType),
-				zap.Uint64("sn", msg.Sn),
-				zap.Uint64("req-id", msg.ReqID),
+				zap.Any("sn", msg.Sn),
+				zap.Any("req-id", msg.ReqID),
 				zap.String("src", msg.Src),
 				zap.String("dst", msg.Dst),
 				zap.Any("data", hex.EncodeToString(msg.Data)),
@@ -306,7 +306,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	return fee.MessageFee, nil
 }
 
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return err
 	}
@@ -321,12 +321,12 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return err
 	}
 
-	msgFeeBytes, err := borsh.Serialize(msgFee)
+	msgFeeBytes, err := borsh.Serialize(*msgFee)
 	if err != nil {
 		return err
 	}
 
-	resFeeBytes, err := borsh.Serialize(resFee)
+	resFeeBytes, err := borsh.Serialize(*resFee)
 	if err != nil {
 		return err
 	}
@@ -479,4 +479,8 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
+}
+
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	//TODO
 }

@@ -94,8 +94,8 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 				p.log.Info("Detected event log: ",
 					zap.Uint64("height", msg.MessageHeight),
 					zap.String("event-type", msg.EventType),
-					zap.Uint64("sn", msg.Sn),
-					zap.Uint64("req-id", msg.ReqID),
+					zap.Any("sn", msg.Sn),
+					zap.Any("req-id", msg.ReqID),
 					zap.String("src", msg.Src),
 					zap.String("dst", msg.Dst),
 					zap.Any("data", hex.EncodeToString(msg.Data)),
@@ -140,7 +140,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						}
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.EmitMessage,
-							Sn:            smEvent.ConnSn.Uint64(),
+							Sn:            &smEvent.ConnSn,
 							Src:           p.NID(),
 							Dst:           smEvent.TargetNetwork,
 							Data:          smEvent.Msg,
@@ -155,8 +155,8 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						fromNID := strings.Split(cmEvent.FromNetworkAddress, "/")[0]
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.CallMessage,
-							Sn:            cmEvent.Sn.Uint64(),
-							ReqID:         cmEvent.ReqId.Uint64(),
+							Sn:            &cmEvent.Sn,
+							ReqID:         &cmEvent.ReqId,
 							Src:           fromNID,
 							Dst:           p.NID(),
 							Data:          cmEvent.Data,
@@ -170,7 +170,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						}
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.RollbackMessage,
-							Sn:            rmEvent.Sn.Uint64(),
+							Sn:            &rmEvent.Sn,
 							Src:           p.NID(),
 							Dst:           p.NID(),
 							MessageHeight: solEvent.Slot,
