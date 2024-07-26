@@ -202,6 +202,10 @@ func (hs HexBytes) Value() ([]byte, error) {
 	return hex.DecodeString(string(hs[2:]))
 }
 
+func (hs HexBytes) String() string {
+	return string(hs)
+}
+
 func NewHexBytes(b []byte) HexBytes {
 	return HexBytes("0x" + hex.EncodeToString(b))
 }
@@ -214,9 +218,14 @@ func (i HexInt) Value() (int64, error) {
 	return strconv.ParseInt(s, 16, 64)
 }
 
-func (i HexInt) Int() (int, error) {
+func (i HexInt) Int64() (int64, error) {
 	s := strings.TrimPrefix(string(i), "0x")
 	v, err := strconv.ParseInt(s, 16, 32)
+	return v, err
+}
+
+func (i HexInt) Int() (int, error) {
+	v, err := i.Int64()
 	return int(v), err
 }
 
@@ -260,6 +269,11 @@ func ParseBigInt(i *big.Int, s string) error {
 
 func NewHexInt(v int64) HexInt {
 	return HexInt("0x" + strconv.FormatInt(v, 16))
+}
+
+// NewHexString returns a HexInt from a string
+func NewHexString(s string) HexInt {
+	return HexInt("0x" + s)
 }
 
 // T_ADDR_EOA, T_ADDR_SCORE
@@ -323,6 +337,14 @@ type Block struct {
 	// Signature              HexBytes  `json:"signature" validate:"optional,t_hash"`
 }
 
+// NetworkInfo is the struct for network information
+type NetworkInfo struct {
+	Platform  string `json:"platform"`
+	NetworkID HexInt `json:"nid" validate:"required,t_int"`
+	Channel   string `json:"channel"`
+	Height    HexInt `json:"latest"`
+}
+
 type WsReadCallback func(*websocket.Conn, interface{}) error
 
 type SendMessage struct {
@@ -358,4 +380,8 @@ type SetFee struct {
 	NetworkID string `json:"networkId"`
 	MsgFee    HexInt `json:"messageFee"`
 	ResFee    HexInt `json:"responseFee"`
+}
+
+type ExecuteRollback struct {
+	Sn HexInt `json:"_sn"`
 }

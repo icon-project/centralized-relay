@@ -23,8 +23,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
-	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
-	return nil
+	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 }
 
 func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
@@ -32,16 +31,21 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 	case events.EmitMessage:
 		msg := &types.RecvMessage{
 			SrcNID: message.Src,
-			ConnSn: types.NewHexInt(int64(message.Sn)),
+			ConnSn: types.NewHexInt(message.Sn.Int64()),
 			Msg:    types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRecvMessage), nil
 	case events.CallMessage:
 		msg := &types.ExecuteCall{
-			ReqID: types.NewHexInt(int64(message.ReqID)),
+			ReqID: types.NewHexInt(message.ReqID.Int64()),
 			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
+	case events.RollbackMessage:
+		msg := &types.ExecuteRollback{
+			Sn: types.NewHexInt(message.Sn.Int64()),
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteRollback), nil
 	case events.SetAdmin:
 		msg := &types.SetAdmin{
 			Relayer: message.Src,
@@ -49,7 +53,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetAdmin), nil
 	case events.RevertMessage:
 		msg := &types.RevertMessage{
-			Sn: types.NewHexInt(int64(message.Sn)),
+			Sn: types.NewHexInt(message.Sn.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodRevertMessage), nil
 	case events.ClaimFee:
@@ -57,8 +61,8 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 	case events.SetFee:
 		msg := &types.SetFee{
 			NetworkID: message.Src,
-			MsgFee:    types.NewHexInt(int64(message.Sn)),
-			ResFee:    types.NewHexInt(int64(message.ReqID)),
+			MsgFee:    types.NewHexInt(message.Sn.Int64()),
+			ResFee:    types.NewHexInt(message.ReqID.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	}
@@ -75,7 +79,7 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 		Version:     types.NewHexInt(JsonrpcApiVersion),
 		FromAddress: types.NewAddress(wallet.Address().Bytes()),
 		ToAddress:   msg.Address,
-		NetworkID:   types.NewHexInt(p.cfg.NetworkID),
+		NetworkID:   p.NetworkID(),
 		DataType:    "call",
 		Data: types.CallData{
 			Method: msg.Method,
@@ -88,13 +92,10 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 		return nil, fmt.Errorf("failed estimating step: %w", err)
 	}
 
-	stepVal, err := step.Int()
+	steps, err := step.Int64()
 	if err != nil {
 		return nil, err
 	}
-	// increase step limit by step buffer
-
-	steps := int64(stepVal + stepVal*p.cfg.StepBuffer/100)
 
 	if steps > p.cfg.StepLimit {
 		return nil, fmt.Errorf("step limit is too high: %d", steps)
@@ -103,6 +104,8 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 	if steps < p.cfg.StepMin {
 		return nil, fmt.Errorf("step limit is too low: %d", steps)
 	}
+
+	steps += steps * p.cfg.StepAdjustment / 100
 
 	txParam.StepLimit = types.NewHexInt(steps)
 
@@ -124,10 +127,10 @@ func (p *Provider) WaitForTxResult(
 	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
-) {
+) error {
 	if callback == nil {
 		// no point to wait for result if callback is nil
-		return
+		return nil
 	}
 
 	txhash := types.NewHexBytes(txHash)
@@ -139,7 +142,7 @@ func (p *Provider) WaitForTxResult(
 	if err != nil {
 		p.log.Error("get txn result failed", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)
-		return
+		return err
 	}
 
 	height, err := txRes.BlockHeight.Value()
@@ -149,16 +152,16 @@ func (p *Provider) WaitForTxResult(
 	// assign tx successful height
 	res.Height = height
 
-	status, err := txRes.Status.Int()
-	if status != 1 {
+	if status, err := txRes.Status.Int(); status != 1 || err != nil {
 		err = fmt.Errorf("error: %s", err)
 		callback(messageKey, res, err)
 		p.LogFailedTx(method, txRes, err)
-		return
+		return err
 	}
 	res.Code = providerTypes.Success
 	callback(messageKey, res, nil)
 	p.LogSuccessTx(method, txRes)
+	return nil
 }
 
 func (p *Provider) LogSuccessTx(method string, result *types.TransactionResult) {

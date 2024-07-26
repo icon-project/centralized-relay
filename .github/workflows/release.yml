@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*" # run on semver tags
+      - "v*.*.*-*" # run on pre-release tags
 
 jobs:
   goreleaser:
