@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"runtime"
 	"strings"
@@ -22,7 +23,9 @@ const (
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 5
 	DefaultFinalityBlock       = 10
-	BlockSyncInterval          = 3 * time.Second
+	BaseRetryInterval          = 1 * time.Second
+	MaxRetryInterval           = 5 * time.Minute
+	MaxRetryCount              = 5
 )
 
 type BnOptions struct {
@@ -33,7 +36,6 @@ type BnOptions struct {
 type blockReq struct {
 	start, end uint64
 	err        error
-	retry      int
 }
 
 func (r *Provider) latestHeight(ctx context.Context) uint64 {
@@ -88,7 +90,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			var blockReqs []*blockReq
 			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
 				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
+				blockReqs = append(blockReqs, &blockReq{start, end, nil})
 			}
 
 			for _, br := range blockReqs {
@@ -99,13 +101,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 					Topics:    p.blockReq.Topics,
 				}
 				p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				logs, err := p.getLogsRetry(ctx, filter, br.retry)
+				logs, err := p.getLogsRetry(ctx, filter)
 				if err != nil {
 					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 					continue
 				}
 				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				time.Sleep(BlockSyncInterval)
 				for _, log := range logs {
 					message, err := p.getRelayMessageFromLog(log)
 					if err != nil {
@@ -129,16 +130,25 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	}
 }
 
-func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery, retry int) ([]ethTypes.Log, error) {
-	var logs []ethTypes.Log
-	var err error
-	for i := 0; i < retry; i++ {
+func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery) ([]ethTypes.Log, error) {
+	var (
+		logs     []ethTypes.Log
+		err      error
+		attempts = 0
+	)
+
+	for attempts < MaxRetryCount {
 		logs, err = p.client.FilterLogs(ctx, filter)
 		if err == nil {
 			return logs, nil
 		}
-		p.log.Error("failed to get logs", zap.Error(err), zap.Int("retry", i+1))
-		time.Sleep(time.Second * 30)
+		attempts++
+		delay := time.Duration(math.Pow(2, float64(attempts))) * BaseRetryInterval
+		if delay > MaxRetryInterval {
+			delay = MaxRetryInterval
+		}
+		p.log.Error("failed to get logs", zap.Error(err), zap.Int("attempts", attempts), zap.Duration("delay", delay), zap.Uint64("from", filter.FromBlock.Uint64()), zap.Uint64("to", filter.ToBlock.Uint64()))
+		time.Sleep(delay)
 	}
 	return nil, err
 }
