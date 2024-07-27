@@ -23,7 +23,7 @@ const (
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 5
 	DefaultFinalityBlock       = 10
-	BaseRetryInterval          = 1 * time.Second
+	BaseRetryInterval          = 3 * time.Second
 	MaxRetryInterval           = 5 * time.Minute
 	MaxRetryCount              = 5
 )
