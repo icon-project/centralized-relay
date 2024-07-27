@@ -147,7 +147,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		default:
 			if startHeight < latestHeight {
-				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
@@ -568,16 +568,13 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
 		messagesChan = make(chan *coreTypes.ResultTxSearch)
-		errorChan    = make(chan error, len(p.eventList))
-		sema         = make(chan struct{}, len(p.eventList))
+		errorChan    = make(chan error)
 	)
 
 	for _, event := range p.eventList {
 		wg.Add(1)
 		go func(event sdkTypes.Event) {
 			defer wg.Done()
-			sema <- struct{}{}
-			defer func() { <-sema }()
 
 			localSearchParam := searchParam
 			localSearchParam.Events = append(localSearchParam.Events, event)
@@ -585,13 +582,15 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 			localMessages := new(coreTypes.ResultTxSearch)
 			var err error
 			retryCount := 0
-			for retryCount < 3 {
+			for retryCount < types.RPCMaxRetryAttempts {
+				p.logger.Info("fetching block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight))
 				localMessages, err = p.client.TxSearch(ctx, localSearchParam)
 				if err == nil {
+					p.logger.Info("fetched block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight))
 					break
 				}
 				retryCount++
-				time.Sleep((time.Second * 3) * time.Duration(retryCount*retryCount))
+				time.Sleep(types.BaseRPCRetryDelay * time.Duration(retryCount*retryCount))
 			}
 
 			if err != nil {
@@ -601,9 +600,11 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 
 			if localMessages.TotalCount > perPage {
 				for i := 2; i <= int(localMessages.TotalCount/perPage)+1; i++ {
+					p.logger.Info("fetching block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Int("page", i))
 					localSearchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, localSearchParam)
 					if err != nil {
+						p.logger.Error("failed to fetch block messages with page", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Int("page", i), zap.Error(err))
 						errorChan <- err
 						return
 					}
@@ -733,9 +734,9 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 			for heightRange := range heightStream {
 				var (
 					attempts    int
-					maxAttempts = 5
-					baseDelay   = 3 * time.Second
-					maxDelay    = 60 * time.Second
+					maxAttempts = types.RPCMaxRetryAttempts
+					baseDelay   = types.BaseRPCRetryDelay
+					maxDelay    = types.MaxRPCRetryDelay
 				)
 				for {
 					blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
@@ -743,17 +744,18 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 						for _, block := range blockInfo {
 							blockInfoChan <- block
 						}
+						break
 					}
 					attempts++
 					if attempts >= maxAttempts {
 						p.logger.Error("fetchBlockMessages failed", zap.Int("attempt", attempts), zap.Error(err))
-						continue
+						break
 					}
 					delay := time.Duration(math.Pow(2, float64(attempts))) * baseDelay
 					if delay > maxDelay {
 						delay = maxDelay
 					}
-					p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Int("attempt", attempts), zap.Duration("retrying_in", delay), zap.Error(err))
+					p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Int("attempt", attempts), zap.Duration("retrying_in", delay), zap.Uint64("start_height", heightRange.Start), zap.Uint64("end_height", heightRange.End), zap.Error(err))
 					time.Sleep(delay)
 				}
 			}
