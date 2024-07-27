@@ -19,7 +19,7 @@ var (
 	SupportedAlgorithmsLedger = keyring.SigningAlgoList{hd.Secp256k1, injective.EthSecp256k1}
 
 	// Default parameters for RPC
-	RPCMaxRetryAttempts = 5
-	BaseRPCRetryDelay   = 3 * time.Second
-	MaxRPCRetryDelay    = 60 * time.Second
+	RPCMaxRetryAttempts uint8 = 5
+	BaseRPCRetryDelay         = 3 * time.Second
+	MaxRPCRetryDelay          = 5 * time.Minute
 )
