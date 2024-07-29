@@ -6,6 +6,7 @@ import (
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -32,21 +33,7 @@ const (
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
-type Event struct {
-	Type       string      `json:"type"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-type Attribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type EventsList struct {
-	Events []Event `json:"events"`
-}
-
-func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.Message, error) {
+func (p *Provider) ParseMessageFromEvents(eventsList []types.Event) ([]*relayerTypes.Message, error) {
 	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {

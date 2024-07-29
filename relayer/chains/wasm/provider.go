@@ -344,7 +344,7 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
 			}
 
-			txRes := new(types.TxResultWaitResponse)
+			txRes := new(types.TxResultResponse)
 			if err := jsoniter.Unmarshal(eventDataJSON, txRes); err != nil {
 				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
 			}
@@ -609,7 +609,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
 	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
-		var eventsList []*EventsList
+		var eventsList []*types.EventsList
 		if err := jsoniter.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
 			return nil, err
 		}
@@ -736,28 +736,19 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Error("failed to marshal event data", zap.Error(err))
 				continue
 			}
-			var res types.TxResultWaitResponse
+			var res types.TxResultResponse
 			if err := jsoniter.Unmarshal(eventDataJSON, &res); err != nil {
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
-			eventsList := []struct {
-				Events []Event `json:"events"`
-			}{}
-			if err := jsoniter.Unmarshal([]byte(res.Result.Log), &eventsList); err != nil {
-				p.logger.Error("failed to unmarshal event list", zap.Error(err))
+
+			var messages []*relayTypes.Message
+			msgs, err := p.ParseMessageFromEvents(res.Result.Events)
+			if err != nil {
+				p.logger.Error("failed to parse message from events", zap.Error(err))
 				continue
 			}
-			var messages []*relayTypes.Message
-			for _, event := range eventsList {
-				msgs, err := p.ParseMessageFromEvents(event.Events)
-				if err != nil {
-					p.logger.Error("failed to parse message from events", zap.Error(err))
-					continue
-				}
-				messages = append(messages, msgs...)
-			}
-
+			messages = append(messages, msgs...)
 			blockInfo := &relayTypes.BlockInfo{
 				Height:   uint64(res.Height),
 				Messages: messages,
