@@ -1,0 +1,40 @@
+name: E2E Runner
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       xcall-version:
+#         description: 'Version for xcall artifact'
+#         required: false
+#         default: '2.1.0'
+#       ibc-contract-version:
+#         description: 'Version for ibc-contract artifact'
+#         required: false
+#         default: '1.1.0'
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  download_and_run_e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download release artifacts
+        run: |
+          mkdir -p artifacts
+          
+          # Install dependencies
+          python -m pip install requests
+
+          python scripts/get_release_artifact.py xcall-multi 2.1.0
+          python scripts/get_release_artifact.py ibc-contract 1.1.0
+
+      - name: Run E2E tests
+        run: |
+          cd artifacts
+          echo "Triggering e2e..."
