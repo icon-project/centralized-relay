@@ -38,7 +38,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
-	instructions, signers, err := p.MakeCallInstructions(message)
+	instructions, signers, err := p.makeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
@@ -144,7 +144,7 @@ func (p *Provider) executeRouteCallback(
 	}
 }
 
-func (p *Provider) CreateLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
+func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
 	recentSlot, err := p.client.GetLatestBlockHeight(ctx)
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func (p *Provider) CreateLookupTableAccount(ctx context.Context) (*solana.Public
 	return &accountAddr, nil
 }
 
-func (p *Provider) ExtendLookupTableAccount(ctx context.Context, acTableAddr solana.PublicKey, addresses solana.PublicKeySlice) error {
+func (p *Provider) extendLookupTableAccount(ctx context.Context, acTableAddr solana.PublicKey, addresses solana.PublicKeySlice) error {
 	payer := p.wallet.PublicKey()
 	altExtendInstruction := alt.ExtendLookupTable(
 		acTableAddr,
@@ -217,7 +217,7 @@ func (p *Provider) ExtendLookupTableAccount(ctx context.Context, acTableAddr sol
 	return nil
 }
 
-func (p *Provider) GetLookupTableAccount(accountID solana.PublicKey) (*alt.LookupTableAccount, error) {
+func (p *Provider) getLookupTableAccount(accountID solana.PublicKey) (*alt.LookupTableAccount, error) {
 	acInfo, err := p.client.GetAccountInfoRaw(context.Background(), accountID)
 	if err != nil {
 		return nil, err
@@ -292,7 +292,7 @@ func (p *Provider) initStaticAlts() error {
 	if err != nil {
 		return err
 	}
-	altAc, err := p.GetLookupTableAccount(altPubKey)
+	altAc, err := p.getLookupTableAccount(altPubKey)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func (p *Provider) initStaticAlts() error {
 	}
 
 	if len(addressesToExtend) > 0 {
-		if err := p.ExtendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
+		if err := p.extendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
 			return err
 		}
 	}
@@ -315,7 +315,7 @@ func (p *Provider) initStaticAlts() error {
 	return nil
 }
 
-func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
+func (p *Provider) makeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage:
 		instructions, signers, err := p.getRecvMessageIntruction(msg)
