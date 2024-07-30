@@ -6,7 +6,16 @@ import (
 	"github.com/gagliardetto/solana-go"
 )
 
-const ()
+const (
+	PrefixConfig       = "config"
+	PrefixRollback     = "rollback"
+	PrefixProxyRequest = "proxy"
+	PrefixPendingReq   = "req"
+	PrefixPendingRes   = "res"
+	PrefixNetworkFee   = "fee"
+	PrefixClaimFees    = "claim_fees"
+	PrefixReceipt      = "receipt"
+)
 
 type PDA struct {
 	SeedPrefix string
@@ -59,16 +68,16 @@ type PDARegistry struct {
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
 	return &PDARegistry{
-		XcallConfig:          PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
-		XcallRollback:        PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
-		XcallProxyRequest:    PDA{SeedPrefix: "proxy", ProgramID: xcallProgramID, IsTemp: true},
-		XcallPendingRequest:  PDA{SeedPrefix: "req", ProgramID: xcallProgramID, IsTemp: true},
-		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID, IsTemp: true},
+		XcallConfig:          PDA{SeedPrefix: PrefixConfig, ProgramID: xcallProgramID},
+		XcallRollback:        PDA{SeedPrefix: PrefixRollback, ProgramID: xcallProgramID},
+		XcallProxyRequest:    PDA{SeedPrefix: PrefixProxyRequest, ProgramID: xcallProgramID, IsTemp: true},
+		XcallPendingRequest:  PDA{SeedPrefix: PrefixPendingReq, ProgramID: xcallProgramID, IsTemp: true},
+		XcallPendingResponse: PDA{SeedPrefix: PrefixPendingRes, ProgramID: xcallProgramID, IsTemp: true},
 
-		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
-		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
-		ConnClaimFees:  PDA{SeedPrefix: "claim_fees", ProgramID: connProgramID},
-		ConnReceipt:    PDA{SeedPrefix: "receipt", ProgramID: connProgramID, IsTemp: true},
+		ConnConfig:     PDA{SeedPrefix: PrefixConfig, ProgramID: connProgramID},
+		ConnNetworkFee: PDA{SeedPrefix: PrefixNetworkFee, ProgramID: connProgramID},
+		ConnClaimFees:  PDA{SeedPrefix: PrefixClaimFees, ProgramID: connProgramID},
+		ConnReceipt:    PDA{SeedPrefix: PrefixReceipt, ProgramID: connProgramID, IsTemp: true},
 	}
 }
 

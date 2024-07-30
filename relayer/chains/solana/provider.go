@@ -29,6 +29,7 @@ type Provider struct {
 	connIdl  *IDL
 
 	pdaRegistry *types.PDARegistry
+	staticAlts  types.AddressTables
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -201,7 +202,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	instructionData := append(discriminator, dstNetIDBytes...)
 	instructionData = append(instructionData, snBytes...)
 
-	connConfigAdr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	connConfigAdr, err := p.pdaRegistry.ConnConfig.GetAddress()
 	if err != nil {
 		return err
 	}
@@ -213,13 +214,18 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 			IsWritable: true,
 		},
 		&solana.AccountMeta{
+			PublicKey: solana.SystemProgramID,
+		},
+		&solana.AccountMeta{
 			PublicKey:  connConfigAdr,
 			IsWritable: true,
 		},
-		&solana.AccountMeta{
-			PublicKey: solana.SystemProgramID,
-		},
 	}
+
+	// xcallConfigAdr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	// if err != nil {
+	// 	return err
+	// }
 
 	if len(rollbackAc.Rollback.Protocols) > 0 {
 		msgBytes := []byte{195}

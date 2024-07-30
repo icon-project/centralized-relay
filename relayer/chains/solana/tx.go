@@ -43,14 +43,14 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
-	addressTables, err := p.prepareAddressTablesForInstructions(instructions)
-	if err != nil {
-		return fmt.Errorf("failed to prepare address lookup tables for instructions: %w", err)
-	}
+	// addressTables, err := p.prepareAddressTablesForInstructions(instructions)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to prepare address lookup tables for instructions: %w", err)
+	// }
 
 	opts := []solana.TransactionOption{
 		solana.TransactionPayer(p.wallet.PublicKey()),
-		solana.TransactionAddressTables(addressTables),
+		solana.TransactionAddressTables(p.staticAlts),
 	}
 
 	tx, err := p.prepareTx(ctx, instructions, signers, opts...)
@@ -80,19 +80,37 @@ func (p *Provider) prepareAddressTablesForInstructions(ins []solana.Instruction)
 
 	addressesToExtend := solana.PublicKeySlice{}
 
+	txnAddresses := solana.PublicKeySlice{}
+
 	for _, in := range ins {
 		for _, ac := range in.Accounts() {
-			if !altAc.Addresses.Contains(ac.PublicKey) {
-				addressesToExtend = append(addressesToExtend, ac.PublicKey)
+			if !txnAddresses.Contains(ac.PublicKey) {
+				txnAddresses = append(txnAddresses, ac.PublicKey)
+				if !altAc.Addresses.Contains(ac.PublicKey) {
+					addressesToExtend = append(addressesToExtend, ac.PublicKey)
+				}
 			}
 		}
+	}
+
+	totalAddresses := len(altAc.Addresses) + len(addressesToExtend)
+	if totalAddresses > 256 {
+		newAlt, err := p.CreateLookupTableAccount(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new lookup table account: %w", err)
+		}
+		if err := p.ExtendLookupTableAccount(context.Background(), *newAlt, txnAddresses); err != nil {
+			return nil, fmt.Errorf("failed to extend new lookup table account: %w", err)
+		}
+		return types.AddressTables{*newAlt: txnAddresses}, nil
+		//TODO deactivate the old lookup table account
 	}
 
 	if err := p.ExtendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	return types.AddressTables{altPubKey: append(altAc.Addresses, addressesToExtend...)}, nil
 }
 
 func (p *Provider) prepareTx(
@@ -269,6 +287,82 @@ func (p *Provider) GetLookupTableAccount(accountID solana.PublicKey) (*alt.Looku
 	}
 
 	return account, nil
+}
+
+func (p *Provider) initStaticAlts() error {
+	xcallProgID, err := solana.PublicKeyFromBase58(p.cfg.XcallProgram)
+	if err != nil {
+		return err
+	}
+
+	addresses := solana.PublicKeySlice{solana.SystemProgramID, xcallProgID}
+
+	connections := append([]string{p.cfg.ConnectionProgram}, p.cfg.OtherConnections...)
+	for _, conn := range connections {
+		connProgID, err := solana.PublicKeyFromBase58(conn)
+		if err != nil {
+			return err
+		}
+
+		connConfigAddr, err := types.GetPDA(connProgID, types.PrefixConfig)
+		if err != nil {
+			return err
+		}
+
+		connClaimFeeAddr, err := types.GetPDA(connProgID, types.PrefixClaimFees)
+		if err != nil {
+			return err
+		}
+
+		nidFees := solana.PublicKeySlice{}
+		for _, net := range p.cfg.CpNIDs {
+			netFeeAddr, err := types.GetPDA(connProgID, types.PrefixNetworkFee, []byte(net))
+			if err != nil {
+				return err
+			}
+			nidFees = append(nidFees, netFeeAddr)
+		}
+
+		addresses = append(addresses, solana.PublicKeySlice{
+			connProgID, connConfigAddr, connClaimFeeAddr,
+		}...)
+		addresses = append(addresses, nidFees...)
+	}
+
+	xcallConfigAddr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	addresses = append(addresses, solana.PublicKeySlice{
+		xcallConfigAddr,
+	}...)
+
+	altPubKey, err := solana.PublicKeyFromBase58(p.cfg.AltAddress)
+	if err != nil {
+		return err
+	}
+	altAc, err := p.GetLookupTableAccount(altPubKey)
+	if err != nil {
+		return err
+	}
+
+	addressesToExtend := solana.PublicKeySlice{}
+	for _, addr := range addresses {
+		if !altAc.Addresses.Contains(addr) {
+			addressesToExtend = append(addressesToExtend, addr)
+		}
+	}
+
+	if len(addressesToExtend) > 0 {
+		if err := p.ExtendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
+			return err
+		}
+	}
+
+	p.staticAlts[altPubKey] = append(altAc.Addresses, addressesToExtend...)
+
+	return nil
 }
 
 func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
@@ -1045,7 +1139,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 	}
 
 	for _, log := range txnres.Meta.LogMessages {
-		xcallReturnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, p.cfg.XcallProgramID)
+		xcallReturnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, p.cfg.XcallProgram)
 		if strings.HasPrefix(log, xcallReturnPrefix) {
 			returnLog := strings.Replace(log, xcallReturnPrefix, "", 1)
 			returnLogBytes, err := base64.StdEncoding.DecodeString(returnLog)
