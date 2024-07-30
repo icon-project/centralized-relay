@@ -7,3 +7,6 @@ artifacts
 vendor
 .DS_Store
 .*env
+
+/go.work
+/go.work.sum
