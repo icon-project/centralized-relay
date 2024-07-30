@@ -72,9 +72,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								p.log.Error("failed to get progress height", zap.Error(err))
 								return err
 							}
-							if height > 0 {
-								eventReq.Height = v.Progress
-							}
 							p.SetLastProcessedHeight(height)
 							return nil
 						}
@@ -103,7 +100,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
+					eventReq.Height = types.NewHexInt(int64(p.GetCheckpoint()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))

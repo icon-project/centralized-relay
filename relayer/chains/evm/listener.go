@@ -74,7 +74,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 					p.client = client
 				}
 			}
-			startHeight = p.GetLastSavedBlockHeight()
+			startHeight = p.GetCheckpoint()
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()

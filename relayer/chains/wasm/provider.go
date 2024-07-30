@@ -139,7 +139,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()
-			startHeight = p.GetLastSavedHeight()
+			startHeight = p.GetCheckpoint()
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
