@@ -68,51 +68,6 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	return nil
 }
 
-func (p *Provider) prepareAddressTablesForInstructions(ins []solana.Instruction) (types.AddressTables, error) {
-	altPubKey, err := solana.PublicKeyFromBase58(p.cfg.AltAddress)
-	if err != nil {
-		return nil, err
-	}
-	altAc, err := p.GetLookupTableAccount(altPubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	addressesToExtend := solana.PublicKeySlice{}
-
-	txnAddresses := solana.PublicKeySlice{}
-
-	for _, in := range ins {
-		for _, ac := range in.Accounts() {
-			if !txnAddresses.Contains(ac.PublicKey) {
-				txnAddresses = append(txnAddresses, ac.PublicKey)
-				if !altAc.Addresses.Contains(ac.PublicKey) {
-					addressesToExtend = append(addressesToExtend, ac.PublicKey)
-				}
-			}
-		}
-	}
-
-	totalAddresses := len(altAc.Addresses) + len(addressesToExtend)
-	if totalAddresses > 256 {
-		newAlt, err := p.CreateLookupTableAccount(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new lookup table account: %w", err)
-		}
-		if err := p.ExtendLookupTableAccount(context.Background(), *newAlt, txnAddresses); err != nil {
-			return nil, fmt.Errorf("failed to extend new lookup table account: %w", err)
-		}
-		return types.AddressTables{*newAlt: txnAddresses}, nil
-		//TODO deactivate the old lookup table account
-	}
-
-	if err := p.ExtendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
-		return nil, err
-	}
-
-	return types.AddressTables{altPubKey: append(altAc.Addresses, addressesToExtend...)}, nil
-}
-
 func (p *Provider) prepareTx(
 	ctx context.Context,
 	instructions []solana.Instruction,
