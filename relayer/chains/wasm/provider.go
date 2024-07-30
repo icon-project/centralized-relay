@@ -515,11 +515,11 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	heightChan := make(chan *types.HeightRange)
 	go func(fromHeight, toHeight uint64, heightChan chan *types.HeightRange) {
 		defer close(heightChan)
-		for fromHeight < toHeight {
+		for fromHeight <= toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize}:
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize - 1}:
 				fromHeight += p.cfg.BlockBatchSize
 			}
 		}

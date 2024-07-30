@@ -19,13 +19,20 @@ type TxSearchParam struct {
 }
 
 func (param *TxSearchParam) BuildQuery() string {
-	startHeight := &Query{
-		Field: "tx.height", Value: param.StartHeight,
-		Operator: QueryOperator.Gte,
-	}
-	endHeight := &Query{
-		Field: "tx.height", Value: param.EndHeight,
-		Operator: QueryOperator.Lte,
+	var queries []QueryExpression
+
+	if param.EndHeight-param.StartHeight == 0 { // if diff is 0, then it is a single height
+		queries = append(queries, &Query{Field: "tx.height", Value: param.StartHeight, Operator: QueryOperator.Eq})
+	} else {
+		startHeight := &Query{
+			Field: "tx.height", Value: param.StartHeight,
+			Operator: QueryOperator.Gte,
+		}
+		endHeight := &Query{
+			Field: "tx.height", Value: param.EndHeight,
+			Operator: QueryOperator.Lte,
+		}
+		queries = append(queries, startHeight, endHeight)
 	}
 
 	var attribQueries []QueryExpression
@@ -41,7 +48,7 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	finalQuery := &CompositeQuery{
 		Or:      false,
-		Queries: []QueryExpression{startHeight, endHeight, eventQuery},
+		Queries: append(queries, eventQuery),
 	}
 
 	return finalQuery.GetQuery()
