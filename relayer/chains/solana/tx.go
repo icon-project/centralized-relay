@@ -43,11 +43,6 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
-	// addressTables, err := p.prepareAddressTablesForInstructions(instructions)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to prepare address lookup tables for instructions: %w", err)
-	// }
-
 	opts := []solana.TransactionOption{
 		solana.TransactionPayer(p.wallet.PublicKey()),
 		solana.TransactionAddressTables(p.staticAlts),
