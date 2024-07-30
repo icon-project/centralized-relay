@@ -155,12 +155,15 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
 	routeTimer := time.NewTicker(types.RouteDuration)
-	flushTimer := time.NewTicker(flushInterval)
-	heightTimer := time.NewTicker(HeightSaveInterval)
-	cleanMessageTimer := time.NewTicker(DeleteExpiredInterval)
+	flushTimer := time.NewTicker(1 * time.Second)
+	heightTimer := time.NewTicker(1 * time.Second)
+	cleanMessageTimer := time.NewTicker(1 * time.Second)
+	resetTimer := time.NewTicker(3 * time.Second)
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-flushTimer.C:
 			// flushMessage gets all the message from DB
 			go r.flushMessages(ctx)
@@ -171,6 +174,11 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
 			go r.cleanExpiredMessages(ctx)
+		case <-resetTimer.C:
+			resetTimer.Stop()
+			flushTimer.Reset(flushInterval)
+			heightTimer.Reset(HeightSaveInterval)
+			cleanMessageTimer.Reset(DeleteExpiredInterval)
 		}
 	}
 }
@@ -473,11 +481,7 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	for nid, chain := range r.chains {
-		height, err := chain.Provider.QueryLatestHeight(ctx)
-		if err != nil {
-			r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
-			continue
-		}
+		height := chain.Provider.GetCheckpoint()
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
 			r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
 			continue
