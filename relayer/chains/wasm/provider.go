@@ -812,11 +812,14 @@ func (p *Provider) GetCheckpoint() uint64 {
 	if p.LastProcessedHeight > lastSavedHeight {
 		return p.LastProcessedHeight
 	}
+	if lastSavedHeight != 0 {
+		return lastSavedHeight
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
-		return lastSavedHeight
+		return lastSavedHeight // TODO: return error ?
 	}
 	return latestHeight
 }
