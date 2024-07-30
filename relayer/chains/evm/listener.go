@@ -130,6 +130,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 								Height:   log.BlockNumber,
 								Messages: []*relayertypes.Message{message},
 							}
+							p.SetLastProcessedHeight(log.BlockNumber)
 						}
 					}
 				}(blockReqs[i:min(i+chunkSize, totalReqs)], &wg)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -76,4 +77,21 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	}
 
 	return finalizedReceipt, nil
+}
+
+// GetCheckpoint returns the last processed height
+// Get the last processed height if polling is processing
+// get latest height if polling is not processing
+func (p *Provider) GetCheckpoint() uint64 {
+	lastSavedHeight := p.GetLastSavedBlockHeight()
+	if p.LastProcessedHeight > lastSavedHeight {
+		return p.LastProcessedHeight
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	latestHeight, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return lastSavedHeight
+	}
+	return latestHeight
 }
