@@ -116,7 +116,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	resetFunc := func() {
 		subscribeStarter.Reset(time.Second * 3)
-		pollHeightTicker.Reset(time.Second * 3)
+		pollHeightTicker.Reset(time.Second * 2)
 	}
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
@@ -146,9 +146,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
-				pollHeightTicker.Reset(time.Second * 3)
-			}
-		}
+				pollHeightTicker.Reset(time.Second * 2)
+			}		
 	}
 }
 
