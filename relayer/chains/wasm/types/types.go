@@ -21,7 +21,7 @@ type TxSearchParam struct {
 func (param *TxSearchParam) BuildQuery() string {
 	var queries []QueryExpression
 
-	if param.EndHeight-param.StartHeight < 1 { // if the difference is less than 1, it means only one block
+	if param.EndHeight-param.StartHeight == 0 { // if diff is 0, then it is a single height
 		queries = append(queries, &Query{Field: "tx.height", Value: param.StartHeight, Operator: QueryOperator.Eq})
 	} else {
 		startHeight := &Query{
