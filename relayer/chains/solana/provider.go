@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gagliardetto/solana-go"
+	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -33,7 +34,7 @@ type Provider struct {
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return p.client.GetLatestBlockHeight(ctx)
+	return p.client.GetLatestBlockHeight(ctx, solrpc.CommitmentFinalized)
 }
 
 func (p *Provider) NID() string {
@@ -46,6 +47,13 @@ func (p *Provider) Name() string {
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	if err := p.initStaticAlts(); err != nil {
+		return fmt.Errorf("failed to init static address lookup tables: %w", err)
+	}
 	return nil
 }
 
@@ -102,10 +110,6 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of solana connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return err
-	}
-
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetAdmin)
 	if err != nil {
 		return err
@@ -170,10 +174,6 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return err
-	}
-
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRevertMessage)
 	if err != nil {
 		return err
@@ -306,10 +306,6 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return err
-	}
-
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodSetFee)
 	if err != nil {
 		return err
@@ -391,10 +387,6 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return err
-	}
-
 	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodClaimFees)
 	if err != nil {
 		return err

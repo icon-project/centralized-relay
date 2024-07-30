@@ -14,7 +14,7 @@ import (
 )
 
 type IClient interface {
-	GetLatestBlockHeight(ctx context.Context) (uint64, error)
+	GetLatestBlockHeight(ctx context.Context, ctype solrpc.CommitmentType) (uint64, error)
 	GetLatestBlockHash(ctx context.Context) (*solana.Hash, error)
 	GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockResult, error)
 
@@ -178,8 +178,8 @@ func decompress(compressedData []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func (cl Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
-	return cl.rpc.GetBlockHeight(ctx, solrpc.CommitmentFinalized)
+func (cl Client) GetLatestBlockHeight(ctx context.Context, ctype solrpc.CommitmentType) (uint64, error) {
+	return cl.rpc.GetBlockHeight(ctx, ctype)
 }
 
 func (cl Client) GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockResult, error) {

@@ -1,10 +1,13 @@
 package solana
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/alt"
@@ -160,4 +163,71 @@ func TestGetLookupAccount(t *testing.T) {
 	assert.NoError(t, err)
 
 	fmt.Printf("Account %+v", ac)
+}
+
+func TestTest(t *testing.T) {
+	res, err := reateLookupTableAccount(context.Background())
+	assert.NoError(t, err)
+
+	fmt.Println("Received Pubkey: ", res.String())
+	time.Sleep(5 * time.Second)
+}
+
+func reateLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
+	createFunc := func(rs uint64) (*solana.PublicKey, error) {
+		time.Sleep(time.Duration(rs * uint64(time.Second)))
+		if rs%2 == 0 {
+			return &solana.SystemProgramID, nil
+		} else {
+			return nil, fmt.Errorf("sending error")
+		}
+	}
+
+	recentSlot := uint64(1)
+
+	type itemType struct {
+		ac  *solana.PublicKey
+		err error
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	n := uint64(6)
+
+	responseChan := make(chan itemType, n)
+	wg := &sync.WaitGroup{}
+
+	for slot := recentSlot; slot < recentSlot+n; slot++ {
+		wg.Add(1)
+		go func(ctx context.Context, sl uint64) {
+			defer wg.Done()
+			resKey, err := createFunc(sl)
+			select {
+			case <-ctx.Done():
+				fmt.Printf("\nI am cancelled %d\n", sl)
+			default:
+				responseChan <- itemType{ac: resKey, err: err}
+				fmt.Printf("\nI wrote %d\n", sl)
+			}
+		}(ctx, slot)
+	}
+
+	go func() {
+		wg.Wait()
+		close(responseChan)
+		fmt.Println("all go rountine completed and channel closed")
+	}()
+
+	var lastErr error
+	for item := range responseChan {
+		if item.err == nil {
+			cancel()
+			return item.ac, nil
+		} else {
+			lastErr = item.err
+		}
+	}
+
+	return nil, lastErr
 }

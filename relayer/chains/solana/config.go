@@ -2,7 +2,6 @@ package solana
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	solrpc "github.com/gagliardetto/solana-go/rpc"
@@ -59,7 +58,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 
 	pdaRegistry := types.NewPDARegistry(xcallIdl.GetProgramID(), connIdl.GetProgramID())
 
-	p := &Provider{
+	return &Provider{
 		log:         logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
 		cfg:         pc,
 		client:      client,
@@ -68,13 +67,7 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 		connIdl:     &connIdl,
 		pdaRegistry: pdaRegistry,
 		staticAlts:  make(types.AddressTables),
-	}
-
-	if err := p.initStaticAlts(); err != nil {
-		return nil, fmt.Errorf("failed to init static address lookup tables: %w", err)
-	}
-
-	return p, nil
+	}, nil
 }
 
 func (pc *Config) SetWallet(addr string) {

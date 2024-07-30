@@ -25,10 +25,6 @@ const (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return err
-	}
-
 	p.log.Info("starting to route message",
 		zap.String("src", message.Src),
 		zap.String("dst", message.Dst),
@@ -145,10 +141,13 @@ func (p *Provider) executeRouteCallback(
 }
 
 func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
-	recentSlot, err := p.client.GetLatestBlockHeight(ctx)
+	recentSlot, err := p.client.GetLatestBlockHeight(ctx, solrpc.CommitmentFinalized)
 	if err != nil {
 		return nil, err
 	}
+
+	recentSlot = recentSlot - 1
+
 	altCreateInstruction, accountAddr, err := alt.CreateLookupTable(
 		p.wallet.PublicKey(),
 		p.wallet.PublicKey(),
@@ -288,13 +287,19 @@ func (p *Provider) initStaticAlts() error {
 		xcallConfigAddr,
 	}...)
 
-	altPubKey, err := solana.PublicKeyFromBase58(p.cfg.AltAddress)
+	altPubKeyStr := p.cfg.AltAddress
+	if altPubKeyStr == "" {
+		return fmt.Errorf("required lookup table account address")
+	}
+
+	altPubKey, err := solana.PublicKeyFromBase58(altPubKeyStr)
 	if err != nil {
 		return err
 	}
+
 	altAc, err := p.getLookupTableAccount(altPubKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get lookup table account: %w", err)
 	}
 
 	addressesToExtend := solana.PublicKeySlice{}
@@ -320,7 +325,7 @@ func (p *Provider) makeCallInstructions(msg *relayertypes.Message) ([]solana.Ins
 	case relayerevents.EmitMessage:
 		instructions, signers, err := p.getRecvMessageIntruction(msg)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get recv message instructions")
+			return nil, nil, fmt.Errorf("failed to get recv message instructions: %w", err)
 		}
 		return instructions, signers, nil
 	case relayerevents.CallMessage:
@@ -1037,10 +1042,6 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 }
 
 func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMessage, error) {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		return nil, err
-	}
-
 	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodDecodeCsMessage)
 	if err != nil {
 		return nil, err

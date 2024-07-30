@@ -26,10 +26,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
 	fromSignature := ""
 
-	if err := p.RestoreKeystore(ctx); err != nil {
-		p.log.Error("failed to restore wallet", zap.Error(err))
-	}
-
 	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
 
 	return p.listenByPolling(ctx, fromSignature, blockInfo)
