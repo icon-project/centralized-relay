@@ -38,9 +38,14 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
-	instructions, signers, addressTables, err := p.MakeCallInstructions(message)
+	instructions, signers, err := p.MakeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
+	}
+
+	addressTables, err := p.prepareAddressTablesForInstructions(instructions)
+	if err != nil {
+		return fmt.Errorf("failed to prepare address lookup tables for instructions: %w", err)
 	}
 
 	opts := []solana.TransactionOption{
@@ -61,6 +66,33 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	go p.executeRouteCallback(txSign, message, callback)
 
 	return nil
+}
+
+func (p *Provider) prepareAddressTablesForInstructions(ins []solana.Instruction) (types.AddressTables, error) {
+	altPubKey, err := solana.PublicKeyFromBase58(p.cfg.AltAddress)
+	if err != nil {
+		return nil, err
+	}
+	altAc, err := p.GetLookupTableAccount(altPubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	addressesToExtend := solana.PublicKeySlice{}
+
+	for _, in := range ins {
+		for _, ac := range in.Accounts() {
+			if !altAc.Addresses.Contains(ac.PublicKey) {
+				addressesToExtend = append(addressesToExtend, ac.PublicKey)
+			}
+		}
+	}
+
+	if err := p.ExtendLookupTableAccount(context.Background(), altPubKey, addressesToExtend); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func (p *Provider) prepareTx(
@@ -239,28 +271,28 @@ func (p *Provider) GetLookupTableAccount(accountID solana.PublicKey) (*alt.Looku
 	return account, nil
 }
 
-func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, types.AddressTables, error) {
+func (p *Provider) MakeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage:
 		instructions, signers, err := p.getRecvMessageIntruction(msg)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to get recv message instructions")
+			return nil, nil, fmt.Errorf("failed to get recv message instructions")
 		}
-		return instructions, signers, nil, nil
+		return instructions, signers, nil
 	case relayerevents.CallMessage:
 		instructions, signers, err := p.getExecuteCallInstruction(msg)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to get execute call instructions: %w", err)
+			return nil, nil, fmt.Errorf("failed to get execute call instructions: %w", err)
 		}
-		return instructions, signers, nil, nil
+		return instructions, signers, nil
 	case relayerevents.RollbackMessage:
 		instructions, signers, err := p.getExecuteRollbackInstruction(msg)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to get execute rollback instructions: %w", err)
+			return nil, nil, fmt.Errorf("failed to get execute rollback instructions: %w", err)
 		}
-		return instructions, signers, nil, nil
+		return instructions, signers, nil
 	default:
-		return nil, nil, nil, fmt.Errorf("invalid event type in message")
+		return nil, nil, fmt.Errorf("invalid event type in message")
 	}
 }
 

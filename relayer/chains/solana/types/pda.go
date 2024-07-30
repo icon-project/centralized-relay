@@ -11,6 +11,9 @@ const ()
 type PDA struct {
 	SeedPrefix string
 	ProgramID  solana.PublicKey
+
+	// if address is temporary then it can be deactivated from address lookup table onced used.
+	IsTemp bool
 }
 
 type AddressTables map[solana.PublicKey]solana.PublicKeySlice
@@ -43,41 +46,29 @@ func (pda PDA) GetAddress(additionalSeeds ...[]byte) (solana.PublicKey, error) {
 
 type PDARegistry struct {
 	XcallConfig          PDA
-	XcallReply           PDA
 	XcallRollback        PDA
-	XcallDefaultConn     PDA
-	XcallProxyRequest    PDA
-	XcallSuccessRes      PDA
-	XcallPendingRequest  PDA
-	XcallPendingResponse PDA
-	XcallALT             PDA
+	XcallProxyRequest    PDA //temp
+	XcallPendingRequest  PDA //temp
+	XcallPendingResponse PDA //temp
 
 	ConnConfig     PDA
 	ConnNetworkFee PDA
 	ConnClaimFees  PDA
-	ConnReceipt    PDA
-	ConnALT        PDA
+	ConnReceipt    PDA //temp
 }
 
 func NewPDARegistry(xcallProgramID, connProgramID solana.PublicKey) *PDARegistry {
 	return &PDARegistry{
 		XcallConfig:          PDA{SeedPrefix: "config", ProgramID: xcallProgramID},
-		XcallReply:           PDA{SeedPrefix: "reply", ProgramID: xcallProgramID},
 		XcallRollback:        PDA{SeedPrefix: "rollback", ProgramID: xcallProgramID},
-		XcallDefaultConn:     PDA{SeedPrefix: "conn", ProgramID: xcallProgramID},
-		XcallProxyRequest:    PDA{SeedPrefix: "proxy", ProgramID: xcallProgramID},
-		XcallSuccessRes:      PDA{SeedPrefix: "success", ProgramID: xcallProgramID},
-		XcallPendingRequest:  PDA{SeedPrefix: "req", ProgramID: xcallProgramID},
-		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID},
-
-		XcallALT: PDA{SeedPrefix: "alt", ProgramID: xcallProgramID}, // address lookup table for xcall
+		XcallProxyRequest:    PDA{SeedPrefix: "proxy", ProgramID: xcallProgramID, IsTemp: true},
+		XcallPendingRequest:  PDA{SeedPrefix: "req", ProgramID: xcallProgramID, IsTemp: true},
+		XcallPendingResponse: PDA{SeedPrefix: "res", ProgramID: xcallProgramID, IsTemp: true},
 
 		ConnConfig:     PDA{SeedPrefix: "config", ProgramID: connProgramID},
 		ConnNetworkFee: PDA{SeedPrefix: "fee", ProgramID: connProgramID},
 		ConnClaimFees:  PDA{SeedPrefix: "claim_fees", ProgramID: connProgramID},
-		ConnReceipt:    PDA{SeedPrefix: "receipt", ProgramID: connProgramID},
-
-		ConnALT: PDA{SeedPrefix: "alt", ProgramID: connProgramID}, // address lookup table for conn
+		ConnReceipt:    PDA{SeedPrefix: "receipt", ProgramID: connProgramID, IsTemp: true},
 	}
 }
 

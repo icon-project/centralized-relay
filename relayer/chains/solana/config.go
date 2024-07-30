@@ -20,6 +20,8 @@ type Config struct {
 	XcallProgramID      string `yaml:"xcall-program-id"`
 	ConnectionProgramID string `yaml:"connection-program-id"`
 
+	AltAddress string `yaml:"alt-address"` // address lookup table address
+
 	NID         string `yaml:"nid"`
 	HomeDir     string `yaml:"home-dir"`
 	GasLimit    uint64 `yaml:"gas-limit"`

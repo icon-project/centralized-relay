@@ -222,12 +222,6 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	}
 
 	if len(rollbackAc.Rollback.Protocols) > 0 {
-		// Todo append remaining accounts to accounts slice
-		defaultConnAddr, err := p.pdaRegistry.XcallDefaultConn.GetAddress([]byte(rollbackAc.Rollback.To))
-		if err != nil {
-			return err
-		}
-
 		msgBytes := []byte{195}
 		msgBytes = append(msgBytes, sn.Bytes()...)
 		msgBytes = append(msgBytes, []byte{0, 128}...)
@@ -245,7 +239,6 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		}
 
 		accounts = append(accounts,
-			&solana.AccountMeta{PublicKey: defaultConnAddr, IsWritable: true},
 			&solana.AccountMeta{PublicKey: pendingResponseAddr, IsWritable: true},
 			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
 			&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
