@@ -244,7 +244,7 @@ func (p *Provider) initStaticAlts() error {
 		return err
 	}
 
-	addresses := solana.PublicKeySlice{solana.SystemProgramID, xcallProgID}
+	addresses := solana.PublicKeySlice{solana.SystemProgramID, xcallProgID, p.wallet.PublicKey()}
 
 	connections := append([]string{p.cfg.ConnectionProgram}, p.cfg.OtherConnections...)
 	for _, conn := range connections {
@@ -286,6 +286,14 @@ func (p *Provider) initStaticAlts() error {
 	addresses = append(addresses, solana.PublicKeySlice{
 		xcallConfigAddr,
 	}...)
+
+	for _, dapp := range p.cfg.Dapps {
+		dappAddr, err := solana.PublicKeyFromBase58(dapp.ProgramID)
+		if err != nil {
+			return err
+		}
+		addresses = append(addresses, dappAddr)
+	}
 
 	altPubKeyStr := p.cfg.AltAddress
 	if altPubKeyStr == "" {

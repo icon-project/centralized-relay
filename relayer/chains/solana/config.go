@@ -22,6 +22,8 @@ type Config struct {
 	ConnectionProgram string   `yaml:"connection-program"`
 	OtherConnections  []string `yaml:"other-connections"`
 
+	Dapps []types.Dapp `yaml:"dapps"`
+
 	CpNIDs []string `yaml:"cp-nids"`
 
 	AltAddress string `yaml:"alt-address"` // address lookup table address

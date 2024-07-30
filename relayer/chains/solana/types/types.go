@@ -68,3 +68,8 @@ type QueryAccountsResponse struct {
 	Page          uint8
 	HasNextPage   bool
 }
+
+type Dapp struct {
+	Name      string `yaml:"name"`
+	ProgramID string `yaml:"program-id"`
+}
