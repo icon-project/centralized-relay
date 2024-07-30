@@ -518,8 +518,8 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize}:
-				fromHeight += p.cfg.BlockBatchSize + 1
+			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + p.cfg.BlockBatchSize - 1}:
+				fromHeight += p.cfg.BlockBatchSize
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
