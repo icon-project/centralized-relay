@@ -19,3 +19,24 @@ The following chains are supported:
 ## How to use ?
 
 Refer to the [WIKI](<https://github.com/icon-project/centralized-relay/wiki>).
+
+## Bitcoin Relay
+
+How to run Slave server 
+
+### Prerequisites
+
+Go 1.x installed
+Set up your environment variables as required
+
+### Start Slave
+
+```bash
+GO_ENV=master MASTER_SERVER=http://localhost:8080 SLAVE_SERVER=http://localhost:8081 API_KEY=your_api_key go run main.go bitcoin
+```
+
+### Start Master
+
+```bash
+GO_ENV=slave MASTER_SERVER=http://localhost:8080 SLAVE_SERVER=http://localhost:8081 API_KEY=your_api_key go run main.go bitcoin
+```
