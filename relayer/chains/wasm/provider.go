@@ -34,6 +34,7 @@ type Provider struct {
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	LastProcessedHeight uint64
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -148,6 +149,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+				p.SetLastProcessedHeight(startHeight)
 			}
 		}
 	}
@@ -795,4 +797,26 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedHeight returns the last saved height
 func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+// SetLastProcessedHeight sets the last processed height
+func (p *Provider) SetLastProcessedHeight(height uint64) {
+	p.LastProcessedHeight = height
+}
+
+// GetCheckpoint returns the checkpoint height
+// It returns the last processed height if it is greater than the last saved height
+// Otherwise, it returns the last saved height
+func (p *Provider) GetCheckpoint() uint64 {
+	lastSavedHeight := p.GetLastSavedHeight()
+	if p.LastProcessedHeight > lastSavedHeight {
+		return p.LastProcessedHeight
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	latestHeight, err := p.QueryLatestHeight(ctx)
+	if err != nil {
+		return lastSavedHeight
+	}
+	return latestHeight
 }
