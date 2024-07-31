@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
@@ -291,14 +290,5 @@ func (p *Provider) GetCheckpoint() uint64 {
 	if p.LastProcessedHeight > lastSavedHeight {
 		return p.LastProcessedHeight
 	}
-	if lastSavedHeight != 0 {
-		return lastSavedHeight
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	latestHeight, err := p.QueryLatestHeight(ctx)
-	if err != nil {
-		return lastSavedHeight // TODO: should return 0?
-	}
-	return latestHeight
+	return lastSavedHeight
 }
