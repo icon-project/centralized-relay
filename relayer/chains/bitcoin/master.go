@@ -1,6 +1,7 @@
 package bitcoin
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,14 +12,19 @@ import (
 )
 
 func startMaster() {
-	go callSlaves()
 	http.HandleFunc("/execute", handleExecute)
+	port := os.Getenv("PORT")
 	server := &http.Server{
-		Addr:    "8080",
+		Addr:    ":" + port,
 		Handler: nil,
 	}
 
-	log.Printf("Master starting on port %s", "8080")
+	log.Printf("Master starting on port %s", port)
+
+	isProcess := os.Getenv("IS_PROCESS")
+	if isProcess == "1" {
+		callSlaves("test")
+	}
 	log.Fatal(server.ListenAndServe())
 }
 
@@ -55,7 +61,7 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the message as needed
-	fmt.Printf("Received message: %v\n", msg)
+	fmt.Println("Received message: ", msg)
 
 	// Send a response
 	w.WriteHeader(http.StatusOK)
@@ -65,16 +71,17 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func callSlaves() {
-	fmt.Printf("Master request slave")
-	slavePort := os.Getenv("SLAVE_SERVER")
-
+func callSlaves(txId string) {
+	fmt.Println("Master request slave")
+	slavePort1 := os.Getenv("SLAVE_SERVER_1")
+	slavePort2 := os.Getenv("SLAVE_SERVER_2")
 	// Call slave to get more data
 	var wg sync.WaitGroup
 	responses := make(chan string, 2)
 
-	wg.Add(1)
-	go requestPartialSign(slavePort, responses, &wg)
+	wg.Add(2)
+	go requestPartialSign(slavePort1, txId, responses, &wg)
+	go requestPartialSign(slavePort2, txId, responses, &wg)
 
 	go func() {
 		wg.Wait()
@@ -82,17 +89,18 @@ func callSlaves() {
 	}()
 
 	for res := range responses {
-		fmt.Println("Received response from slave:", res)
+		fmt.Println("Received response from slave: ", res)
 	}
 }
 
-func requestPartialSign(url string, responses chan<- string, wg *sync.WaitGroup) {
+func requestPartialSign(url string, txId string, responses chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	client := &http.Client{}
 	apiKeyHeader := os.Getenv("API_KEY")
+	payload := bytes.NewBuffer([]byte(txId))
+	req, err := http.NewRequest("POST", url, payload)
 
-	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Fatalf("Failed to create request: %v", err)
 	}
