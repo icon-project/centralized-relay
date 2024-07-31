@@ -156,7 +156,7 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
 	routeTimer := time.NewTicker(types.RouteDuration)
 	flushTimer := time.NewTicker(1 * time.Second)
-	heightTimer := time.NewTicker(1 * time.Second)
+	heightTimer := time.NewTicker(HeightSaveInterval)
 	cleanMessageTimer := time.NewTicker(1 * time.Second)
 	resetTimer := time.NewTicker(3 * time.Second)
 
@@ -177,7 +177,6 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 		case <-resetTimer.C:
 			resetTimer.Stop()
 			flushTimer.Reset(flushInterval)
-			heightTimer.Reset(HeightSaveInterval)
 			cleanMessageTimer.Reset(DeleteExpiredInterval)
 		}
 	}
