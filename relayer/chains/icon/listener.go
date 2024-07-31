@@ -72,7 +72,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								p.log.Error("failed to get progress height", zap.Error(err))
 								return err
 							}
-							p.SetLastProcessedHeight(height)
+							if height > 0 {
+								p.SetLastProcessedHeight(height)
+							}
 							return nil
 						}
 						msgs, err := p.parseMessageEvent(v)
