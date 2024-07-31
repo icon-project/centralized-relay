@@ -141,13 +141,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			pollHeightTicker.Stop()
 			startHeight = p.GetLastSavedHeight()
 			latestHeight, err = p.QueryLatestHeight(ctx)
+			if startHeight == 0 {
+				startHeight = latestHeight
+			}
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
 				pollHeightTicker.Reset(time.Second * 3)
 			}
 		default:
 			if startHeight < latestHeight {
-				p.logger.Info("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+				p.logger.Info("Syncing", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight), zap.Uint64("delta", latestHeight-startHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
@@ -761,6 +764,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 						for _, block := range blockInfo {
 							blockInfoChan <- block
 						}
+            p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))				
 						break
 					}
 					attempts++
@@ -774,7 +778,6 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 					}
 					p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay), zap.Uint64("start_height", heightRange.Start), zap.Uint64("end_height", heightRange.End), zap.Error(err))
 					time.Sleep(delay)
-				}
 			}
 		}(wg, heightStream)
 	}
