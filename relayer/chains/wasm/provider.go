@@ -116,7 +116,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 	resetFunc := func() {
 		subscribeStarter.Reset(time.Second * 3)
-		pollHeightTicker.Reset(time.Second * 3)
+		pollHeightTicker.Reset(time.Second * 2)
 	}
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
@@ -136,21 +136,21 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 					}, resetFunc)
 				}
 			}
+			if startHeight < latestHeight {
+				p.logger.Info("Syncing", zap.Uint64("from-height", startHeight),
+					zap.Uint64("to-height", latestHeight), zap.Uint64("delta", latestHeight-startHeight))
+				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+			}
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()
 			startHeight = p.GetLastSavedHeight()
-			latestHeight, err = p.QueryLatestHeight(ctx)
 			if startHeight == 0 {
 				startHeight = latestHeight
 			}
+			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
-				pollHeightTicker.Reset(time.Second * 3)
-			}
-		default:
-			if startHeight < latestHeight {
-				p.logger.Info("Syncing", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight), zap.Uint64("delta", latestHeight-startHeight))
-				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+				pollHeightTicker.Reset(time.Second * 2)
 			}
 		}
 	}
@@ -680,33 +680,22 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight/p.cfg.BlockBatchSize) + 1
-
-	numOfPipelines := p.getNumOfPipelines(diff)
-	wg := &sync.WaitGroup{}
-	for i := 0; i < numOfPipelines; i++ {
-		wg.Add(1)
-		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
-			defer wg.Done()
-			for heightRange := range heightStream {
-				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
-				if err != nil {
-					p.logger.Error("failed to fetch block messages", zap.Error(err))
-					continue
-				}
-				p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))
-				var messages []*relayTypes.Message
-				for _, block := range blockInfo {
-					messages = append(messages, block.Messages...)
-				}
-				blockInfoChan <- &relayTypes.BlockInfo{
-					Height:   heightRange.End,
-					Messages: messages,
-				}
-			}
-		}(wg, heightStream)
+	for heightRange := range heightStream {
+		blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+		if err != nil {
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
+			continue
+		}
+		p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))
+		var messages []*relayTypes.Message
+		for _, block := range blockInfo {
+			messages = append(messages, block.Messages...)
+		}
+		blockInfoChan <- &relayTypes.BlockInfo{
+			Height:   heightRange.End,
+			Messages: messages,
+		}
 	}
-	wg.Wait()
 	return toHeight + 1
 }
 
@@ -766,7 +755,7 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 					zap.String("event_type", msg.EventType),
 				)
 			}
-		default:
+		case <-time.After(2 * time.Minute):
 			if !p.client.IsConnected() {
 				p.logger.Warn("http client stopped")
 				if err := p.client.Reconnect(); err != nil {
