@@ -680,33 +680,22 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
-	diff := int(toHeight-fromHeight/p.cfg.BlockBatchSize) + 1
-
-	numOfPipelines := p.getNumOfPipelines(diff)
-	wg := &sync.WaitGroup{}
-	for i := 0; i < numOfPipelines; i++ {
-		wg.Add(1)
-		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
-			defer wg.Done()
-			for heightRange := range heightStream {
-				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
-				if err != nil {
-					p.logger.Error("failed to fetch block messages", zap.Error(err))
-					continue
-				}
-				p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))
-				var messages []*relayTypes.Message
-				for _, block := range blockInfo {
-					messages = append(messages, block.Messages...)
-				}
-				blockInfoChan <- &relayTypes.BlockInfo{
-					Height:   heightRange.End,
-					Messages: messages,
-				}
-			}
-		}(wg, heightStream)
+	for heightRange := range heightStream {
+		blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+		if err != nil {
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
+			continue
+		}
+		p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))
+		var messages []*relayTypes.Message
+		for _, block := range blockInfo {
+			messages = append(messages, block.Messages...)
+		}
+		blockInfoChan <- &relayTypes.BlockInfo{
+			Height:   heightRange.End,
+			Messages: messages,
+		}
 	}
-	wg.Wait()
 	return toHeight + 1
 }
 
