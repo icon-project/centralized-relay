@@ -25,7 +25,7 @@ build: go.sum
 	ifeq ($(OS),Windows_NT)
 		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
 	else
-		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
+		@go build -tags=muslc $(BUILD_FLAGS) -o build/centralized-relay main.go
 	endif
 
 build-docker:
