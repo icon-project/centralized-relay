@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -156,12 +155,15 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
 	routeTimer := time.NewTicker(types.RouteDuration)
-	flushTimer := time.NewTicker(flushInterval)
+	flushTimer := time.NewTicker(1 * time.Second)
 	heightTimer := time.NewTicker(HeightSaveInterval)
-	cleanMessageTimer := time.NewTicker(DeleteExpiredInterval)
+	cleanMessageTimer := time.NewTicker(1 * time.Second)
+	resetTimer := time.NewTicker(3 * time.Second)
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-flushTimer.C:
 			// flushMessage gets all the message from DB
 			go r.flushMessages(ctx)
@@ -172,6 +174,10 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
 			go r.cleanExpiredMessages(ctx)
+		case <-resetTimer.C:
+			resetTimer.Stop()
+			flushTimer.Reset(flushInterval)
+			cleanMessageTimer.Reset(DeleteExpiredInterval)
 		}
 	}
 }
@@ -215,43 +221,35 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages uint) ([]*t
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
 		for key, message := range src.MessageCache.Messages {
-			switch message.EventType {
-			case events.EmitMessage:
-				dst, err := r.FindChainRuntime(message.Dst)
-				if err != nil {
-					r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
-					continue
-				}
-
-				if ok := dst.shouldSendMessage(ctx, message, src); !ok {
-					r.log.Debug("processing", zap.Any("message", message))
-					continue
-				}
-
-				message.ToggleProcessing()
-
-				// if message reached delete the message
-				messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
-				if err != nil {
-					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
-					message.ToggleProcessing()
-					continue
-				}
-
-				// if message is received we can remove the message from db
-				if messageReceived {
-					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
-					r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
-					continue
-				}
-				go r.RouteMessage(ctx, message, dst, src)
-			case events.CallMessage:
-				if ok := src.shouldExecuteCall(ctx, message); ok {
-					message.ToggleProcessing()
-					go r.ExecuteCall(ctx, message, src)
-				}
+			dst, err := r.FindChainRuntime(message.Dst)
+			if err != nil {
+				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
+				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				continue
 			}
+
+			if ok := dst.shouldSendMessage(ctx, message, src); !ok {
+				r.log.Debug("processing", zap.Any("message", message))
+				continue
+			}
+
+			message.ToggleProcessing()
+
+			// if message reached delete the message
+			messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
+			if err != nil {
+				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
+				message.ToggleProcessing()
+				continue
+			}
+
+			// if message is received we can remove the message from db
+			if messageReceived {
+				dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
+				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				continue
+			}
+			go r.RouteMessage(ctx, message, dst, src)
 		}
 	}
 }
@@ -332,30 +330,6 @@ func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, 
 	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
 		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
-	}
-}
-
-// ExecuteCall
-func (r *Relayer) ExecuteCall(ctx context.Context, msg *types.RouteMessage, dst *ChainRuntime) {
-	callback := func(key *types.MessageKey, response *types.TxResponse, err error) {
-		if response.Code == types.Success {
-			dst.log.Info("message relayed successfully",
-				zap.String("dst", dst.Provider.NID()),
-				zap.String("tx_hash", response.TxHash),
-				zap.Uint64("sn", key.Sn.Uint64()),
-				zap.String("event_type", msg.EventType),
-				zap.Uint64("request_id", msg.ReqID.Uint64()),
-				zap.Int64("height", response.Height),
-			)
-			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, dst); err != nil {
-				r.log.Error("error occured when clearing successful message", zap.Error(err))
-			}
-		}
-	}
-	msg.IncrementRetry()
-	if err := dst.Provider.Route(ctx, msg.Message, callback); err != nil {
-		dst.log.Error("error occured during message route", zap.Error(err))
-		r.HandleMessageFailed(msg, dst, dst)
 	}
 }
 

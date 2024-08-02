@@ -19,13 +19,20 @@ type TxSearchParam struct {
 }
 
 func (param *TxSearchParam) BuildQuery() string {
-	startHeight := &Query{
-		Field: "tx.height", Value: param.StartHeight,
-		Operator: QueryOperator.Gte,
-	}
-	endHeight := &Query{
-		Field: "tx.height", Value: param.EndHeight,
-		Operator: QueryOperator.Lte,
+	var queries []QueryExpression
+
+	if param.EndHeight-param.StartHeight == 0 { // if diff is 0, then it is a single height
+		queries = append(queries, &Query{Field: "tx.height", Value: param.StartHeight, Operator: QueryOperator.Eq})
+	} else {
+		startHeight := &Query{
+			Field: "tx.height", Value: param.StartHeight,
+			Operator: QueryOperator.Gte,
+		}
+		endHeight := &Query{
+			Field: "tx.height", Value: param.EndHeight,
+			Operator: QueryOperator.Lte,
+		}
+		queries = append(queries, startHeight, endHeight)
 	}
 
 	var attribQueries []QueryExpression
@@ -41,19 +48,34 @@ func (param *TxSearchParam) BuildQuery() string {
 
 	finalQuery := &CompositeQuery{
 		Or:      false,
-		Queries: []QueryExpression{startHeight, endHeight, eventQuery},
+		Queries: append(queries, eventQuery),
 	}
 
 	return finalQuery.GetQuery()
 }
 
-type TxResultWaitResponse struct {
+type Event struct {
+	Type       string      `json:"type"`
+	Attributes []Attribute `json:"attributes"`
+}
+
+type Attribute struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type EventsList struct {
+	Events []Event `json:"events"`
+}
+
+type TxResultResponse struct {
 	Height int64 `json:"height"`
 	Result struct {
-		Code      int    `json:"code"`
-		Codespace string `json:"codespace"`
-		Data      []byte `json:"data"`
-		Log       string `json:"log"`
+		Code      int     `json:"code"`
+		Codespace string  `json:"codespace"`
+		Data      []byte  `json:"data"`
+		Log       string  `json:"log"`
+		Events    []Event `json:"events"`
 	} `json:"result"`
 }
 
