@@ -2,7 +2,6 @@ package relayer
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -44,7 +43,6 @@ func TestChainRuntime(t *testing.T) {
 	})
 
 	t.Run("clear messages", func(t *testing.T) {
-		fmt.Println(runtime.MessageCache)
 		runtime.clearMessageFromCache([]*types.MessageKey{m1.MessageKey()})
 		assert.Equal(t, len(runtime.MessageCache.Messages), len(info.Messages)-1)
 		rtMsg, _ := runtime.MessageCache.Get(m2.MessageKey())
