@@ -19,6 +19,7 @@ import (
 
 const (
 	defaultReadTimeout         = 60 * time.Second
+	websocketReadTimeout       = 10 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 5
@@ -258,6 +259,8 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
+			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+			defer cancel()
 			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
 				resetCh <- err
 				return err
