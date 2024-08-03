@@ -26,8 +26,8 @@ import (
 
 type Provider struct {
 	logger *zap.Logger
-	//cfg                 *Config
-	//client              IClient
+	// cfg                 *Config
+	client              IClient
 	kms                 kms.KMS
 	wallet              sdkTypes.AccountI
 	contracts           map[string]relayTypes.EventMap
@@ -36,22 +36,20 @@ type Provider struct {
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	//return p.client.GetLatestBlockHeight(ctx)
-	return 0, nil
+	return p.client.GetLatestBlockHeight(ctx)
 }
 
+// todo: fill up the result
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayTypes.Receipt, error) {
-	//res, err := p.client.GetTransactionReceipt(ctx, txHash)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//return &relayTypes.Receipt{
-	//	TxHash: txHash,
-	//	Height: uint64(res.TxResponse.Height),
-	//	Status: types.CodeTypeOK == res.TxResponse.Code,
-	//}, nil
-
-	return nil, nil
+	res, err := p.client.GetTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, err
+	}
+	return &relayTypes.Receipt{
+		TxHash: res.Txid,
+		// Height: uint64(res.TxResponse.Height),
+		// Status: types.CodeTypeOK == res.TxResponse.Code,
+	}, nil
 }
 
 func (p *Provider) NID() string {
@@ -382,7 +380,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+	blocks, err := p.fetchBlockMessages(ctx, &HeightRange{messageKey.Height, messageKey.Height})
 	if err != nil {
 		return nil, err
 	}
@@ -452,14 +450,10 @@ func (p *Provider) SetAdmin(ctx context.Context, address string) error {
 
 // ExecuteRollback
 func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
-	msg := &relayTypes.Message{
-		Sn:        sn.Uint64(),
-		EventType: events.ExecuteRollback,
-	}
-	_, err := p.call(ctx, msg)
-	return err
+	return nil
 }
 
+// todo:
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	//startHeight := lastSavedHeight
 	//if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
@@ -477,15 +471,15 @@ func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64,
 	return latestHeight, nil
 }
 
-func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *types.HeightRange {
-	heightChan := make(chan *types.HeightRange)
-	go func(fromHeight, toHeight uint64, heightChan chan *types.HeightRange) {
+func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *HeightRange {
+	heightChan := make(chan *HeightRange)
+	go func(fromHeight, toHeight uint64, heightChan chan *HeightRange) {
 		defer close(heightChan)
 		for fromHeight < toHeight {
 			select {
 			case <-done:
 				return
-			case heightChan <- &types.HeightRange{Start: fromHeight, End: fromHeight + 2}:
+			case heightChan <- &HeightRange{Start: fromHeight, End: fromHeight + 2}:
 				fromHeight += 2
 			}
 		}
@@ -493,9 +487,9 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	return heightChan
 }
 
-func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *types.HeightRange) <-chan interface{} {
+func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *HeightRange) <-chan interface{} {
 	blockInfoStream := make(chan interface{})
-	go func(blockInfoChan chan interface{}, heightChan <-chan *types.HeightRange) {
+	go func(blockInfoChan chan interface{}, heightChan <-chan *HeightRange) {
 		defer close(blockInfoChan)
 		for {
 			select {
@@ -522,7 +516,36 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 	return blockInfoStream
 }
 
-func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
+func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
+	var (
+		wg           sync.WaitGroup
+		errorChan    = make(chan error)
+		// todo: query from provide.config
+		multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+	)
+
+	for _, event := range p.eventList {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, searchParam TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
+			defer wg.Done()
+			searchParam.Events = append(searchParam.Events, event)
+			res, err := p.client.TxSearch(ctx, searchParam)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			
+			messagesChan <- res
+		}(&wg, searchParam, messagesChan, errorChan)
+		select {
+		case msgs := <-messagesChan:
+			messages.Txs = append(messages.Txs, msgs.Txs...)
+			messages.TotalCount += msgs.TotalCount
+		case err := <-errorChan:
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
+		}
+	}
+	wg.Wait()
 	return p.getMessagesFromTxList(nil)
 }
 
@@ -604,7 +627,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	wg := &sync.WaitGroup{}
 	for i := 0; i < numOfPipelines; i++ {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, heightStream <-chan *types.HeightRange) {
+		go func(wg *sync.WaitGroup, heightStream <-chan *HeightRange) {
 			defer wg.Done()
 			for heightRange := range heightStream {
 				blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
