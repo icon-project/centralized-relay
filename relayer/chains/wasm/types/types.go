@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	abiTypes "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/types"
+
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -71,11 +73,11 @@ type EventsList struct {
 type TxResultResponse struct {
 	Height int64 `json:"height"`
 	Result struct {
-		Code      int     `json:"code"`
-		Codespace string  `json:"codespace"`
-		Data      []byte  `json:"data"`
-		Log       string  `json:"log"`
-		Events    []Event `json:"events"`
+		Code      int              `json:"code"`
+		Codespace string           `json:"codespace"`
+		Data      []byte           `json:"data"`
+		Log       string           `json:"log"`
+		Events    []abiTypes.Event `json:"events"`
 	} `json:"result"`
 }
 
