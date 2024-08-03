@@ -7,6 +7,8 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -23,15 +25,21 @@ var (
 type ClarityType byte
 
 const (
-	ClarityTypeInt ClarityType = iota
-	ClarityTypeUInt
-	ClarityTypeBuffer
-	ClarityTypeBoolTrue
-	ClarityTypeBoolFalse
-	ClarityTypeStringASCII
-	ClarityTypeStringUTF8
-	ClarityTypeList
-	ClarityTypeTuple
+	ClarityTypeInt               ClarityType = 0x00
+	ClarityTypeUInt              ClarityType = 0x01
+	ClarityTypeBuffer            ClarityType = 0x02
+	ClarityTypeBoolTrue          ClarityType = 0x03
+	ClarityTypeBoolFalse         ClarityType = 0x04
+	ClarityTypeStandardPrincipal ClarityType = 0x05
+	ClarityTypeContractPrincipal ClarityType = 0x06
+	ClarityTypeResponseOk        ClarityType = 0x07
+	ClarityTypeResponseErr       ClarityType = 0x08
+	ClarityTypeOptionNone        ClarityType = 0x09
+	ClarityTypeOptionSome        ClarityType = 0x0a
+	ClarityTypeList              ClarityType = 0x0b
+	ClarityTypeTuple             ClarityType = 0x0c
+	ClarityTypeStringASCII       ClarityType = 0x0d
+	ClarityTypeStringUTF8        ClarityType = 0x0e
 )
 
 type ClarityValue interface {
@@ -50,6 +58,9 @@ func NewInt(value interface{}) (*Int, error) {
 	}
 	if bigInt.Cmp(MaxInt128) > 0 || bigInt.Cmp(MinInt128) < 0 {
 		return nil, fmt.Errorf("value out of range for 128-bit signed integer")
+	}
+	if bigInt.Sign() == 0 {
+		return &Int{Value: &big.Int{}}, nil
 	}
 	return &Int{Value: bigInt}, nil
 }
@@ -79,6 +90,9 @@ func NewUInt(value interface{}) (*UInt, error) {
 	}
 	if bigInt.Cmp(big.NewInt(0)) < 0 || bigInt.Cmp(MaxUint128) > 0 {
 		return nil, fmt.Errorf("value out of range for 128-bit unsigned integer")
+	}
+	if bigInt.Sign() == 0 {
+		return &UInt{Value: &big.Int{}}, nil
 	}
 	return &UInt{Value: bigInt}, nil
 }
@@ -175,40 +189,126 @@ func (b Bool) Bool() bool {
 	return bool(b)
 }
 
-type StringASCII struct {
-	Data string
+type StandardPrincipal struct {
+	Version byte
+	Hash160 [20]byte
 }
 
-func NewStringASCII(data string) *StringASCII {
-	return &StringASCII{Data: data}
+func (p *StandardPrincipal) Serialize() ([]byte, error) {
+	buf := make([]byte, 22)
+	buf[0] = byte(ClarityTypeStandardPrincipal)
+	buf[1] = p.Version
+	copy(buf[2:], p.Hash160[:])
+	return buf, nil
 }
 
-func (s *StringASCII) Type() ClarityType {
-	return ClarityTypeStringASCII
+func NewStandardPrincipal(version byte, hash160 [20]byte) *StandardPrincipal {
+	return &StandardPrincipal{Version: version, Hash160: hash160}
 }
 
-func (s *StringASCII) Serialize() ([]byte, error) {
-	lenBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBytes, uint32(len(s.Data)))
-	return append(append([]byte{byte(ClarityTypeStringASCII)}, lenBytes...), []byte(s.Data)...), nil
+func (p *StandardPrincipal) Type() ClarityType {
+	return ClarityTypeStandardPrincipal
 }
 
-type StringUTF8 struct {
-	Data string
+type ContractPrincipal struct {
+	StandardPrincipal
+	ContractName string
 }
 
-func NewStringUTF8(data string) *StringUTF8 {
-	return &StringUTF8{Data: data}
+func NewContractPrincipal(version byte, hash160 [20]byte, contractName string) (*ContractPrincipal, error) {
+	if len(contractName) > 128 {
+		return nil, fmt.Errorf("contract name too long (max 128 characters)")
+	}
+	return &ContractPrincipal{
+		StandardPrincipal: StandardPrincipal{Version: version, Hash160: hash160},
+		ContractName:      contractName,
+	}, nil
 }
 
-func (s *StringUTF8) Type() ClarityType {
-	return ClarityTypeStringUTF8
+func (p *ContractPrincipal) Type() ClarityType {
+	return ClarityTypeContractPrincipal
 }
 
-func (s *StringUTF8) Serialize() ([]byte, error) {
-	lenBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBytes, uint32(len(s.Data)))
-	return append(append([]byte{byte(ClarityTypeStringUTF8)}, lenBytes...), []byte(s.Data)...), nil
+func (p *ContractPrincipal) Serialize() ([]byte, error) {
+	result := []byte{byte(ClarityTypeContractPrincipal), p.Version}
+	result = append(result, p.Hash160[:]...)
+	result = append(result, byte(len(p.ContractName)))
+	result = append(result, []byte(p.ContractName)...)
+	return result, nil
+}
+
+type ResponseOk struct {
+	Value ClarityValue
+}
+
+func NewResponseOk(value ClarityValue) *ResponseOk {
+	return &ResponseOk{Value: value}
+}
+
+func (r *ResponseOk) Type() ClarityType {
+	return ClarityTypeResponseOk
+}
+
+func (r *ResponseOk) Serialize() ([]byte, error) {
+	valueBytes, err := r.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte{byte(ClarityTypeResponseOk)}, valueBytes...), nil
+}
+
+type ResponseErr struct {
+	Value ClarityValue
+}
+
+func NewResponseErr(value ClarityValue) *ResponseErr {
+	return &ResponseErr{Value: value}
+}
+
+func (r *ResponseErr) Type() ClarityType {
+	return ClarityTypeResponseErr
+}
+
+func (r *ResponseErr) Serialize() ([]byte, error) {
+	valueBytes, err := r.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte{byte(ClarityTypeResponseErr)}, valueBytes...), nil
+}
+
+type OptionNone struct{}
+
+func NewOptionNone() *OptionNone {
+	return &OptionNone{}
+}
+
+func (o *OptionNone) Type() ClarityType {
+	return ClarityTypeOptionNone
+}
+
+func (o *OptionNone) Serialize() ([]byte, error) {
+	return []byte{byte(ClarityTypeOptionNone)}, nil
+}
+
+type OptionSome struct {
+	Value ClarityValue
+}
+
+func NewOptionSome(value ClarityValue) *OptionSome {
+	return &OptionSome{Value: value}
+}
+
+func (o *OptionSome) Type() ClarityType {
+	return ClarityTypeOptionSome
+}
+
+func (o *OptionSome) Serialize() ([]byte, error) {
+	valueBytes, err := o.Value.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte{byte(ClarityTypeOptionSome)}, valueBytes...), nil
 }
 
 type List struct {
@@ -278,6 +378,67 @@ func (t *Tuple) Serialize() ([]byte, error) {
 	return result, nil
 }
 
+type StringASCII struct {
+	Data string
+}
+
+func NewStringASCII(data string) (*StringASCII, error) {
+	if err := validateASCII(data); err != nil {
+		return nil, err
+	}
+	return &StringASCII{Data: data}, nil
+}
+
+func (s *StringASCII) Type() ClarityType {
+	return ClarityTypeStringASCII
+}
+
+func (s *StringASCII) Serialize() ([]byte, error) {
+	if s == nil {
+		return nil, fmt.Errorf("cannot serialize nil StringASCII")
+	}
+	lenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBytes, uint32(len(s.Data)))
+	return append(append([]byte{byte(ClarityTypeStringASCII)}, lenBytes...), []byte(s.Data)...), nil
+}
+
+func validateASCII(s string) error {
+	for i, r := range s {
+		if r > 127 || !(unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsPunct(r) || unicode.IsSpace(r)) {
+			return fmt.Errorf("invalid character in ASCII string at position %d: %q", i, r)
+		}
+	}
+	return nil
+}
+
+type StringUTF8 struct {
+	Data string
+}
+
+func NewStringUTF8(data string) (*StringUTF8, error) {
+	if err := validateUTF8(data); err != nil {
+		return nil, err
+	}
+	return &StringUTF8{Data: data}, nil
+}
+
+func (s *StringUTF8) Type() ClarityType {
+	return ClarityTypeStringUTF8
+}
+
+func (s *StringUTF8) Serialize() ([]byte, error) {
+	lenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBytes, uint32(len(s.Data)))
+	return append(append([]byte{byte(ClarityTypeStringUTF8)}, lenBytes...), []byte(s.Data)...), nil
+}
+
+func validateUTF8(s string) error {
+	if !utf8.ValidString(s) {
+		return fmt.Errorf("invalid UTF-8 string")
+	}
+	return nil
+}
+
 func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty data")
@@ -312,6 +473,49 @@ func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 		return NewBool(true), nil
 	case ClarityTypeBoolFalse:
 		return NewBool(false), nil
+	case ClarityTypeStandardPrincipal:
+		if len(data) < 22 {
+			return nil, fmt.Errorf("invalid standard principal data length")
+		}
+		var hash160 [20]byte
+		copy(hash160[:], data[2:22])
+		return NewStandardPrincipal(data[1], hash160), nil
+	case ClarityTypeContractPrincipal:
+		if len(data) < 23 {
+			return nil, fmt.Errorf("invalid contract principal data length")
+		}
+		var hash160 [20]byte
+		copy(hash160[:], data[2:22])
+		contractNameLength := int(data[22])
+		if len(data) < 23+contractNameLength {
+			return nil, fmt.Errorf("invalid contract principal name length")
+		}
+		contractName := string(data[23 : 23+contractNameLength])
+		return NewContractPrincipal(data[1], hash160, contractName)
+	case ClarityTypeResponseOk:
+		value, err := DeserializeClarityValue(data[1:])
+		if err != nil {
+			return nil, fmt.Errorf("error deserializing ResponseOk value: %w", err)
+		}
+		return NewResponseOk(value), nil
+	case ClarityTypeResponseErr:
+		value, err := DeserializeClarityValue(data[1:])
+		if err != nil {
+			return nil, fmt.Errorf("error deserializing ResponseErr value: %w", err)
+		}
+		return NewResponseErr(value), nil
+	case ClarityTypeOptionNone:
+		return NewOptionNone(), nil
+	case ClarityTypeOptionSome:
+		value, err := DeserializeClarityValue(data[1:])
+		if err != nil {
+			return nil, fmt.Errorf("error deserializing OptionSome value: %w", err)
+		}
+		return NewOptionSome(value), nil
+	case ClarityTypeList:
+		return deserializeList(data[1:])
+	case ClarityTypeTuple:
+		return deserializeTuple(data[1:])
 	case ClarityTypeStringASCII:
 		if len(data) < 5 {
 			return nil, fmt.Errorf("invalid string ASCII data length")
@@ -320,7 +524,11 @@ func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 		if len(data) < int(5+length) {
 			return nil, fmt.Errorf("invalid string ASCII length")
 		}
-		return &StringASCII{Data: string(data[5 : 5+length])}, nil
+		str := string(data[5 : 5+length])
+		if err := validateASCII(str); err != nil {
+			return nil, err
+		}
+		return &StringASCII{Data: str}, nil
 	case ClarityTypeStringUTF8:
 		if len(data) < 5 {
 			return nil, fmt.Errorf("invalid string UTF8 data length")
@@ -329,11 +537,11 @@ func DeserializeClarityValue(data []byte) (ClarityValue, error) {
 		if len(data) < int(5+length) {
 			return nil, fmt.Errorf("invalid string UTF8 length")
 		}
-		return &StringUTF8{Data: string(data[5 : 5+length])}, nil
-	case ClarityTypeList:
-		return deserializeList(data[1:])
-	case ClarityTypeTuple:
-		return deserializeTuple(data[1:])
+		str := string(data[5 : 5+length])
+		if err := validateUTF8(str); err != nil {
+			return nil, err
+		}
+		return &StringUTF8{Data: str}, nil
 	default:
 		return nil, fmt.Errorf("unknown Clarity type: %d", data[0])
 	}
