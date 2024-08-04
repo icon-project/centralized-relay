@@ -2,8 +2,8 @@ package bitcoin
 
 type TxSearchParam struct {
 	StartHeight, EndHeight uint64
-	BitcoinAddress string
-	OPReturnPrefix byte
+	BitcoinAddress         string
+	OPReturnPrefix         int
 }
 
 // HightRange is a struct to represent a range of heights

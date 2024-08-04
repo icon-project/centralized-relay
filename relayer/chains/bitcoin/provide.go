@@ -517,35 +517,19 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
-	var (
-		wg           sync.WaitGroup
-		errorChan    = make(chan error)
-		// todo: query from provide.config
-		multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
-	)
+	//var (
+	//	// todo: query from provide.config
+	//	multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+	//	preFixOP        = txscript.OP_13
+	//)
+	//
+	//searchParam := TxSearchParam{
+	//	StartHeight:    heightInfo.Start,
+	//	EndHeight:      heightInfo.End,
+	//	BitcoinAddress: multisigAddress,
+	//	OPReturnPrefix: preFixOP,
+	//}
 
-	for _, event := range p.eventList {
-		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
-			defer wg.Done()
-			searchParam.Events = append(searchParam.Events, event)
-			res, err := p.client.TxSearch(ctx, searchParam)
-			if err != nil {
-				errorChan <- err
-				return
-			}
-			
-			messagesChan <- res
-		}(&wg, searchParam, messagesChan, errorChan)
-		select {
-		case msgs := <-messagesChan:
-			messages.Txs = append(messages.Txs, msgs.Txs...)
-			messages.TotalCount += msgs.TotalCount
-		case err := <-errorChan:
-			p.logger.Error("failed to fetch block messages", zap.Error(err))
-		}
-	}
-	wg.Wait()
 	return p.getMessagesFromTxList(nil)
 }
 

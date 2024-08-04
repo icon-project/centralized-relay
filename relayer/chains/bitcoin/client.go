@@ -1,13 +1,16 @@
 package bitcoin
 
 import (
-	"os"
 	"context"
+	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	"go.uber.org/zap"
+	"os"
 	// "github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/btcjson"
 )
 
 func RunApp() {
@@ -33,12 +36,13 @@ type IClient interface {
 
 // grouped rpc api clients
 type Client struct {
-	log *zap.Logger
-	client *rpcclient.Client
+	log        *zap.Logger
+	client     *rpcclient.Client
+	chainParam *chaincfg.Params
 }
 
-// create new client 
-func newClient(rpcUrl, user, pass string, httpPostMode, disableTLS bool, l *zap.Logger) (IClient, error) {
+// create new client
+func newClient(rpcUrl, user, pass string, httpPostMode, disableTLS bool, l *zap.Logger, chainParam *chaincfg.Params) (IClient, error) {
 	// Connect to the Bitcoin Core RPC server
 	connConfig := &rpcclient.ConnConfig{
 		Host:         rpcUrl,
@@ -53,14 +57,14 @@ func newClient(rpcUrl, user, pass string, httpPostMode, disableTLS bool, l *zap.
 		return nil, err
 	}
 
-	// ws 
+	// ws
 
-	return &Client {
-		log: l,
-		client: client,
+	return &Client{
+		log:        l,
+		client:     client,
+		chainParam: chainParam,
 	}, nil
 }
-
 
 // query block height
 func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
@@ -90,24 +94,61 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, tx string) (*btcjson
 	return txVerbose, nil
 }
 
-//
 func (c *Client) GetBalance(ctx context.Context, addr string) (uint64, error) {
 	return 0, nil
 }
 
-// 
 func (c *Client) Subscribe(ctx context.Context, _, query string) error {
-	// 
+	//
 
 	return nil
 }
 
-//
 func (c *Client) Unsubscribe(ctx context.Context, _, query string) error {
-	return nil	
+	return nil
 }
 
 // test data
 func (c *Client) GetFee(ctx context.Context) (uint64, error) {
 	return 10, nil
+}
+
+func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*wire.MsgTx, error) {
+	//
+	res := []*wire.MsgTx{}
+	meetRequirements := 0
+
+	for i := param.StartHeight; i <= param.EndHeight; i++ {
+		blockHash, err := c.client.GetBlockHash(int64(i))
+		if err != nil {
+			return nil, err
+		}
+
+		block, err := c.client.GetBlock(blockHash)
+		// loop thru transactions
+		for _, tx := range block.Transactions {
+			// loop thru tx output
+			for _, txOutput := range tx.TxOut {
+				if len(txOutput.PkScript) > 2 {
+					// check OP_RETURN
+					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == txscript.OP_13 {
+						meetRequirements++
+					}
+
+					// check EQUAL to multisig script
+					//if {
+					//    meetRequirements++
+					//}
+
+					if meetRequirements == 2 {
+						res = append(res, tx)
+						break
+					}
+				}
+			}
+			meetRequirements = 0
+		}
+	}
+
+	return res, nil
 }
