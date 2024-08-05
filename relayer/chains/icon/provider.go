@@ -40,7 +40,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	c.HomeDir = homepath
 
 	return &Provider{
-		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
+		log:       log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
 		client:    client,
 		cfg:       c,
 		networkID: NetworkInfo.NetworkID,

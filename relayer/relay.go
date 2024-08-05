@@ -276,7 +276,7 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64) error {
-	r.log.Debug("saving height:", zap.String("srcChain", chainRuntime.Provider.NID()), zap.Uint64("height", height))
+	r.log.Info("Saving height:", zap.String("nid", chainRuntime.Provider.NID()), zap.Uint64("height", height))
 	chainRuntime.LastSavedHeight = height
 	chainRuntime.LastBlockHeight = height
 	return r.blockStore.StoreBlock(height, chainRuntime.Provider.NID())

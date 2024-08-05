@@ -112,6 +112,7 @@ func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint6
 						p.log.Info("Releasing message...", zap.Any("cacheKey", cacheKey))
 						blockInfoChan <- pkt
 						cache.Remove(cacheKey)
+						cache.Add(cacheKey, -999)
 					} else {
 						cache.Add(cacheKey, val+1)
 					}
@@ -542,8 +543,11 @@ func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool
 				p.log.Info("syncing missing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				logs, err := p.getLogsRetry(ctx, filter, br.retry)
 				if err != nil {
-					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
+					p.log.Warn("failed to fetch missing blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 					continue
+				}
+				if len(logs) > 0 {
+					p.log.Info("got missing logs", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				}
 				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				for _, log := range logs {
