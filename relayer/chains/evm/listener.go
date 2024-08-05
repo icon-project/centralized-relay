@@ -104,54 +104,39 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 			latestHeight := p.latestHeight(ctx)
 			go p.Subscribe(ctx, blockInfoChan, errChan, latestHeight)
 			p.backlogProcessing = true
-			if startHeight == 0 {
-				startHeight = latestHeight
-			}
-			blockReqs := getBlockReqs(startHeight, latestHeight, p)
-			for _, br := range blockReqs {
-				filter := ethereum.FilterQuery{
-					FromBlock: new(big.Int).SetUint64(br.start),
-					ToBlock:   new(big.Int).SetUint64(br.end),
-					Addresses: p.blockReq.Addresses,
-					Topics:    p.blockReq.Topics,
-				}
-				p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				logs, err := p.getLogsRetry(ctx, filter)
-				if err != nil {
-					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-					continue
-				}
-				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				processLogs(logs, p, blockInfoChan)
-			}
-			p.saveHeightFunc(latestHeight)
+			startHeight = processBlocks(ctx, startHeight, latestHeight, p, blockInfoChan)
 			p.backlogProcessing = false
 		case <-pollerStart.C:
 			latestHeight := p.latestHeight(ctx)
-			if startHeight < latestHeight {
-				blockReqs := getBlockReqs(startHeight, latestHeight, p)
-				for _, br := range blockReqs {
-					filter := ethereum.FilterQuery{
-						FromBlock: new(big.Int).SetUint64(br.start),
-						ToBlock:   new(big.Int).SetUint64(br.end),
-						Addresses: p.blockReq.Addresses,
-						Topics:    p.blockReq.Topics,
-					}
-					p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-					logs, err := p.getLogsRetry(ctx, filter)
-					if err != nil {
-						p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-						continue
-					}
-					p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-					processLogs(logs, p, blockInfoChan)
-				}
-				p.saveHeightFunc(latestHeight)
-				startHeight = latestHeight
-			}
+			startHeight = processBlocks(ctx, startHeight, latestHeight, p, blockInfoChan)
 			pollerStart.Reset(pollerTime)
 		}
 	}
+}
+
+func processBlocks(ctx context.Context, startHeight uint64, latestHeight uint64, p *Provider, blockInfoChan chan *relayertypes.BlockInfo) uint64 {
+	if startHeight == 0 {
+		startHeight = latestHeight
+	}
+	blockReqs := getBlockReqs(startHeight, latestHeight, p)
+	for _, br := range blockReqs {
+		filter := ethereum.FilterQuery{
+			FromBlock: new(big.Int).SetUint64(br.start),
+			ToBlock:   new(big.Int).SetUint64(br.end),
+			Addresses: p.blockReq.Addresses,
+			Topics:    p.blockReq.Topics,
+		}
+		p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+		logs, err := p.getLogsRetry(ctx, filter)
+		if err != nil {
+			p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
+			continue
+		}
+		p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+		processLogs(logs, p, blockInfoChan)
+	}
+	p.saveHeightFunc(latestHeight)
+	return startHeight
 }
 
 func getBlockReqs(startHeight uint64, latestHeight uint64, p *Provider) []*blockReq {
