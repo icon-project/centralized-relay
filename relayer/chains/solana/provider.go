@@ -51,6 +51,15 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 		return fmt.Errorf("failed to load wallet: %w", err)
 	}
 
+	if p.cfg.AltAddress == "" {
+		lutAddr, err := p.createLookupTableAccount(ctx)
+		if err != nil {
+			return err
+		}
+		p.log.Info("Look table account created successfully: ", zap.String("alt-address", lutAddr.String()))
+		p.cfg.AltAddress = lutAddr.String()
+	}
+
 	if err := p.initStaticAlts(); err != nil {
 		return fmt.Errorf("failed to init static address lookup tables: %w", err)
 	}

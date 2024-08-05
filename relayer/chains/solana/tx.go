@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gagliardetto/solana-go"
+	compute_budget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/alt"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
@@ -472,6 +473,8 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 	accounts = append(accounts, executeCallAccounts...)
 
 	instructions := []solana.Instruction{
+		compute_budget.NewSetComputeUnitLimitInstruction(200000).Build(),
+		compute_budget.NewSetComputeUnitPriceInstruction(0).Build(),
 		&solana.GenericInstruction{
 			ProgID:        p.xcallIdl.GetProgramID(),
 			AccountValues: accounts,
