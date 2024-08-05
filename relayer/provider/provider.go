@@ -51,7 +51,6 @@ type ChainProvider interface {
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
 	IsBackLogProcessing() bool
-	GetBatchSize() uint64
 }
 
 // CommonConfig is the common configuration for all chain providers

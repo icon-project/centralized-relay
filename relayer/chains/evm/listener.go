@@ -126,7 +126,6 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
 					continue
 				}
-				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
 				for _, log := range logs {
 					message, err := p.getRelayMessageFromLog(log)
