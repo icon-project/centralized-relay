@@ -25,8 +25,6 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	done := p.SetSDKContext()
-	defer done()
 	if err := p.client.ImportArmor(p.NID(), priv, string(pass)); err != nil {
 		if strings.Contains(err.Error(), "cannot overwrite key") {
 			return nil

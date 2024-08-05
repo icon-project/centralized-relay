@@ -162,12 +162,15 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 
 func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) {
 	routeTimer := time.NewTicker(types.RouteDuration)
-	flushTimer := time.NewTicker(flushInterval)
+	flushTimer := time.NewTicker(1 * time.Second)
 	heightTimer := time.NewTicker(HeightSaveInterval)
-	cleanMessageTimer := time.NewTicker(DeleteExpiredInterval)
+	cleanMessageTimer := time.NewTicker(1 * time.Second)
+	resetTimer := time.NewTicker(3 * time.Second)
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-flushTimer.C:
 			// flushMessage gets all the message from DB
 			go r.flushMessages(ctx)
@@ -178,6 +181,10 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
 			go r.cleanExpiredMessages(ctx)
+		case <-resetTimer.C:
+			resetTimer.Stop()
+			flushTimer.Reset(flushInterval)
+			cleanMessageTimer.Reset(DeleteExpiredInterval)
 		}
 	}
 }

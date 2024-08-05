@@ -4,13 +4,13 @@ RUN apk add --update --no-cache make musl-dev gcc binutils-gold git
 
 ARG BUILDPLATFORM=arm64
 ARG TARGETPLATFORM=arm64
-ARG COSMWASM_VERSION=2.0.1
+ARG COSMWASM_VERSION=2.1.0
 
 RUN wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.aarch64.a -O /usr/lib/libwasmvm.aarch64.a && \
     wget https://github.com/CosmWasm/wasmvm/releases/download/v${COSMWASM_VERSION}/libwasmvm_muslc.x86_64.a -O /usr/lib/libwasmvm.x86_64.a
 
 COPY . .
-RUN LDFLAGS='-linkmode external -extldflags "-static"' make install
+RUN LDFLAGS='-linkmode external -extldflags "-static -Wl,-z,muldefs -lm"' make install
 
 RUN if [ -d "/go/bin/linux_${TARGETPLATFORM}" ]; then mv /go/bin/linux_${TARGETPLATFORM}/* /go/bin/; fi
 
