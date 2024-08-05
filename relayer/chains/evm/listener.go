@@ -2,7 +2,6 @@ package evm
 
 import (
 	"context"
-	"math"
 	"math/big"
 	"runtime"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
@@ -61,168 +59,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	if err != nil {
 		return err
 	}
-
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
-	if p.cfg.Redundancy == WsRedundancy {
-		return p.listenWithWsRedundancy(ctx, startHeight, blockInfoChan)
-	} else {
-		return p.listenNormalWsNPoll(ctx, startHeight, blockInfoChan)
-	}
-}
-func getRequiredQuorum(size int) int {
-	return (size / 2) + 1
-}
-
-func findMinHeight(heightMap map[string]uint64) uint64 {
-	minHeight := uint64(math.MaxUint64)
-
-	for _, height := range heightMap {
-		if height < minHeight {
-			minHeight = height
-		}
-	}
-
-	return minHeight
-}
-
-func (p *Provider) listenWithWsRedundancy(ctx context.Context, startHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
-	cache := expirable.NewLRU[string, int](1000, nil, time.Hour*6)
-	htMap := make(map[string]uint64)
-	internalChan := make(chan *relayertypes.BlockInfo)
-	htUpdateChan := make(chan *types.HeightUpdateRpc)
-	p.backlogProcessing = true
-	var (
-		subscribeStart = time.NewTicker(time.Second * 1)
-		errChan        = make(chan types.ErrorMessageRpc)
-	)
-	if len(p.clients) < 2 {
-		panic("for ws redendancy, there must be more than one ws url")
-	}
-	var restartLists []string
-	for {
-		select {
-		case <-ctx.Done():
-			p.log.Debug("evm listener: done")
-			return nil
-		case pkt := <-internalChan:
-			cacheKey := GetBlockInfoKey(pkt)
-			if cache.Contains(cacheKey) {
-				if val, ok := cache.Get(cacheKey); ok {
-					if (val + 1) >= getRequiredQuorum(len(p.clients)) {
-						p.log.Info("Releasing message...", zap.Any("cacheKey", cacheKey))
-						blockInfoChan <- pkt
-						cache.Remove(cacheKey)
-						cache.Add(cacheKey, -999)
-					} else {
-						cache.Add(cacheKey, val+1)
-					}
-				}
-			} else {
-				p.log.Info("Holding message ..waiting", zap.Any("cacheKey", cacheKey))
-				cache.Add(cacheKey, 1)
-			}
-		case htUpdate := <-htUpdateChan:
-			minHeight := findMinHeight(htMap)
-			htMap[htUpdate.RPCUrl] = htUpdate.Height
-			newMinHeight := findMinHeight(htMap)
-			if minHeight != newMinHeight {
-				if len(htMap) > 1 {
-					p.saveHeightFunc(newMinHeight)
-				}
-			}
-		case err := <-errChan:
-			if p.isConnectionError(err.Error) {
-				p.log.Error("connection error", zap.Error(err.Error))
-				index := -1
-				for lindex, lclient := range p.clients {
-					if lclient.GetRPCUrl() == err.RPCUrl {
-						index = lindex
-					}
-				}
-				if index != -1 {
-					nclient, cnErr := p.clients[index].Reconnect()
-					if cnErr != nil {
-						p.log.Error("failed to reconnect", zap.Error(cnErr))
-					} else {
-						p.log.Info("client reconnected")
-						p.clients[index] = nclient
-					}
-					restartLists = append(restartLists, p.clients[index].GetRPCUrl())
-				}
-			} else {
-				index := -1
-				for lindex, lclient := range p.clients {
-					if lclient.GetRPCUrl() == err.RPCUrl {
-						index = lindex
-					}
-				}
-				restartLists = append(restartLists, p.clients[index].GetRPCUrl())
-			}
-			startHeight = p.GetLastSavedBlockHeight()
-			subscribeStart.Reset(time.Second * 1)
-		case <-subscribeStart.C:
-			subscribeStart.Stop()
-			latestHeight := p.latestHeight(ctx)
-			restartIndex := -1
-			for _, client := range p.clients {
-				if len(restartLists) == 0 {
-					go p.Subscribe(ctx, client, internalChan, errChan, latestHeight, htUpdateChan)
-				}
-				for idx, rpc := range restartLists {
-					if rpc == client.GetRPCUrl() {
-						restartIndex = idx
-						go p.Subscribe(ctx, client, internalChan, errChan, latestHeight, htUpdateChan)
-					}
-				}
-			}
-			restartLists = restartLists[:0]
-			if restartIndex == 1 || len(restartLists) == 0 {
-				var blockReqs []*blockReq
-				if startHeight == 0 {
-					startHeight = latestHeight
-				}
-				for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
-					end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-					blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
-				}
-
-				for _, br := range blockReqs {
-					filter := ethereum.FilterQuery{
-						FromBlock: new(big.Int).SetUint64(br.start),
-						ToBlock:   new(big.Int).SetUint64(br.end),
-						Addresses: p.blockReq.Addresses,
-						Topics:    p.blockReq.Topics,
-					}
-					p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Any("host", p.GetClient().GetRPCUrl()))
-					logs, err := p.getLogsRetry(ctx, filter, br.retry)
-					if err != nil {
-						p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-						continue
-					}
-					p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-					for _, log := range logs {
-						message, err := p.getRelayMessageFromLog(log)
-						if err != nil {
-							p.log.Error("failed to get relay message from log", zap.Error(err))
-							continue
-						}
-						p.log.Info("Detected eventlog",
-							zap.String("target_network", message.Dst),
-							zap.Uint64("sn", message.Sn.Uint64()),
-							zap.String("event_type", message.EventType),
-							zap.String("tx_hash", log.TxHash.String()),
-							zap.Uint64("block_number", log.BlockNumber),
-						)
-						blockInfoChan <- &relayertypes.BlockInfo{
-							Height:   log.BlockNumber,
-							Messages: []*relayertypes.Message{message},
-						}
-					}
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-		}
-	}
+	return p.listenNormalWsNPoll(ctx, startHeight, blockInfoChan)
 }
 
 func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
