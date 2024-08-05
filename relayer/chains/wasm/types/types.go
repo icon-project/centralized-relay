@@ -56,20 +56,6 @@ func (param *TxSearchParam) BuildQuery() string {
 	return finalQuery.GetQuery()
 }
 
-type Event struct {
-	Type       string      `json:"type"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-type Attribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type EventsList struct {
-	Events []Event `json:"events"`
-}
-
 type TxResultResponse struct {
 	Height int64 `json:"height"`
 	Result struct {
