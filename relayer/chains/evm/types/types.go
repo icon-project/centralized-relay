@@ -78,13 +78,3 @@ func (n *NonceTracker) Set(addr common.Address, nonce *big.Int) {
 		LastUpdated: time.Now(),
 	}
 }
-
-type ErrorMessageRpc struct {
-	RPCUrl string
-	Error  error
-}
-
-type HeightUpdateRpc struct {
-	RPCUrl string
-	Height uint64
-}

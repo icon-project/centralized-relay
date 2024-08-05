@@ -285,7 +285,3 @@ func (p *Provider) SaveHeightFunc(f func(ht uint64) uint64) {
 func (p *Provider) IsBackLogProcessing() bool {
 	return false
 }
-
-func (p *Provider) GetBatchSize() uint64 {
-	return 50
-}

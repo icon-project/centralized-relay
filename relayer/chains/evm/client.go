@@ -59,7 +59,6 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 		connection: connection,
 		xcall:      xcall,
 		reconnect:  reconnectFunc,
-		rpcUrl:     rpcUrl,
 	}, nil
 }
 
@@ -72,7 +71,6 @@ type Client struct {
 	connection *bridgeContract.Connection
 	xcall      *bridgeContract.Xcall
 	reconnect  func() (IClient, error)
-	rpcUrl     string
 }
 
 type IClient interface {
@@ -243,8 +241,4 @@ func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<
 // Reconnect
 func (c *Client) Reconnect() (IClient, error) {
 	return c.reconnect()
-}
-
-func (c *Client) GetRPCUrl() string {
-	return c.rpcUrl
 }
