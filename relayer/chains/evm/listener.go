@@ -260,7 +260,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 		case <-time.After(time.Minute * 2):
 			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
 			defer cancel()
-			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+			if _, err := p.QueryLatestHeight(ctx); err != nil {
 				resetCh <- err
 				return err
 			}
