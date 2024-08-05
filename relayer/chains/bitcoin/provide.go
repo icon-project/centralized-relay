@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"context"
 	"fmt"
+	"github.com/btcsuite/btcd/txscript"
 	"math/big"
 	"runtime"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -33,6 +33,7 @@ type Provider struct {
 	contracts           map[string]relayTypes.EventMap
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
+	multisigAddrScript  []byte
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -517,50 +518,63 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
-	//var (
-	//	// todo: query from provide.config
-	//	multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
-	//	preFixOP        = txscript.OP_13
-	//)
-	//
-	//searchParam := TxSearchParam{
-	//	StartHeight:    heightInfo.Start,
-	//	EndHeight:      heightInfo.End,
-	//	BitcoinAddress: multisigAddress,
-	//	OPReturnPrefix: preFixOP,
-	//}
+	var (
+		// todo: query from provide.config
+		multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+		preFixOP        = txscript.OP_13
+	)
 
-	return p.getMessagesFromTxList(nil)
+	multiSigScript, err := p.client.DecodeAddress(multisigAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	searchParam := TxSearchParam{
+		StartHeight:    heightInfo.Start,
+		EndHeight:      heightInfo.End,
+		BitcoinScript:  multiSigScript,
+		OPReturnPrefix: preFixOP,
+	}
+
+	messages, err := p.client.TxSearch(context.Background(), searchParam)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return p.getMessagesFromTxList(messages)
 }
 
-func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
-	//var messages []*relayTypes.BlockInfo
-	//for _, resultTx := range resultTxList {
-	//	var eventsList []*EventsList
-	//	if err := jsoniter.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
-	//		return nil, err
-	//	}
-	//
-	//	for _, event := range eventsList {
-	//		msgs, err := p.ParseMessageFromEvents(event.Events)
-	//		if err != nil {
-	//			return nil, err
-	//		}
-	//		for _, msg := range msgs {
-	//			msg.MessageHeight = uint64(resultTx.Height)
-	//			p.logger.Info("Detected eventlog",
-	//				zap.Uint64("height", msg.MessageHeight),
-	//				zap.String("target_network", msg.Dst),
-	//				zap.Uint64("sn", msg.Sn),
-	//				zap.String("event_type", msg.EventType),
-	//			)
-	//		}
-	//		messages = append(messages, &relayTypes.BlockInfo{
-	//			Height:   uint64(resultTx.Height),
-	//			Messages: msgs,
-	//		})
-	//	}
-	//}
+func parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
+	// handle for bitcoin bridge
+
+	// parse message
+
+	// todo: handle for rad fi
+
+	return nil, nil
+}
+
+func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayTypes.BlockInfo, error) {
+	var messages []*relayTypes.BlockInfo
+	for _, resultTx := range resultTxList {
+		msg, err := parseMessageFromTx(resultTx)
+		if err != nil {
+			return nil, err
+		}
+
+		msg.MessageHeight = resultTx.Height
+		p.logger.Info("Detected eventlog",
+			zap.Uint64("height", msg.MessageHeight),
+			zap.String("target_network", msg.Dst),
+			zap.Uint64("sn", msg.Sn),
+			zap.String("event_type", msg.EventType),
+		)
+		messages = append(messages, &relayTypes.BlockInfo{
+			Height:   resultTx.Height,
+			Messages: msgs,
+		})
+	}
 	return nil, nil
 }
 

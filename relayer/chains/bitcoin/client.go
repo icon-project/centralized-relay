@@ -1,12 +1,13 @@
 package bitcoin
 
 import (
+	"bytes"
 	"context"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
 	"go.uber.org/zap"
 	"os"
 	// "github.com/btcsuite/btcd/wire"
@@ -32,6 +33,8 @@ type IClient interface {
 	Subscribe(ctx context.Context, _, query string) error
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context) (uint64, error)
+	DecodeAddress(btcAddr string) ([]byte, error)
+	TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error)
 }
 
 // grouped rpc api clients
@@ -113,10 +116,11 @@ func (c *Client) GetFee(ctx context.Context) (uint64, error) {
 	return 10, nil
 }
 
-func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*wire.MsgTx, error) {
+func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error) {
 	//
-	res := []*wire.MsgTx{}
-	meetRequirements := 0
+	res := []*TxSearchRes{}
+	meetRequirement1 := 0
+	meetRequirement2 := 0
 
 	for i := param.StartHeight; i <= param.EndHeight; i++ {
 		blockHash, err := c.client.GetBlockHash(int64(i))
@@ -131,24 +135,39 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*wire.Msg
 			for _, txOutput := range tx.TxOut {
 				if len(txOutput.PkScript) > 2 {
 					// check OP_RETURN
-					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == txscript.OP_13 {
-						meetRequirements++
+					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == byte(param.OPReturnPrefix) {
+						meetRequirement1++
 					}
 
 					// check EQUAL to multisig script
-					//if {
-					//    meetRequirements++
-					//}
+					if bytes.Equal(param.BitcoinScript, txOutput.PkScript) {
+						meetRequirement2++
+					}
 
-					if meetRequirements == 2 {
-						res = append(res, tx)
+					if meetRequirement2*meetRequirement1 != 0 {
+						res = append(res, &TxSearchRes{Height: i, Tx: tx})
 						break
 					}
 				}
 			}
-			meetRequirements = 0
+			meetRequirement2 = 0
+			meetRequirement1 = 0
 		}
 	}
 
 	return res, nil
+}
+
+func (c *Client) DecodeAddress(btcAddr string) ([]byte, error) {
+	// return bitcoin script value
+	decodedAddr, err := btcutil.DecodeAddress(btcAddr, c.chainParam)
+	if err != nil {
+		return nil, err
+	}
+	destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return destinationAddrByte, nil
 }
