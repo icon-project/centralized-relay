@@ -267,12 +267,6 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 			r.log.Error("failed to store a message in db", zap.Error(err))
 		}
 	}
-	//Don;t save large block differences, it will be captured via periodic saving height function
-	if src.LastBlockHeight < (src.LastSavedHeight + src.Provider.GetBatchSize()) {
-		if err := r.SaveBlockHeight(ctx, src, src.LastBlockHeight); err != nil {
-			r.log.Error("failed to save block height", zap.Error(err))
-		}
-	}
 }
 
 func (r *Relayer) SaveBlockHeight(ctx context.Context, chainRuntime *ChainRuntime, height uint64) error {
