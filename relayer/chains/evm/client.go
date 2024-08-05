@@ -81,7 +81,6 @@ type IClient interface {
 	GetBlockNumber(context.Context) (uint64, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
 	GetChainID() *big.Int
-	GetRPCUrl() string
 
 	// ethClient
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)

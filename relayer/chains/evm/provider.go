@@ -44,18 +44,17 @@ var (
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
-	WebsocketUrl          string   `json:"websocket-url" yaml:"websocket-url"`
-	WebsocketUrls         []string `json:"websocket-urls" yaml:"websocket-urls"`
-	GasMin                uint64   `json:"gas-min" yaml:"gas-min"`
-	GasLimit              uint64   `json:"gas-limit" yaml:"gas-limit"`
-	GasAdjustment         uint64   `json:"gas-adjustment" yaml:"gas-adjustment"`
-	BlockBatchSize        uint64   `json:"block-batch-size" yaml:"block-batch-size"`
-	Redundancy            string   `json:"redundancy-check" yaml:"redundancy-check"`
-	Fetch                 string   `json:"fetch" yaml:"fetch"`
+	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
+	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
+	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
+	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
+	BlockBatchSize        uint64 `json:"block-batch-size" yaml:"block-batch-size"`
+	Redundancy            string `json:"redundancy-check" yaml:"redundancy-check"`
+	Fetch                 string `json:"fetch" yaml:"fetch"`
 }
 
 type Provider struct {
-	clients             []IClient
+	client              IClient
 	log                 *zap.Logger
 	cfg                 *Config
 	StartHeight         uint64
@@ -68,10 +67,6 @@ type Provider struct {
 	saveHeightFunc      func(uint64) uint64
 	routerMutex         *sync.Mutex
 	backlogProcessing   bool
-}
-
-func (p *Provider) GetClient() IClient {
-	return p.clients[0]
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -88,19 +83,11 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
 	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
 
-	var clients []IClient
 	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating client: %v", err)
 	}
-	clients = append(clients, client)
-	for idx, wsUrl := range p.WebsocketUrls {
-		client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrls[idx], wsUrl, log)
-		if err != nil {
-			return nil, fmt.Errorf("error occured when creating client: %v", err)
-		}
-		clients = append(clients, client)
-	}
+
 	// setting default finality block
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = DefaultFinalityBlock
@@ -109,10 +96,10 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	return &Provider{
 		cfg:               p,
 		log:               log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
-		clients:           clients,
+		client:            client,
 		blockReq:          p.GetMonitorEventFilters(),
 		contracts:         p.eventMap(),
-		NonceTracker:      types.NewNonceTracker(clients[0].PendingNonceAt),
+		NonceTracker:      types.NewNonceTracker(client.PendingNonceAt),
 		routerMutex:       new(sync.Mutex),
 		backlogProcessing: true,
 	}, nil
@@ -175,7 +162,7 @@ func (p *Provider) Wallet() (*keystore.Key, error) {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
-		nonce, err := p.GetClient().PendingNonceAt(ctx, p.wallet.Address, nil)
+		nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +188,7 @@ func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction)
 				return nil, fmt.Errorf("failed to get receipt after %d tries", counter)
 			}
 			counter++
-			txr, err := p.GetClient().TransactionReceipt(ctx, tx.Hash())
+			txr, err := p.client.TransactionReceipt(ctx, tx.Hash())
 			if err == nil {
 				return txr, nil
 			}
@@ -221,17 +208,17 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 
 	fromAddress := crypto.PubkeyToAddress(from.PublicKey)
 
-	nonce, err := r.GetClient().PendingNonceAt(context.TODO(), fromAddress, nil)
+	nonce, err := r.client.PendingNonceAt(context.TODO(), fromAddress, nil)
 	if err != nil {
 		err = errors.Wrap(err, "PendingNonceAt ")
 		return common.Hash{}, err
 	}
-	gasPrice, err := r.GetClient().SuggestGasPrice(context.Background())
+	gasPrice, err := r.client.SuggestGasPrice(context.Background())
 	if err != nil {
 		err = errors.Wrap(err, "SuggestGasPrice ")
 		return common.Hash{}, err
 	}
-	chainID := r.GetClient().GetChainID()
+	chainID := r.client.GetChainID()
 	tx := ethTypes.NewTransaction(nonce.Uint64(), common.HexToAddress(recepientAddress), amount, 30000000, gasPrice, []byte{})
 	signedTx, err := ethTypes.SignTx(tx, ethTypes.NewEIP155Signer(chainID), from)
 	if err != nil {
@@ -239,7 +226,7 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 		return common.Hash{}, err
 	}
 
-	if err = r.GetClient().SendTransaction(context.Background(), signedTx); err != nil {
+	if err = r.client.SendTransaction(context.Background(), signedTx); err != nil {
 		err = errors.Wrap(err, "SendTransaction ")
 		return
 	}
@@ -249,7 +236,7 @@ func (r *Provider) transferBalance(senderKey, recepientAddress string, amount *b
 
 func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, error) {
 	newTransactOpts := func(w *keystore.Key) (*bind.TransactOpts, error) {
-		txo, err := bind.NewKeyedTransactorWithChainID(w.PrivateKey, p.GetClient().GetChainID())
+		txo, err := bind.NewKeyedTransactorWithChainID(w.PrivateKey, p.client.GetChainID())
 		if err != nil {
 			return nil, err
 		}
@@ -268,11 +255,11 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
 	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
-	gasPrice, err := p.GetClient().SuggestGasPrice(ctx)
+	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	gasTip, err := p.GetClient().SuggestGasTip(ctx)
+	gasTip, err := p.client.SuggestGasTip(ctx)
 	if err != nil {
 		p.log.Warn("failed to get gas tip", zap.Error(err))
 	}
@@ -373,7 +360,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 
 // GetFee
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	fee, err := p.GetClient().GetFee(&bind.CallOpts{Context: ctx}, networkID)
+	fee, err := p.client.GetFee(&bind.CallOpts{Context: ctx}, networkID)
 	if err != nil {
 		return 0, err
 	}
@@ -485,7 +472,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
 	}
-	return p.GetClient().EstimateGas(ctx, msg)
+	return p.client.EstimateGas(ctx, msg)
 }
 
 // SetLastSavedBlockHeightFunc sets the function to save the last saved block height

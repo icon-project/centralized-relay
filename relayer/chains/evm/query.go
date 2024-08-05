@@ -14,7 +14,7 @@ import (
 )
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	return p.GetClient().GetBlockNumber(ctx)
+	return p.client.GetBlockNumber(ctx)
 }
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *types.Message) (bool, error) {
@@ -30,7 +30,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.Messag
 	case events.EmitMessage:
 		ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 		defer cancel()
-		return p.GetClient().MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
+		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
 	case events.CallMessage:
 		return false, nil
 	case events.RollbackMessage:
@@ -41,7 +41,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.Messag
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, error) {
-	balance, err := p.GetClient().GetBalance(ctx, addr)
+	balance, err := p.client.GetBalance(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -50,13 +50,13 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, 
 
 // TODO: may not be need anytime soon so its ok to implement later on
 func (p *Provider) GenerateMessages(ctx context.Context, key *types.MessageKeyWithMessageHeight) ([]*types.Message, error) {
-	header, err := p.GetClient().GetHeaderByHeight(ctx, new(big.Int).SetUint64(key.Height))
+	header, err := p.client.GetHeaderByHeight(ctx, new(big.Int).SetUint64(key.Height))
 	if err != nil {
 		return nil, err
 	}
 	p.blockReq.FromBlock = new(big.Int).SetUint64(key.Height)
 	p.blockReq.ToBlock = new(big.Int).SetUint64(key.Height)
-	logs, err := p.GetClient().FilterLogs(ctx, p.blockReq)
+	logs, err := p.client.FilterLogs(ctx, p.blockReq)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *types.MessageKeyWi
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {
-	receipt, err := p.GetClient().TransactionReceipt(ctx, common.HexToHash(txHash))
+	receipt, err := p.client.TransactionReceipt(ctx, common.HexToHash(txHash))
 	if err != nil {
 		return nil, fmt.Errorf("queryTransactionReceipt: %v", err)
 	}

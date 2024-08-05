@@ -26,7 +26,6 @@ const (
 	PollFetch                  = "poll"
 	WsFetch                    = "ws"
 	RPCRedundancy              = "rpc-verify"
-	WsRedundancy               = "ws-verify"
 )
 
 type BnOptions struct {
@@ -41,17 +40,12 @@ type blockReq struct {
 }
 
 func (r *Provider) latestHeight(ctx context.Context) uint64 {
-	height, err := r.GetClient().GetBlockNumber(ctx)
+	height, err := r.client.GetBlockNumber(ctx)
 	if err != nil {
 		r.log.Error("Evm listener: failed to GetBlockNumber", zap.Error(err))
 		return 0
 	}
 	return height
-}
-
-func GetBlockInfoKey(bInfo *relayertypes.BlockInfo) string {
-	return bInfo.Messages[0].Src + "-" + bInfo.Messages[0].Dst +
-		"-" + bInfo.Messages[0].EventType + "-" + bInfo.Messages[0].Sn.String()
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
@@ -67,7 +61,7 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
 		pollerStart    = time.NewTicker(pollerTime)
-		errChan        = make(chan types.ErrorMessageRpc)
+		errChan        = make(chan error)
 	)
 
 	if p.cfg.Fetch == PollFetch {
@@ -89,22 +83,14 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 			p.log.Debug("evm listener: done")
 			return nil
 		case err := <-errChan:
-			if p.isConnectionError(err.Error) {
-				p.log.Error("connection error", zap.Error(err.Error))
-				index := -1
-				for lindex, lclient := range p.clients {
-					if lclient.GetRPCUrl() == err.RPCUrl {
-						index = lindex
-					}
-				}
-				if index != -1 {
-					nclient, cnErr := p.clients[index].Reconnect()
-					if cnErr != nil {
-						p.log.Error("failed to reconnect", zap.Error(cnErr))
-					} else {
-						p.log.Info("client reconnected")
-						p.clients[index] = nclient
-					}
+			if p.isConnectionError(err) {
+				p.log.Error("connection error", zap.Error(err))
+				client, err := p.client.Reconnect()
+				if err != nil {
+					p.log.Error("failed to reconnect", zap.Error(err))
+				} else {
+					p.log.Info("client reconnected")
+					p.client = client
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
@@ -112,9 +98,7 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
 			latestHeight := p.latestHeight(ctx)
-			for _, client := range p.clients {
-				go p.Subscribe(ctx, client, blockInfoChan, errChan, latestHeight, nil)
-			}
+			go p.Subscribe(ctx, blockInfoChan, errChan, latestHeight)
 			p.backlogProcessing = true
 			var blockReqs []*blockReq
 			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
@@ -211,7 +195,7 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 	var logs []ethTypes.Log
 	var err error
 	for i := 0; i < retry; i++ {
-		logs, err = p.GetClient().FilterLogs(ctx, filter)
+		logs, err = p.client.FilterLogs(ctx, filter)
 		if err == nil {
 			return logs, nil
 		}
@@ -285,32 +269,32 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, client IClient,
-	blockInfoChan chan *relayertypes.BlockInfo, resetCh chan types.ErrorMessageRpc,
-	latestHeight uint64, htChan chan *types.HeightUpdateRpc) error {
+func (p *Provider) Subscribe(ctx context.Context,
+	blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error,
+	latestHeight uint64) error {
 	ch := make(chan ethTypes.Log, 10)
 	wsEventsFound := false
-	sub, err := client.Subscribe(ctx, ethereum.FilterQuery{
+	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 		//TODO: required for some rpcs, review
 		FromBlock: new(big.Int).SetUint64(latestHeight),
 	}, ch)
 	if err != nil {
-		p.log.Error("failed to subscribe", zap.Error(err), zap.Any("host", client.GetRPCUrl()))
-		resetCh <- types.ErrorMessageRpc{Error: err, RPCUrl: client.GetRPCUrl()}
+		p.log.Error("failed to subscribe", zap.Error(err))
+		resetCh <- err
 		return err
 	}
 	defer sub.Unsubscribe()
 	defer close(ch)
-	p.log.Info("Subscribed to new blocks", zap.Any("address", p.blockReq.Addresses), zap.Any("rpc", client.GetRPCUrl()))
+	p.log.Info("Subscribed to new blocks", zap.Any("address", p.blockReq.Addresses))
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case err := <-sub.Err():
 			p.log.Error("subscription error", zap.Error(err))
-			resetCh <- types.ErrorMessageRpc{Error: err, RPCUrl: client.GetRPCUrl()}
+			resetCh <- err
 			return err
 		case log := <-ch:
 			wsEventsFound = true
@@ -325,15 +309,14 @@ func (p *Provider) Subscribe(ctx context.Context, client IClient,
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
 				zap.Uint64("block_number", log.BlockNumber),
-				zap.Any("rpc", client.GetRPCUrl()),
 			)
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
-			if _, err := client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
-				resetCh <- types.ErrorMessageRpc{Error: err, RPCUrl: client.GetRPCUrl()}
+			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+				resetCh <- err
 				return err
 			}
 			if p.cfg.Redundancy == RPCRedundancy {
@@ -343,23 +326,13 @@ func (p *Provider) Subscribe(ctx context.Context, client IClient,
 				}
 				p.handleRpcVerification(ctx, wsEventsFound, lastSavedHeight, resetCh, blockInfoChan)
 			}
-			if p.cfg.Redundancy == WsRedundancy {
-				latestBlock, err := client.GetBlockNumber(ctx)
-				if err == nil {
-					htChan <- &types.HeightUpdateRpc{
-						Height: latestBlock,
-						RPCUrl: client.GetRPCUrl(),
-					}
-				}
-
-			}
 		}
 
 	}
 }
 
 func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool, latestHeight uint64,
-	resetCh chan types.ErrorMessageRpc, blockInfoChan chan *relayertypes.BlockInfo) {
+	resetCh chan error, blockInfoChan chan *relayertypes.BlockInfo) {
 	if !wsEventsFound {
 		p.log.Info("No events found in ws,verifying rpc")
 		currentLatestHeight := p.latestHeight(ctx)
@@ -411,7 +384,7 @@ func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool
 			}
 			if messageFound {
 				p.log.Info("Need to reset ws connections")
-				resetCh <- types.ErrorMessageRpc{Error: errors.New("ws stale connection"), RPCUrl: p.GetClient().GetRPCUrl()}
+				resetCh <- errors.New("ws stale connection")
 			}
 		}
 		p.saveHeightFunc(currentLatestHeight)

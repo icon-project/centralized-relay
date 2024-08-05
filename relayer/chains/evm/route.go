@@ -79,27 +79,27 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 
 	switch message.EventType {
 	case events.EmitMessage:
-		tx, err = p.GetClient().ReceiveMessage(opts, message.Src, message.Sn, message.Data)
+		tx, err = p.client.ReceiveMessage(opts, message.Src, message.Sn, message.Data)
 	case events.CallMessage:
-		tx, err = p.GetClient().ExecuteCall(opts, message.ReqID, message.Data)
+		tx, err = p.client.ExecuteCall(opts, message.ReqID, message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
-		tx, err = p.GetClient().SetAdmin(opts, addr)
+		tx, err = p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		tx, err = p.GetClient().RevertMessage(opts, message.Sn)
+		tx, err = p.client.RevertMessage(opts, message.Sn)
 	case events.ClaimFee:
-		tx, err = p.GetClient().ClaimFee(opts)
+		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
-		tx, err = p.GetClient().SetFee(opts, message.Src, message.Sn, message.ReqID)
+		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
 	case events.RollbackMessage:
-		tx, err = p.GetClient().ExecuteRollback(opts, message.Sn)
+		tx, err = p.client.ExecuteRollback(opts, message.Sn)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 	if err != nil {
 		switch p.parseErr(err) {
 		case ErrNonceTooLow, ErrNonceTooHigh, ErrorLessGas:
-			nonce, err := p.GetClient().PendingNonceAt(ctx, p.wallet.Address, nil)
+			nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
 			if err != nil {
 				return nil, err
 			}
