@@ -107,12 +107,7 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 			if startHeight == 0 {
 				startHeight = latestHeight
 			}
-			var blockReqs []*blockReq
-			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
-				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil})
-			}
-
+			blockReqs := getBlockReqs(startHeight, latestHeight, p)
 			for _, br := range blockReqs {
 				filter := ethereum.FilterQuery{
 					FromBlock: new(big.Int).SetUint64(br.start),
@@ -127,35 +122,14 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 					continue
 				}
 				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				for _, log := range logs {
-					message, err := p.getRelayMessageFromLog(log)
-					if err != nil {
-						p.log.Error("failed to get relay message from log", zap.Error(err))
-						continue
-					}
-					p.log.Info("Detected eventlog",
-						zap.String("target_network", message.Dst),
-						zap.Uint64("sn", message.Sn.Uint64()),
-						zap.String("event_type", message.EventType),
-						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
-					)
-					blockInfoChan <- &relayertypes.BlockInfo{
-						Height:   log.BlockNumber,
-						Messages: []*relayertypes.Message{message},
-					}
-				}
+				processLogs(logs, p, blockInfoChan)
 			}
 			p.saveHeightFunc(latestHeight)
 			p.backlogProcessing = false
 		case <-pollerStart.C:
 			latestHeight := p.latestHeight(ctx)
-			var blockReqs []*blockReq
 			if startHeight < latestHeight {
-				for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
-					end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-					blockReqs = append(blockReqs, &blockReq{start, end, nil})
-				}
+				blockReqs := getBlockReqs(startHeight, latestHeight, p)
 				for _, br := range blockReqs {
 					filter := ethereum.FilterQuery{
 						FromBlock: new(big.Int).SetUint64(br.start),
@@ -170,29 +144,42 @@ func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, 
 						continue
 					}
 					p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-					for _, log := range logs {
-						message, err := p.getRelayMessageFromLog(log)
-						if err != nil {
-							p.log.Error("failed to get relay message from log", zap.Error(err))
-							continue
-						}
-						p.log.Info("Detected eventlog",
-							zap.String("target_network", message.Dst),
-							zap.Uint64("sn", message.Sn.Uint64()),
-							zap.String("event_type", message.EventType),
-							zap.String("tx_hash", log.TxHash.String()),
-							zap.Uint64("block_number", log.BlockNumber),
-						)
-						blockInfoChan <- &relayertypes.BlockInfo{
-							Height:   log.BlockNumber,
-							Messages: []*relayertypes.Message{message},
-						}
-					}
+					processLogs(logs, p, blockInfoChan)
 				}
 				p.saveHeightFunc(latestHeight)
 				startHeight = latestHeight
 			}
 			pollerStart.Reset(pollerTime)
+		}
+	}
+}
+
+func getBlockReqs(startHeight uint64, latestHeight uint64, p *Provider) []*blockReq {
+	var blockReqs []*blockReq
+	for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+		end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+		blockReqs = append(blockReqs, &blockReq{start, end, nil})
+	}
+	return blockReqs
+}
+
+func processLogs(logs []ethTypes.Log, p *Provider, blockInfoChan chan *relayertypes.BlockInfo) {
+	for _, log := range logs {
+		message, err := p.getRelayMessageFromLog(log)
+		if err != nil {
+			p.log.Error("failed to get relay message from log", zap.Error(err))
+			continue
+		}
+		p.log.Info("Detected eventlog",
+			zap.String("target_network", message.Dst),
+			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+			zap.Uint64("block_number", log.BlockNumber),
+		)
+		blockInfoChan <- &relayertypes.BlockInfo{
+			Height:   log.BlockNumber,
+			Messages: []*relayertypes.Message{message},
 		}
 	}
 }
@@ -353,13 +340,8 @@ func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool
 	if !wsEventsFound {
 		p.log.Info("No events found in ws,verifying rpc")
 		currentLatestHeight := p.latestHeight(ctx)
-		var blockReqs []*blockReq
-		syncBatchSize := p.cfg.BlockBatchSize
 		if latestHeight < currentLatestHeight {
-			for start := latestHeight; start <= currentLatestHeight; start += syncBatchSize {
-				end := min(start+syncBatchSize-1, currentLatestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil})
-			}
+			blockReqs := getBlockReqs(latestHeight, currentLatestHeight, p)
 			messageFound := false
 			for _, br := range blockReqs {
 				filter := ethereum.FilterQuery{
@@ -378,25 +360,7 @@ func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool
 					p.log.Info("got missing logs", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				}
 				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-				for _, log := range logs {
-					message, err := p.getRelayMessageFromLog(log)
-					if err != nil {
-						p.log.Error("failed to get relay message from log", zap.Error(err))
-						continue
-					}
-					p.log.Info("Detected missing eventlog",
-						zap.String("target_network", message.Dst),
-						zap.Uint64("sn", message.Sn.Uint64()),
-						zap.String("event_type", message.EventType),
-						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
-					)
-					messageFound = true
-					blockInfoChan <- &relayertypes.BlockInfo{
-						Height:   log.BlockNumber,
-						Messages: []*relayertypes.Message{message},
-					}
-				}
+				processLogs(logs, p, blockInfoChan)
 			}
 			if messageFound {
 				p.log.Info("Need to reset ws connections")
