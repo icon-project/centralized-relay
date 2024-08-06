@@ -1,12 +1,16 @@
 package types
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/types"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"go.uber.org/zap"
 )
 
 type TxSearchParam struct {
@@ -113,4 +117,33 @@ type SubscribeOpts struct {
 type HeightRange struct {
 	Start uint64
 	End   uint64
+}
+
+func Retry(ctx context.Context, maxAttempts uint8, baseDelay, maxDelay time.Duration, logger *zap.Logger, operation func() error) error {
+	var attempts uint8
+	for attempts < maxAttempts {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		attempts++
+		delay := time.Duration(math.Pow(2, float64(attempts))) * baseDelay
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+		if attempts >= maxAttempts {
+			logger.Error("operation failed", zap.Uint8("attempt", attempts), zap.Error(err))
+			return err
+		}
+		logger.Warn("operation failed, retrying...", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay))
+		time.Sleep(delay)
+	}
+	return fmt.Errorf("operation failed after %d attempts", maxAttempts)
 }

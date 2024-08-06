@@ -573,8 +573,10 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
 		messagesChan = make(chan *coreTypes.ResultTxSearch)
-		errorChan    = make(chan error)
 	)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, event := range p.eventList {
 		wg.Add(1)
@@ -589,10 +591,16 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 			localSearchParam.Events = append(localSearchParam.Events, event)
 
 			for retryCount < types.RPCMaxRetryAttempts {
-				p.logger.Info("fetching block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight))
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				p.logger.Info("fetching block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.String("event", event.Type))
 				msgs, err := p.client.TxSearch(ctx, localSearchParam)
 				if err == nil {
-					p.logger.Info("fetched block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight))
+					p.logger.Info("fetched block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.String("event", event.Type), zap.Int("total_count", msgs.TotalCount))
 					localMessages = msgs
 					break
 				}
@@ -602,22 +610,34 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 					delay = types.MaxRPCRetryDelay
 				}
 				if retryCount >= types.RPCMaxRetryAttempts {
-					p.logger.Error("fetchBlockMessages failed", zap.Uint8("attempt", retryCount), zap.Error(err))
-					errorChan <- err
-					break
+					p.logger.Error("fetchBlockMessages failed", zap.Uint8("attempt", retryCount), zap.String("event", event.Type), zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Error(err))
+					cancel()
+					return
 				}
-				p.logger.Error("failed to fetch block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Error(err))
+				p.logger.Warn("failed to fetch block messages. retrying...", zap.Uint8("attempt", retryCount), zap.Duration("retrying_in", delay), zap.String("event", event.Type), zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Error(err))
 				time.Sleep(delay)
 			}
 
 			if localMessages.TotalCount > perPage {
-				for i := 2; i <= int(localMessages.TotalCount/perPage)+1; i++ {
+				totalPages := (localMessages.TotalCount + perPage - 1) / perPage
+				for i := 2; i <= totalPages; i++ {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
 					p.logger.Info("fetching block messages", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Int("page", i))
 					localSearchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, localSearchParam)
 					if err != nil {
 						var attempts uint8
 						for attempts < types.RPCMaxRetryAttempts {
+							select {
+							case <-ctx.Done():
+								return
+							default:
+							}
+
 							p.logger.Error("failed to fetch block messages with page", zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Int("page", i), zap.Error(err))
 							attempts++
 							delay := time.Duration(math.Pow(2, float64(attempts))) * types.BaseRPCRetryDelay
@@ -626,10 +646,10 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 							}
 							if attempts >= types.RPCMaxRetryAttempts {
 								p.logger.Error("fetchBlockMessages failed", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay), zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight))
-								errorChan <- err
-								break
+								cancel()
+								return
 							}
-							p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay))
+							p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay), zap.Uint64("start_height", localSearchParam.StartHeight), zap.Uint64("end_height", localSearchParam.EndHeight), zap.Error(err))
 							time.Sleep(delay)
 						}
 					}
@@ -643,34 +663,11 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	go func() {
 		wg.Wait()
 		close(messagesChan)
-		close(errorChan)
 	}()
 
-	var errors []error
-	for {
-		select {
-		case msgs, ok := <-messagesChan:
-			if !ok {
-				messagesChan = nil
-			} else {
-				messages.Txs = append(messages.Txs, msgs.Txs...)
-				messages.TotalCount += msgs.TotalCount
-			}
-		case err, ok := <-errorChan:
-			if !ok {
-				errorChan = nil
-			} else {
-				errors = append(errors, err)
-			}
-		}
-		if messagesChan == nil && errorChan == nil {
-			break
-		}
-	}
-
-	if len(errors) > 0 {
-		p.logger.Error("Errors occurred while fetching block messages", zap.Errors("errors", errors))
-		return nil, fmt.Errorf("errors occurred while fetching block messages: %v", errors)
+	for msgs := range messagesChan {
+		messages.Txs = append(messages.Txs, msgs.Txs...)
+		messages.TotalCount += msgs.TotalCount
 	}
 
 	return p.getMessagesFromTxList(messages.Txs)
