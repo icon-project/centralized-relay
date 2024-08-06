@@ -1,6 +1,8 @@
 package multisig
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/btcsuite/btcd/txscript"
@@ -19,26 +21,17 @@ const (
 )
 
 type RadFiProvideLiquidityMsg struct {
-	Fee			[]byte
-	UpperTick	[]byte
-	LowerTick	[]byte
-	Min0		[]byte
-	Min1		[]byte
+	Fee			uint8
+	UpperTick	int32
+	LowerTick	int32
+	Min0		uint16
+	Min1		uint16
 }
 
 type RadFiDecodedMsg struct {
-	Flag				[]byte
-	ProvideLiquidityMsg	RadFiProvideLiquidityMsg
+	Flag				byte
+	ProvideLiquidityMsg	*RadFiProvideLiquidityMsg
 }
-
-// func createProvideLiquidityScript(fee uint8, upperTick uint32) ([]byte, error) {
-// 	builder := txscript.NewScriptBuilder()
-
-// 	builder.AddOp(txscript.OP_RETURN)
-// 	builder.AddOp(OP_RADFI_IDENT)
-
-// 	return builder.Script()
-// }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
 	var chunk []byte
@@ -69,21 +62,35 @@ func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error)
 	return scripts, nil
 }
 
-func readRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
-	var payload []byte
+func CreateProvideLiquidityScript(fee uint8, upperTick int32, lowerTick int32, min0 uint16, min1 uint16) ([]byte, error) {
+	builder := txscript.NewScriptBuilder()
+
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddOp(OP_RADFI_IDENT)
+	builder.AddOp(OP_RADFI_PROVIDE_LIQUIDITY)
+	// encode message content
+	buf := new(bytes.Buffer)
+	var data = []any{ fee, upperTick, lowerTick, min0, min1 }
+	for _, v := range data {
+		err := binary.Write(buf, binary.LittleEndian, v)
+		if err != nil {
+			fmt.Println("CreateProvideLiquidityScript encode data failed:", err)
+		}
+	}
+
+	return builder.AddData(buf.Bytes()).Script()
+}
+
+func ReadBridgeMessage(transaction *wire.MsgTx) ([]byte, error) {
+	payload := []byte{}
 	for _, output := range transaction.TxOut {
 		tokenizer := txscript.MakeScriptTokenizer(0, output.PkScript)
 		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != txscript.OP_RETURN {
 			// Check for OP_RETURN
 			continue
 		}
-		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() == OP_RUNE_IDENT {
-			// Check to ignore Rune protocol identifier (Runestone::MAGIC_NUMBER)
-			continue
-		}
-
-		if (isRadFi && tokenizer.Opcode() != OP_RADFI_IDENT) || ((!isRadFi && tokenizer.Opcode() != OP_BRIDGE_IDENT)){
-			// Check for Relayer protocol identifier (RadFi or ICON Bridge)
+		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != OP_BRIDGE_IDENT {
+			// Check to ignore non Bridge protocol identifier (Rune or RadFi)
 			continue
 		}
 
@@ -94,57 +101,71 @@ func readRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
 			}
 			payload = append(payload, tokenizer.Data()...)
 		}
+	}
 
-		// only read 1 message output for radfi protocol
-		if isRadFi {
-			break
-		}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("ReadBridgeMessage - no Bridge message found")
 	}
 
 	return payload, nil
 }
 
-// func decodeRadFiMessage(payload []byte) (*DecodedMsg, error) {
-// 	tokenizer := txscript.MakeScriptTokenizer(0, payload)
+func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
+	var flag byte
+	var payload []byte
+	for _, output := range transaction.TxOut {
+		tokenizer := txscript.MakeScriptTokenizer(0, output.PkScript)
+		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != txscript.OP_RETURN {
+			// Check for OP_RETURN
+			continue
+		}
+		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != OP_RADFI_IDENT {
+			// Check to ignore non RadFi protocol identifier (Rune or Bridge)
+			continue
+		}
 
-// 	// take the flag
-// 	if !tokenizer.Next() || tokenizer.Err() != nil {
-// 		return nil, fmt.Errorf("decodeRadFiMessage could not read the flag - Error %v", tokenizer.Err())
-// 	}
-// 	flag := tokenizer.Opcode()
+		if tokenizer.Next() && tokenizer.Err() == nil {
+			flag = tokenizer.Opcode()
+		}
 
-// 	switch flag {
-//     case OP_RADFI_PROVIDE_LIQUIDITY:
-// 		if !tokenizer.Next() || tokenizer.Err() != nil {
-// 			return nil, fmt.Errorf("decodeRadFiMessage could not read the ProvideLiquidityMsg Fee - Error %v", tokenizer.Err())
-// 		}
-// 		fee :=
-//         return &DecodedMsg {
-// 			Flag		: flag,
-// 			ProvideLiquidityMsg: RadFiProvideLiquidityMsg {
-// 				Fee			: ,
-// 				UpperTick	: ,
-// 				LowerTick	: ,
-// 				Min0		: ,
-// 				Min1		: ,
-// 			}
-// 		}
-//     case 2:
-//         fmt.Println("two")
-//     case 3:
-//         fmt.Println("three")
-//     default:
-//         fmt.Println("It's after noon")
-//     }
+		// Construct the payload by concatenating remaining data pushes
+		for tokenizer.Next() {
+			if tokenizer.Err() != nil {
+				return nil, tokenizer.Err()
+			}
+			payload = append(payload, tokenizer.Data()...)
+		}
 
+		// only read 1 OP_RETURN output for RadFi protocol
+		break
+	}
 
-// 	return payload, nil
-// }
+	// Decode RadFi message
+	r := bytes.NewReader(payload)
+	switch flag {
+		case OP_RADFI_PROVIDE_LIQUIDITY:
+			var provideLiquidityMsg RadFiProvideLiquidityMsg
+			if err := binary.Read(r, binary.LittleEndian, &provideLiquidityMsg); err != nil {
+				fmt.Println("OP_RADFI_PROVIDE_LIQUIDITY Read failed:", err)
+			}
 
-// func nextToken(tokenizer *txscript.ScriptTokenizer) ([]byte, error) {
-// 	if !tokenizer.Next() || tokenizer.Err() != nil {
-// 		return nil, fmt.Errorf("decodeRadFiMessage could not read the flag - Error %v", tokenizer.Err())
-// 	}
+			return &RadFiDecodedMsg {
+				Flag		: flag,
+				ProvideLiquidityMsg: &provideLiquidityMsg,
+			}, nil
 
-// 	return tokenizer.Opcode()
-// }
+		case OP_RADFI_SWAP:
+			fmt.Println("OP_RADFI_SWAP")
+
+		case OP_RADFI_WITHDRAW_LIQUIDITY:
+			fmt.Println("OP_RADFI_WITHDRAW_LIQUIDITY")
+
+		case OP_RADFI_COLLECT_FEE:
+			fmt.Println("OP_RADFI_COLLECT_FEE")
+
+		default:
+			return nil, fmt.Errorf("ReadRadFiMessage - invalid flag")
+	}
+
+	return nil, fmt.Errorf("ReadRadFiMessage - no RadFi message found")
+}
