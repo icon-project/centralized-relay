@@ -6,7 +6,6 @@ import (
 
 	abiTypes "github.com/cometbft/cometbft/abci/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
@@ -33,7 +32,7 @@ const (
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
-func (p *Provider) ParseMessageFromEvents(eventsList []types.Event) ([]*relayerTypes.Message, error) {
+func (p *Provider) ParseMessageFromEvents(eventsList []abiTypes.Event) ([]*relayerTypes.Message, error) {
 	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {
