@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -165,12 +165,31 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 	return rootCmd
 }
 
+type lumberjackSink struct {
+	*lumberjack.Logger
+}
+
+func (lumberjackSink) Sync() error { return nil }
+
 func newRootLogger(format string, debug bool) (*zap.Logger, error) {
 	config := zap.NewProductionEncoderConfig()
 	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
 		encoder.AppendString(ts.UTC().Format("2006-01-02T15:04:05.000000Z07:00"))
 	}
 	config.LevelKey = "lvl"
+
+	ll := lumberjack.Logger{
+		Filename:   path.Join(homePath, "logs", "centralized_relay.log"),
+		MaxSize:    5, //MB
+		MaxBackups: 10,
+		MaxAge:     28, //days
+		Compress:   false,
+	}
+	zap.RegisterSink("lumberjack", func(*url.URL) (zap.Sink, error) {
+		return lumberjackSink{
+			Logger: &ll,
+		}, nil
+	})
 
 	var enc zapcore.Encoder
 	switch format {
@@ -188,34 +207,12 @@ func newRootLogger(format string, debug bool) (*zap.Logger, error) {
 	if debug {
 		level = zap.DebugLevel
 	}
-
-	logfileName := filepath.Join(homePath, "logs", appName+".log")
-	syncer := zap.CombineWriteSyncers(os.Stdout, getWriteSyncer(logfileName))
-	core := zapcore.NewCore(enc, syncer, level)
+	w := zapcore.AddSync(&ll)
+	core := zapcore.NewTee(
+		zapcore.NewCore(enc, w, level),
+		zapcore.NewCore(enc, os.Stderr, level),
+	)
 	return zap.New(core), nil
-}
-
-type WriteSyncer struct {
-	io.Writer
-}
-
-func (ws WriteSyncer) Sync() error {
-	return nil
-}
-
-func getWriteSyncer(logName string) zapcore.WriteSyncer {
-	var ioWriter = &lumberjack.Logger{
-		Filename:   logName,
-		MaxSize:    1,  // MB
-		MaxBackups: 3,  // number of backups
-		MaxAge:     28, //days
-		LocalTime:  true,
-		Compress:   false, // disabled by default
-	}
-	var sw = WriteSyncer{
-		ioWriter,
-	}
-	return sw
 }
 
 // withUsage wraps a PositionalArgs to display usage only when the PositionalArgs
