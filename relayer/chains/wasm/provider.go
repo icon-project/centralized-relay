@@ -612,30 +612,23 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]*relayTypes.BlockInfo, error) {
 	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
-		var eventsList []*types.EventsList
-		if err := jsoniter.Unmarshal([]byte(resultTx.TxResult.Log), &eventsList); err != nil {
+		msgs, err := p.ParseMessageFromEvents(resultTx.TxResult.GetEvents())
+		if err != nil {
 			return nil, err
 		}
-
-		for _, event := range eventsList {
-			msgs, err := p.ParseMessageFromEvents(event.Events)
-			if err != nil {
-				return nil, err
-			}
-			for _, msg := range msgs {
-				msg.MessageHeight = uint64(resultTx.Height)
-				p.logger.Info("Detected eventlog",
-					zap.Uint64("height", msg.MessageHeight),
-					zap.String("target_network", msg.Dst),
-					zap.Uint64("sn", msg.Sn.Uint64()),
-					zap.String("event_type", msg.EventType),
-				)
-			}
-			messages = append(messages, &relayTypes.BlockInfo{
-				Height:   uint64(resultTx.Height),
-				Messages: msgs,
-			})
+		for _, msg := range msgs {
+			msg.MessageHeight = uint64(resultTx.Height)
+			p.logger.Info("Detected eventlog",
+				zap.Uint64("height", msg.MessageHeight),
+				zap.String("target_network", msg.Dst),
+				zap.Uint64("sn", msg.Sn.Uint64()),
+				zap.String("event_type", msg.EventType),
+			)
 		}
+		messages = append(messages, &relayTypes.BlockInfo{
+			Height:   uint64(resultTx.Height),
+			Messages: msgs,
+		})
 	}
 	return messages, nil
 }
@@ -734,7 +727,6 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 				p.logger.Error("failed to unmarshal event data", zap.Error(err))
 				continue
 			}
-
 			var messages []*relayTypes.Message
 			msgs, err := p.ParseMessageFromEvents(res.Result.Events)
 			if err != nil {
