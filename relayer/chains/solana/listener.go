@@ -23,8 +23,8 @@ var (
 )
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
-	fromSignature := ""
+	fromSignature := "3K48n5Zmnzcvg5b1ksaZX7WFn1cVrnjrWPMskZmu9Xcp2Vo1UsYCaHCvBdWiu1MuUuyEN44918zbjpwoy1MwVY7J"
+	// fromSignature := ""
 
 	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
 
