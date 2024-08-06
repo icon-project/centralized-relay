@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	abiTypes "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/types"
+
 	relayerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -58,28 +60,14 @@ func (param *TxSearchParam) BuildQuery() string {
 	return finalQuery.GetQuery()
 }
 
-type Event struct {
-	Type       string      `json:"type"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-type Attribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type EventsList struct {
-	Events []Event `json:"events"`
-}
-
 type TxResultResponse struct {
 	Height int64 `json:"height"`
 	Result struct {
-		Code      int     `json:"code"`
-		Codespace string  `json:"codespace"`
-		Data      []byte  `json:"data"`
-		Log       string  `json:"log"`
-		Events    []Event `json:"events"`
+		Code      int              `json:"code"`
+		Codespace string           `json:"codespace"`
+		Data      []byte           `json:"data"`
+		Log       string           `json:"log"`
+		Events    []abiTypes.Event `json:"events"`
 	} `json:"result"`
 }
 

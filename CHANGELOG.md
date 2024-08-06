@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0-rc1] - 2024-08-03
+
+### Added
+
+- WASM conditional batch polling.
+
+### Changed
+
+- RPC retries and exponential backoffs.
+- Websocket healthcheck from 1 min to 10 second.
+- Initiate startup tasks early.
+
+### Fixed
+
+- Addressed wasm response format changes.
+- WASM chain healthcheck frquency.
+- WASM sdk context lockup issue.
+- WASM duplicated block when batching requests.
+- Recovery start from genesis block when databse is empty.
+- Docker build issues.
+
+### Removed
+
+- EVM and wasm unlimited concurrency.
+
 ## [1.4.1] - 2024-07-17
 
 ### Added
