@@ -33,8 +33,7 @@ import (
 
 const (
 	DefaultRetryPollingRetires                 = 10
-	DefaultSendTransactionRetryInterval        = 3 * time.Second
-	DefaultGetTransactionResultPollingInterval = 1 * time.Second
+	DefaultGetTransactionResultPollingInterval = 3 * time.Second
 	JsonrpcApiVersion                          = 3
 )
 
@@ -53,6 +52,7 @@ type IClient interface {
 	GetProofForResult(p *types.ProofResultParam) ([][]byte, error)
 	GetProofForEvents(p *types.ProofEventsParam) ([][][]byte, error)
 	EstimateStep(param *types.TransactionParam) (*types.HexInt, error)
+	GetNetworkInfo() (*types.NetworkInfo, error)
 
 	MonitorBlock(ctx context.Context, p *types.BlockRequest, cb func(conn *websocket.Conn, v *types.BlockNotification) error, scb func(conn *websocket.Conn), errCb func(*websocket.Conn, error)) error
 	MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(conn *websocket.Conn, v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error
@@ -239,12 +239,12 @@ func (c *Client) MonitorBlock(ctx context.Context, p *types.BlockRequest, cb fun
 	})
 }
 
-func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, cb func(v *types.EventNotification) error, errCb func(*websocket.Conn, error)) error {
+func (c *Client) MonitorEvent(ctx context.Context, p *types.EventRequest, outgoing chan *providerTypes.BlockInfo, cb func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error, errCb func(*websocket.Conn, error)) error {
 	resp := &types.EventNotification{}
 	return c.Monitor(ctx, "/event", p, resp, func(conn *websocket.Conn, v interface{}) error {
 		switch t := v.(type) {
 		case *types.EventNotification:
-			if err := cb(t); err != nil {
+			if err := cb(t, outgoing); err != nil {
 				c.log.Debug(fmt.Sprintf("MonitorEvent callback return err:%+v", err))
 			}
 		case error:
@@ -265,12 +265,13 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 		return err
 	}
 	defer func() {
-		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.LocalAddr().String()))
+		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.RemoteAddr().String()))
 		c.wsClose(conn)
 	}()
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
 	}
+	c.log.Info("Monitoring started", zap.String("address", conn.RemoteAddr().String()))
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	})
@@ -516,6 +517,14 @@ func (c *Client) EstimateStep(param types.TransactionParam) (*types.HexInt, erro
 		return nil, err
 	}
 	return res, nil
+}
+
+func (c *Client) GetNetworkInfo() (*types.NetworkInfo, error) {
+	result := &types.NetworkInfo{}
+	if _, err := c.Do("icx_getNetworkInfo", struct{}{}, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func NewClient(ctx context.Context, uri string, l *zap.Logger) *Client {

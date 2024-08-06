@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2024-07-17
+
+### Added
+
+- Support for the rollbackMessage event
+- Cosmwasmvm `v2.1.0` support
+
+### Changed
+
+- Use rpc instead of the websocket filterLogs `eth_getLogs` for the evm chain
+
+## [1.3.4] - 2024-07-01
+
+### Fixed
+
+- Restore the keystore when it is not found
+
+### Removed
+
+- Redunant sequence increment for the cosmos chain
+
+## [1.3.3] - 2024-07-01
+
+### Fixed
+
+- Avoid closing connection when errors are encountered
+- Cover all tcp connection errors
+- Other improvements and bug fixes
+
+## [1.3.2] - 2024-07-01
+
+### Fixed
+
+- EVM RPC connection recovery using the errors message
+
+## [1.3.1] - 2024-06-27
+
+### Fixed
+
+- WS connection recovery for the evm chain
+- Poper error checking for the icon and cosmos chain
+
+## [1.3.0] - 2024-06-23
+
+### Fixed
+
+- Polling fix for evm when ws errors
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
+## [1.2.9] - 2024-06-19
+
+### Added
+
+- Use gas price cap and gas tip for the evm chain
+
+### Fixed
+
+- Use pending nonce instead of the latest nonce for the evm chain
+- Other improvements and bug fixes
+- CPU and memeory usage optimization, dropped by more than 100%
+- Retry is more stable
+- Exponential backoff for the retry count
+
+### Changed
+
+- mutext on router
+- evm past polling for events is optimized, it can batch call now using config option
+- cosmwasm block polling using batch size using config option
+
+## [1.2.8] - 2024-06-06
+
+### Changed
+
+- Removed concurrency
+
 ## [1.2.7] - 2024-05-28
 
 ### Fixed

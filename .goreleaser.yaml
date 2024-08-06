@@ -6,7 +6,7 @@ builds:
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
     goos:
       - darwin
     goarch:
@@ -26,7 +26,7 @@ builds:
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
     goos:
       - darwin
     goarch:
@@ -46,7 +46,7 @@ builds:
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.x86_64.a -O /usr/lib/x86_64-linux-gnu/libwasmvm_muslc.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.x86_64.a -P /usr/lib/x86_64-linux-gnu
     goos:
       - linux
     goarch:
@@ -68,7 +68,7 @@ builds:
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.aarch64.a -O /usr/lib/aarch64-linux-gnu/libwasmvm_muslc.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.aarch64.a -P /usr/lib/aarch64-linux-gnu
     goos:
       - linux
     goarch:
@@ -82,6 +82,7 @@ builds:
       - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags "-static"
+      - -extldflags '-Wl,-z,muldefs -lm'
     tags:
       - muslc
       - netgo
@@ -95,7 +96,7 @@ archives:
       - linux-arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    wrap_in_directory: true
+    wrap_in_directory: false
 
 checksum:
   name_template: SHA256SUMS-{{.Version}}.txt
