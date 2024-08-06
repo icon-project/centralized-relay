@@ -744,7 +744,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 
 	for heightRange := range heightStream {
 		var attempts uint8
-		for {
+		for attempts < types.RPCMaxRetryAttempts {
 			blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
 			if err == nil {
 				for _, block := range blockInfo {
