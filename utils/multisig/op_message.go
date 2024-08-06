@@ -8,27 +8,27 @@ import (
 )
 
 const (
-	OP_RADFI_IDENT				= txscript.OP_12
-	OP_RUNE_IDENT				= txscript.OP_13
-	OP_BRIDGE_IDENT				= txscript.OP_14
+	OP_RADFI_IDENT  = txscript.OP_12
+	OP_RUNE_IDENT   = txscript.OP_13
+	OP_BRIDGE_IDENT = txscript.OP_14
 
-	OP_RADFI_PROVIDE_LIQUIDITY	= txscript.OP_1
-	OP_RADFI_SWAP				= txscript.OP_2
-	OP_RADFI_WITHDRAW_LIQUIDITY	= txscript.OP_3
-	OP_RADFI_COLLECT_FEE		= txscript.OP_4
+	OP_RADFI_PROVIDE_LIQUIDITY  = txscript.OP_1
+	OP_RADFI_SWAP               = txscript.OP_2
+	OP_RADFI_WITHDRAW_LIQUIDITY = txscript.OP_3
+	OP_RADFI_COLLECT_FEE        = txscript.OP_4
 )
 
 type RadFiProvideLiquidityMsg struct {
-	Fee			[]byte
-	UpperTick	[]byte
-	LowerTick	[]byte
-	Min0		[]byte
-	Min1		[]byte
+	Fee       []byte
+	UpperTick []byte
+	LowerTick []byte
+	Min0      []byte
+	Min1      []byte
 }
 
 type RadFiDecodedMsg struct {
-	Flag				[]byte
-	ProvideLiquidityMsg	RadFiProvideLiquidityMsg
+	Flag                []byte
+	ProvideLiquidityMsg RadFiProvideLiquidityMsg
 }
 
 // func createProvideLiquidityScript(fee uint8, upperTick uint32) ([]byte, error) {
@@ -69,7 +69,7 @@ func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error)
 	return scripts, nil
 }
 
-func readRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
+func ReadRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
 	var payload []byte
 	for _, output := range transaction.TxOut {
 		tokenizer := txscript.MakeScriptTokenizer(0, output.PkScript)
@@ -82,7 +82,7 @@ func readRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
 			continue
 		}
 
-		if (isRadFi && tokenizer.Opcode() != OP_RADFI_IDENT) || ((!isRadFi && tokenizer.Opcode() != OP_BRIDGE_IDENT)){
+		if (isRadFi && tokenizer.Opcode() != OP_RADFI_IDENT) || (!isRadFi && tokenizer.Opcode() != OP_BRIDGE_IDENT) {
 			// Check for Relayer protocol identifier (RadFi or ICON Bridge)
 			continue
 		}
@@ -136,7 +136,6 @@ func readRelayMessage(transaction *wire.MsgTx, isRadFi bool) ([]byte, error) {
 //     default:
 //         fmt.Println("It's after noon")
 //     }
-
 
 // 	return payload, nil
 // }

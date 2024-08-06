@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/icon-project/centralized-relay/utils/multisig"
 	"math/big"
 	"runtime"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/icon-bridge/common/codec"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
@@ -33,6 +35,7 @@ type Provider struct {
 	contracts           map[string]relayTypes.EventMap
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
+	LastSerialNumFunc   func() *big.Int
 	multisigAddrScript  []byte
 }
 
@@ -545,20 +548,55 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 	return p.getMessagesFromTxList(messages)
 }
 
-func parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
+func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
 	// handle for bitcoin bridge
+	// decode message from OP_RETURN
+	decodeMessage, err := multisig.ReadRelayMessage(tx.Tx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// check if it is Deposit request
+	messageInfo := XCallMessage{}
+	_, err = codec.RLP.UnmarshalFromBytes(decodeMessage, &messageInfo)
+	if err != nil {
+		fmt.Printf("\n not a xcall format request \n")
+	} else if messageInfo.Action == "Deposit" { // maybe get this function name from cf file
+		// todo verify transfer amount match in calldata if it
+		// call 3rd to check rune amount
+		tokenId := messageInfo.TokenAddress
+		amount := big.NewInt(0)
+		amount.SetBytes(messageInfo.Amount)
+		destContract := messageInfo.To
+
+		fmt.Println(tokenId)
+		fmt.Println(amount.String())
+		fmt.Println(destContract)
+
+		// todo: verify dest contract address on dest chain
+	}
+
+	// todo: verify bridge fee
 
 	// parse message
 
 	// todo: handle for rad fi
 
-	return nil, nil
+	return &relayTypes.Message{
+		// todo:
+		//Dst: messageInfo.To,
+		//Src: messageInfo.From,
+		Sn:            p.LastSerialNumFunc(),
+		Data:          decodeMessage,
+		MessageHeight: tx.Height,
+		EventType:     events.CallMessage,
+	}, nil
 }
 
 func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayTypes.BlockInfo, error) {
 	var messages []*relayTypes.BlockInfo
 	for _, resultTx := range resultTxList {
-		msg, err := parseMessageFromTx(resultTx)
+		msg, err := p.parseMessageFromTx(resultTx)
 		if err != nil {
 			return nil, err
 		}
@@ -662,4 +700,12 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedHeight returns the last saved height
 func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) SetSerialNumberFunc(f func() *big.Int) {
+	p.LastSerialNumFunc = f
+}
+
+func (p *Provider) GetSerialNumber() *big.Int {
+	return p.LastSerialNumFunc()
 }

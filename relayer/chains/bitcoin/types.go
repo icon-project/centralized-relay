@@ -1,6 +1,8 @@
 package bitcoin
 
-import "github.com/btcsuite/btcd/wire"
+import (
+	"github.com/btcsuite/btcd/wire"
+)
 
 type TxSearchParam struct {
 	StartHeight, EndHeight uint64
@@ -17,4 +19,13 @@ type TxSearchRes struct {
 type HeightRange struct {
 	Start uint64
 	End   uint64
+}
+
+type XCallMessage struct {
+	Action       string
+	TokenAddress string
+	From         string
+	To           string
+	Amount       []byte
+	Data         []byte
 }
