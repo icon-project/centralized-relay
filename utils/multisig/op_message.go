@@ -7,6 +7,7 @@ import (
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -28,9 +29,16 @@ type RadFiProvideLiquidityMsg struct {
 	Min1		uint16
 }
 
+type RadFiWithdrawLiquidityMsg struct {
+	RecipientIndex	uint32
+	LiquidityValue	*uint256.Int
+	NftId			*uint256.Int
+}
+
 type RadFiDecodedMsg struct {
 	Flag				byte
 	ProvideLiquidityMsg	*RadFiProvideLiquidityMsg
+	WithdrawLiquidityMsg *RadFiWithdrawLiquidityMsg
 }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
@@ -62,7 +70,7 @@ func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error)
 	return scripts, nil
 }
 
-func CreateProvideLiquidityScript(fee uint8, upperTick int32, lowerTick int32, min0 uint16, min1 uint16) ([]byte, error) {
+func CreateProvideLiquidityScript(msg *RadFiProvideLiquidityMsg) ([]byte, error) {
 	builder := txscript.NewScriptBuilder()
 
 	builder.AddOp(txscript.OP_RETURN)
@@ -70,15 +78,40 @@ func CreateProvideLiquidityScript(fee uint8, upperTick int32, lowerTick int32, m
 	builder.AddOp(OP_RADFI_PROVIDE_LIQUIDITY)
 	// encode message content
 	buf := new(bytes.Buffer)
-	var data = []any{ fee, upperTick, lowerTick, min0, min1 }
+	var data = []any{ msg.Fee, msg.UpperTick, msg.LowerTick, msg.Min0, msg.Min1 }
 	for _, v := range data {
-		err := binary.Write(buf, binary.LittleEndian, v)
+		err := binary.Write(buf, binary.BigEndian, v)
 		if err != nil {
 			fmt.Println("CreateProvideLiquidityScript encode data failed:", err)
 		}
 	}
 
 	return builder.AddData(buf.Bytes()).Script()
+}
+
+func CreateWithdrawLiquidityScript(msg *RadFiWithdrawLiquidityMsg) ([]byte, error) {
+	builder := txscript.NewScriptBuilder()
+
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddOp(OP_RADFI_IDENT)
+	builder.AddOp(OP_RADFI_WITHDRAW_LIQUIDITY)
+	// encode message content
+	recipientIndexByte := make([]byte, 4)
+	binary.BigEndian.PutUint32(recipientIndexByte, msg.RecipientIndex)
+	// recipientIndexLen := uint8(bits.Len32(msg.RecipientIndex))
+	liquidityValueBytes := msg.LiquidityValue.Bytes()
+	liquidityValueBytesLen := uint8(len(liquidityValueBytes))
+	// singleByte := byte((recipientIndexLen << 5) ^ liquidityValueBytesLen)
+	singleByte := byte(liquidityValueBytesLen)
+	// data := append([]byte{singleByte}, recipientIndexByte[4-recipientIndexLen:]...)
+	data := append([]byte{singleByte}, recipientIndexByte...)
+	data = append(data, liquidityValueBytes...)
+	data = append(data, msg.NftId.Bytes()...)
+	// fmt.Println("data: ", data)
+	// fmt.Println("singleByte: ", singleByte)
+	// fmt.Println("recipientIndexByte: ", recipientIndexByte)
+	// fmt.Println("liquidityValueBytes: ", liquidityValueBytes)
+	return builder.AddData(data).Script()
 }
 
 func ReadBridgeMessage(transaction *wire.MsgTx) ([]byte, error) {
@@ -141,24 +174,44 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 	}
 
 	// Decode RadFi message
-	r := bytes.NewReader(payload)
 	switch flag {
 		case OP_RADFI_PROVIDE_LIQUIDITY:
+			r := bytes.NewReader(payload)
 			var provideLiquidityMsg RadFiProvideLiquidityMsg
-			if err := binary.Read(r, binary.LittleEndian, &provideLiquidityMsg); err != nil {
+			if err := binary.Read(r, binary.BigEndian, &provideLiquidityMsg); err != nil {
 				fmt.Println("OP_RADFI_PROVIDE_LIQUIDITY Read failed:", err)
 			}
 
 			return &RadFiDecodedMsg {
-				Flag		: flag,
-				ProvideLiquidityMsg: &provideLiquidityMsg,
+				Flag				: flag,
+				ProvideLiquidityMsg	: &provideLiquidityMsg,
 			}, nil
 
 		case OP_RADFI_SWAP:
 			fmt.Println("OP_RADFI_SWAP")
 
 		case OP_RADFI_WITHDRAW_LIQUIDITY:
-			fmt.Println("OP_RADFI_WITHDRAW_LIQUIDITY")
+			// singleByte := uint8(payload[0])
+			// recipientIndexLen := singleByte >> 5
+			// fmt.Println("recipientIndexLen", recipientIndexLen)
+			// liquidityValueBytesLen := singleByte << 3 >> 3
+			liquidityValueBytesLen := uint8(payload[0])
+			// fmt.Println("liquidityValueBytesLen", liquidityValueBytesLen)
+			payload = payload[1:]
+			recipientIndex := binary.BigEndian.Uint32(payload[:4])
+			payload = payload[4:]
+			liquidityValue := new(uint256.Int).SetBytes(payload[:liquidityValueBytesLen])
+			nftId := new(uint256.Int).SetBytes(payload[liquidityValueBytesLen:])
+			// fmt.Println("OP_RADFI_WITHDRAW_LIQUIDITY", recipientIndex, liquidityValue, NftId)
+
+			return &RadFiDecodedMsg {
+				Flag				: flag,
+				WithdrawLiquidityMsg: &RadFiWithdrawLiquidityMsg{
+					RecipientIndex	: recipientIndex,
+					LiquidityValue	: liquidityValue,
+					NftId			: nftId,
+				},
+			}, nil
 
 		case OP_RADFI_COLLECT_FEE:
 			fmt.Println("OP_RADFI_COLLECT_FEE")

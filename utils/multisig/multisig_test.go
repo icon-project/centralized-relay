@@ -14,6 +14,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/bxelab/runestone"
+	"github.com/holiman/uint256"
 )
 
 func TestGenerateKeys(t *testing.T) {
@@ -429,8 +430,8 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	// Decode bridge message
 	decodedMessage, err := ReadBridgeMessage(signedMsgTx)
 	fmt.Println("err decode: ", err)
-	fmt.Println("origina message: ", string(message))
-	fmt.Println("decoded message: ", string(decodedMessage))
+	fmt.Println("original message: ", string(message))
+	fmt.Println("decoded message : ", string(decodedMessage))
 }
 
 func TestRadFiProvideLiquidity(t *testing.T) {
@@ -464,7 +465,14 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	msgTx.AddTxOut(wire.NewTxOut(0, script1))
 
 	// Add RadFi Provive Liquidity Message
-	script2, _ := CreateProvideLiquidityScript(30, 12345, -12345, 0, 10000)
+	radfiMsg := RadFiProvideLiquidityMsg {
+		Fee:		30,
+		UpperTick:	12345,
+		LowerTick: 	-12345,
+		Min0:		0,
+		Min1:		10000,
+	}
+	script2, _ := CreateProvideLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
 	msgTx.AddTxOut(wire.NewTxOut(0, script2))
 
@@ -497,10 +505,85 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
 
 	fmt.Println("err decode: ", err)
-	fmt.Println("decoded message - Flag: ", decodedRadFiMessage.Flag)
-	fmt.Println("decoded message - Fee: ", decodedRadFiMessage.ProvideLiquidityMsg.Fee)
+	fmt.Println("decoded message - Flag     : ", decodedRadFiMessage.Flag)
+	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.ProvideLiquidityMsg.Fee)
 	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.ProvideLiquidityMsg.UpperTick)
 	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.ProvideLiquidityMsg.LowerTick)
-	fmt.Println("decoded message - Min0: ", decodedRadFiMessage.ProvideLiquidityMsg.Min0)
-	fmt.Println("decoded message - Min1: ", decodedRadFiMessage.ProvideLiquidityMsg.Min1)
+	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min0)
+	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min1)
+}
+
+func TestRadFiWithdrawLiquidity(t *testing.T) {
+	chainParam := &chaincfg.SigNetParams
+
+	inputs := []*UTXO{
+		{
+			IsRelayersMultisig: false,
+			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
+			OutputIdx:     1,
+			OutputAmount:  3808,
+		},
+	}
+
+	outputs := []*OutputTx{
+		{
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          1000,
+		},
+	}
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+
+	// Add Rune transfering
+	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
+	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
+	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+
+	// Add RadFi Withdraw Liquidity Message
+	radfiMsg := RadFiWithdrawLiquidityMsg {
+		RecipientIndex:	123,
+		LiquidityValue: uint256.MustFromDecimal("123456"),
+		NftId:			uint256.MustFromDecimal("123456789"),
+	}
+	script2, _ := CreateWithdrawLiquidityScript(&radfiMsg)
+	fmt.Println("OP_RETURN script: ", script2)
+	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+
+	tapSigParams := TapSigParams {
+		TxSigHashes: txSigHashes,
+		RelayersPKScript: []byte{},
+		RelayersTapLeaf: txscript.TapLeaf{},
+		UserPKScript: userMultisigWallet.PKScript,
+		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+	}
+	totalSigs := [][][]byte{}
+
+	// USER SIGN TX
+	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, tapSigParams, chainParam, true)
+	totalSigs = append(totalSigs, userSigs)
+
+	// COMBINE SIGNS
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, userMultisigWallet, 0, userMultisigWallet, 1, totalSigs)
+
+	var signedTx bytes.Buffer
+	signedMsgTx.Serialize(&signedTx)
+	hexSignedTx := hex.EncodeToString(signedTx.Bytes())
+	signedMsgTxID := signedMsgTx.TxHash().String()
+
+	fmt.Println("hexSignedTx: ", hexSignedTx)
+	fmt.Println("signedMsgTxID: ", signedMsgTxID)
+	fmt.Println("err sign: ", err)
+
+	// Decode Radfi message
+	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
+
+	fmt.Println("err decode: ", err)
+	fmt.Println("decoded message - Flag           : ", decodedRadFiMessage.Flag)
+	fmt.Println("decoded message - RecipientIndex : ", decodedRadFiMessage.WithdrawLiquidityMsg.RecipientIndex)
+	fmt.Println("decoded message - LiquidityValue : ", decodedRadFiMessage.WithdrawLiquidityMsg.LiquidityValue)
+	fmt.Println("decoded message - NftId          : ", decodedRadFiMessage.WithdrawLiquidityMsg.NftId)
 }
