@@ -788,7 +788,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		if err != nil {
 			return nil, err
 		}
-		connConfigAddr, err := types.GetPDA(connPubKey, "config")
+		connConfigAddr, err := types.GetPDA(connPubKey, types.PrefixConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -807,7 +807,9 @@ func (p *Provider) queryExecuteCallAccounts(
 	if err != nil {
 		return nil, err
 	}
-	dappConfigAddr, err := types.GetPDA(dappPubKey, "config")
+
+	dappPrefix := p.getDappConfigPrefix(dappPubKey.String())
+	dappConfigAddr, err := types.GetPDA(dappPubKey, dappPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -1119,6 +1121,19 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 	}
 
 	return nil, fmt.Errorf("failed to return value")
+}
+
+func (p *Provider) getDappConfigPrefix(dappProgID string) string {
+	for _, dapp := range p.cfg.Dapps {
+		if dappProgID == dapp.ProgramID {
+			if dapp.Name != types.MockDapp {
+				return types.PrefixState
+			} else {
+				return types.PrefixConfig
+			}
+		}
+	}
+	return ""
 }
 
 func parseReturnValueFromLogs(progID string, logs []string, dest interface{}) error {

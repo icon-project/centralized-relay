@@ -15,6 +15,8 @@ const (
 	PrefixNetworkFee   = "fee"
 	PrefixClaimFees    = "claim_fees"
 	PrefixReceipt      = "receipt"
+
+	PrefixState = "state"
 )
 
 type PDA struct {

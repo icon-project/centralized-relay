@@ -2,6 +2,8 @@ package solana
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 
 	solrpc "github.com/gagliardetto/solana-go/rpc"
@@ -24,7 +26,7 @@ type Config struct {
 
 	Dapps []types.Dapp `yaml:"dapps"`
 
-	CpNIDs []string `yaml:"cp-nids"`
+	CpNIDs []string `yaml:"cp-nids"` //counter party NIDs Eg: ["0x2.icon", "0x7.icon"]
 
 	AltAddress string `yaml:"alt-address"` // address lookup table address
 
@@ -81,7 +83,11 @@ func (pc *Config) GetWallet() string {
 }
 
 func (pc *Config) Validate() error {
-	//Todo
+	for _, dapp := range pc.Dapps {
+		if !slices.Contains(types.DappsEnabled, dapp.Name) {
+			return fmt.Errorf("invalid dapp name %s; should be one of %+v", dapp.Name, types.DappsEnabled)
+		}
+	}
 	return nil
 }
 

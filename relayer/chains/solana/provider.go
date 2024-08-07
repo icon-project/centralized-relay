@@ -259,7 +259,6 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 			&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
 			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
 		)
-
 	}
 
 	instructions := []solana.Instruction{
