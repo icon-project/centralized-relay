@@ -573,6 +573,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
 		messagesChan = make(chan *coreTypes.ResultTxSearch)
+		errorChan    = make(chan error, len(p.eventList))
 	)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -612,6 +613,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 				retryCount++
 				if retryCount >= types.RPCMaxRetryAttempts {
 					p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Uint8("attempt", retryCount), zap.Error(err))...)
+					errorChan <- err
 					cancel()
 					return
 				}
@@ -646,6 +648,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 							attempts++
 							if attempts >= types.RPCMaxRetryAttempts {
 								p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
+								errorChan <- err
 								cancel()
 								return
 							}
@@ -667,11 +670,34 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	go func() {
 		wg.Wait()
 		close(messagesChan)
+		close(errorChan)
 	}()
 
-	for msgs := range messagesChan {
-		messages.Txs = append(messages.Txs, msgs.Txs...)
-		messages.TotalCount += msgs.TotalCount
+	var errors []error
+	for {
+		select {
+		case msgs, ok := <-messagesChan:
+			if !ok {
+				messagesChan = nil
+			} else {
+				messages.Txs = append(messages.Txs, msgs.Txs...)
+				messages.TotalCount += msgs.TotalCount
+			}
+		case err, ok := <-errorChan:
+			if !ok {
+				errorChan = nil
+			} else {
+				errors = append(errors, err)
+			}
+		}
+		if messagesChan == nil && errorChan == nil {
+			break
+		}
+	}
+
+	if len(errors) > 0 {
+		p.logger.Error("Errors occurred while fetching block messages", zap.Errors("errors", errors))
+		return nil, fmt.Errorf("errors occurred while fetching block messages: %v", errors)
 	}
 
 	return p.getMessagesFromTxList(messages.Txs)
