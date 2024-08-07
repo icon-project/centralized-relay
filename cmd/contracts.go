@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -60,7 +59,10 @@ func (c *contractState) getFee() *cobra.Command {
 		Use:     "get",
 		Short:   "Get the fee set for the chain",
 		Aliases: []string{"g"},
-		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee get [chain-id]`, appName)),
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return c.closeSocket()
+		},
+		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee get --chain 0x2.icon`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := c.getSocket(c.app)
 			if err != nil {
@@ -87,14 +89,17 @@ func (c *contractState) setFee() *cobra.Command {
 		Use:     "set",
 		Short:   "Set the fee for the chain",
 		Aliases: []string{"s"},
-		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee set [chain-id] [msg-fee] [res-fee]`, appName)),
+		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee set --chain archway --network 0x2.icon --msg-fee 1 --res-fee 1`, appName)),
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return c.closeSocket()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := c.getSocket(c.app)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
-			res, err := client.SetFee(c.chain, c.network, new(big.Int).SetUint64(c.msgFee), new(big.Int).SetUint64(c.resFee))
+			res, err := client.SetFee(c.chain, c.network, c.msgFee, c.resFee)
 			if err != nil {
 				return err
 			}
@@ -117,7 +122,10 @@ func (c *contractState) claimFee() *cobra.Command {
 		Use:     "claim",
 		Short:   "Claim the fee for the chain",
 		Aliases: []string{"cm"},
-		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee claim [chain-nid]`, appName)),
+		Example: strings.TrimSpace(fmt.Sprintf(`$ %s contract fee claim --chain [chain-nid]`, appName)),
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return c.closeSocket()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := c.getSocket(c.app)
 			if err != nil {
