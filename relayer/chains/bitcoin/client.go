@@ -102,8 +102,6 @@ func (c *Client) GetBalance(ctx context.Context, addr string) (uint64, error) {
 }
 
 func (c *Client) Subscribe(ctx context.Context, _, query string) error {
-	//
-
 	return nil
 }
 

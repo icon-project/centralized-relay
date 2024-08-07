@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"testing"
 
 	"github.com/icon-project/icon-bridge/common/codec"
@@ -18,4 +19,14 @@ func TestDecode(t *testing.T) {
 	}
 
 	fmt.Println(depositInfo)
+}
+
+func TestGetRuneBalanceAtIndex(t *testing.T) {
+	//
+	res, err := GetRuneTxIndex("https://open-api.unisat.io/v1/indexer/runes", "GET", os.Getenv("APIToken"), "60fa23d19c8116dbb09441bf3d1ee27067c3d2b3735caf2045db84ea8f76d436", 2)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	fmt.Printf("%+v", res)
 }

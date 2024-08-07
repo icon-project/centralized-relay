@@ -1,6 +1,7 @@
 package bitcoin
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/btcsuite/btcd/txscript"
@@ -29,14 +30,17 @@ import (
 type Provider struct {
 	logger *zap.Logger
 	// cfg                 *Config
-	client              IClient
-	kms                 kms.KMS
-	wallet              sdkTypes.AccountI
-	contracts           map[string]relayTypes.EventMap
-	eventList           []sdkTypes.Event
-	LastSavedHeightFunc func() uint64
-	LastSerialNumFunc   func() *big.Int
-	multisigAddrScript  []byte
+	client               IClient
+	kms                  kms.KMS
+	wallet               sdkTypes.AccountI
+	contracts            map[string]relayTypes.EventMap
+	eventList            []sdkTypes.Event
+	LastSavedHeightFunc  func() uint64
+	LastSerialNumFunc    func() *big.Int
+	multisigAddrScript   []byte //
+	assetManagerAddrIcon string
+	bearToken            string
+	unitsatEndpoint      string
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -100,33 +104,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	subscribeStarter := time.NewTicker(time.Second * 1)
-	pollHeightTicker := time.NewTicker(time.Second * 1)
+	pollHeightTicker := time.NewTicker(time.Second * 60) // do scan each 2 mins
 	pollHeightTicker.Stop()
-
-	resetFunc := func() {
-		subscribeStarter.Reset(time.Second * 3)
-		pollHeightTicker.Reset(time.Second * 3)
-	}
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-subscribeStarter.C:
-			subscribeStarter.Stop()
-			for _, event := range p.contracts {
-				go p.SubscribeMessageEvents(ctx, blockInfoChan, &types.SubscribeOpts{
-					Address: event.Address,
-					Method:  event.GetWasmMsgType(),
-					Height:  latestHeight,
-				}, resetFunc)
-			}
 		case <-pollHeightTicker.C:
-			pollHeightTicker.Stop()
-			startHeight = p.GetLastSavedHeight()
+			//pollHeightTicker.Stop()
+			//startHeight = p.GetLastSavedHeight()
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
@@ -561,7 +548,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	_, err = codec.RLP.UnmarshalFromBytes(decodeMessage, &messageInfo)
 	if err != nil {
 		fmt.Printf("\n not a xcall format request \n")
-	} else if messageInfo.Action == "Deposit" { // maybe get this function name from cf file
+	} else if messageInfo.Action == "Deposit" && messageInfo.To == p.assetManagerAddrIcon { // maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
 		tokenId := messageInfo.TokenAddress
@@ -573,7 +560,43 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		fmt.Println(amount.String())
 		fmt.Println(destContract)
 
-		// todo: verify dest contract address on dest chain
+		// call api to verify the data
+		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
+		verified := false
+		for i, out := range tx.Tx.TxOut {
+			if messageInfo.TokenAddress == "0:0" {
+				if amount.Cmp(big.NewInt(out.Value)) == 0 && bytes.Compare(out.PkScript, p.multisigAddrScript) == 0 {
+					verified = true
+					break
+				}
+			} else {
+				// https://open-api.unisat.io/v1/indexer/runes/utxo
+				runes, err := GetRuneTxIndex(p.unitsatEndpoint, "GET", p.bearToken, tx.Tx.TxHash().String(), i)
+				if err != nil {
+					return nil, err
+				}
+
+				if len(runes.Data) == 0 {
+					continue
+				}
+
+				for _, runeOut := range runes.Data {
+					runeTokenBal, ok := big.NewInt(0).SetString(runeOut.Amount, 10)
+					if !ok {
+						return nil, fmt.Errorf("rune amount out invalid")
+					}
+
+					if amount.Cmp(runeTokenBal) == 0 && runeOut.RuneId == messageInfo.TokenAddress {
+						verified = true
+						break
+					}
+				}
+			}
+		}
+
+		if !verified {
+			return nil, fmt.Errorf("failed to verify transaction %v", tx.Tx.TxHash().String())
+		}
 	}
 
 	// todo: verify bridge fee
@@ -584,8 +607,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	return &relayTypes.Message{
 		// todo:
-		//Dst: messageInfo.To,
-		//Src: messageInfo.From,
+		Dst:           "icon",
+		Src:           messageInfo.From,
 		Sn:            p.LastSerialNumFunc(),
 		Data:          decodeMessage,
 		MessageHeight: tx.Height,

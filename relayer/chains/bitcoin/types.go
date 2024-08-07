@@ -29,3 +29,17 @@ type XCallMessage struct {
 	Amount       []byte
 	Data         []byte
 }
+
+type RuneInfo struct {
+	Rune         string `json:"rune"`
+	RuneId       string `json:"runeId"`
+	SpaceRune    string `json:"spaceRune"`
+	Amount       string `json:"amount"`
+	Symbol       string `json:"symbol"`
+	Divisibility int    `json:"divisibility"`
+}
+
+type RuneTxIndexResponse struct {
+	Code int        `json:"code"`
+	Data []RuneInfo `json:"data"`
+}
