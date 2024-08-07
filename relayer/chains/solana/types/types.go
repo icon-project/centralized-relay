@@ -24,6 +24,7 @@ const (
 	MethodQueryRecvMessageAccounts     = "query_recv_message_accounts"
 	MethodQueryExecuteCallAccounts     = "query_execute_call_accounts"
 	MethodQueryExecuteRollbackAccounts = "query_execute_rollback_accounts"
+	MethodQueryRevertMessageAccounts   = "query_revert_message_accounts"
 
 	ChainType = "solana"
 

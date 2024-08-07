@@ -2,7 +2,6 @@ package solana
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -188,33 +187,12 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 
-	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
+	snBytes, err := borsh.Serialize(*sn)
 	if err != nil {
 		return err
 	}
 
-	rollbackAc := types.RollbackAccount{}
-	if err := p.client.GetAccountInfo(ctx, xcallRollbackAddr, &rollbackAc); err != nil {
-		return err
-	}
-
-	dstNetIDBytes, err := borsh.Serialize(rollbackAc.Rollback.To)
-	if err != nil {
-		return err
-	}
-
-	snBytes, err := borsh.Serialize(sn)
-	if err != nil {
-		return err
-	}
-
-	instructionData := append(discriminator, dstNetIDBytes...)
-	instructionData = append(instructionData, snBytes...)
-
-	connConfigAdr, err := p.pdaRegistry.ConnConfig.GetAddress()
-	if err != nil {
-		return err
-	}
+	instructionData := append(discriminator, snBytes...)
 
 	accounts := solana.AccountMetaSlice{
 		&solana.AccountMeta{
@@ -222,43 +200,15 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 			IsSigner:   true,
 			IsWritable: true,
 		},
-		&solana.AccountMeta{
-			PublicKey: solana.SystemProgramID,
-		},
-		&solana.AccountMeta{
-			PublicKey:  connConfigAdr,
-			IsWritable: true,
-		},
 	}
 
-	// xcallConfigAdr, err := p.pdaRegistry.ConnConfig.GetAddress()
-	// if err != nil {
-	// 	return err
-	// }
+	res, err := p.queryRevertMessageAccounts(sn, 1, accountsQueryMaxLimit)
+	if err != nil {
+		return fmt.Errorf("failed to query revert message accounts: %w", err)
+	}
 
-	if len(rollbackAc.Rollback.Protocols) > 0 {
-		msgBytes := []byte{195}
-		msgBytes = append(msgBytes, sn.Bytes()...)
-		msgBytes = append(msgBytes, []byte{0, 128}...)
-
-		h := sha256.Sum256(msgBytes)
-
-		pendingResponseAddr, err := p.pdaRegistry.XcallPendingResponse.GetAddress(h[:])
-		if err != nil {
-			return err
-		}
-
-		rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
-		if err != nil {
-			return err
-		}
-
-		accounts = append(accounts,
-			&solana.AccountMeta{PublicKey: pendingResponseAddr, IsWritable: true},
-			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-			&solana.AccountMeta{PublicKey: rollbackAddr, IsWritable: true},
-			&solana.AccountMeta{PublicKey: p.xcallIdl.GetProgramID(), IsWritable: true},
-		)
+	for _, ac := range res.Accounts {
+		accounts = append(accounts, &ac)
 	}
 
 	instructions := []solana.Instruction{
@@ -482,4 +432,90 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 
 func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 	//TODO
+}
+
+func (p *Provider) queryRevertMessageAccounts(
+	sn *big.Int,
+	page uint8,
+	limit uint8,
+) (*types.QueryAccountsResponse, error) {
+	discriminator, err := p.xcallIdl.GetInstructionDiscriminator(types.MethodQueryRecvMessageAccounts)
+	if err != nil {
+		return nil, err
+	}
+
+	snBytes, err := borsh.Serialize(*sn)
+	if err != nil {
+		return nil, err
+	}
+
+	pageBytes, err := borsh.Serialize(page)
+	if err != nil {
+		return nil, err
+	}
+
+	limitBytes, err := borsh.Serialize(limit)
+	if err != nil {
+		return nil, err
+	}
+
+	instructionData := discriminator
+	instructionData = append(instructionData, snBytes...)
+	instructionData = append(instructionData, pageBytes...)
+	instructionData = append(instructionData, limitBytes...)
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  connConfigAddr,
+			IsWritable: false,
+			IsSigner:   false,
+		},
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID:        p.xcallIdl.GetProgramID(),
+			AccountValues: accounts,
+			DataBytes:     instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareTx(
+		context.Background(),
+		instructions,
+		signers,
+		solana.TransactionPayer(p.wallet.PublicKey()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	txSign, err := p.client.SendTx(context.Background(), tx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send tx: %w", err)
+	}
+
+	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
+	if err != nil {
+		return nil, err
+	}
+
+	txnres, err := p.client.GetTransaction(context.Background(), txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+	}
+
+	acRes := types.QueryAccountsResponse{}
+	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+		return nil, fmt.Errorf("failed to parse return value: %w", err)
+	}
+
+	return &acRes, nil
 }
