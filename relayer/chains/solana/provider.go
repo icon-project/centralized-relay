@@ -135,12 +135,6 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 
 	instructionData := append(discriminator, newAdminBytes...)
 
-	payerAccount := solana.AccountMeta{
-		PublicKey:  p.wallet.PublicKey(),
-		IsWritable: true,
-		IsSigner:   true,
-	}
-
 	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
 	if err != nil {
 		return err
@@ -150,7 +144,11 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		&solana.GenericInstruction{
 			ProgID: p.connIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
-				&payerAccount,
+				&solana.AccountMeta{
+					PublicKey:  p.wallet.PublicKey(),
+					IsWritable: true,
+					IsSigner:   true,
+				},
 				&solana.AccountMeta{
 					PublicKey:  connConfigAddr,
 					IsWritable: true,
@@ -303,20 +301,20 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			ProgID: p.connIdl.GetProgramID(),
 			AccountValues: solana.AccountMetaSlice{
 				&solana.AccountMeta{
-					PublicKey:  networkFeeAddr,
-					IsWritable: true,
-				},
-				&solana.AccountMeta{
-					PublicKey:  connConfigAddr,
-					IsWritable: true,
-				},
-				&solana.AccountMeta{
 					PublicKey:  p.wallet.PublicKey(),
 					IsWritable: true,
 					IsSigner:   true,
 				},
 				&solana.AccountMeta{
 					PublicKey: solana.SystemProgramID,
+				},
+				&solana.AccountMeta{
+					PublicKey:  networkFeeAddr,
+					IsWritable: true,
+				},
+				&solana.AccountMeta{
+					PublicKey:  connConfigAddr,
+					IsWritable: true,
 				},
 			},
 			DataBytes: instructionData,
@@ -476,6 +474,26 @@ func (p *Provider) queryRevertMessageAccounts(
 			IsSigner:   false,
 		},
 	}
+
+	xcallConfigAddr, err := p.pdaRegistry.XcallConfig.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+	accounts = append(accounts, &solana.AccountMeta{
+		PublicKey:  xcallConfigAddr,
+		IsWritable: false,
+		IsSigner:   false,
+	})
+
+	rollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(sn.FillBytes(make([]byte, 16)))
+	if err != nil {
+		return nil, err
+	}
+	accounts = append(accounts, &solana.AccountMeta{
+		PublicKey:  rollbackAddr,
+		IsWritable: false,
+		IsSigner:   false,
+	})
 
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
