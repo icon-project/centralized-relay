@@ -44,10 +44,16 @@ type EmitEvent struct {
 	ConnectionID string `json:"connection_id"`
 }
 
+type NetworkAddress struct {
+	Addr  string `json:"addr"`
+	NetID string `json:"net_id"`
+}
 type CallMsgEvent struct {
-	ReqId           string `json:"req_id"`
-	Data            []byte `json:"data"`
-	DappModuleCapId string `json:"to"`
+	Sn              string         `json:"sn"`
+	From            NetworkAddress `json:"from"`
+	ReqId           string         `json:"req_id"`
+	Data            []byte         `json:"data"`
+	DappModuleCapId string         `json:"to"`
 }
 
 type RollbackMsgEvent struct {

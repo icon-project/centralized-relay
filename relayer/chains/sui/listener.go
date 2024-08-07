@@ -119,6 +119,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		}
 		msg.Sn = sn
 		msg.Data = emitEvent.Msg
+		msg.Src = p.cfg.NID
 		msg.Dst = emitEvent.To
 
 	case fmt.Sprintf("%s::%s", ModuleMain, "CallMessage"):
@@ -127,11 +128,20 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
 			return nil, err
 		}
+		msg.Src = callMsgEvent.From.NetID
 		msg.Data = callMsgEvent.Data
+
+		sn, ok := new(big.Int).SetString(callMsgEvent.Sn, 10)
+		if !ok {
+			return nil, err
+		}
+
 		reqID, ok := new(big.Int).SetString(callMsgEvent.ReqId, 10)
 		if !ok {
 			return nil, err
 		}
+
+		msg.Sn = sn
 		msg.ReqID = reqID
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
@@ -149,7 +159,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		}
 		msg.Sn = sn
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
-		msg.Dst = p.cfg.NID
+		msg.Src = p.cfg.NID
 		msg.Data = rollbackMsgEvent.Data
 
 	default:
