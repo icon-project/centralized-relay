@@ -564,8 +564,12 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
 		verified := false
 		for i, out := range tx.Tx.TxOut {
+			if bytes.Compare(out.PkScript, p.multisigAddrScript) != 0 {
+				continue
+			}
+
 			if messageInfo.TokenAddress == "0:0" {
-				if amount.Cmp(big.NewInt(out.Value)) == 0 && bytes.Compare(out.PkScript, p.multisigAddrScript) == 0 {
+				if amount.Cmp(big.NewInt(out.Value)) == 0 {
 					verified = true
 					break
 				}
