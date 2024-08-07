@@ -272,12 +272,12 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return err
 	}
 
-	msgFeeBytes, err := borsh.Serialize(*msgFee)
+	msgFeeBytes, err := borsh.Serialize(msgFee.Uint64())
 	if err != nil {
 		return err
 	}
 
-	resFeeBytes, err := borsh.Serialize(*resFee)
+	resFeeBytes, err := borsh.Serialize(resFee.Uint64())
 	if err != nil {
 		return err
 	}
