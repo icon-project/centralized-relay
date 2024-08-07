@@ -213,6 +213,8 @@ func (p *Provider) listenByPolling(ctx context.Context, lastSavedTxDigestStr str
 	done := make(chan interface{})
 	defer close(done)
 
+	lastSavedTxDigestStr = "3GurH4hp5c2KtL69Gf5pzshCLCEpdpfnShRQLBRWqTQq"
+
 	var lastSavedTxDigest *sui_types.TransactionDigest
 
 	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest

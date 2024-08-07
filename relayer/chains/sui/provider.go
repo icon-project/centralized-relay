@@ -37,7 +37,7 @@ var (
 	ModuleXcallManager   = "xcall_manager"
 	ModuleAssetManager   = "asset_manager"
 	ModuleBalancedDollar = "balanced_dollar_crosschain"
-	ModuleTournament     = "tournament"
+	ModuleTournament     = "tournament_xcall"
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
