@@ -93,6 +93,7 @@ type Provider struct {
 	contracts           map[string]providerTypes.EventMap
 	networkID           types.HexInt
 	LastSavedHeightFunc func() uint64
+	LastProcessedHeight uint64
 }
 
 func (p *Provider) NID() string {
@@ -276,4 +277,18 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+// SetLastProcessedHeight sets the last processed height
+func (p *Provider) SetLastProcessedHeight(height uint64) {
+	p.LastProcessedHeight = height
+}
+
+// GetCheckpoint returns the last processed height
+func (p *Provider) GetCheckpoint() uint64 {
+	lastSavedHeight := p.GetLastSavedBlockHeight()
+	if p.LastProcessedHeight > lastSavedHeight {
+		return p.LastProcessedHeight
+	}
+	return lastSavedHeight
 }

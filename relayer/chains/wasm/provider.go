@@ -34,6 +34,7 @@ type Provider struct {
 	eventList           []sdkTypes.Event
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	LastProcessedHeight uint64
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -143,14 +144,14 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()
-			startHeight = p.GetLastSavedHeight()
+			startHeight = p.GetCheckpoint()
+			latestHeight, err = p.QueryLatestHeight(ctx)
+      if err != nil {
+				p.logger.Error("failed to get latest block height", zap.Error(err))
+				pollHeightTicker.Reset(time.Second * 3)
+			}
 			if startHeight == 0 {
 				startHeight = latestHeight
-			}
-			latestHeight, err = p.QueryLatestHeight(ctx)
-			if err != nil {
-				p.logger.Error("failed to get latest block height", zap.Error(err))
-				pollHeightTicker.Reset(time.Second * 2)
 			}
 		}
 	}
@@ -771,4 +772,20 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedHeight returns the last saved height
 func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+// SetLastProcessedHeight sets the last processed height
+func (p *Provider) SetLastProcessedHeight(height uint64) {
+	p.LastProcessedHeight = height
+}
+
+// GetCheckpoint returns the checkpoint height
+// It returns the last processed height if it is greater than the last saved height
+// Otherwise, it returns the last saved height
+func (p *Provider) GetCheckpoint() uint64 {
+	lastSavedHeight := p.GetLastSavedHeight()
+	if p.LastProcessedHeight > lastSavedHeight {
+		return p.LastProcessedHeight
+	}
+	return lastSavedHeight
 }

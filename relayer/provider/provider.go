@@ -19,6 +19,7 @@ type Config interface {
 }
 
 type ChainQuery interface {
+	GetCheckpoint() uint64
 	QueryLatestHeight(ctx context.Context) (uint64, error)
 	QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
 }

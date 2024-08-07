@@ -63,6 +63,7 @@ type Provider struct {
 	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
+	LastProcessedHeight uint64
 }
 
 func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -478,4 +479,9 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+// SetLastProcessedHeight sets the last processed height
+func (p *Provider) SetLastProcessedHeight(height uint64) {
+	p.LastProcessedHeight = height
 }

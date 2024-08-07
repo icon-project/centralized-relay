@@ -480,10 +480,14 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	for nid, chain := range r.chains {
-		height, err := chain.Provider.QueryLatestHeight(ctx)
-		if err != nil {
-			r.log.Error("error occured when querying latest height", zap.String("nid", nid), zap.Error(err))
-			continue
+		height := chain.Provider.GetCheckpoint()
+		if chain.LastSavedHeight == height {
+			latestHeight, err := chain.Provider.QueryLatestHeight(ctx)
+			if err != nil {
+				r.log.Error("error occured when fetching latest height", zap.String("nid", nid), zap.Error(err))
+				continue
+			}
+			height = latestHeight
 		}
 		if err := r.SaveBlockHeight(ctx, chain, height); err != nil {
 			r.log.Error("error occured when saving block height", zap.String("nid", nid), zap.Error(err))
