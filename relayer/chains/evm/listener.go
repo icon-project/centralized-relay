@@ -302,18 +302,19 @@ func (p *Provider) Subscribe(ctx context.Context,
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
-			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
-			defer cancel()
-			if _, err := p.QueryLatestHeight(ctx); err != nil {
-				resetCh <- err
-				return err
-			}
 			if p.cfg.Redundancy == RPCRedundancy {
 				lastSavedHeight := p.GetLastSavedBlockHeight()
 				if lastSavedHeight == 0 {
 					lastSavedHeight = latestHeight
 				}
 				p.handleRpcVerification(ctx, wsEventsFound, lastSavedHeight, resetCh, blockInfoChan)
+			} else {
+				ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+				defer cancel()
+				if _, err := p.QueryLatestHeight(ctx); err != nil {
+					resetCh <- err
+					return err
+				}
 			}
 		}
 
@@ -338,8 +339,8 @@ func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool
 				p.log.Info("syncing missing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
 				logs, err := p.getLogsRetry(ctx, filter)
 				if err != nil {
+					resetCh <- err
 					p.log.Warn("failed to fetch missing blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-					continue
 				}
 				if len(logs) > 0 {
 					p.log.Info("got missing logs", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
