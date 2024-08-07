@@ -278,9 +278,10 @@ func (p *Provider) Subscribe(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			p.log.Debug("subscriptions stopped")
+			return ctx.Err()
 		case err := <-sub.Err():
-			p.log.Error("subscription error", zap.Error(err))
+			p.log.Warn("subscription error", zap.Error(err))
 			resetCh <- err
 			return err
 		case log := <-ch:
