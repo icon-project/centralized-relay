@@ -29,7 +29,6 @@ var (
 // main start loop
 func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh bool) (chan error, error) {
 	errorChan := make(chan error, 1)
-
 	// once flush completes then only start processing
 	if fresh {
 		// flush all the packet and then continue
@@ -220,11 +219,11 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages uint) ([]*t
 
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
-		for key, message := range src.MessageCache.Messages {
+		for _, message := range src.MessageCache.Messages {
 			dst, err := r.FindChainRuntime(message.Dst)
 			if err != nil {
 				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
 
@@ -236,7 +235,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			message.ToggleProcessing()
 
 			// if message reached delete the message
-			messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
+
+			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 			if err != nil {
 				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
 				message.ToggleProcessing()
@@ -246,7 +246,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			// if message is received we can remove the message from db
 			if messageReceived {
 				dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
-				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
 			go r.RouteMessage(ctx, message, dst, src)
