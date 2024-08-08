@@ -29,6 +29,8 @@ type Config struct {
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
 	Disabled bool   `json:"disabled" yaml:"disabled"`
+
+	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
 }
 
 type DappModule struct {
