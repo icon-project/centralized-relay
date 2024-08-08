@@ -49,6 +49,9 @@ type ChainProvider interface {
 	GetFee(context.Context, string, bool) (uint64, error)
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
+
+	GetLastProcessedBlockHeight(ctx context.Context) (uint64, error)
+	QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error)
 }
 
 // CommonConfig is the common configuration for all chain providers

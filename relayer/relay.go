@@ -259,7 +259,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, blockInfo *types.BlockInfo) {
 	src.LastBlockHeight = blockInfo.Height
-
 	for _, msg := range blockInfo.Messages {
 		msg := types.NewRouteMessage(msg)
 		src.MessageCache.Add(msg)
@@ -490,6 +489,7 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 			continue
 		}
 	}
+
 }
 
 // cleanExpiredMessages

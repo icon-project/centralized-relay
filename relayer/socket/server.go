@@ -275,6 +275,104 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			return nil, err
 		}
 		return &Message{EventClaimFee, data}, nil
+	case EventGetLatestHeight:
+		req := new(ReqChainHeight)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		height, err := chain.Provider.QueryLatestHeight(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResChainHeight{Chain: req.Chain, Height: height})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetLatestHeight, data}, nil
+	case EventGetLatestProcessedBlock:
+		req := new(ReqProcessedBlock)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		height, err := chain.Provider.GetLastProcessedBlockHeight(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResProcessedBlock{Chain: req.Chain, Height: height})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetLatestProcessedBlock, data}, nil
+	case EventRelayRangeMessage:
+		req := new(ReqRelayRangeMessage)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		if req.FromHeight > req.ToHeight {
+			return nil, fmt.Errorf("from_height %d must be lesser than to_height %d ", req.FromHeight, req.ToHeight)
+		}
+		src, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		msgs, err := src.Provider.QueryBlockMessages(context.Background(), req.FromHeight, req.ToHeight)
+		if err != nil {
+			return nil, err
+		}
+		var routeMessages []*types.RouteMessage
+		for _, msg := range msgs {
+			routeMessage := types.NewRouteMessage(msg)
+			src.MessageCache.Add(routeMessage)
+			routeMessages = append(routeMessages, routeMessage)
+		}
+		data, err := jsoniter.Marshal(&ResRelayRangeMessage{
+			Chain:    req.Chain,
+			Messages: routeMessages,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventRelayRangeMessage, data}, nil
+	case EventGetBlockRange:
+		req := new(ReqRangeBlockQuery)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		msgs, err := chain.Provider.QueryBlockMessages(context.Background(), req.FromHeight, req.ToHeight)
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(&ResRangeBlockQuery{Chain: req.Chain, Msgs: msgs})
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetBlockRange, data}, nil
+	case EventGetConfig:
+		req := new(ReqChainHeight)
+		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
+			return nil, err
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return nil, err
+		}
+		data, err := jsoniter.Marshal(chain.Provider.Config())
+		if err != nil {
+			return nil, err
+		}
+		return &Message{EventGetConfig, data}, nil
 	default:
 		return nil, fmt.Errorf("invalid request")
 	}

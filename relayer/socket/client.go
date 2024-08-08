@@ -11,16 +11,21 @@ import (
 )
 
 const (
-	EventGetBlock       Event = "GetBlock"
-	EventGetMessageList Event = "GetMessageList"
-	EventRelayMessage   Event = "RelayMessage"
-	EventMessageRemove  Event = "MessageRemove"
-	EventPruneDB        Event = "PruneDB"
-	EventRevertMessage  Event = "RevertMessage"
-	EventError          Event = "Error"
-	EventGetFee         Event = "GetFee"
-	EventSetFee         Event = "SetFee"
-	EventClaimFee       Event = "ClaimFee"
+	EventGetBlock                Event = "GetBlock"
+	EventGetMessageList          Event = "GetMessageList"
+	EventRelayMessage            Event = "RelayMessage"
+	EventRelayRangeMessage       Event = "RelayRangeMessage"
+	EventMessageRemove           Event = "MessageRemove"
+	EventPruneDB                 Event = "PruneDB"
+	EventRevertMessage           Event = "RevertMessage"
+	EventError                   Event = "Error"
+	EventGetFee                  Event = "GetFee"
+	EventSetFee                  Event = "SetFee"
+	EventClaimFee                Event = "ClaimFee"
+	EventGetLatestHeight         Event = "GetLatestHeight"
+	EventGetLatestProcessedBlock Event = "GetLatestProcessedBlock"
+	EventGetBlockRange           Event = "GetBlockRange"
+	EventGetConfig               Event = "GetConfig"
 )
 
 var (
@@ -134,6 +139,30 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 			return nil, err
 		}
 		return res, nil
+	case EventGetLatestHeight:
+		res := new(ResChainHeight)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventGetLatestProcessedBlock:
+		res := new(ResProcessedBlock)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventRelayRangeMessage:
+		res := new(ResRelayRangeMessage)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	case EventGetBlockRange:
+		res := new(ResRangeBlockQuery)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return res, nil
 	default:
 		return nil, ErrUnknownEvent
 	}
@@ -190,6 +219,22 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 	res, ok := data.(*ResRelayMessage)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+func (c *Client) RelayRangeMessage(chain string, fromHeight, toHeight uint64) (*ResRelayRangeMessage, error) {
+	req := &ReqRelayRangeMessage{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
+	if err := c.send(EventRelayRangeMessage, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResRelayRangeMessage)
+	if !ok {
+		return &ResRelayRangeMessage{}, nil
 	}
 	return res, nil
 }
@@ -290,6 +335,54 @@ func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
 		return nil, err
 	}
 	res, ok := data.(*ResClaimFee)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
+	req := &ReqChainHeight{Chain: chain}
+	if err := c.send(EventGetLatestHeight, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResChainHeight)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, error) {
+	req := &ReqGetBlock{Chain: chain}
+	if err := c.send(EventGetLatestProcessedBlock, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResProcessedBlock)
+	if !ok {
+		return nil, ErrInvalidResponse(err)
+	}
+	return res, nil
+}
+
+func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {
+	req := &ReqRangeBlockQuery{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
+	if err := c.send(EventGetBlockRange, req); err != nil {
+		return nil, err
+	}
+	data, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+	res, ok := data.(*ResRangeBlockQuery)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
 	}
