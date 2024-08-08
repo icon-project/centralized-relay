@@ -29,7 +29,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		}
 	}
 
-	if txInfo.TxDigest == "" {
+	if p.cfg.StartTxDigest != "" {
 		txInfo.TxDigest = p.cfg.StartTxDigest
 	}
 

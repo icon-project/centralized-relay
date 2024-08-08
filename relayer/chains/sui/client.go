@@ -66,6 +66,11 @@ type IClient interface {
 		ctx context.Context,
 		txDigest sui_types.TransactionDigest,
 	) ([]types.SuiEvent, error)
+
+	MultiGetTxBlocks(
+		ctx context.Context,
+		digests []string,
+	) ([]*types.SuiTransactionBlockResponse, error)
 }
 
 type Client struct {
@@ -261,4 +266,20 @@ func (c *Client) GetEvents(
 	txDigest sui_types.TransactionDigest,
 ) ([]types.SuiEvent, error) {
 	return c.rpc.GetEvents(ctx, txDigest)
+}
+
+func (c *Client) MultiGetTxBlocks(ctx context.Context, digests []string) ([]*types.SuiTransactionBlockResponse, error) {
+	txnBlockResponses := []*types.SuiTransactionBlockResponse{}
+
+	if err := c.rpc.CallContext(
+		ctx,
+		&txnBlockResponses,
+		suitypes.SuiMethod("sui_multiGetTransactionBlocks"),
+		digests,
+		types.SuiTransactionBlockResponseOptions{ShowEvents: true},
+	); err != nil {
+		return nil, err
+	}
+
+	return txnBlockResponses, nil
 }
