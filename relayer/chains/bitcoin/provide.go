@@ -538,7 +538,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
 	// handle for bitcoin bridge
 	// decode message from OP_RETURN
-	decodeMessage, err := multisig.ReadRelayMessage(tx.Tx, false)
+	decodeMessage, err := multisig.ReadBridgeMessage(tx.Tx)
 	if err != nil {
 		return nil, err
 	}
