@@ -18,7 +18,7 @@ const (
 	OP_RADFI_PROVIDE_LIQUIDITY	= txscript.OP_1
 	OP_RADFI_SWAP				= txscript.OP_2
 	OP_RADFI_WITHDRAW_LIQUIDITY	= txscript.OP_3
-	OP_RADFI_COLLECT_FEE		= txscript.OP_4
+	OP_RADFI_COLLECT_FEES		= txscript.OP_4
 )
 
 type RadFiProvideLiquidityMsg struct {
@@ -35,10 +35,15 @@ type RadFiWithdrawLiquidityMsg struct {
 	NftId			*uint256.Int
 }
 
+type RadFiCollectFeesMsg struct {
+	RecipientIndex	uint32
+	NftId			*uint256.Int
+}
 type RadFiDecodedMsg struct {
-	Flag				byte
-	ProvideLiquidityMsg	*RadFiProvideLiquidityMsg
-	WithdrawLiquidityMsg *RadFiWithdrawLiquidityMsg
+	Flag					byte
+	ProvideLiquidityMsg		*RadFiProvideLiquidityMsg
+	WithdrawLiquidityMsg	*RadFiWithdrawLiquidityMsg
+	CollectFeesMsg			*RadFiCollectFeesMsg
 }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
@@ -111,6 +116,20 @@ func CreateWithdrawLiquidityScript(msg *RadFiWithdrawLiquidityMsg) ([]byte, erro
 	// fmt.Println("singleByte: ", singleByte)
 	// fmt.Println("recipientIndexByte: ", recipientIndexByte)
 	// fmt.Println("liquidityValueBytes: ", liquidityValueBytes)
+	return builder.AddData(data).Script()
+}
+
+func CreateCollectFeesScript(msg *RadFiCollectFeesMsg) ([]byte, error) {
+	builder := txscript.NewScriptBuilder()
+
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddOp(OP_RADFI_IDENT)
+	builder.AddOp(OP_RADFI_COLLECT_FEES)
+	// encode message content
+	recipientIndexByte := make([]byte, 4)
+	binary.BigEndian.PutUint32(recipientIndexByte, msg.RecipientIndex)
+	data := append(recipientIndexByte, msg.NftId.Bytes()...)
+
 	return builder.AddData(data).Script()
 }
 
@@ -213,8 +232,17 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 				},
 			}, nil
 
-		case OP_RADFI_COLLECT_FEE:
-			fmt.Println("OP_RADFI_COLLECT_FEE")
+		case OP_RADFI_COLLECT_FEES:
+			recipientIndex := binary.BigEndian.Uint32(payload[:4])
+			nftId := new(uint256.Int).SetBytes(payload[4:])
+
+			return &RadFiDecodedMsg {
+				Flag				: flag,
+				CollectFeesMsg: &RadFiCollectFeesMsg{
+					RecipientIndex	: recipientIndex,
+					NftId			: nftId,
+				},
+			}, nil
 
 		default:
 			return nil, fmt.Errorf("ReadRadFiMessage - invalid flag")
