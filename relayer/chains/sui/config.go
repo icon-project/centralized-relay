@@ -30,6 +30,9 @@ type Config struct {
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
 	Disabled bool   `json:"disabled" yaml:"disabled"`
 
+	// Start tx-digest cursor to begin querying for events.
+	// Should be empty if we want to query using last saved tx-digest
+	// from database.
 	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
 }
 
