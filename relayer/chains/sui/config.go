@@ -26,6 +26,8 @@ type Config struct {
 	DappPkgID   string       `yaml:"dapp-package-id" json:"dapp-package-id"`
 	DappModules []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
 
+	SpokeTokenTreasuryCapID string `yaml:"spoke-token-treasury-cap-id" json:"spoke-token-treasury-cap-id"`
+
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
 	Disabled bool   `json:"disabled" yaml:"disabled"`

@@ -38,6 +38,7 @@ var (
 	ModuleAssetManager   = "asset_manager"
 	ModuleBalancedDollar = "balanced_dollar_crosschain"
 	ModuleTournament     = "tournament_xcall"
+	ModuleSpokeToken     = "spoke_token"
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000

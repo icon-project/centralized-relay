@@ -153,6 +153,16 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 			}
+		case ModuleSpokeToken:
+			// typeArgs = append(typeArgs, )
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: module.ConfigID},
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
+				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+				{Type: CallArgObject, Val: p.cfg.SpokeTokenTreasuryCapID},
+			}
 
 		default:
 			return nil, fmt.Errorf("received unknown dapp module cap id: %s", message.DappModuleCapID)
