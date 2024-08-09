@@ -164,6 +164,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Sn = sn
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
 		msg.Src = p.cfg.NID
+		msg.Dst = p.cfg.NID
 		msg.Data = rollbackMsgEvent.Data
 
 	default:
