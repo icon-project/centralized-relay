@@ -625,7 +625,11 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 					delay = types.MaxRPCRetryDelay
 				}
 				p.logger.Warn("failed to fetch block messages. retrying...", append(zapFields, zap.Uint8("attempt", retryCount), zap.Duration("retrying_in", delay), zap.Error(err))...)
-				time.Sleep(delay)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(delay):
+				}
 			}
 
 			if localMessages.TotalCount > perPage {
@@ -663,7 +667,11 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 								delay = types.MaxRPCRetryDelay
 							}
 							p.logger.Warn("fetchBlockMessages failed, retrying...", append(zapFields, zap.Duration("retrying_in", delay), zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
-							time.Sleep(delay)
+							select {
+							case <-ctx.Done():
+								return
+							case <-time.After(delay):
+							}
 						}
 					}
 					localMessages.Txs = append(localMessages.Txs, resNext.Txs...)
