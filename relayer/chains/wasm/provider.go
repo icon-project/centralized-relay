@@ -613,7 +613,10 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 				retryCount++
 				if retryCount >= types.RPCMaxRetryAttempts {
 					p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Uint8("attempt", retryCount), zap.Error(err))...)
-					errorChan <- err
+					select {
+					case errorChan <- err:
+					default:
+					}
 					cancel()
 					return
 				}
@@ -648,7 +651,10 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 							attempts++
 							if attempts >= types.RPCMaxRetryAttempts {
 								p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
-								errorChan <- err
+								select {
+								case errorChan <- err:
+								default:
+								}
 								cancel()
 								return
 							}
