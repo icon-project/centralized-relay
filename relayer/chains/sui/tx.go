@@ -404,8 +404,8 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 		return
 	}
 
-	if txnData.Checkpoint == nil {
-		time.Sleep(1 * time.Second) //time to wait until tx is included in some checkpoint
+	for txnData.Checkpoint == nil {
+		time.Sleep(3 * time.Second) //time to wait until tx is included in some checkpoint
 		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
 		if err != nil {
 			callback(messageKey, res, err)
