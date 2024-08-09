@@ -294,6 +294,27 @@ func (p *Provider) initStaticAlts() error {
 			return err
 		}
 		addresses = append(addresses, dappAddr)
+
+		cfgPrefix := p.getDappConfigPrefix(dapp.ProgramID)
+		dappCfgAddr, err := types.GetPDA(dappAddr, cfgPrefix)
+		if err != nil {
+			return err
+		}
+		addresses = append(addresses, dappCfgAddr)
+
+		if dapp.Name == types.AssetManager {
+			vaultNativeAddr, err := types.GetPDA(dappAddr, types.PrefixVaultNative)
+			if err != nil {
+				return err
+			}
+			addresses = append(addresses, vaultNativeAddr)
+		} else if dapp.Name == types.BalancedDollar {
+			authorityAddr, err := types.GetPDA(dappAddr, types.PrefixBnUSDAuthority)
+			if err != nil {
+				return err
+			}
+			addresses = append(addresses, authorityAddr)
+		}
 	}
 
 	altPubKeyStr := p.cfg.AltAddress

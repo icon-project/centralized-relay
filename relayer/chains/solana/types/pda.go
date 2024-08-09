@@ -17,6 +17,9 @@ const (
 	PrefixReceipt      = "receipt"
 
 	PrefixState = "state"
+
+	PrefixVaultNative    = "vault_native"
+	PrefixBnUSDAuthority = "bnusd_authority"
 )
 
 type PDA struct {
