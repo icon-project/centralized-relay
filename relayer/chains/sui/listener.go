@@ -29,6 +29,10 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		}
 	}
 
+	if txInfo.TxDigest == "" {
+		txInfo.TxDigest = "6hqkABhjTug2CU93w7k2Ef4D8DjcKVDLymgBPZqFVcy2"
+	}
+
 	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
 }
 
