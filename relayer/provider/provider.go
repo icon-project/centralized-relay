@@ -30,7 +30,7 @@ type ChainProvider interface {
 	Init(context.Context, string, kms.KMS) error
 	Type() string
 	Config() Config
-	Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error
+	Listener(ctx context.Context, lastProcessedTx types.LastProcessedTx, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error)

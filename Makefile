@@ -38,7 +38,10 @@ install: go.sum
 
 
 e2e-test:
-	@go test -v ./test/e2e -testify.m TestE2E_all
+	@go test -v ./test/e2e -testify.m TestE2E_all -timeout 30m
+
+test-all:
+	@go test -v ./...
 
 test-all:
 	@go test -v ./...

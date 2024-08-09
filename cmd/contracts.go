@@ -66,6 +66,8 @@ func (c *contractState) getFee() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			defer client.Close()
+			defer c.closeSocket()
 			res, err := client.GetFee(c.chain, c.network, true)
 			if err != nil {
 				return err
@@ -124,6 +126,7 @@ func (c *contractState) claimFee() *cobra.Command {
 				return err
 			}
 			defer client.Close()
+			defer c.closeSocket()
 			res, err := client.ClaimFee(c.chain)
 			if err != nil {
 				return err

@@ -18,7 +18,7 @@ type E2ETest struct {
 }
 
 func (s *E2ETest) TestE2E_all() {
-	//go panicOnTimeout(10 * time.Hour) // custom timeout
+	// go panicOnTimeout(10 * time.Hour) // custom timeout
 
 	t := s.T()
 	testcase := "xcall"

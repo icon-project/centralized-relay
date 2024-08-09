@@ -26,8 +26,9 @@ xcall_branch="main"
 clean_contracts() {
   echo "Cleaning contract directories..."
   find artifacts/icon -type f -exec rm {} \;
-  #  find artifacts/archway -type f -exec rm {} \; not required right now
+  find artifacts/archway -type f -exec rm {} \;
   find artifacts/evm -type f -exec rm {} \;
+  find artifacts/sui -type f -exec rm {} \;
 }
 
 e2e_test() {
@@ -78,6 +79,7 @@ fi
 if [ "$build_xcall" = "true" ]; then
   echo "building xCall contracts..."
   build_xCall_contracts "$xcall_branch"
+  build_sui_docker
 fi
 
 # Run the selected test

@@ -183,11 +183,11 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Wallet already configured: %s\n", k.address)
 				return nil
 			}
-			cf.SetWallet(k.address)
-			if err := a.config.Save(a.homePath); err != nil {
+			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
 				return err
 			}
-			if err := chain.ChainProvider.SetAdmin(cmd.Context(), k.address); err != nil {
+			cf.SetWallet(k.address)
+			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
 			fmt.Fprintf(os.Stdout, "Wallet configured: %s\n", k.address)

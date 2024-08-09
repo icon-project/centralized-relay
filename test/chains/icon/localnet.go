@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -170,6 +171,9 @@ func (in *IconRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
 }
 
 func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	if in.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	xcall := in.IBCAddresses["xcall"]
 
 	connection, err := in.DeployContractRemote(ctx, in.scorePaths["connection"], in.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+in.testconfig.RelayWalletAddress+`"}`)
@@ -187,6 +191,13 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 }
 
 func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
+	if in.testconfig.Environment == "preconfigured" {
+		testcase := ctx.Value("testcase").(string)
+		in.IBCAddresses["xcall"] = "cx4df1d24b5c5d6cae7e9f885d941a9c123005c598"
+		in.IBCAddresses["connection"] = "cx5bc2fae446d43d458902e9b922b9cc66633c40eb"
+		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx6f86fc01ce8dffcf8c54f22cd07236050e3ca8a3"
+		return nil
+	}
 	nid := in.cfg.ChainID
 	xcall, err := in.DeployContractRemote(ctx, in.scorePaths["xcall"], in.keystorePath, `{"networkId":"`+nid+`"}`)
 	if err != nil {
@@ -198,6 +209,9 @@ func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
 }
 
 func (in *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
+	if in.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	testcase := ctx.Value("testcase").(string)
 
 	xCall := in.IBCAddresses["xcall"]
@@ -337,7 +351,7 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		Indexed:   index,
 	}
 	// Create a context with a timeout of 16 seconds.
-	_ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	_ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	// Create an event request with the given filter and start height.
@@ -360,13 +374,15 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		if err := in.IconClient.MonitorEvent(ctx, req, response, errRespose); err != nil {
 			log.Printf("MonitorEvent error: %v", err)
 		}
+		defer in.IconClient.CloseAllMonitor()
 	}(ctx, req, response, errRespose)
 
 	select {
 	case v := <-channel:
 		return v, nil
 	case <-_ctx.Done():
-		return nil, fmt.Errorf(fmt.Sprintf("timeout : Event %s not found after %d block", signature, startHeight))
+		latestHeight, _ := in.Height(ctx)
+		return nil, errors.New(fmt.Sprintf("timeout : Event %s not found after %d block to %d block ", signature, startHeight, latestHeight))
 	}
 }
 

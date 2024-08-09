@@ -164,6 +164,9 @@ func (an *EVMRemotenet) Height(ctx context.Context) (uint64, error) {
 }
 
 func (an *EVMRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
+	if an.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	xcall := common.HexToAddress(an.IBCAddresses["xcall"])
 	connection, err := an.DeployContractRemote(ctx, an.scorePaths["connection"], an.testconfig.KeystorePassword)
 	if err != nil {
@@ -188,6 +191,13 @@ func (an *EVMRemotenet) SetupConnection(ctx context.Context, target chains.Chain
 }
 
 func (an *EVMRemotenet) SetupXCall(ctx context.Context) error {
+	if an.testconfig.Environment == "preconfigured" {
+		testcase := ctx.Value("testcase").(string)
+		an.IBCAddresses["xcall"] = "0x2538a10b7fFb1B78c890c870FC152b10be121f04"
+		an.IBCAddresses["connection"] = "0x90b97E83e22AFa2e6A96b3549A0E495D5Bae61aF"
+		an.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "0xccA9728291bC98ff4F97EF57Be3466227b0eb06C"
+		return nil
+	}
 	nid := an.cfg.ChainID
 	xcall, err := an.DeployContractRemote(ctx, an.scorePaths["xcall"], an.testconfig.KeystorePassword)
 	if err != nil {
@@ -204,6 +214,9 @@ func (an *EVMRemotenet) SetupXCall(ctx context.Context) error {
 }
 
 func (an *EVMRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, connections []chains.XCallConnection) error {
+	if an.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	testcase := ctx.Value("testcase").(string)
 	//an.CheckForKeyStore(ctx, keyName)
 	//xCallKey := fmt.Sprintf("xcall-%s", testcase)
@@ -329,7 +342,6 @@ func (an *EVMRemotenet) FindCallMessage(ctx context.Context, startHeight uint64,
 	event, err := an.FindEvent(ctx, startHeight, CallMessage, topics)
 
 	if err != nil {
-		fmt.Printf("Topics %v\n", topics)
 		return "", "", err
 	}
 	return event["_reqId"].(*big.Int).String(), string(event["_data"].([]byte)), nil
@@ -628,6 +640,5 @@ func (an *EVMRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHe
 		fmt.Printf("Topics %v", topics)
 		return "", err
 	}
-
 	return "0", nil
 }
