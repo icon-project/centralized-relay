@@ -171,8 +171,6 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		return nil, fmt.Errorf(types.InvalidEventError)
 	}
 
-	msg.Src = p.cfg.NID
-
 	return &msg, nil
 }
 
