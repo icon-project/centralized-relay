@@ -581,7 +581,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(event sdkTypes.Event) {
+		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
 
 			var (
@@ -678,7 +678,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 				}
 			}
 			messagesChan <- localMessages
-		}(event)
+		}(&wg, searchParam, messagesChan, errorChan)
 	}
 
 	go func() {
