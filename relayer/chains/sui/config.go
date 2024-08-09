@@ -17,6 +17,7 @@ type Config struct {
 	Address   string `yaml:"address" json:"address"`
 	NID       string `yaml:"nid" json:"nid"`
 
+	// list of xcall package ids in order of latest to oldest in descending order
 	XcallPkgIDs    []string `yaml:"xcall-package-ids" json:"xcall-package-ids"`
 	XcallStorageID string   `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
