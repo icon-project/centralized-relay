@@ -48,6 +48,15 @@ func (p *Provider) allowedEventTypes() []string {
 	return allowedEvents
 }
 
+func (p *Provider) shouldExecuteCall(msg *relayertypes.Message) bool {
+	if !p.cfg.IsExecutor &&
+		(msg.EventType == relayerEvents.CallMessage ||
+			msg.EventType == relayerEvents.RollbackMessage) {
+		return false
+	}
+	return true
+}
+
 func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]relayertypes.BlockInfo, error) {
 	checkpointMessages := make(map[uint64][]*relayertypes.Message)
 	for _, ev := range events {
@@ -57,6 +66,10 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 				continue
 			}
 			return nil, err
+		}
+
+		if !p.shouldExecuteCall(msg) {
+			continue
 		}
 
 		p.log.Info("Detected event log: ",
