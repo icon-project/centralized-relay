@@ -175,7 +175,8 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 }
 
 func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
-	if ev.Checkpoint == nil {
+	for ev.Checkpoint == nil {
+		time.Sleep(1 * time.Second)
 		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
 		if err != nil {
 			p.log.Error("failed to get transaction while handling event notification",
