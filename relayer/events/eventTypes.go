@@ -6,10 +6,9 @@ const (
 	RollbackMessage = "rollbackMessage"
 
 	// Special event types
-	RevertMessage   = "revertMessage"
-	SetAdmin        = "setAdmin"
-	GetFee          = "getFee"
-	SetFee          = "setFee"
-	ClaimFee        = "claimFee"
-	ExecuteRollback = "executeRollback"
+	RevertMessage = "revertMessage"
+	SetAdmin      = "setAdmin"
+	GetFee        = "getFee"
+	SetFee        = "setFee"
+	ClaimFee      = "claimFee"
 )

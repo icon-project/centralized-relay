@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 
@@ -121,7 +122,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.height, d.sn)
+			result, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
 			if err != nil {
 				return err
 			}
@@ -150,7 +151,7 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			}
 			defer client.Close()
 
-			result, err := client.MessageRemove(d.chain, d.sn)
+			result, err := client.MessageRemove(d.chain, new(big.Int).SetUint64(d.sn))
 			if err != nil {
 				return err
 			}
@@ -205,7 +206,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 		Use:     "view",
 		Aliases: []string{"get"},
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return d.server.Close()
+			return d.closeSocket()
 		},
 		Short: "Show blocks stored in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {

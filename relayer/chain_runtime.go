@@ -52,13 +52,11 @@ func (dst *ChainRuntime) shouldSendMessage(ctx context.Context, routeMessage *ty
 		return false
 	}
 
-	ok, err := dst.Provider.ShouldReceiveMessage(ctx, routeMessage.Message)
-	if !ok || err != nil {
+	if ok, err := dst.Provider.ShouldReceiveMessage(ctx, routeMessage.Message); !ok || err != nil {
 		return false
 	}
 
-	ok, err = src.Provider.ShouldSendMessage(ctx, routeMessage.Message)
-	if !ok || err != nil {
+	if ok, err := src.Provider.ShouldSendMessage(ctx, routeMessage.Message); !ok || err != nil {
 		return false
 	}
 

@@ -14,11 +14,14 @@ import (
 )
 
 type IClient interface {
-	GetLatestBlockHeight(ctx context.Context) (uint64, error)
+	GetLatestBlockHeight(ctx context.Context, ctype solrpc.CommitmentType) (uint64, error)
 	GetLatestBlockHash(ctx context.Context) (*solana.Hash, error)
+	GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockResult, error)
 
-	GetAccountInfoRaw(ctx context.Context, addr string) (*solrpc.Account, error)
-	GetAccountInfo(ctx context.Context, acAddr string, accPtr interface{}) error
+	GetAccountInfoRaw(ctx context.Context, addr solana.PublicKey) (*solrpc.Account, error)
+	GetAccountInfo(ctx context.Context, acAddr solana.PublicKey, accPtr interface{}) error
+
+	GetBalance(ctx context.Context, accAddr solana.PublicKey) (*solrpc.GetBalanceResult, error)
 
 	FetchIDL(ctx context.Context, idlAddress string, idlPtr interface{}) error
 
@@ -66,19 +69,15 @@ func NewClient(rpcCl *solrpc.Client) IClient {
 	return Client{rpc: rpcCl}
 }
 
-func (cl Client) GetAccountInfoRaw(ctx context.Context, addr string) (*solrpc.Account, error) {
-	acPubKey, err := solana.PublicKeyFromBase58(addr)
-	if err != nil {
-		return nil, err
-	}
-	res, err := cl.rpc.GetAccountInfo(ctx, acPubKey)
+func (cl Client) GetAccountInfoRaw(ctx context.Context, addr solana.PublicKey) (*solrpc.Account, error) {
+	res, err := cl.rpc.GetAccountInfo(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 	return res.Value, nil
 }
 
-func (cl Client) GetAccountInfo(ctx context.Context, acAddr string, accPtr interface{}) error {
+func (cl Client) GetAccountInfo(ctx context.Context, acAddr solana.PublicKey, accPtr interface{}) error {
 	ac, err := cl.GetAccountInfoRaw(ctx, acAddr)
 	if err != nil {
 		return err
@@ -90,6 +89,10 @@ func (cl Client) GetAccountInfo(ctx context.Context, acAddr string, accPtr inter
 	}
 
 	return nil
+}
+
+func (cl Client) GetBalance(ctx context.Context, accAddr solana.PublicKey) (*solrpc.GetBalanceResult, error) {
+	return cl.rpc.GetBalance(ctx, accAddr, solrpc.CommitmentFinalized)
 }
 
 func idlAddrFromProgID(progID string) (string, error) {
@@ -117,7 +120,12 @@ func (cl Client) FetchIDL(ctx context.Context, progID string, idlPtr interface{}
 		return err
 	}
 
-	idlAccount, err := cl.GetAccountInfoRaw(context.Background(), idlAddress)
+	idlPubkey, err := solana.PublicKeyFromBase58(idlAddress)
+	if err != nil {
+		return err
+	}
+
+	idlAccount, err := cl.GetAccountInfoRaw(context.Background(), idlPubkey)
 	if err != nil {
 		return err
 	}
@@ -170,8 +178,12 @@ func decompress(compressedData []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func (cl Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
-	return cl.rpc.GetBlockHeight(ctx, solrpc.CommitmentFinalized)
+func (cl Client) GetLatestBlockHeight(ctx context.Context, ctype solrpc.CommitmentType) (uint64, error) {
+	return cl.rpc.GetBlockHeight(ctx, ctype)
+}
+
+func (cl Client) GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockResult, error) {
+	return cl.rpc.GetBlock(ctx, slot)
 }
 
 func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {

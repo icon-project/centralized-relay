@@ -48,11 +48,7 @@ func (ms *FinalityStore) StoreTxObject(message *types.TransactionObject) error {
 		return fmt.Errorf("error while storingMessage: message cannot be nil")
 	}
 
-	key := GetKey([]string{
-		ms.prefix,
-		message.Dst,
-		fmt.Sprintf("%d", message.Sn),
-	})
+	key := GetKey([]string{ms.prefix, message.Dst, message.Sn.String()})
 
 	msgByte, err := ms.Encode(message)
 	if err != nil {
@@ -62,11 +58,7 @@ func (ms *FinalityStore) StoreTxObject(message *types.TransactionObject) error {
 }
 
 func (ms *FinalityStore) GetTxObject(messageKey *types.MessageKey) (*types.TransactionObject, error) {
-	v, err := ms.db.GetByKey(GetKey([]string{
-		ms.prefix,
-		messageKey.Dst,
-		fmt.Sprintf("%d", messageKey.Sn),
-	}))
+	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Dst, messageKey.Sn.String()}))
 	if err != nil {
 		return nil, err
 	}
@@ -81,60 +73,31 @@ func (ms *FinalityStore) GetTxObject(messageKey *types.MessageKey) (*types.Trans
 func (ms *FinalityStore) GetTxObjects(nId string, p *Pagination) ([]*types.TransactionObject, error) {
 	var messages []*types.TransactionObject
 
-	keyPrefixList := []string{ms.prefix}
-	if nId != "" {
-		keyPrefixList = append(keyPrefixList, nId)
-	}
-	iter := ms.db.NewIterator(GetKey(keyPrefixList))
+	iter := ms.db.NewIterator(GetKey([]string{ms.prefix, nId}))
+	defer iter.Release()
 
-	// return all the messages
 	if p.All {
 		for iter.Next() {
 			var msg types.TransactionObject
 			if err := ms.Decode(iter.Value(), &msg); err != nil {
 				return nil, err
 			}
-
 			messages = append(messages, &msg)
 		}
-		iter.Release()
-		err := iter.Error()
-		if err != nil {
-			return nil, err
-		}
-		return messages, nil
 	}
 
-	// if not all use the offset logic
-	for i := 0; i < int(p.Offset); i++ {
-		if !iter.Next() {
-			return nil, fmt.Errorf("no message after offset")
-		}
-	}
-
-	for i := uint64(0); i < uint64(p.Limit); i++ {
-		if !iter.Next() {
-			break
-		}
-
+	for i := uint(0); i < p.Limit && iter.Next(); i++ {
 		var msg types.TransactionObject
 		if err := ms.Decode(iter.Value(), &msg); err != nil {
 			return nil, err
 		}
 		messages = append(messages, &msg)
 	}
-	iter.Release()
-	err := iter.Error()
-	if err != nil {
-		return nil, err
-	}
-
-	return messages, nil
+	return messages, iter.Error()
 }
 
 func (ms *FinalityStore) DeleteTxObject(messageKey *types.MessageKey) error {
-	return ms.db.DeleteByKey(
-		GetKey([]string{ms.prefix, messageKey.Dst, fmt.Sprintf("%d", messageKey.Sn)}))
+	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Dst, messageKey.Sn.String()}))
 }
 
 func (ms *FinalityStore) Encode(d interface{}) ([]byte, error) {

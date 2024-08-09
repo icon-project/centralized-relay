@@ -95,7 +95,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 		return fmt.Errorf("error while storingMessage: message cannot be nil")
 	}
 
-	key := GetKey([]string{ms.prefix, message.Src, fmt.Sprintf("%d", message.Sn)})
+	key := GetKey([]string{ms.prefix, message.Src, message.Sn.String()})
 
 	msgByte, err := ms.Encode(message)
 	if err != nil {
@@ -105,7 +105,7 @@ func (ms *MessageStore) StoreMessage(message *types.RouteMessage) error {
 }
 
 func (ms *MessageStore) GetMessage(messageKey *types.MessageKey) (*types.RouteMessage, error) {
-	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
+	v, err := ms.db.GetByKey(GetKey([]string{ms.prefix, messageKey.Src, messageKey.Sn.String()}))
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +120,7 @@ func (ms *MessageStore) GetMessage(messageKey *types.MessageKey) (*types.RouteMe
 func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMessage, error) {
 	var messages []*types.RouteMessage
 
-	keyPrefixList := []string{ms.prefix}
-	if nId != "" {
-		keyPrefixList = append(keyPrefixList, nId)
-	}
-	iter := ms.db.NewIterator(GetKey(keyPrefixList))
+	iter := ms.db.NewIterator(GetKey([]string{ms.prefix, nId}))
 	defer iter.Release()
 
 	// return all the messages
@@ -144,7 +140,7 @@ func (ms *MessageStore) GetMessages(nId string, p *Pagination) ([]*types.RouteMe
 }
 
 func (ms *MessageStore) DeleteMessage(messageKey *types.MessageKey) error {
-	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, fmt.Sprintf("%d", messageKey.Sn)}))
+	return ms.db.DeleteByKey(GetKey([]string{ms.prefix, messageKey.Src, messageKey.Sn.String()}))
 }
 
 func (ms *MessageStore) Encode(d interface{}) ([]byte, error) {

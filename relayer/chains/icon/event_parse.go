@@ -51,7 +51,7 @@ func (p *Provider) parseEmitMessage(e *types.EventLog, eventType string, height 
 	}
 
 	dst := string(e.Indexed[1])
-	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
+	sn := new(big.Int).SetBytes(e.Indexed[2])
 
 	return &providerTypes.Message{
 		MessageHeight: height,
@@ -69,8 +69,8 @@ func (p *Provider) parseCallMessage(e *types.EventLog, eventType string, height 
 	}
 
 	src := strings.SplitN(string(e.Indexed[1][:]), "/", 2)
-	sn := big.NewInt(0).SetBytes(e.Indexed[2]).Uint64()
-	reqID := big.NewInt(0).SetBytes(e.Data[0]).Uint64()
+	sn := new(big.Int).SetBytes(e.Indexed[2])
+	reqID := new(big.Int).SetBytes(e.Data[0])
 
 	return &providerTypes.Message{
 		MessageHeight: height,
@@ -104,6 +104,12 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 				return nil, err
 			}
 			messages = append(messages, msg)
+		case RollbackMessage:
+			msg, err := p.parseRollbackMessageEvent(height.Uint64(), event)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, msg)
 		}
 	}
 	return messages, nil
@@ -130,7 +136,7 @@ func (p *Provider) parseEmitMessageEvent(height uint64, e *types.EventNotificati
 		EventType:     p.GetEventName(e.Indexed[0]),
 		Dst:           dst,
 		Data:          data,
-		Sn:            sn.Uint64(),
+		Sn:            sn,
 		Src:           p.NID(),
 	}, nil
 }
@@ -156,11 +162,30 @@ func (p *Provider) parseCallMessageEvent(height uint64, e *types.EventNotificati
 
 	return &providerTypes.Message{
 		MessageHeight: height,
-		ReqID:         reqID.Uint64(),
+		ReqID:         reqID,
 		EventType:     p.GetEventName(e.Indexed[0]),
 		Dst:           p.NID(),
 		Data:          data,
-		Sn:            sn.Uint64(),
+		Sn:            sn,
 		Src:           src[0],
+	}, nil
+}
+
+// parseRollbackMessage parses RollbackMessage event
+func (p *Provider) parseRollbackMessageEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 2 {
+		return nil, fmt.Errorf("expected indexed: 2, got: %d indexed", indexdedLen)
+	}
+	sn, err := types.HexInt(e.Indexed[1]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
+	}
+
+	return &providerTypes.Message{
+		MessageHeight: height,
+		EventType:     p.GetEventName(e.Indexed[0]),
+		Dst:           p.NID(),
+		Src:           p.NID(),
+		Sn:            sn,
 	}, nil
 }

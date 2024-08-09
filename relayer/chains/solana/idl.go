@@ -15,8 +15,9 @@ func (idl *IDL) GetInstructionDiscriminator(name string) ([]byte, error) {
 	return nil, fmt.Errorf("instruction not found")
 }
 
-func (idl *IDL) GetProgramID() (solana.PublicKey, error) {
-	return solana.PublicKeyFromBase58(idl.Address)
+func (idl *IDL) GetProgramID() solana.PublicKey {
+	id, _ := solana.PublicKeyFromBase58(idl.Address)
+	return id
 }
 
 type IDL struct {
@@ -25,7 +26,6 @@ type IDL struct {
 	Instructions []IdlInstruction `json:"instructions"`
 	Accounts     []IdlAccount     `json:"accounts"`
 	Events       []IdlEvent       `json:"events"`
-	Types        []IdlType        `json:"types"`
 }
 
 type IdlInstruction struct {
@@ -44,19 +44,8 @@ type IdlAccount struct {
 }
 
 type IdlField struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
-// IdlDS DS means data structure
-type IdlDS struct {
-	Kind   string     `json:"kind"`
-	Fields []IdlField `json:"fields"`
-}
-
-type IdlType struct {
-	Name string `json:"name"`
-	Type IdlDS  `json:"type"`
+	Name string      `json:"name"`
+	Type interface{} `json:"type"`
 }
 
 type IdlMetadata struct {

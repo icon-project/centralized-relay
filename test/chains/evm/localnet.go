@@ -938,3 +938,15 @@ func (an *EVMRemotenet) BinCommand(command ...string) []string {
 func (an *EVMRemotenet) ExecBin(ctx context.Context, command ...string) ([]byte, []byte, error) {
 	return an.Exec(ctx, an.BinCommand(command...), nil)
 }
+
+func (an *EVMRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error) {
+	_sn, _ := big.NewInt(0).SetString(sn, 10)
+	topics := []common.Hash{common.HexToHash(RollbackExecuted.hash), common.BytesToHash(_sn.Bytes())}
+	_, err := an.FindEvent(ctx, startHeight, RollbackExecuted, topics)
+	if err != nil {
+		fmt.Printf("Topics %v", topics)
+		return "", err
+	}
+
+	return "0", nil
+}

@@ -18,27 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	MaxSupportedTxVersion = 0
+)
+
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	if err := p.RestoreKeystore(ctx); err != nil {
-		p.log.Error("failed to restore keystore", zap.Error(err))
-	} else {
-		p.log.Info("key restore successful: ", zap.String("public-key", p.wallet.PublicKey().String()))
-	}
-
-	// if err := p.InitXcall(ctx); err != nil {
-	// 	p.log.Error("failed to init xcall", zap.Error(err))
-	// }
-
-	// return nil
-
-	if err := p.SendMessage(ctx, &relayertypes.Message{
-		Dst:  "0x3.icon",
-		Data: []byte("hello"),
-	}); err != nil {
-		p.log.Error("failed to send message", zap.Error(err))
-	}
-
-	// fromSignature := "2D1RxZptfGrfHwqfzMD3Z6TdnGb5Ugff3ZHuDmNT7xMTfpRtaBSpdwrC2R8qrioDDFvkU3TU5yTSukv2iByoGcuN"
+	// fromSignature := "3K48n5Zmnzcvg5b1ksaZX7WFn1cVrnjrWPMskZmu9Xcp2Vo1UsYCaHCvBdWiu1MuUuyEN44918zbjpwoy1MwVY7J"
 	fromSignature := ""
 
 	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
@@ -88,7 +73,8 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 }
 
 func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
-	txn, err := p.client.GetTransaction(ctx, sign, nil)
+	txVersion := uint64(0)
+	txn, err := p.client.GetTransaction(ctx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
 		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
 	}
@@ -104,8 +90,8 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 				p.log.Info("Detected event log: ",
 					zap.Uint64("height", msg.MessageHeight),
 					zap.String("event-type", msg.EventType),
-					zap.Uint64("sn", msg.Sn),
-					zap.Uint64("req-id", msg.ReqID),
+					zap.Any("sn", msg.Sn),
+					zap.Any("req-id", msg.ReqID),
 					zap.String("src", msg.Src),
 					zap.String("dst", msg.Dst),
 					zap.Any("data", hex.EncodeToString(msg.Data)),
@@ -138,7 +124,9 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 			discriminator := eventLogBytes[:8]
 			eventBytes := eventLogBytes[8:]
 
-			for _, ev := range p.xcallIdl.Events {
+			allEvents := append(p.xcallIdl.Events, p.connIdl.Events...)
+
+			for _, ev := range allEvents {
 				if slices.Equal(ev.Discriminator, discriminator) {
 					switch ev.Name {
 					case types.EventSendMessage:
@@ -148,7 +136,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						}
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.EmitMessage,
-							Sn:            smEvent.ConnSn.Uint64(),
+							Sn:            &smEvent.ConnSn,
 							Src:           p.NID(),
 							Dst:           smEvent.TargetNetwork,
 							Data:          smEvent.Msg,
@@ -160,12 +148,13 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						if err := borsh.Deserialize(&cmEvent, eventBytes); err != nil {
 							return nil, fmt.Errorf("failed to decode call message event: %w", err)
 						}
+						fromNID := strings.Split(cmEvent.FromNetworkAddress, "/")[0]
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.CallMessage,
-							Sn:            cmEvent.Sn.Uint64(),
-							ReqID:         cmEvent.ReqId.Uint64(),
-							Src:           cmEvent.From,
-							Dst:           cmEvent.To,
+							Sn:            &cmEvent.Sn,
+							ReqID:         &cmEvent.ReqId,
+							Src:           fromNID,
+							Dst:           p.NID(),
 							Data:          cmEvent.Data,
 							MessageHeight: solEvent.Slot,
 						})
@@ -177,7 +166,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						}
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.RollbackMessage,
-							Sn:            rmEvent.Sn.Uint64(),
+							Sn:            &rmEvent.Sn,
 							Src:           p.NID(),
 							Dst:           p.NID(),
 							MessageHeight: solEvent.Slot,
@@ -194,10 +183,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 }
 
 func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
-	progId, err := p.xcallIdl.GetProgramID()
-	if err != nil {
-		return nil, err
-	}
+	progId := p.xcallIdl.GetProgramID()
 
 	limit := 1000
 	opts := &solrpc.GetSignaturesForAddressOpts{

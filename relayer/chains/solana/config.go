@@ -2,23 +2,33 @@ package solana
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"go.uber.org/zap"
 )
 
 type Config struct {
+	Disabled  bool   `yaml:"disabled" json:"disabled"`
 	ChainName string `yaml:"-"`
 
 	RPCUrl  string `yaml:"rpc-url"`
 	Address string `yaml:"address"`
 
-	XcallProgramID      string `yaml:"xcall-program-id"`
-	ConnectionProgramID string `yaml:"connection-program-id"`
+	XcallProgram string `yaml:"xcall-program"`
 
-	XcallStateAccount string `yaml:"xcall-state-account"`
+	ConnectionProgram string   `yaml:"connection-program"`
+	OtherConnections  []string `yaml:"other-connections"`
+
+	Dapps []types.Dapp `yaml:"dapps"`
+
+	CpNIDs []string `yaml:"cp-nids"` //counter party NIDs Eg: ["0x2.icon", "0x7.icon"]
+
+	AltAddress string `yaml:"alt-address"` // address lookup table address
 
 	NID         string `yaml:"nid"`
 	HomeDir     string `yaml:"home-dir"`
@@ -37,26 +47,30 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 	client := NewClient(solrpc.New(pc.RPCUrl))
 
 	xcallIdl := IDL{}
-	if pc.XcallProgramID != "" {
-		if err := client.FetchIDL(ctx, pc.XcallProgramID, &xcallIdl); err != nil {
+	if pc.XcallProgram != "" {
+		if err := client.FetchIDL(ctx, pc.XcallProgram, &xcallIdl); err != nil {
 			return nil, err
 		}
 	}
 
 	connIdl := IDL{}
-	if pc.ConnectionProgramID != "" {
-		if err := client.FetchIDL(ctx, pc.ConnectionProgramID, &connIdl); err != nil {
+	if pc.ConnectionProgram != "" {
+		if err := client.FetchIDL(ctx, pc.ConnectionProgram, &connIdl); err != nil {
 			return nil, err
 		}
 	}
 
+	pdaRegistry := types.NewPDARegistry(xcallIdl.GetProgramID(), connIdl.GetProgramID())
+
 	return &Provider{
-		log:      logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
-		cfg:      pc,
-		client:   client,
-		txmut:    &sync.Mutex{},
-		xcallIdl: &xcallIdl,
-		connIdl:  &connIdl,
+		log:         logger.With(zap.String("nid ", pc.NID), zap.String("name", pc.ChainName)),
+		cfg:         pc,
+		client:      client,
+		txmut:       &sync.Mutex{},
+		xcallIdl:    &xcallIdl,
+		connIdl:     &connIdl,
+		pdaRegistry: pdaRegistry,
+		staticAlts:  make(types.AddressTables),
 	}, nil
 }
 
@@ -69,6 +83,14 @@ func (pc *Config) GetWallet() string {
 }
 
 func (pc *Config) Validate() error {
-	//Todo
+	for _, dapp := range pc.Dapps {
+		if !slices.Contains(types.DappsEnabled, dapp.Name) {
+			return fmt.Errorf("invalid dapp name %s; should be one of %+v", dapp.Name, types.DappsEnabled)
+		}
+	}
 	return nil
+}
+
+func (pc *Config) Enabled() bool {
+	return !pc.Disabled
 }

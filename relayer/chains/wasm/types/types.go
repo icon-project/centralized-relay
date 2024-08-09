@@ -57,7 +57,7 @@ type TxResultWaitResponse struct {
 	} `json:"result"`
 }
 
-type TxResultChan struct {
+type TxResult struct {
 	TxResult *relayerTypes.TxResponse
 	Error    error
 }

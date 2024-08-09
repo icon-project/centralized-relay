@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"math/big"
 	"net"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -32,17 +33,17 @@ type ReqGetBlock struct {
 
 type ReqRelayMessage struct {
 	Chain  string
-	Sn     uint64
+	Sn     *big.Int
 	Height uint64
 }
 
 type ReqMessageRemove struct {
 	Chain string
-	Sn    uint64
+	Sn    *big.Int
 }
 
 type ResMessageRemove struct {
-	Sn     uint64
+	Sn     *big.Int
 	Chain  string
 	Dst    string
 	Height uint64
@@ -100,8 +101,8 @@ type ResGetFee struct {
 type ReqSetFee struct {
 	Chain   string
 	Network string
-	MsgFee  uint64
-	ResFee  uint64
+	MsgFee  *big.Int
+	ResFee  *big.Int
 }
 
 // ResSetFee sends SetFee event to socket

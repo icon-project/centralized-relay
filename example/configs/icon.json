@@ -1,17 +1,18 @@
 {
     "type": "icon",
     "value": {
+        "disabled": false,
         "rpc-url": "https://lisbon.net.solidwallet.io/api/v3/",
         "address": "hx...",
-        "password": "gochain",
         "start-height": 0,
+        "step-adjustment": 5,
         "min-step-limit": 0,
         "max-step-limit": 0,
+        "network-id": 3,
+        "nid": "0x2.icon",
         "contracts": {
             "xcall": "cx...",
             "connection": "cx..."
-        },
-        "network-id": 3,
-        "nid": "0x2.icon"
+        }
     }
 }
