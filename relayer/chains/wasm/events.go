@@ -32,21 +32,7 @@ const (
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
-type Event struct {
-	Type       string      `json:"type"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-type Attribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type EventsList struct {
-	Events []Event `json:"events"`
-}
-
-func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.Message, error) {
+func (p *Provider) ParseMessageFromEvents(eventsList []abiTypes.Event) ([]*relayerTypes.Message, error) {
 	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {

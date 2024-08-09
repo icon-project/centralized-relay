@@ -76,6 +76,9 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 							if height > 0 {
 								eventReq.Height = types.NewHexInt(height)
 							}
+							if height < processedheight {
+								p.log.Info("Synced", zap.Int64("height", height), zap.Int64("delta", processedheight-height))
+							}
 							return nil
 						}
 						msgs, err := p.parseMessageEvent(v)
@@ -103,7 +106,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))
