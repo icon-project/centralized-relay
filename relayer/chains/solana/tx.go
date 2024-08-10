@@ -980,7 +980,8 @@ func (p *Provider) queryExecuteRollbackAccounts(
 	}
 
 	dappPubKey := xcallRollbackAcc.Rollback.From
-	dappConfigAddr, err := types.GetPDA(dappPubKey, "config")
+	dappPrefix := p.getDappConfigPrefix(dappPubKey.String())
+	dappConfigAddr, err := types.GetPDA(dappPubKey, dappPrefix)
 	if err != nil {
 		return nil, err
 	}
