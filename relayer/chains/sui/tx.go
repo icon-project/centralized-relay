@@ -405,6 +405,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 	}
 
 	for txnData.Checkpoint == nil {
+		p.log.Warn("transaction not included in checkpoint", zap.String("tx-digest", txRes.Digest.String()))
 		time.Sleep(3 * time.Second) //time to wait until tx is included in some checkpoint
 		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
 		if err != nil {

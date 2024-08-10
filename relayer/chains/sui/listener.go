@@ -48,13 +48,14 @@ func (p *Provider) allowedEventTypes() []string {
 	return allowedEvents
 }
 
-func (p *Provider) shouldExecuteCall(msg *relayertypes.Message) bool {
-	if !p.cfg.IsExecutor &&
+func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
+	// if relayer is not an executor then skip CallMessage and RollbackMessage events.
+	if p.cfg.DappPkgID == "" &&
 		(msg.EventType == relayerEvents.CallMessage ||
 			msg.EventType == relayerEvents.RollbackMessage) {
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]relayertypes.BlockInfo, error) {
@@ -68,7 +69,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			return nil, err
 		}
 
-		if !p.shouldExecuteCall(msg) {
+		if p.shouldSkipMessage(msg) {
 			continue
 		}
 
@@ -189,6 +190,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 
 func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
 	for ev.Checkpoint == nil {
+		p.log.Warn("checkpoint not found for transaction", zap.String("tx-digest", ev.Id.TxDigest.String()))
 		time.Sleep(1 * time.Second)
 		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
 		if err != nil {
@@ -207,6 +209,10 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 		p.log.Error("failed to parse message from event while handling event notification",
 			zap.Error(err),
 			zap.Any("event", ev))
+		return
+	}
+
+	if p.shouldSkipMessage(msg) {
 		return
 	}
 

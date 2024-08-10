@@ -35,8 +35,6 @@ type Config struct {
 	// Should be empty if we want to query using last saved tx-digest
 	// from database.
 	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
-
-	IsExecutor bool `json:"is_executor" yaml:"is_executor"`
 }
 
 type DappModule struct {
