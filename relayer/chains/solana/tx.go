@@ -245,7 +245,7 @@ func (p *Provider) initStaticAlts() error {
 		return err
 	}
 
-	addresses := solana.PublicKeySlice{solana.SystemProgramID, xcallProgID, p.wallet.PublicKey()}
+	addresses := solana.PublicKeySlice{solana.SystemProgramID, solana.SysVarInstructionsPubkey, xcallProgID, p.wallet.PublicKey()}
 
 	connections := append([]string{p.cfg.ConnectionProgram}, p.cfg.OtherConnections...)
 	for _, conn := range connections {
