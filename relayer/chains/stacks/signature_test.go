@@ -1,7 +1,7 @@
+// relayer/chains/stacks/signature_test.go
 package stacks
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -50,10 +50,12 @@ func TestSignWithKey(t *testing.T) {
 		t.Fatalf("Failed to create private key: %v", err)
 	}
 
+	publicKey := GetPublicKeyFromPrivate(privateKey.Data)
+
 	expectedMessageHash := "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"
 	expectedSignatureVrs := "00f540e429fc6e8a4c27f2782479e739cae99aa21e8cb25d4436f333577bc791cd1d9672055dd1604dd5194b88076e4f859dd93c834785ed589ec38291698d4142"
 
-	hash := sha256.Sum256([]byte("Hello World"))
+	hash := calculateSighash([]byte("Hello World"))
 	messageHash := hex.EncodeToString(hash[:])
 	if messageHash != expectedMessageHash {
 		t.Fatalf("Message hash doesn't match expected. Got %s, want %s", messageHash, expectedMessageHash)
@@ -66,6 +68,86 @@ func TestSignWithKey(t *testing.T) {
 
 	if signature.Data != expectedSignatureVrs {
 		t.Fatalf("Signature doesn't match expected. Got %s, want %s", signature.Data, expectedSignatureVrs)
+	}
+
+	isValid, err := VerifySignature(messageHash, signature, publicKey)
+	if err != nil {
+		t.Fatalf("Error verifying signature: %v", err)
+	}
+
+	if !isValid {
+		t.Fatalf("Signature verification failed: expected valid signature")
+	}
+
+	incorrectMessageHash := "0000000000000000000000000000000000000000000000000000000000000000"
+	isValid, err = VerifySignature(incorrectMessageHash, signature, publicKey)
+	if err != nil {
+		t.Fatalf("Signature verification failed: %v", err)
+	}
+
+	if isValid {
+		t.Errorf("Signature verification failed: expected invalid signature for incorrect message hash")
+	}
+
+	incorrectPublicKey := make([]byte, len(publicKey))
+	copy(incorrectPublicKey, publicKey)
+	incorrectPublicKey[0] ^= 0xFF // Flip bits in the first byte
+
+	isValid, _ = VerifySignature(messageHash, signature, incorrectPublicKey)
+
+	if isValid {
+		t.Errorf("Signature verification failed: expected invalid signature for incorrect public key")
+	}
+}
+
+func TestTransactionSignAndVerify(t *testing.T) {
+	// Create a private key
+	privateKey, err := createStacksPrivateKey("bcf62fdd286f9b30b2c289cce3189dbf3b502dcd955b2dc4f67d18d77f3e73c7")
+	if err != nil {
+		t.Fatalf("Failed to create private key: %v", err)
+	}
+
+	// Get the corresponding public key
+	publicKey := GetPublicKeyFromPrivate(privateKey.Data)
+
+	// Create a test transaction
+	tx := createTestTransaction()
+
+	// Set a non-zero fee and nonce
+	tx.Auth.OriginAuth.Fee = 1000
+	tx.Auth.OriginAuth.Nonce = 123
+
+	// Sign the transaction
+	err = SignTransaction(tx, privateKey.Data)
+	if err != nil {
+		t.Fatalf("Failed to sign transaction: %v", err)
+	}
+
+	// Verify the transaction
+	isValid, err := VerifyTransaction(tx, publicKey)
+	if err != nil {
+		t.Fatalf("Failed to verify transaction: %v", err)
+	}
+
+	if !isValid {
+		t.Fatalf("Transaction signature verification failed")
+	}
+
+	// Test with incorrect public key
+	incorrectPublicKey := make([]byte, len(publicKey))
+	copy(incorrectPublicKey, publicKey)
+	incorrectPublicKey[0] ^= 0xFF // Flip bits in the first byte
+
+	isValid, _ = VerifyTransaction(tx, incorrectPublicKey)
+	if isValid {
+		t.Fatalf("Transaction verification should fail with incorrect public key")
+	}
+
+	// Test with modified transaction data
+	tx.Payload.Amount += 1
+	isValid, _ = VerifyTransaction(tx, publicKey)
+	if isValid {
+		t.Fatalf("Transaction verification should fail with modified transaction data")
 	}
 }
 

@@ -8,96 +8,98 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestSTXTokenTransferTransactionSerializationAndDeserialization(t *testing.T) {
-// 	transactionVersion := TransactionVersionTestnet
-// 	chainID := ChainIDTestnet
-// 	anchorMode := AnchorModeOnChainOnly
-// 	postConditionMode := PostConditionModeDeny
+func TestSTXTokenTransferTransactionSerializationAndDeserialization(t *testing.T) {
+	transactionVersion := TransactionVersionTestnet
+	chainID := ChainIDTestnet
+	anchorMode := AnchorModeOnChainOnly
+	postConditionMode := PostConditionModeDeny
 
-// 	recipientAddress := "SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159"
-// 	amount := uint64(2500000)
-// 	memo := "memo (not included)"
+	recipientAddress := "SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159"
+	amount := uint64(2500000)
+	memo := "memo (not included)"
 
-// 	payload, err := NewTokenTransferPayload(recipientAddress, amount, memo)
-// 	assert.NoError(t, err)
+	payload, err := NewTokenTransferPayload(recipientAddress, amount, memo)
+	assert.NoError(t, err)
 
-// 	addressHashMode := AddressHashModeSerializeP2PKH
-// 	nonce := uint64(0)
-// 	fee := uint64(0)
+	addressHashMode := AddressHashModeSerializeP2PKH
+	nonce := uint64(0)
+	fee := uint64(0)
 
-// 	pubKey := "03ef788b3830c00abe8f64f62dc32fc863bc0b2cafeb073b6c8e1c7657d9c2c3ab"
-// 	pubKeyBytes, err := hex.DecodeString(pubKey)
-// 	assert.NoError(t, err)
+	pubKey := "03ef788b3830c00abe8f64f62dc32fc863bc0b2cafeb073b6c8e1c7657d9c2c3ab"
+	pubKeyBytes, err := hex.DecodeString(pubKey)
+	assert.NoError(t, err)
 
-// 	secretKey := "edf9aee84d9b7abc145504dde6726c64f369d37ee34ded868fabd876c26570bc01"
-// 	secretKeyBytes, err := hex.DecodeString(secretKey)
-// 	assert.NoError(t, err)
+	secretKey := "edf9aee84d9b7abc145504dde6726c64f369d37ee34ded868fabd876c26570bc01"
+	secretKeyBytes, err := hex.DecodeString(secretKey)
+	assert.NoError(t, err)
 
-// 	spendingCondition := SpendingCondition{
-// 		HashMode:    addressHashMode,
-// 		Signer:      [20]byte{}, // This should be filled with the actual signer address
-// 		Nonce:       nonce,
-// 		Fee:         fee,
-// 		KeyEncoding: PubKeyEncodingCompressed,
-// 		Signature:   [65]byte{}, // This will be filled when signing
-// 	}
+	spendingCondition := SpendingCondition{
+		HashMode:    addressHashMode,
+		Signer:      [20]byte{}, // This should be filled with the actual signer address
+		Nonce:       nonce,
+		Fee:         fee,
+		KeyEncoding: PubKeyEncodingCompressed,
+		Signature:   [65]byte{}, // This will be filled when signing
+	}
 
-// 	auth := TransactionAuth{
-// 		AuthType:   AuthTypeStandard,
-// 		OriginAuth: spendingCondition,
-// 	}
+	auth := TransactionAuth{
+		AuthType:   AuthTypeStandard,
+		OriginAuth: spendingCondition,
+	}
 
-// 	transaction := &TokenTransferTransaction{
-// 		BaseTransaction: BaseTransaction{
-// 			Version:           transactionVersion,
-// 			ChainID:           chainID,
-// 			Auth:              auth,
-// 			AnchorMode:        anchorMode,
-// 			PostConditionMode: postConditionMode,
-// 			PostConditions:    []PostCondition{},
-// 		},
-// 		Payload: *payload,
-// 	}
+	transaction := &TokenTransferTransaction{
+		BaseTransaction: BaseTransaction{
+			Version:           transactionVersion,
+			ChainID:           chainID,
+			Auth:              auth,
+			AnchorMode:        anchorMode,
+			PostConditionMode: postConditionMode,
+			PostConditions:    []PostCondition{},
+		},
+		Payload: *payload,
+	}
 
-// 	// Sign the transaction
-// 	err = transaction.Sign(secretKeyBytes)
-// 	assert.NoError(t, err)
+	// Sign the transaction
+	err = SignTransaction(transaction, secretKeyBytes)
+	assert.NoError(t, err)
 
-// 	// Verify the transaction
-// 	err = transaction.Verify()
-// 	assert.NoError(t, err)
+	// Verify the transaction
+	isValid, err := VerifyTransaction(transaction, pubKeyBytes)
+	assert.NoError(t, err)
 
-// 	serialized, err := transaction.Serialize()
-// 	assert.NoError(t, err)
+	assert.True(t, isValid)
 
-// 	deserialized, err := DeserializeTransaction(serialized)
-// 	assert.NoError(t, err)
+	// serialized, err := transaction.Serialize()
+	// assert.NoError(t, err)
 
-// 	// Verify deserialized transaction
-// 	assert.Equal(t, transactionVersion, deserialized.Version)
-// 	assert.Equal(t, chainID, deserialized.ChainID)
-// 	assert.Equal(t, AuthTypeStandard, deserialized.Authorization.AuthType)
-// 	assert.Equal(t, addressHashMode, deserialized.Authorization.SpendingCondition.HashMode)
-// 	assert.Equal(t, nonce, deserialized.Authorization.SpendingCondition.Nonce)
-// 	assert.Equal(t, fee, deserialized.Authorization.SpendingCondition.Fee)
-// 	assert.Equal(t, anchorMode, deserialized.AnchorMode)
-// 	assert.Equal(t, postConditionMode, deserialized.PostConditionMode)
-// 	assert.Empty(t, deserialized.PostConditions)
+	// deserialized, err := DeserializeTransaction(serialized)
+	// assert.NoError(t, err)
 
-// 	deserializedPayload, ok := deserialized.Payload.(*TokenTransferPayload)
-// 	assert.True(t, ok)
-// 	assert.Equal(t, recipientAddress, deserializedPayload.Recipient.String())
-// 	assert.Equal(t, amount, deserializedPayload.Amount)
+	// // Verify deserialized transaction
+	// assert.Equal(t, transactionVersion, deserialized.Version)
+	// assert.Equal(t, chainID, deserialized.ChainID)
+	// assert.Equal(t, AuthTypeStandard, deserialized.Authorization.AuthType)
+	// assert.Equal(t, addressHashMode, deserialized.Authorization.SpendingCondition.HashMode)
+	// assert.Equal(t, nonce, deserialized.Authorization.SpendingCondition.Nonce)
+	// assert.Equal(t, fee, deserialized.Authorization.SpendingCondition.Fee)
+	// assert.Equal(t, anchorMode, deserialized.AnchorMode)
+	// assert.Equal(t, postConditionMode, deserialized.PostConditionMode)
+	// assert.Empty(t, deserialized.PostConditions)
 
-// 	// Verify the deserialized transaction's signature
-// 	err = deserialized.Verify()
-// 	assert.NoError(t, err)
+	// deserializedPayload, ok := deserialized.Payload.(*TokenTransferPayload)
+	// assert.True(t, ok)
+	// assert.Equal(t, recipientAddress, deserializedPayload.Recipient.String())
+	// assert.Equal(t, amount, deserializedPayload.Amount)
 
-// 	// Test serialization of the deserialized transaction
-// 	reserializedBytes, err := deserialized.Serialize()
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, serialized, reserializedBytes)
-// }
+	// // Verify the deserialized transaction's signature
+	// err = deserialized.Verify()
+	// assert.NoError(t, err)
+
+	// // Test serialization of the deserialized transaction
+	// reserializedBytes, err := deserialized.Serialize()
+	// assert.NoError(t, err)
+	// assert.Equal(t, serialized, reserializedBytes)
+}
 
 func TestSingleSpendingConditionSerializationAndDeserialization(t *testing.T) {
 	addressHashMode := AddressHashModeSerializeP2PKH
