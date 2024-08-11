@@ -75,10 +75,10 @@ func DeserializePostConditions(data []byte) ([]PostCondition, int, error) {
 // }
 
 type STXPostCondition struct {
-	PrincipalID PostConditionPrincipalID
-	Principal   []byte
+	PrincipalID   PostConditionPrincipalID
+	Principal     []byte
 	ConditionCode FungibleConditionCode
-	Amount      uint64
+	Amount        uint64
 }
 
 func (pc *STXPostCondition) GetType() PostConditionType {
@@ -109,7 +109,7 @@ func (pc *STXPostCondition) Deserialize(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(data[offset:]) < principalSize + 9 { // + 9 for condition code and amount
+	if len(data[offset:]) < principalSize+9 { // + 9 for condition code and amount
 		return 0, errors.New("not enough data for principal, condition code, and amount")
 	}
 	pc.Principal = make([]byte, principalSize)
@@ -126,11 +126,11 @@ func (pc *STXPostCondition) Deserialize(data []byte) (int, error) {
 }
 
 type FungiblePostCondition struct {
-	PrincipalID PostConditionPrincipalID
-	Principal   []byte
-	AssetInfo   AssetInfo
+	PrincipalID   PostConditionPrincipalID
+	Principal     []byte
+	AssetInfo     AssetInfo
 	ConditionCode FungibleConditionCode
-	Amount      uint64
+	Amount        uint64
 }
 
 func (pc *FungiblePostCondition) GetType() PostConditionType {
@@ -234,7 +234,7 @@ func (pc *FungiblePostCondition) Deserialize(data []byte) (int, error) {
 // }
 
 type AssetInfo struct {
-	Address     [20]byte
+	Address      [20]byte
 	ContractName string
 	AssetName    string
 }
@@ -272,8 +272,6 @@ func (ai *AssetInfo) Deserialize(data []byte) (int, error) {
 	offset += assetNameLen
 	return offset, nil
 }
-
-// Helper functions
 
 func getPrincipalSize(principalID PostConditionPrincipalID, data []byte) (int, error) {
 	switch principalID {

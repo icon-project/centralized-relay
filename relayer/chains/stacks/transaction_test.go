@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks/clarity"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,11 +36,11 @@ func TestSTXTokenTransferTransactionSerializationAndDeserialization(t *testing.T
 
 	spendingCondition := SpendingCondition{
 		HashMode:    addressHashMode,
-		Signer:      [20]byte{}, // This should be filled with the actual signer address
+		Signer:      [20]byte{},
 		Nonce:       nonce,
 		Fee:         fee,
 		KeyEncoding: PubKeyEncodingCompressed,
-		Signature:   [65]byte{}, // This will be filled when signing
+		Signature:   [65]byte{},
 	}
 
 	auth := TransactionAuth{
@@ -59,46 +60,46 @@ func TestSTXTokenTransferTransactionSerializationAndDeserialization(t *testing.T
 		Payload: *payload,
 	}
 
-	// Sign the transaction
 	err = SignTransaction(transaction, secretKeyBytes)
 	assert.NoError(t, err)
 
-	// Verify the transaction
 	isValid, err := VerifyTransaction(transaction, pubKeyBytes)
 	assert.NoError(t, err)
 
 	assert.True(t, isValid)
 
-	// serialized, err := transaction.Serialize()
-	// assert.NoError(t, err)
+	serialized, err := transaction.Serialize()
+	assert.NoError(t, err)
 
-	// deserialized, err := DeserializeTransaction(serialized)
-	// assert.NoError(t, err)
+	deserialized, err := DeserializeTransaction(serialized)
+	assert.NoError(t, err)
 
-	// // Verify deserialized transaction
-	// assert.Equal(t, transactionVersion, deserialized.Version)
-	// assert.Equal(t, chainID, deserialized.ChainID)
-	// assert.Equal(t, AuthTypeStandard, deserialized.Authorization.AuthType)
-	// assert.Equal(t, addressHashMode, deserialized.Authorization.SpendingCondition.HashMode)
-	// assert.Equal(t, nonce, deserialized.Authorization.SpendingCondition.Nonce)
-	// assert.Equal(t, fee, deserialized.Authorization.SpendingCondition.Fee)
-	// assert.Equal(t, anchorMode, deserialized.AnchorMode)
-	// assert.Equal(t, postConditionMode, deserialized.PostConditionMode)
-	// assert.Empty(t, deserialized.PostConditions)
+	tokenTx, ok := deserialized.(*TokenTransferTransaction)
+	assert.True(t, ok, "Deserialized transaction is not a TokenTransferTransaction")
 
-	// deserializedPayload, ok := deserialized.Payload.(*TokenTransferPayload)
-	// assert.True(t, ok)
-	// assert.Equal(t, recipientAddress, deserializedPayload.Recipient.String())
-	// assert.Equal(t, amount, deserializedPayload.Amount)
+	assert.Equal(t, transactionVersion, tokenTx.Version)
+	assert.Equal(t, chainID, tokenTx.ChainID)
+	assert.Equal(t, AuthTypeStandard, tokenTx.Auth.AuthType)
+	assert.Equal(t, addressHashMode, tokenTx.Auth.OriginAuth.HashMode)
+	assert.Equal(t, nonce, tokenTx.Auth.OriginAuth.Nonce)
+	assert.Equal(t, fee, tokenTx.Auth.OriginAuth.Fee)
+	assert.Equal(t, anchorMode, tokenTx.AnchorMode)
+	assert.Equal(t, postConditionMode, tokenTx.PostConditionMode)
+	assert.Empty(t, tokenTx.PostConditions)
 
-	// // Verify the deserialized transaction's signature
-	// err = deserialized.Verify()
-	// assert.NoError(t, err)
+	recipientPrincipal, _ := clarity.StringToPrincipal(recipientAddress)
 
-	// // Test serialization of the deserialized transaction
-	// reserializedBytes, err := deserialized.Serialize()
-	// assert.NoError(t, err)
-	// assert.Equal(t, serialized, reserializedBytes)
+	assert.Equal(t, recipientPrincipal, tokenTx.Payload.Recipient)
+	assert.Equal(t, amount, tokenTx.Payload.Amount)
+	assert.Equal(t, memo, tokenTx.Payload.Memo)
+
+	isValid, err = VerifyTransaction(tokenTx, pubKeyBytes)
+	assert.NoError(t, err)
+	assert.True(t, isValid)
+
+	reserializedBytes, err := deserialized.Serialize()
+	assert.NoError(t, err)
+	assert.Equal(t, serialized, reserializedBytes)
 }
 
 func TestSingleSpendingConditionSerializationAndDeserialization(t *testing.T) {
@@ -124,7 +125,6 @@ func TestSingleSpendingConditionSerializationAndDeserialization(t *testing.T) {
 }
 
 func TestSingleSigP2PKHSpendingCondition(t *testing.T) {
-	// Test for compressed key
 	spCompressed := createSingleSigSpendingCondition(AddressHashModeSerializeP2PKH, "", 345, 456)
 	spCompressed.KeyEncoding = PubKeyEncodingCompressed
 	spCompressed.Signature = createMessageSignature("fe")
@@ -139,7 +139,6 @@ func TestSingleSigP2PKHSpendingCondition(t *testing.T) {
 
 	assert.Equal(t, spCompressed, deserialized, "Compressed P2PKH spending condition mismatch")
 
-	// Test for uncompressed key
 	spUncompressed := createSingleSigSpendingCondition(AddressHashModeSerializeP2PKH, "", 123, 456)
 	spUncompressed.KeyEncoding = PubKeyEncodingUncompressed
 	spUncompressed.Signature = createMessageSignature("ff")
@@ -200,8 +199,6 @@ func TestInvalidSpendingConditions(t *testing.T) {
 	_, err = sp.DeserializeSpendingCondition(serialized)
 	assert.Error(t, err, "Expected error for incompatible hash mode and key encoding")
 }
-
-// Helper functions
 
 func createSingleSigSpendingCondition(hashMode AddressHashMode, pubKey string, nonce, fee uint64) SpendingCondition {
 	return SpendingCondition{

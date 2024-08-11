@@ -101,29 +101,23 @@ func TestSignWithKey(t *testing.T) {
 }
 
 func TestTransactionSignAndVerify(t *testing.T) {
-	// Create a private key
 	privateKey, err := createStacksPrivateKey("bcf62fdd286f9b30b2c289cce3189dbf3b502dcd955b2dc4f67d18d77f3e73c7")
 	if err != nil {
 		t.Fatalf("Failed to create private key: %v", err)
 	}
 
-	// Get the corresponding public key
 	publicKey := GetPublicKeyFromPrivate(privateKey.Data)
 
-	// Create a test transaction
 	tx := createTestTransaction()
 
-	// Set a non-zero fee and nonce
 	tx.Auth.OriginAuth.Fee = 1000
 	tx.Auth.OriginAuth.Nonce = 123
 
-	// Sign the transaction
 	err = SignTransaction(tx, privateKey.Data)
 	if err != nil {
 		t.Fatalf("Failed to sign transaction: %v", err)
 	}
 
-	// Verify the transaction
 	isValid, err := VerifyTransaction(tx, publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify transaction: %v", err)
@@ -133,7 +127,6 @@ func TestTransactionSignAndVerify(t *testing.T) {
 		t.Fatalf("Transaction signature verification failed")
 	}
 
-	// Test with incorrect public key
 	incorrectPublicKey := make([]byte, len(publicKey))
 	copy(incorrectPublicKey, publicKey)
 	incorrectPublicKey[0] ^= 0xFF // Flip bits in the first byte
@@ -143,7 +136,6 @@ func TestTransactionSignAndVerify(t *testing.T) {
 		t.Fatalf("Transaction verification should fail with incorrect public key")
 	}
 
-	// Test with modified transaction data
 	tx.Payload.Amount += 1
 	isValid, _ = VerifyTransaction(tx, publicKey)
 	if isValid {

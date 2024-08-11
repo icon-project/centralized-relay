@@ -139,6 +139,116 @@ func (auth *TransactionAuth) SerializeAuth() ([]byte, error) {
 	return buf, nil
 }
 
+func (t *TokenTransferTransaction) Deserialize(data []byte) error {
+	if len(data) < 7 {
+		return errors.New("insufficient data for transaction")
+	}
+
+	t.Version = TransactionVersion(data[0])
+	t.ChainID = ChainID(binary.BigEndian.Uint32(data[1:5]))
+	authType := AuthType(data[5])
+
+	offset := 5 // Start after version and chain ID
+
+	auth := TransactionAuth{AuthType: authType}
+	authLen, err := auth.DeserializeAuth(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize auth: %w", err)
+	}
+	offset += authLen
+	t.Auth = auth
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for anchor mode")
+	}
+	t.AnchorMode = AnchorMode(data[offset])
+	offset++
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for post condition mode")
+	}
+	t.PostConditionMode = PostConditionMode(data[offset])
+	offset++
+
+	postConditions, postConditionsLen, err := DeserializePostConditions(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize post conditions: %w", err)
+	}
+	t.PostConditions = postConditions
+	offset += postConditionsLen
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for payload type")
+	}
+	if PayloadType(data[offset]) != PayloadTypeTokenTransfer {
+		return errors.New("invalid payload type for token transfer transaction")
+	}
+	offset++
+
+	payloadLen, err := t.Payload.Deserialize(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize token transfer payload: %w", err)
+	}
+	offset += payloadLen
+
+	return nil
+}
+
+func (t *ContractCallTransaction) Deserialize(data []byte) error {
+	if len(data) < 7 {
+		return errors.New("insufficient data for transaction")
+	}
+
+	t.Version = TransactionVersion(data[0])
+	t.ChainID = ChainID(binary.BigEndian.Uint32(data[1:5]))
+	authType := AuthType(data[5])
+
+	offset := 5 // Start after version and chain ID
+
+	auth := TransactionAuth{AuthType: authType}
+	authLen, err := auth.DeserializeAuth(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize auth: %w", err)
+	}
+	offset += authLen
+	t.Auth = auth
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for anchor mode")
+	}
+	t.AnchorMode = AnchorMode(data[offset])
+	offset++
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for post condition mode")
+	}
+	t.PostConditionMode = PostConditionMode(data[offset])
+	offset++
+
+	postConditions, postConditionsLen, err := DeserializePostConditions(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize post conditions: %w", err)
+	}
+	t.PostConditions = postConditions
+	offset += postConditionsLen
+
+	if len(data) < offset+1 {
+		return errors.New("insufficient data for payload type")
+	}
+	if PayloadType(data[offset]) != PayloadTypeContractCall {
+		return errors.New("invalid payload type for contract call transaction")
+	}
+	offset++
+
+	payloadLen, err := t.Payload.Deserialize(data[offset:])
+	if err != nil {
+		return fmt.Errorf("failed to deserialize contract call payload: %w", err)
+	}
+	offset += payloadLen
+
+	return nil
+}
+
 func (auth *TransactionAuth) DeserializeAuth(data []byte) (int, error) {
 	if len(data) < 1 {
 		return 0, errors.New("invalid auth data length")
@@ -231,4 +341,109 @@ func isCompatibleHashModeAndKeyEncoding(hashMode AddressHashMode, keyEncoding Pu
 		return false
 	}
 	return true
+}
+
+func (t *ContractCallTransaction) Serialize() ([]byte, error) {
+	buf := make([]byte, 0, 256) // Initial capacity, adjust as needed
+
+	buf = append(buf, byte(t.Version))
+
+	chainIDBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(chainIDBytes, uint32(t.ChainID))
+	buf = append(buf, chainIDBytes...)
+
+	authBytes, err := t.Auth.SerializeAuth()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize auth: %w", err)
+	}
+	buf = append(buf, authBytes...)
+
+	buf = append(buf, byte(t.AnchorMode))
+
+	buf = append(buf, byte(t.PostConditionMode))
+
+	postConditionsBytes := SerializePostConditions(t.PostConditions)
+	buf = append(buf, postConditionsBytes...)
+
+	buf = append(buf, byte(PayloadTypeContractCall))
+
+	payloadBytes, err := t.Payload.Serialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize contract call payload: %w", err)
+	}
+	buf = append(buf, payloadBytes...)
+
+	return buf, nil
+}
+
+func DeserializeTransaction(data []byte) (StacksTransaction, error) {
+	if len(data) < 7 { // Minimum length for version, chain ID, and auth type
+		return nil, errors.New("insufficient data for transaction")
+	}
+
+	version := TransactionVersion(data[0])
+	chainID := ChainID(binary.BigEndian.Uint32(data[1:5]))
+
+	offset := 5 // Start after version and chain ID
+
+	baseTx := BaseTransaction{
+		Version: version,
+		ChainID: chainID,
+	}
+
+	authLen, err := baseTx.Auth.DeserializeAuth(data[offset:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize auth: %w", err)
+	}
+	offset += authLen
+
+	if len(data) < offset+1 {
+		return nil, errors.New("insufficient data for anchor mode")
+	}
+	baseTx.AnchorMode = AnchorMode(data[offset])
+	offset++
+
+	if len(data) < offset+1 {
+		return nil, errors.New("insufficient data for post condition mode")
+	}
+	baseTx.PostConditionMode = PostConditionMode(data[offset])
+	offset++
+
+	postConditions, postConditionsLen, err := DeserializePostConditions(data[offset:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize post conditions: %w", err)
+	}
+	baseTx.PostConditions = postConditions
+	offset += postConditionsLen
+
+	if len(data) < offset+1 {
+		return nil, errors.New("insufficient data for payload type")
+	}
+	payloadType := PayloadType(data[offset])
+	offset++
+
+	var tx StacksTransaction
+
+	switch payloadType {
+	case PayloadTypeTokenTransfer:
+		tokenTx := &TokenTransferTransaction{BaseTransaction: baseTx}
+		payloadLen, err := tokenTx.Payload.Deserialize(data[offset:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize token transfer payload: %w", err)
+		}
+		offset += payloadLen
+		tx = tokenTx
+	case PayloadTypeContractCall:
+		contractTx := &ContractCallTransaction{BaseTransaction: baseTx}
+		payloadLen, err := contractTx.Payload.Deserialize(data[offset:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize contract call payload: %w", err)
+		}
+		offset += payloadLen
+		tx = contractTx
+	default:
+		return nil, fmt.Errorf("unsupported payload type: %d", payloadType)
+	}
+
+	return tx, nil
 }
