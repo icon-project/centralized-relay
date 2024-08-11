@@ -2,10 +2,10 @@ package evm
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -19,10 +19,14 @@ import (
 
 const (
 	defaultReadTimeout         = 60 * time.Second
+	websocketReadTimeout       = 10 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
-	maxBlockQueryFailedRetry   = 3
+	maxBlockQueryFailedRetry   = 5
 	DefaultFinalityBlock       = 10
+	BaseRetryInterval          = 3 * time.Second
+	MaxRetryInterval           = 5 * time.Minute
+	MaxRetryCount              = 5
 )
 
 type BnOptions struct {
@@ -33,7 +37,6 @@ type BnOptions struct {
 type blockReq struct {
 	start, end uint64
 	err        error
-	retry      int
 }
 
 func (r *Provider) latestHeight(ctx context.Context) uint64 {
@@ -62,7 +65,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		select {
 		case <-ctx.Done():
 			p.log.Debug("evm listener: done")
-			return nil
+			return ctx.Err()
 		case err := <-errChan:
 			if p.isConnectionError(err) {
 				p.log.Error("connection error", zap.Error(err))
@@ -81,76 +84,72 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			go p.Subscribe(ctx, blockInfoChan, errChan)
 
 			latestHeight := p.latestHeight(ctx)
-			concurrency := p.GetConcurrency(ctx, startHeight, latestHeight)
+			if startHeight == 0 {
+				startHeight = latestHeight
+			}
 
 			var blockReqs []*blockReq
 			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
 				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil, maxBlockQueryFailedRetry})
+				blockReqs = append(blockReqs, &blockReq{start, end, nil})
 			}
-			totalReqs := len(blockReqs)
-			// Calculate the size of each chunk
-			chunkSize := (totalReqs + concurrency - 1) / concurrency
 
-			var wg sync.WaitGroup
-
-			for i := 0; i < totalReqs; i += chunkSize {
-				wg.Add(1)
-
-				go func(blockReqsChunk []*blockReq, wg *sync.WaitGroup) {
-					defer wg.Done()
-					for _, br := range blockReqsChunk {
-						filter := ethereum.FilterQuery{
-							FromBlock: new(big.Int).SetUint64(br.start),
-							ToBlock:   new(big.Int).SetUint64(br.end),
-							Addresses: p.blockReq.Addresses,
-							Topics:    p.blockReq.Topics,
-						}
-						p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-						logs, err := p.getLogsRetry(ctx, filter, br.retry)
-						if err != nil {
-							p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-							continue
-						}
-						p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
-						for _, log := range logs {
-							message, err := p.getRelayMessageFromLog(log)
-							if err != nil {
-								p.log.Error("failed to get relay message from log", zap.Error(err))
-								continue
-							}
-							p.log.Info("Detected eventlog",
-								zap.String("target_network", message.Dst),
-								zap.Uint64("sn", message.Sn.Uint64()),
-								zap.String("event_type", message.EventType),
-								zap.String("tx_hash", log.TxHash.String()),
-								zap.Uint64("block_number", log.BlockNumber),
-							)
-							blockInfoChan <- &relayertypes.BlockInfo{
-								Height:   log.BlockNumber,
-								Messages: []*relayertypes.Message{message},
-							}
-						}
+			for _, br := range blockReqs {
+				filter := ethereum.FilterQuery{
+					FromBlock: new(big.Int).SetUint64(br.start),
+					ToBlock:   new(big.Int).SetUint64(br.end),
+					Addresses: p.blockReq.Addresses,
+					Topics:    p.blockReq.Topics,
+				}
+				p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+				logs, err := p.getLogsRetry(ctx, filter)
+				if err != nil {
+					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
+					continue
+				}
+				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+				for _, log := range logs {
+					message, err := p.getRelayMessageFromLog(log)
+					if err != nil {
+						p.log.Error("failed to get relay message from log", zap.Error(err))
+						continue
 					}
-				}(blockReqs[i:min(i+chunkSize, totalReqs)], &wg)
+					p.log.Info("Detected eventlog",
+						zap.String("target_network", message.Dst),
+						zap.Uint64("sn", message.Sn.Uint64()),
+						zap.String("event_type", message.EventType),
+						zap.String("tx_hash", log.TxHash.String()),
+						zap.Uint64("block_number", log.BlockNumber),
+					)
+					blockInfoChan <- &relayertypes.BlockInfo{
+						Height:   log.BlockNumber,
+						Messages: []*relayertypes.Message{message},
+					}
+				}
 			}
-			go func() {
-				wg.Wait()
-			}()
 		}
 	}
 }
 
-func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery, retry int) ([]ethTypes.Log, error) {
-	var logs []ethTypes.Log
-	var err error
-	for i := 0; i < retry; i++ {
+func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery) ([]ethTypes.Log, error) {
+	var (
+		logs     []ethTypes.Log
+		err      error
+		attempts = 0
+	)
+
+	for attempts < MaxRetryCount {
 		logs, err = p.client.FilterLogs(ctx, filter)
 		if err == nil {
 			return logs, nil
 		}
-		p.log.Error("failed to get logs", zap.Error(err), zap.Int("retry", i+1))
-		time.Sleep(time.Second * 30)
+		attempts++
+		delay := time.Duration(math.Pow(2, float64(attempts))) * BaseRetryInterval
+		if delay > MaxRetryInterval {
+			delay = MaxRetryInterval
+		}
+		p.log.Error("failed to get logs", zap.Error(err), zap.Int("attempts", attempts), zap.Duration("delay", delay), zap.Uint64("from", filter.FromBlock.Uint64()), zap.Uint64("to", filter.ToBlock.Uint64()))
+		time.Sleep(delay)
 	}
 	return nil, err
 }
@@ -236,9 +235,10 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			p.log.Debug("subscriptions stopped")
+			return ctx.Err()
 		case err := <-sub.Err():
-			p.log.Error("subscription error", zap.Error(err))
+			p.log.Warn("subscription error", zap.Error(err))
 			resetCh <- err
 			return err
 		case log := <-ch:
@@ -259,7 +259,9 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
-			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+			defer cancel()
+			if _, err := p.QueryLatestHeight(ctx); err != nil {
 				resetCh <- err
 				return err
 			}
