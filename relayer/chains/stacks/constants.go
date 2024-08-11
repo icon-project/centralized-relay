@@ -1,94 +1,114 @@
 package stacks
 
-type SingleSigHashMode byte
-
-type MultiSigHashMode byte
-
-type PubKeyEncoding byte
+type ChainID uint32
 
 const (
-	PubKeyEncodingCompressed PubKeyEncoding = iota
-	PubKeyEncodingUncompressed
+	ChainIDTestnet ChainID = 0x80000000
+	ChainIDMainnet ChainID = 0x00000001
 )
+
+type PayloadType byte
 
 const (
-	SerializeP2PKH SingleSigHashMode = iota
-	SerializeP2WPKH
+	PayloadTypeTokenTransfer PayloadType = 0x00
+	PayloadTypeContractCall  PayloadType = 0x02
 )
+
+type AddressType byte
 
 const (
-	SerializeP2SH MultiSigHashMode = iota
-	SerializeP2WSH
-	SerializeP2SHNonSequential
-	SerializeP2WSHNonSequential
+	AddressTypeStandard AddressType = 0x05
+	AddressTypeContract AddressType = 0x06
 )
 
-type StacksMessageType byte
+type AnchorMode uint8
 
 const (
-	StacksMessageTypeAddress StacksMessageType = iota
-	StacksMessageTypePrincipal
-	StacksMessageTypeLengthPrefixedString
-	StacksMessageTypeLengthPrefixedList
-	StacksMessageTypePayload
-	StacksMessageTypeMemoString
-	StacksMessageTypeAssetInfo
-	StacksMessageTypePostCondition
-	StacksMessageTypePublicKey
-	StacksMessageTypeTransactionAuthField
-	StacksMessageTypeMessageSignature
+	AnchorModeOnChainOnly AnchorMode = 0x01
 )
 
-const RECOVERABLE_ECDSA_SIG_LENGTH_BYTES = 65
-
-type AnchorMode byte
-
-const (
-	AnchorModeOnChainOnly  AnchorMode = 0x01
-	AnchorModeOffChainOnly AnchorMode = 0x02
-	AnchorModeAny          AnchorMode = 0x03
-)
-
-type PostConditionMode byte
-
-const (
-	PostConditionModeAllow PostConditionMode = 0x01
-	PostConditionModeDeny  PostConditionMode = 0x02
-)
-
-type TransactionVersion byte
+type TransactionVersion uint8
 
 const (
 	TransactionVersionMainnet TransactionVersion = 0x00
 	TransactionVersionTestnet TransactionVersion = 0x80
 )
 
-type AuthType byte
+type PostConditionMode uint8
+
+const (
+	PostConditionModeAllow PostConditionMode = 0x01
+	PostConditionModeDeny  PostConditionMode = 0x02
+)
+
+type PostConditionType uint8
+
+const (
+	PostConditionTypeSTX         PostConditionType = 0x00
+	PostConditionTypeFungible    PostConditionType = 0x01
+	PostConditionTypeNonFungible PostConditionType = 0x02
+)
+
+type FungibleConditionCode uint8
+
+const (
+	FungibleConditionCodeEqual        FungibleConditionCode = 0x01
+	FungibleConditionCodeGreater      FungibleConditionCode = 0x02
+	FungibleConditionCodeGreaterEqual FungibleConditionCode = 0x03
+	FungibleConditionCodeLess         FungibleConditionCode = 0x04
+	FungibleConditionCodeLessEqual    FungibleConditionCode = 0x05
+)
+
+type NonFungibleConditionCode uint8
+
+const (
+	NonFungibleConditionCodeSends       NonFungibleConditionCode = 0x10
+	NonFungibleConditionCodeDoesNotSend NonFungibleConditionCode = 0x11
+)
+
+type PostConditionPrincipalID uint8
+
+const (
+	PostConditionPrincipalIDOrigin   PostConditionPrincipalID = 0x01
+	PostConditionPrincipalIDStandard PostConditionPrincipalID = 0x02
+	PostConditionPrincipalIDContract PostConditionPrincipalID = 0x03
+)
+
+type AuthType uint8
 
 const (
 	AuthTypeStandard  AuthType = 0x04
 	AuthTypeSponsored AuthType = 0x05
 )
 
-type AuthFieldType byte
+type AddressHashMode uint8
 
 const (
-	AuthFieldTypePublicKeyCompressed   AuthFieldType = 0x00
-	AuthFieldTypePublicKeyUncompressed AuthFieldType = 0x01
-	AuthFieldTypeSignatureCompressed   AuthFieldType = 0x02
-	AuthFieldTypeSignatureUncompressed AuthFieldType = 0x03
+	AddressHashModeSerializeP2PKH  AddressHashMode = 0x00
+	AddressHashModeSerializeP2WPKH AddressHashMode = 0x02
 )
 
-type PayloadType byte
+type AddressVersion uint8
 
 const (
-	PayloadTypeTokenTransfer PayloadType = iota
-	PayloadTypeContractCall
-	PayloadTypeSmartContract
-	PayloadTypeVersionedSmartContract
-	PayloadTypePoisonMicroblock
-	PayloadTypeCoinbase
-	PayloadTypeCoinbaseToAltRecipient
-	PayloadTypeNakamotoCoinbase
-	PayloadTypeTenureChange
+	AddressVersionMainnetSingleSig AddressVersion = 22
+	AddressVersionTestnetSingleSig AddressVersion = 26
+)
+
+type PubKeyEncoding uint8
+
+const (
+	PubKeyEncodingCompressed   PubKeyEncoding = 0x00
+	PubKeyEncodingUncompressed PubKeyEncoding = 0x01
+)
+
+const (
+	MaxStringLengthBytes           = 128
+	ClarityIntSize                 = 128
+	ClarityIntByteSize             = 16
+	RecoverableECDSASigLengthBytes = 65
+	CompressedPubkeyLengthBytes    = 32
+	UncompressedPubkeyLengthBytes  = 64
+	MemoMaxLengthBytes             = 34
+	AddressHashLength              = 20
 )

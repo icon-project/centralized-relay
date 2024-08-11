@@ -1,268 +1,234 @@
 package stacks
 
 import (
-	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/clarity"
 )
 
-func NewStacksTransaction(
-	version TransactionVersion,
-	auth Authorization,
-	payload Payload,
-	postConditions []PostCondition,
-	postConditionMode PostConditionMode,
-	anchorMode AnchorMode,
-	chainID uint32,
-) *StacksTransaction {
-	return &StacksTransaction{
-		Version:           version,
-		ChainID:           chainID,
-		Auth:              auth,
-		AnchorMode:        anchorMode,
-		PostConditionMode: postConditionMode,
-		PostConditions:    postConditions,
-		Payload:           payload,
+type StacksTransaction interface {
+	Serialize() ([]byte, error)
+	Deserialize([]byte) error
+}
+
+type BaseTransaction struct {
+	Version           TransactionVersion
+	ChainID           ChainID
+	Auth              TransactionAuth
+	AnchorMode        AnchorMode
+	PostConditionMode PostConditionMode
+	PostConditions    []PostCondition
+}
+
+type TransactionAuth struct {
+	AuthType    AuthType
+	OriginAuth  SpendingCondition
+	SponsorAuth *SpendingCondition
+}
+
+type SpendingCondition struct {
+	HashMode    AddressHashMode
+	Signer      [20]byte
+	Nonce       uint64
+	Fee         uint64
+	KeyEncoding PubKeyEncoding
+	Signature   [RecoverableECDSASigLengthBytes]byte
+}
+
+type TokenTransferTransaction struct {
+	BaseTransaction
+	Payload TokenTransferPayload
+}
+
+type ContractCallTransaction struct {
+	BaseTransaction
+	Payload ContractCallPayload
+}
+
+func NewTokenTransferTransaction(recipient string, amount uint64, memo string) (*TokenTransferTransaction, error) {
+	payload, err := NewTokenTransferPayload(recipient, amount, memo)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenTransferTransaction{
+		BaseTransaction: BaseTransaction{
+			Version:           TransactionVersionMainnet,
+			ChainID:           ChainIDMainnet,
+			AnchorMode:        AnchorModeOnChainOnly,
+			PostConditionMode: PostConditionModeAllow,
+			PostConditions:    []PostCondition{}, // Empty post condition
+		},
+		Payload: *payload,
+	}, nil
+}
+
+func NewContractCallTransaction(contractAddress, contractName, functionName string, functionArgs []clarity.ClarityValue) *ContractCallTransaction {
+	return &ContractCallTransaction{
+		BaseTransaction: BaseTransaction{
+			Version:           TransactionVersionMainnet,
+			ChainID:           ChainIDMainnet,
+			AnchorMode:        AnchorModeOnChainOnly,
+			PostConditionMode: PostConditionModeAllow,
+		},
+		Payload: ContractCallPayload{
+			ContractAddress: contractAddress,
+			ContractName:    contractName,
+			FunctionName:    functionName,
+			FunctionArgs:    functionArgs,
+		},
 	}
 }
 
-func (tx *StacksTransaction) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
+func (t *TokenTransferTransaction) Serialize() ([]byte, error) {
+	buf := make([]byte, 0, 128)
 
-	if err := binary.Write(buffer, binary.BigEndian, tx.Version); err != nil {
-		return nil, fmt.Errorf("failed to write version: %w", err)
-	}
+	buf = append(buf, byte(t.Version))
+	chainIDBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(chainIDBytes, uint32(t.ChainID))
+	buf = append(buf, chainIDBytes...)
 
-	if err := binary.Write(buffer, binary.BigEndian, tx.ChainID); err != nil {
-		return nil, fmt.Errorf("failed to write chain ID: %w", err)
-	}
-
-	authBytes, err := tx.Auth.Serialize()
+	authBytes, err := t.Auth.SerializeAuth()
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize authorization: %w", err)
+		return nil, err
 	}
-	if _, err := buffer.Write(authBytes); err != nil {
-		return nil, fmt.Errorf("failed to write authorization: %w", err)
-	}
+	buf = append(buf, authBytes...)
 
-	if err := binary.Write(buffer, binary.BigEndian, tx.AnchorMode); err != nil {
-		return nil, fmt.Errorf("failed to write anchor mode: %w", err)
-	}
+	buf = append(buf, byte(t.AnchorMode))
+	buf = append(buf, byte(t.PostConditionMode))
 
-	if err := binary.Write(buffer, binary.BigEndian, tx.PostConditionMode); err != nil {
-		return nil, fmt.Errorf("failed to write post-condition mode: %w", err)
-	}
+	// assumes post condition is empty
+	postConditionsLenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(postConditionsLenBytes, uint32(len(t.PostConditions)))
+	buf = append(buf, postConditionsLenBytes...)
 
-	postConditionsLPList := createLPList(tx.PostConditions, 4)
-	postConditionsBytes, err := postConditionsLPList.Serialize()
+	buf = append(buf, byte(PayloadTypeTokenTransfer))
+
+	payloadBytes, err := t.Payload.Serialize()
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize post conditions: %w", err)
+		return nil, err
 	}
-	if _, err := buffer.Write(postConditionsBytes); err != nil {
-		return nil, fmt.Errorf("failed to write post conditions: %w", err)
-	}
+	buf = append(buf, payloadBytes...)
 
-	payloadBytes, err := tx.Payload.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize payload: %w", err)
-	}
-	if _, err := buffer.Write(payloadBytes); err != nil {
-		return nil, fmt.Errorf("failed to write payload: %w", err)
-	}
-
-	return buffer.Bytes(), nil
+	return buf, nil
 }
 
-func (a *StandardAuthorization) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
+func (auth *TransactionAuth) SerializeAuth() ([]byte, error) {
+	buf := make([]byte, 0, 256)
 
-	if err := binary.Write(buffer, binary.BigEndian, AuthTypeStandard); err != nil {
-		return nil, fmt.Errorf("failed to write auth type: %w", err)
-	}
+	buf = append(buf, byte(auth.AuthType))
 
-	scBytes, err := a.SpendingCondition.Serialize()
+	originAuthBytes, err := auth.OriginAuth.SerializeSpendingCondition()
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize spending condition: %w", err)
+		return nil, err
 	}
-	if _, err := buffer.Write(scBytes); err != nil {
-		return nil, fmt.Errorf("failed to write spending condition: %w", err)
-	}
+	buf = append(buf, originAuthBytes...)
 
-	return buffer.Bytes(), nil
-}
-
-func (a *SponsoredAuthorization) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	if err := binary.Write(buffer, binary.BigEndian, AuthTypeSponsored); err != nil {
-		return nil, fmt.Errorf("failed to write auth type: %w", err)
-	}
-
-	scBytes, err := a.SpendingCondition.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize spending condition: %w", err)
-	}
-	if _, err := buffer.Write(scBytes); err != nil {
-		return nil, fmt.Errorf("failed to write spending condition: %w", err)
-	}
-
-	sponsorScBytes, err := a.SponsorSpendingCondition.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize sponsor spending condition: %w", err)
-	}
-	if _, err := buffer.Write(sponsorScBytes); err != nil {
-		return nil, fmt.Errorf("failed to write sponsor spending condition: %w", err)
-	}
-
-	return buffer.Bytes(), nil
-}
-
-func (s *SingleSigSpendingCondition) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	if err := binary.Write(buffer, binary.BigEndian, s.HashMode); err != nil {
-		return nil, fmt.Errorf("failed to write hash mode: %w", err)
-	}
-
-	if _, err := buffer.Write(s.Signer); err != nil {
-		return nil, fmt.Errorf("failed to write signer: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, s.Nonce); err != nil {
-		return nil, fmt.Errorf("failed to write nonce: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, s.Fee); err != nil {
-		return nil, fmt.Errorf("failed to write fee: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, s.KeyEncoding); err != nil {
-		return nil, fmt.Errorf("failed to write key encoding: %w", err)
-	}
-
-	sigBytes, err := s.Signature.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize signature: %w", err)
-	}
-	if _, err := buffer.Write(sigBytes); err != nil {
-		return nil, fmt.Errorf("failed to write signature: %w", err)
-	}
-
-	return buffer.Bytes(), nil
-}
-
-func (m *MultiSigSpendingCondition) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	if err := binary.Write(buffer, binary.BigEndian, m.HashMode); err != nil {
-		return nil, fmt.Errorf("failed to write hash mode: %w", err)
-	}
-
-	if _, err := buffer.Write(m.Signer); err != nil {
-		return nil, fmt.Errorf("failed to write signer: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, m.Nonce); err != nil {
-		return nil, fmt.Errorf("failed to write nonce: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, m.Fee); err != nil {
-		return nil, fmt.Errorf("failed to write fee: %w", err)
-	}
-
-	fieldsLPList := createLPList(m.Fields, 4)
-	fieldBytes, err := fieldsLPList.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize fields: %w", err)
-	}
-	if _, err := buffer.Write(fieldBytes); err != nil {
-		return nil, fmt.Errorf("failed to write fields: %w", err)
-	}
-
-	if err := binary.Write(buffer, binary.BigEndian, m.SignaturesRequired); err != nil {
-		return nil, fmt.Errorf("failed to write signatures required: %w", err)
-	}
-
-	return buffer.Bytes(), nil
-}
-
-func CreateTransactionAuthField(pubKeyEncoding PubKeyEncoding, contents TransactionAuthFieldContents) *TransactionAuthField {
-	return &TransactionAuthField{
-		Type:           StacksMessageTypeTransactionAuthField,
-		PubKeyEncoding: pubKeyEncoding,
-		Contents:       contents,
-	}
-}
-
-func (taf *TransactionAuthField) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	switch contents := taf.Contents.(type) {
-	case *StacksPublicKey:
-		if taf.PubKeyEncoding == PubKeyEncodingCompressed {
-			buffer.WriteByte(byte(AuthFieldTypePublicKeyCompressed))
-		} else {
-			buffer.WriteByte(byte(AuthFieldTypePublicKeyUncompressed))
+	if auth.AuthType == AuthTypeSponsored {
+		if auth.SponsorAuth == nil {
+			return nil, errors.New("sponsor auth is required for sponsored transactions")
 		}
-		contentBytes, err := contents.Serialize()
+		sponsorAuthBytes, err := auth.SponsorAuth.SerializeSpendingCondition()
 		if err != nil {
-			return nil, fmt.Errorf("failed to serialize StacksPublicKey: %w", err)
+			return nil, err
 		}
-		buffer.Write(contentBytes)
-	case *MessageSignature:
-		if taf.PubKeyEncoding == PubKeyEncodingCompressed {
-			buffer.WriteByte(byte(AuthFieldTypeSignatureCompressed))
-		} else {
-			buffer.WriteByte(byte(AuthFieldTypeSignatureUncompressed))
-		}
-		contentBytes, err := contents.Serialize()
+		buf = append(buf, sponsorAuthBytes...)
+	}
+
+	return buf, nil
+}
+
+func (auth *TransactionAuth) DeserializeAuth(data []byte) (int, error) {
+	if len(data) < 1 {
+		return 0, errors.New("invalid auth data length")
+	}
+
+	auth.AuthType = AuthType(data[0])
+	offset := 1
+
+	originAuthLen, err := auth.OriginAuth.DeserializeSpendingCondition(data[offset:])
+	if err != nil {
+		return 0, err
+	}
+	offset += originAuthLen
+
+	if auth.AuthType == AuthTypeSponsored {
+		auth.SponsorAuth = &SpendingCondition{}
+		sponsorAuthLen, err := auth.SponsorAuth.DeserializeSpendingCondition(data[offset:])
 		if err != nil {
-			return nil, fmt.Errorf("failed to serialize MessageSignature: %w", err)
+			return 0, err
 		}
-		buffer.Write(contentBytes)
-	default:
-		return nil, fmt.Errorf("unknown TransactionAuthField contents type")
+		offset += sponsorAuthLen
 	}
 
-	return buffer.Bytes(), nil
+	return offset, nil
 }
 
-func (spk *StacksPublicKey) Serialize() ([]byte, error) {
-	return spk.Data, nil
+func (sc *SpendingCondition) SerializeSpendingCondition() ([]byte, error) {
+	buf := make([]byte, 0, 103) // 1 + 20 + 8 + 8 + 1 + 65
+
+	buf = append(buf, byte(sc.HashMode))
+	buf = append(buf, sc.Signer[:]...)
+
+	nonceBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(nonceBytes, sc.Nonce)
+	buf = append(buf, nonceBytes...)
+
+	feeBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(feeBytes, sc.Fee)
+	buf = append(buf, feeBytes...)
+
+	buf = append(buf, byte(sc.KeyEncoding))
+	buf = append(buf, sc.Signature[:]...)
+
+	return buf, nil
 }
 
-func (p *TokenTransferPayload) Serialize() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	// Write payload type
-	if err := binary.Write(buffer, binary.BigEndian, p.Type()); err != nil {
-		return nil, fmt.Errorf("failed to write payload type: %w", err)
+func (sc *SpendingCondition) DeserializeSpendingCondition(data []byte) (int, error) {
+	if len(data) < 103 {
+		return 0, errors.New("invalid spending condition data length")
 	}
 
-	// Serialize recipient
-	recipientBytes, err := clarity.SerializeCV(p.Recipient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize recipient: %w", err)
+	hashMode := AddressHashMode(data[0])
+	if !isValidAddressHashMode(hashMode) {
+		return 0, fmt.Errorf("invalid address hash mode: %d", hashMode)
 	}
-	buffer.Write(recipientBytes)
+	sc.HashMode = hashMode
 
-	// Write amount
-	if err := binary.Write(buffer, binary.BigEndian, p.Amount); err != nil {
-		return nil, fmt.Errorf("failed to write amount: %w", err)
+	copy(sc.Signer[:], data[1:21])
+	sc.Nonce = binary.BigEndian.Uint64(data[21:29])
+	sc.Fee = binary.BigEndian.Uint64(data[29:37])
+
+	keyEncoding := PubKeyEncoding(data[37])
+	if !isValidPubKeyEncoding(keyEncoding) {
+		return 0, fmt.Errorf("invalid public key encoding: %d", keyEncoding)
+	}
+	sc.KeyEncoding = keyEncoding
+
+	if !isCompatibleHashModeAndKeyEncoding(sc.HashMode, sc.KeyEncoding) {
+		return 0, fmt.Errorf("incompatible hash mode (%d) and key encoding (%d)", sc.HashMode, sc.KeyEncoding)
 	}
 
-	// Serialize memo
-	memoBytes, err := p.Memo.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize memo: %w", err)
-	}
-	buffer.Write(memoBytes)
+	copy(sc.Signature[:], data[38:103])
 
-	return buffer.Bytes(), nil
+	return 103, nil
 }
 
-func SerializePayload(payload Payload) ([]byte, error) {
-	return payload.Serialize()
+func isValidAddressHashMode(mode AddressHashMode) bool {
+	return mode == AddressHashModeSerializeP2PKH ||
+		mode == AddressHashModeSerializeP2WPKH
+}
+
+func isValidPubKeyEncoding(encoding PubKeyEncoding) bool {
+	return encoding == PubKeyEncodingCompressed || encoding == PubKeyEncodingUncompressed
+}
+
+func isCompatibleHashModeAndKeyEncoding(hashMode AddressHashMode, keyEncoding PubKeyEncoding) bool {
+	// P2WPKH and P2WSH only support compressed public keys
+	if (hashMode == AddressHashModeSerializeP2WPKH) &&
+		keyEncoding != PubKeyEncodingCompressed {
+		return false
+	}
+	return true
 }
