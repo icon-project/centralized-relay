@@ -38,7 +38,8 @@ var (
 	MethodGetFee        = "getFee"
 
 	// Xcall contract
-	MethodExecuteCall = "executeCall"
+	MethodExecuteCall     = "executeCall"
+	MethodExecuteRollback = "executeRollback"
 )
 
 type Config struct {
@@ -368,7 +369,7 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 		return err
 	}
 	msg := &providerTypes.Message{
-		EventType: events.ExecuteRollback,
+		EventType: events.RollbackMessage,
 		Sn:        sn,
 	}
 	tx, err := p.SendTransaction(ctx, opts, msg)
@@ -443,12 +444,23 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 			return 0, err
 		}
 		msg.Data = data
-	case events.CallMessage, events.ExecuteRollback:
+	case events.CallMessage:
 		abi, err := bridgeContract.XcallMetaData.GetAbi()
 		if err != nil {
 			return 0, err
 		}
 		data, err := abi.Pack(MethodExecuteCall, message.ReqID, message.Data)
+		if err != nil {
+			return 0, err
+		}
+		msg.Data = data
+		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
+	case events.RollbackMessage:
+		abi, err := bridgeContract.XcallMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodExecuteRollback, message.Sn)
 		if err != nil {
 			return 0, err
 		}
