@@ -620,3 +620,27 @@ func HexToClarityValue(hexStr string) (ClarityValue, error) {
 
 	return DeserializeClarityValue(data)
 }
+
+func StringToPrincipal(address string) (ClarityValue, error) {
+	parts := strings.SplitN(address, ".", 2)
+
+	addressBytes := addressToBytes(parts[0])
+
+	var hash160 [20]byte
+	copy(hash160[:], addressBytes)
+
+	if len(parts) == 1 {
+		// Standard principal
+		return NewStandardPrincipal(0, hash160), nil
+	} else if len(parts) == 2 {
+		// Contract principal
+		return NewContractPrincipal(0, hash160, parts[1])
+	}
+
+	return nil, fmt.Errorf("invalid principal format: %s", address)
+}
+
+func addressToBytes(address string) []byte {
+	bytes, _ := hex.DecodeString(address[2:]) // Remove "SP" prefix and decode
+	return bytes
+}

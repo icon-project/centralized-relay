@@ -80,11 +80,8 @@ func TestSerializeThenDeserialize(t *testing.T) {
 	})
 
 	t.Run("StandardPrincipal", func(t *testing.T) {
-		address := "SP2JXKMSH007NPYAQHKJPQMAQYAD90NQGTVJVQ02B"
-		addressBytes := addressToBytes(address)
-		var hash160 [20]byte
-		copy(hash160[:], addressBytes)
-		cv := NewStandardPrincipal(0, hash160)
+		cv, err := StringToPrincipal("SP2JXKMSH007NPYAQHKJPQMAQYAD90NQGTVJVQ02B")
+		assert.NoError(t, err)
 
 		serialized, err := cv.Serialize()
 		assert.NoError(t, err)
@@ -97,12 +94,7 @@ func TestSerializeThenDeserialize(t *testing.T) {
 	})
 
 	t.Run("ContractPrincipal", func(t *testing.T) {
-		address := "SP2JXKMSH007NPYAQHKJPQMAQYAD90NQGTVJVQ02B"
-		contractName := "test-contract"
-		addressBytes := addressToBytes(address)
-		var hash160 [20]byte
-		copy(hash160[:], addressBytes)
-		cv, err := NewContractPrincipal(0, hash160, contractName)
+		cv, err := StringToPrincipal("SP2JXKMSH007NPYAQHKJPQMAQYAD90NQGTVJVQ02B.test-contract")
 		assert.NoError(t, err)
 
 		serialized, err := cv.Serialize()
@@ -301,10 +293,4 @@ func TestUIntBounds(t *testing.T) {
 		_, err := NewUInt(negativeUInt)
 		assert.Error(t, err)
 	})
-}
-
-// Helper function to convert address string to bytes
-func addressToBytes(address string) []byte {
-	bytes, _ := hex.DecodeString(address[2:]) // Remove "SP" prefix and decode
-	return bytes
 }
