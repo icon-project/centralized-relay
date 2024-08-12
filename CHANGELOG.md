@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2024-08-12
+
+### Changed
+
+- RPC retries and exponential backoffs.
+- Websocket healthcheck timout from 1 min to 10 second.
+- Initiate startup tasks early.
+- EVM websocket healthcheck uses latest query, previosly genesis block query.
+
+### Fixed
+
+- Addressed wasm response format changes.
+- WASM chain healthcheck frequency.
+- WASM sdk context lockup issue.
+- WASM duplicated block when batching requests.
+- Recovery start from genesis block when databse is empty.
+- Docker build issues.
+
 ## [1.5.0-rc1] - 2024-08-03
 
 ### Added

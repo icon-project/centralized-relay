@@ -225,7 +225,6 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	}
 	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
-		fmt.Println("SetFee: WaitForResults: %v", err)
 		return fmt.Errorf("SetFee: WaitForResults: %v", err)
 	}
 	if txr.Status != types.NewHexInt(1) {
