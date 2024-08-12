@@ -1,7 +1,61 @@
 chains:
+  - name: sui
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io:443/sui-rpc
+    websocket_uri: ws://tt.net.solidwallet.io:443
+    relay_wallet : 0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21
+    keystore_password: ALWS4mKTtggWc8gH+a5bFLFQ0AeNbZpUdDI//3OpAVys
+    contracts_path: "$BASE_PATH/artifacts/sui/xcall/contracts/sui"
+    config_path: "$BASE_PATH/test/chains/sui/data"
+    chain_config:
+      type: sui
+      name: sui
+      chain_id: sui
+      image:
+        repository: mysten/sui-tools-w-git
+        version: devnet
+        uid_gid: ""
+      bin: sui
+      bech32_prefix: 0x
+      denom: arch
+      coin_type: 118
+      gas_prices: 0.001sui
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/xcall"      
+      sui_rlp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/libs/sui_rlp" 
+      dapp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/mock_dapp"
+  - name: icon
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/ 
+    keystore_file: godwallet.json
+    keystore_password: gochain
+    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
+    contracts_path: "$BASE_PATH/artifacts/icon"
+    config_path: "$BASE_PATH/test/chains/icon/data"
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/home/centralized-relay/rootCA/
+    chain_config:
+      type: icon
+      name: icon
+      chain_id: icon.local
+      bech32_prefix: hx
+      bin: "/goloop/bin/goloop"
+      image:
+        repository: iconloop/goloop-icon
+        version: latest
+        uid_gid: ""
+    contracts:
+      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
+      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
+      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
   - name: archway
     version: "3"
-    environment: local
+    environment: remote
     contracts_path: "$BASE_PATH/artifacts/archway"
     config_path: "$BASE_PATH/test/chains/cosmos/data"
     rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc
@@ -26,39 +80,15 @@ chains:
       gas_adjustment: 1.3
       trusting_period: 508h
       no_host_mount: false
-      nid: "archway.local"
+      nid: localnet-1
     contracts:
       xcall: "$BASE_PATH/artifacts/archway/cw_xcall_latest.wasm"
       connection: "$BASE_PATH/artifacts/archway/cw_centralized_connection.wasm"
-      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"  
-  - name: icon
-    version: "3"
-    environment: local
-    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
-    keystore_file: godwallet.json
-    keystore_password: gochain
-    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
-    contracts_path: "$BASE_PATH/artifacts/icon"
-    config_path: "$BASE_PATH/test/chains/icon/data"
-    # for testing with local chains with self signed certs
-    # cert_path: /Users/home/centralized-relay/rootCA/
-    chain_config:
-      type: icon
-      name: icon
-      chain_id: icon.local
-      bech32_prefix: hx
-      bin: "/goloop/bin/goloop"
-      image:
-        repository: iconloop/goloop-icon
-        version: latest
-        uid_gid: ""
-    contracts:
-      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
-      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
-      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
+      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
+
   - name: foundry
     version: "3"
-    environment: local
+    environment: remote
     rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
     websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
@@ -73,9 +103,9 @@ chains:
         uid_gid: ""
       bin: cast
       bech32_prefix: 0x
-      denom: arch
+      denom: gwei
       coin_type: 118
-      gas_prices: 0.001arch
+      gas_prices: 0.001gwei
       gas_adjustment: 1.3
       trusting_period: 508h
       no_host_mount: false
@@ -85,7 +115,7 @@ chains:
       dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
 relayer:
     image: centralized-relay
-    tag: event-subscription
+    tag: latest
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
