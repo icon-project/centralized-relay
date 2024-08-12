@@ -25,13 +25,16 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst           string   `json:"dst"`
-	Src           string   `json:"src"`
-	Sn            *big.Int `json:"sn"`
-	Data          []byte   `json:"data"`
-	MessageHeight uint64   `json:"messageHeight"`
-	EventType     string   `json:"eventType"`
-	ReqID         *big.Int `json:"reqID,omitempty"`
+	Dst             string   `json:"dst"`
+	Src             string   `json:"src"`
+	Sn              *big.Int `json:"sn"`
+	Data            []byte   `json:"data"`
+	MessageHeight   uint64   `json:"messageHeight"`
+	EventType       string   `json:"eventType"`
+	ReqID           *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
+
+	TxInfo []byte `json:"-"`
 }
 
 type ContractConfigMap map[string]string
@@ -237,4 +240,9 @@ type Receipt struct {
 	TxHash string
 	Height uint64
 	Status bool
+}
+
+type LastProcessedTx struct {
+	Height uint64
+	Info   []byte
 }

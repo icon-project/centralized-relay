@@ -1,0 +1,35 @@
+{
+  "type": "sui",
+  "value": {
+    "disabled": false,
+    "nid": "sui-test",
+    "rpc-url": "https://fullnode.testnet.sui.io:443",
+    "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
+    "xcall-package-ids": [
+      "0xd8acb58553eeefc32077075f4ee2a4dc7e9d65e0aa82639e12784043a0cffce1"
+    ],
+    "xcall-storage-id": "0x4655bb7859023e6a8804f31cb746999d9e0758da642aa8e7e18e11c31427c8cc",
+    "connection-id": "centralized-1",
+    "connection-cap-id": "0x0bd3506ebbb37bb531342469c4665c3594442b6b004a8bb0e9910e5b04cc57ae",
+    "dapp-package-id": "0x7d7ae28c5a82c0bdb17a106dbbb236e3ee94e4b12408f04a0a192b20273fb2fd",
+    "dapp-modules": [
+      {
+        "name": "xcall_manager",
+        "cap-id": "0xa4ea25a8025e04543408e0ad054321ae98fda932bdf4ee846ba60f6548d64bcb",
+        "config-id": "0x85df6e0d192cb6f54e0fcdf681f34323a83ed4be871059c897a69eb2a466a34b"
+      },
+      {
+        "name": "asset_manager",
+        "cap-id": "0xb31546a6f3a0fa3b265f0572113d6422e81ae7fa455a615d27d2cab8ef85ab93",
+        "config-id": "0xb5605a51dae249aecd7d70352cf36f589c11822568774c144909110ebd15ee02"
+      },
+      {
+        "name": "balanced_dollar",
+        "cap-id": "0x630d4a826c090023600498c562a7dd611ef673268b7a4bd7de63c571684d97cf",
+        "config-id": "0x2427b3a3b95600749848e69f694ddffef5f96b2a0cc03e3d56d8a8b83ce94826"
+      }
+    ],
+    "gas-limit": 5000000,
+    "start-tx-digest": ""
+  }
+}
