@@ -29,6 +29,13 @@ type RadFiProvideLiquidityMsg struct {
 	Min1		uint16
 }
 
+type RadFiSwapMsg struct {
+	IsExactInOut	bool
+	TokenOutIndex	uint32
+	// TokenOutId		*Rune
+	// TokenOutAmount	*uint256.Int
+}
+
 type RadFiWithdrawLiquidityMsg struct {
 	RecipientIndex	uint32
 	LiquidityValue	*uint256.Int
@@ -42,6 +49,7 @@ type RadFiCollectFeesMsg struct {
 type RadFiDecodedMsg struct {
 	Flag					byte
 	ProvideLiquidityMsg		*RadFiProvideLiquidityMsg
+	SwapMsg					*RadFiSwapMsg
 	WithdrawLiquidityMsg	*RadFiWithdrawLiquidityMsg
 	CollectFeesMsg			*RadFiCollectFeesMsg
 }
@@ -92,6 +100,40 @@ func CreateProvideLiquidityScript(msg *RadFiProvideLiquidityMsg) ([]byte, error)
 	}
 
 	return builder.AddData(buf.Bytes()).Script()
+}
+
+func CreateSwapScript(msg *RadFiSwapMsg) ([]byte, error) {
+	builder := txscript.NewScriptBuilder()
+
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddOp(OP_RADFI_IDENT)
+	builder.AddOp(OP_RADFI_SWAP)
+	// encode message content
+	var isExactInOutUint8 uint8
+	if msg.IsExactInOut {
+		isExactInOutUint8 = 1
+	}
+
+	// tokenOutIdBlockNumberByte := make([]byte, 8)
+	// binary.BigEndian.PutUint64(tokenOutIdBlockNumberByte, msg.TokenOutId.BlockNumber)
+	// tokenOutIdBlockNumberLen := uint8(bits.Len64(msg.TokenOutId.BlockNumber))
+
+	// tokenOutIdTxIndexByte := make([]byte, 4)
+	// binary.BigEndian.PutUint32(tokenOutIdTxIndexByte, msg.TokenOutId.TxIndex)
+	// tokenOutIdTxIndexLen := uint8(bits.Len32(msg.TokenOutId.TxIndex))
+
+	// fmt.Println("tokenOutIdBlockNumberLen: ", tokenOutIdBlockNumberLen)
+	// singleByte := byte((isExactInOutUint8 << 7) ^ (tokenOutIdBlockNumberLen << 3) ^ tokenOutIdTxIndexLen)
+	// fmt.Println("singleByte: ", singleByte)
+	// data := append([]byte{singleByte}, tokenOutIdBlockNumberByte[8-tokenOutIdBlockNumberLen:]...)
+	// data = append(data, tokenOutIdTxIndexByte[4-tokenOutIdTxIndexLen:]...)
+	// data = append(data, msg.TokenOutAmount.Bytes()...)
+
+	TokenOutIndexByte := make([]byte, 4)
+	binary.BigEndian.PutUint32(TokenOutIndexByte, msg.TokenOutIndex)
+	data := append([]byte{isExactInOutUint8}, TokenOutIndexByte...)
+
+	return builder.AddData(data).Script()
 }
 
 func CreateWithdrawLiquidityScript(msg *RadFiWithdrawLiquidityMsg) ([]byte, error) {
@@ -207,7 +249,31 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 			}, nil
 
 		case OP_RADFI_SWAP:
-			fmt.Println("OP_RADFI_SWAP")
+			// singleByte := uint8(payload[0])
+			// isExactInOut := (singleByte >> 7) != 0
+			// tokenOutIdBlockNumberLen := singleByte << 1 >> 4
+			// tokenOutIdTxIndexLen := singleByte << 5 >> 5
+
+			// payload = payload[1:]
+			// tokenOutIdBlockNumber := binary.BigEndian.Uint64(payload[:tokenOutIdBlockNumberLen])
+
+			// payload = payload[tokenOutIdBlockNumberLen:]
+			// tokenOutIdTxIndex := binary.BigEndian.Uint32(payload[:tokenOutIdTxIndexLen])
+
+			// TokenOutAmount := new(uint256.Int).SetBytes(payload[tokenOutIdTxIndexLen:])
+
+			return &RadFiDecodedMsg {
+				Flag				: flag,
+				SwapMsg: &RadFiSwapMsg{
+					IsExactInOut	: payload[0] != 0,
+					TokenOutIndex	: binary.BigEndian.Uint32(payload[1:]),
+					// TokenOutId		: &Rune{
+					// 	BlockNumber	: tokenOutIdBlockNumber,
+					// 	TxIndex		: tokenOutIdTxIndex,
+					// },
+					// TokenOutAmount	: TokenOutAmount,
+				},
+			}, nil
 
 		case OP_RADFI_WITHDRAW_LIQUIDITY:
 			// singleByte := uint8(payload[0])
@@ -247,6 +313,4 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 		default:
 			return nil, fmt.Errorf("ReadRadFiMessage - invalid flag")
 	}
-
-	return nil, fmt.Errorf("ReadRadFiMessage - no RadFi message found")
 }
