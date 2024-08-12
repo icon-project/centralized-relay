@@ -2,34 +2,11 @@ package socket
 
 import (
 	"fmt"
-	"math/big"
 	"net"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
-)
-
-const (
-	EventGetBlock       Event = "GetBlock"
-	EventGetMessageList Event = "GetMessageList"
-	EventRelayMessage   Event = "RelayMessage"
-	EventMessageRemove  Event = "MessageRemove"
-	EventPruneDB        Event = "PruneDB"
-	EventRevertMessage  Event = "RevertMessage"
-	EventError          Event = "Error"
-	EventGetFee         Event = "GetFee"
-	EventSetFee         Event = "SetFee"
-	EventClaimFee       Event = "ClaimFee"
-)
-
-var (
-	ErrUnknownEvent    = fmt.Errorf("unknown event")
-	ErrSocketClosed    = fmt.Errorf("socket closed")
-	ErrInvalidResponse = func(err error) error {
-		return fmt.Errorf("invalid response: %v", err)
-	}
-	ErrUnknown = fmt.Errorf("unknown error")
 )
 
 type Client struct {
@@ -109,7 +86,11 @@ func (c *Client) parseEvent(msg *Message) (interface{}, error) {
 		}
 		return res, nil
 	case EventError:
-		return nil, ErrUnknown
+		res := new(ErrResponse)
+		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(res.Error)
 	case EventRevertMessage:
 		res := new(ResRevertMessage)
 		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
@@ -178,7 +159,7 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRelayMessage, error) {
+func (c *Client) RelayMessage(chain string, height, sn uint64) (*ResRelayMessage, error) {
 	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
 	if err := c.send(EventRelayMessage, req); err != nil {
 		return nil, err
@@ -195,7 +176,7 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 }
 
 // MessageRemove sends MessageRemove event to socket
-func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, error) {
+func (c *Client) MessageRemove(chain string, sn uint64) (*ResMessageRemove, error) {
 	req := &ReqMessageRemove{Chain: chain, Sn: sn}
 	if err := c.send(EventMessageRemove, req); err != nil {
 		return nil, err
@@ -263,7 +244,7 @@ func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFe
 }
 
 // SetFee sends SetFee event to socket
-func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSetFee, error) {
+func (c *Client) SetFee(chain, network string, msgFee, resFee uint64) (*ResSetFee, error) {
 	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
 	if err := c.send(EventSetFee, req); err != nil {
 		return nil, err
