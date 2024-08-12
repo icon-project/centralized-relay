@@ -3,7 +3,6 @@ package wasm
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
 	"runtime"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/retry"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
@@ -560,7 +560,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 // fetchBlockMessages fetches block messages from the chain
-// TODO: remove retry deplicated code
+// TODO: optimize this function
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
 	perPage := 25
 	searchParam := types.TxSearchParam{
@@ -572,7 +572,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	var (
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
-		messagesChan = make(chan *coreTypes.ResultTxSearch)
+		messagesChan = make(chan *coreTypes.ResultTxSearch, len(p.eventList))
 		errorChan    = make(chan error, len(p.eventList))
 	)
 
@@ -581,13 +581,12 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, event sdkTypes.Event, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
 
 			var (
 				localSearchParam = searchParam
 				localMessages    = new(coreTypes.ResultTxSearch)
-				retryCount       uint8
 				zapFields        = []zap.Field{
 					zap.Uint64("start_height", localSearchParam.StartHeight),
 					zap.Uint64("end_height", localSearchParam.EndHeight),
@@ -596,40 +595,22 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 			)
 			localSearchParam.Events = append(localSearchParam.Events, event)
 
-			for retryCount < types.RPCMaxRetryAttempts {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-
+			err := retry.Retry(ctx, p.logger, func() error {
 				p.logger.Info("fetching block messages", zapFields...)
 				msgs, err := p.client.TxSearch(ctx, localSearchParam)
 				if err == nil {
 					p.logger.Info("fetched block messages", zapFields...)
 					localMessages = msgs
-					break
 				}
-				retryCount++
-				if retryCount >= types.RPCMaxRetryAttempts {
-					p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Uint8("attempt", retryCount), zap.Error(err))...)
-					select {
-					case errorChan <- err:
-					default:
-					}
-					cancel()
-					return
-				}
-				delay := time.Duration(math.Pow(2, float64(retryCount))) * types.BaseRPCRetryDelay
-				if delay > types.MaxRPCRetryDelay {
-					delay = types.MaxRPCRetryDelay
-				}
-				p.logger.Warn("failed to fetch block messages. retrying...", append(zapFields, zap.Uint8("attempt", retryCount), zap.Duration("retrying_in", delay), zap.Error(err))...)
+				return err
+			}, zapFields)
+			if err != nil {
 				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(delay):
+				case errorChan <- err:
+				default:
 				}
+				cancel()
+				return
 			}
 
 			if localMessages.TotalCount > perPage {
@@ -642,43 +623,25 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 					}
 					p.logger.Info("fetching block messages", append(zapFields, zap.Int("page", i))...)
 					localSearchParam.Page = &i
-					resNext, err := p.client.TxSearch(ctx, localSearchParam)
-					if err != nil {
-						var attempts uint8
-						for attempts < types.RPCMaxRetryAttempts {
-							select {
-							case <-ctx.Done():
-								return
-							default:
-							}
-							p.logger.Warn("failed to fetch block messages with page", append(zapFields, zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
-							attempts++
-							if attempts >= types.RPCMaxRetryAttempts {
-								p.logger.Error("fetchBlockMessages failed", append(zapFields, zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
-								select {
-								case errorChan <- err:
-								default:
-								}
-								cancel()
-								return
-							}
-							delay := time.Duration(math.Pow(2, float64(attempts))) * types.BaseRPCRetryDelay
-							if delay > types.MaxRPCRetryDelay {
-								delay = types.MaxRPCRetryDelay
-							}
-							p.logger.Warn("fetchBlockMessages failed, retrying...", append(zapFields, zap.Duration("retrying_in", delay), zap.Int("page", i), zap.Uint8("attempt", attempts), zap.Error(err))...)
-							select {
-							case <-ctx.Done():
-								return
-							case <-time.After(delay):
-							}
+					err := retry.Retry(ctx, p.logger, func() error {
+						resNext, err := p.client.TxSearch(ctx, localSearchParam)
+						if err == nil {
+							localMessages.Txs = append(localMessages.Txs, resNext.Txs...)
 						}
+						return err
+					}, append(zapFields, zap.Int("page", i)))
+					if err != nil {
+						select {
+						case errorChan <- err:
+						default:
+						}
+						cancel()
+						return
 					}
-					localMessages.Txs = append(localMessages.Txs, resNext.Txs...)
 				}
 			}
 			messagesChan <- localMessages
-		}(&wg, searchParam, messagesChan, errorChan)
+		}(&wg, event, searchParam, messagesChan, errorChan)
 	}
 
 	go func() {
@@ -783,26 +746,17 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
 	for heightRange := range heightStream {
-		var attempts uint8
-		for attempts < types.RPCMaxRetryAttempts {
+		err := retry.Retry(ctx, p.logger, func() error {
 			blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
 			if err == nil {
 				for _, block := range blockInfo {
 					blockInfoChan <- block
 				}
-				break
 			}
-			attempts++
-			if attempts >= types.RPCMaxRetryAttempts {
-				p.logger.Error("fetchBlockMessages failed", zap.Uint8("attempt", attempts), zap.Error(err))
-				break
-			}
-			delay := time.Duration(math.Pow(2, float64(attempts))) * types.BaseRPCRetryDelay
-			if delay > types.MaxRPCRetryDelay {
-				delay = types.MaxRPCRetryDelay
-			}
-			p.logger.Warn("fetchBlockMessages failed, retrying...", zap.Uint8("attempt", attempts), zap.Duration("retrying_in", delay), zap.Uint64("start_height", heightRange.Start), zap.Uint64("end_height", heightRange.End), zap.Error(err))
-			time.Sleep(delay)
+			return err
+		}, []zap.Field{zap.Uint64("from_height", heightRange.Start), zap.Uint64("to_height", heightRange.End)})
+		if err != nil {
+			p.logger.Error("failed to fetch block messages", zap.Error(err))
 		}
 	}
 	return toHeight + 1
