@@ -19,7 +19,7 @@ import (
 const (
 	DefaultPollingInterval = time.Second * 30
 	MaximumPollTry         = 15
-	DefaultCreateTimeout   = time.Second * 20
+	DefaultCreateTimeout   = time.Second * 10
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
