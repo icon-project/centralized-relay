@@ -189,7 +189,7 @@ func (p *MockProvider) ImportKeystore(context.Context, string, string) (string, 
 }
 
 func (p *MockProvider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
-	return "", fmt.Errorf("not required for mock chain")
+	return "", fmt.Errorf("not applicable for mock chain")
 }
 
 func (p *MockProvider) Init(context.Context, string, kms.KMS) error {

@@ -107,5 +107,5 @@ func (p *Provider) keystorePath(addr string) string {
 }
 
 func (p *Provider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
-	return "", fmt.Errorf("not required for wasm chains")
+	return "", fmt.Errorf("not applicable for wasm chains")
 }

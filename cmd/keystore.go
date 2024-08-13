@@ -170,8 +170,9 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 // converts private key to keystore
 func (k *keystoreState) convertKey(a *appState) *cobra.Command {
 	convertCmd := &cobra.Command{
-		Use:   "convert",
-		Short: "convert keystore",
+		Use:     "convert",
+		Short:   "convert keystore",
+		Example: "centralized-relay keystore convert --keystore ~/.sui/sui_config/sui.keystore --chain sui --password password",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			chain, err := a.config.Chains.Get(k.chain)
 			if err != nil {

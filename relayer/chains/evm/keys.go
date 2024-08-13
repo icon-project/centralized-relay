@@ -96,5 +96,5 @@ func (p *Provider) keystorePath(addr string) string {
 }
 
 func (p *Provider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
-	return "", fmt.Errorf("not required for evm chains")
+	return "", fmt.Errorf("not applicable for evm chains")
 }

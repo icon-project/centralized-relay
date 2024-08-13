@@ -99,5 +99,5 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 }
 
 func (p *Provider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
-	return "", fmt.Errorf("not required for icon chain")
+	return "", fmt.Errorf("not applicable for icon chain")
 }
