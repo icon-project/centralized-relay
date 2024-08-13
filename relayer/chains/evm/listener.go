@@ -131,8 +131,8 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						Height:   log.BlockNumber,
 						Messages: []*relayertypes.Message{message},
 					}
-					p.SetLastProcessedHeight(log.BlockNumber)
 				}
+				p.SetLastProcessedHeight(br.end)
 			}
 		}
 	}
