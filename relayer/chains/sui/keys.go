@@ -54,7 +54,8 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 		return err
 	}
 
-	p.wallet, err = fetchKeyPair(string(privateKey))
+	base64Pkey := base64.StdEncoding.EncodeToString(privateKey)
+	p.wallet, err = fetchKeyPair(base64Pkey)
 	if err != nil {
 		return err
 	}
@@ -100,12 +101,12 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 		return "", fmt.Errorf("error importing key: %w", err)
 	}
 
-	encrypedKeystoreBytes, addr, err := utilKeystore.DecryptFromJSONKeystore(jsonKeystoreData, passphrase)
+	_, addr, err := utilKeystore.DecryptFromJSONKeystore(jsonKeystoreData, passphrase)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error importing key: %w", err)
 	}
 
-	keyStoreContent, err := p.kms.Encrypt(ctx, encrypedKeystoreBytes)
+	keyStoreContent, err := p.kms.Encrypt(ctx, jsonKeystoreData)
 	if err != nil {
 		return "", fmt.Errorf("error importing key: %w", err)
 	}

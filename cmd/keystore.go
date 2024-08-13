@@ -187,12 +187,12 @@ func (k *keystoreState) convertKey(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stdout, "Private key converted to keystore at: %s\n", convertedKeystorePath)
+			fmt.Fprintf(os.Stdout, "private key converted to keystore at: %s\n", convertedKeystorePath)
 			return nil
 		},
 	}
 	k.chainFlag(convertCmd)
-	k.passwordFlag(convertCmd, true)
+	k.passwordFlag(convertCmd, false)
 	k.keystorePathFlag(convertCmd)
 	return convertCmd
 }
