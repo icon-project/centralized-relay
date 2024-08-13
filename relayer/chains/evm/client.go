@@ -19,34 +19,33 @@ import (
 const (
 	DefaultPollingInterval = time.Second * 30
 	MaximumPollTry         = 15
+	DefaultCreateTimeout   = time.Second * 20
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
-	rpc, err := ethclient.DialContext(ctx, rpcUrl)
+	createCtx, cancel := context.WithTimeout(ctx, DefaultCreateTimeout)
+	defer cancel()
+	rpc, err := ethclient.DialContext(createCtx, rpcUrl)
 	if err != nil {
 		return nil, err
 	}
-	ws, err := ethclient.DialContext(ctx, websocketUrl)
+	ws, err := ethclient.DialContext(createCtx, websocketUrl)
 	if err != nil {
 		return nil, err
 	}
-
 	connection, err := bridgeContract.NewConnection(connectionContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
-
 	xcall, err := bridgeContract.NewXcall(XcallContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
-
 	// getting the chain id
-	evmChainId, err := ws.ChainID(ctx)
+	evmChainId, err := ws.ChainID(createCtx)
 	if err != nil {
 		return nil, err
 	}
-
 	reconnectFunc := func() (IClient, error) {
 		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
 	}
