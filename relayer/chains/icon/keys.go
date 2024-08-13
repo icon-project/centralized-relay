@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 
@@ -95,4 +96,8 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 		return "", err
 	}
 	return addr, nil
+}
+
+func (p *Provider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
+	return "", fmt.Errorf("not required for icon chain")
 }

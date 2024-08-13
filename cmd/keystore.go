@@ -37,7 +37,14 @@ func keystoreCmd(a *appState) *cobra.Command {
 		panic(err)
 	}
 
-	ks.AddCommand(state.init(a), state.new(a), state.list(a), state.importKey(a), state.use(a))
+	ks.AddCommand(
+		state.init(a),
+		state.new(a),
+		state.list(a),
+		state.importKey(a),
+		state.convertKey(a),
+		state.use(a),
+	)
 
 	return ks
 }
@@ -158,6 +165,36 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 	k.passwordFlag(importCmd, false)
 	k.keystorePathFlag(importCmd)
 	return importCmd
+}
+
+// converts private key to keystore
+func (k *keystoreState) convertKey(a *appState) *cobra.Command {
+	convertCmd := &cobra.Command{
+		Use:   "convert",
+		Short: "convert keystore",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			chain, err := a.config.Chains.Get(k.chain)
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Join(a.homePath, "keystore", k.chain), 0o755); err != nil {
+				return err
+			}
+			if _, err := os.Stat(k.path); os.IsNotExist(err) {
+				return fmt.Errorf("file not found")
+			}
+			convertedKeystorePath, err := chain.ChainProvider.ConvertPrivateKey(cmd.Context(), k.path, k.password)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stdout, "Private key converted to keystore at: %s\n", convertedKeystorePath)
+			return nil
+		},
+	}
+	k.chainFlag(convertCmd)
+	k.passwordFlag(convertCmd, true)
+	k.keystorePathFlag(convertCmd)
+	return convertCmd
 }
 
 // Use keystore using address

@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 
@@ -92,4 +93,8 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 // keystorePath is the path to the keystore file
 func (p *Provider) keystorePath(addr string) string {
 	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
+}
+
+func (p *Provider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
+	return "", fmt.Errorf("not required for evm chains")
 }

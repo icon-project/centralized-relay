@@ -2,6 +2,7 @@ package mockchain
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -185,6 +186,10 @@ func (p *MockProvider) RestoreKeystore(context.Context) error {
 }
 func (p *MockProvider) ImportKeystore(context.Context, string, string) (string, error) {
 	return "", nil
+}
+
+func (p *MockProvider) ConvertPrivateKey(ctx context.Context, keyPath, passphrase string) (string, error) {
+	return "", fmt.Errorf("not required for mock chain")
 }
 
 func (p *MockProvider) Init(context.Context, string, kms.KMS) error {
