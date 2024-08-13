@@ -71,21 +71,17 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		case err := <-errChan:
 			if p.isConnectionError(err) {
 				p.log.Error("connection error", zap.Error(err))
-				clientReconnected := false
-				var client IClient
-				var err error
-				for !clientReconnected {
-					p.log.Info("Reconnecting client")
-					client, err = p.client.Reconnect()
+				for err != nil {
+					p.log.Info("reconnecting client")
+					client, err := p.client.Reconnect()
 					if err == nil {
-						clientReconnected = true
+						p.log.Info("client reconnected")
+						p.client = client
 					} else {
 						p.log.Error("failed to re-connect", zap.Error(err))
 						time.Sleep(ClientReconnectDelay)
 					}
 				}
-				p.log.Info("client reconnected")
-				p.client = client
 			}
 			startHeight = p.GetLastSavedBlockHeight()
 			subscribeStart.Reset(time.Second * 1)
