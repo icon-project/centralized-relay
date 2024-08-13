@@ -76,50 +76,50 @@ func EncryptToJSONKeystore(privateKey []byte, address string, password string) (
 	return data, nil
 }
 
-func DecryptFromJSONKeystore(encryptedJSONBytes []byte, password string) ([]byte, error) {
+func DecryptFromJSONKeystore(encryptedJSONBytes []byte, password string) ([]byte, string, error) {
 	var encryptedKey EncryptedKey
 	if err := json.Unmarshal(encryptedJSONBytes, &encryptedKey); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+		return nil, "", fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	// Decode base64 values
 	salt, err := base64.URLEncoding.DecodeString(encryptedKey.Salt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode salt: %w", err)
+		return nil, "", fmt.Errorf("failed to decode salt: %w", err)
 	}
 
 	iv, err := base64.URLEncoding.DecodeString(encryptedKey.IV)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode IV: %w", err)
+		return nil, "", fmt.Errorf("failed to decode IV: %w", err)
 	}
 
 	ciphertext, err := base64.URLEncoding.DecodeString(encryptedKey.Ciphertext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ciphertext: %w", err)
+		return nil, "", fmt.Errorf("failed to decode ciphertext: %w", err)
 	}
 
 	// Derive the key using scrypt
 	key, err := scrypt.Key([]byte(password), salt, 1<<14, 8, 1, 32)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive key: %w", err)
+		return nil, "", fmt.Errorf("failed to derive key: %w", err)
 	}
 
 	// Create the AES-GCM cipher block
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %w", err)
+		return nil, "", fmt.Errorf("failed to create cipher: %w", err)
 	}
 
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
+		return nil, "", fmt.Errorf("failed to create GCM: %w", err)
 	}
 
 	// Decrypt the ciphertext
 	privateKey, err := aesGCM.Open(nil, iv, ciphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt private key: %w", err)
+		return nil, "", fmt.Errorf("failed to decrypt private key: %w", err)
 	}
 
-	return privateKey, nil
+	return privateKey, encryptedKey.Address, nil
 }

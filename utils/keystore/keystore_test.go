@@ -30,12 +30,12 @@ func TestJSONkeystore(t *testing.T) {
 
 	fmt.Println("JSON Keystore: ", string(jsonBytes))
 
-	decryptedPrivateKey, err := DecryptFromJSONKeystore(jsonBytes, password)
+	decryptedPrivateKey, _, err := DecryptFromJSONKeystore(jsonBytes, password)
 	assert.NoError(t, err)
 
 	assert.Equal(t, privateKeyWithFlag, decryptedPrivateKey)
 
 	wrongPassword := "wrongPassword"
-	_, err = DecryptFromJSONKeystore(jsonBytes, wrongPassword)
+	_, _, err = DecryptFromJSONKeystore(jsonBytes, wrongPassword)
 	assert.Contains(t, err.Error(), "cipher: message authentication failed")
 }
