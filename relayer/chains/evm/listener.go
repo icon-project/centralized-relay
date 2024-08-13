@@ -60,7 +60,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
-		errChan        = make(chan error)
+		errChan        = make(chan error, 10)
 	)
 
 	for {
@@ -70,7 +70,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			return ctx.Err()
 		case err := <-errChan:
 			if p.isConnectionError(err) {
-				p.log.Error("connection error", zap.Error(err))
+				p.log.Warn("connection error", zap.Error(err))
 				client, err := p.client.Reconnect()
 				if err != nil {
 					p.log.Error("failed to reconnect", zap.Error(err))
@@ -228,7 +228,11 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
-		resetCh <- err
+		select {
+		case resetCh <- err:
+		default:
+			p.log.Warn("resetCh is full, unable to send error")
+		}
 		return err
 	}
 	defer sub.Unsubscribe()
@@ -237,11 +241,15 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("subscriptions stopped")
+			p.log.Info("subscriptions stopped")
 			return ctx.Err()
 		case err := <-sub.Err():
 			p.log.Warn("subscription error", zap.Error(err))
-			resetCh <- err
+			select {
+			case resetCh <- err:
+			default:
+				p.log.Error("resetCh is full, unable to send error")
+			}
 			return err
 		case log := <-ch:
 			message, err := p.getRelayMessageFromLog(log)
@@ -264,7 +272,12 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
 			defer cancel()
 			if _, err := p.QueryLatestHeight(ctx); err != nil {
-				resetCh <- err
+				p.log.Warn("websocket connection is not responding", zap.Error(err))
+				select {
+				case resetCh <- err:
+				default:
+					p.log.Error("resetCh is full, unable to send error")
+				}
 				return err
 			}
 		}
