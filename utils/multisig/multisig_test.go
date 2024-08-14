@@ -442,7 +442,7 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 			IsRelayersMultisig: false,
 			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
 			OutputIdx:     1,
-			OutputAmount:  3808,
+			OutputAmount:  10000,
 		},
 	}
 
@@ -450,6 +450,18 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 		{
 			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
 			Amount:          1000,
+		},
+		{
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          2000,
+		},
+		{
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          1000,
+		},
+		{
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          2100,
 		},
 	}
 
@@ -461,7 +473,7 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
-	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
+	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 2)
 	msgTx.AddTxOut(wire.NewTxOut(0, script1))
 
 	// Add RadFi Provive Liquidity Message
@@ -503,7 +515,6 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 
 	// Decode Radfi message
 	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
-
 	fmt.Println("err decode: ", err)
 	fmt.Println("decoded message - Flag     : ", decodedRadFiMessage.Flag)
 	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.ProvideLiquidityMsg.Fee)
@@ -511,6 +522,22 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.ProvideLiquidityMsg.LowerTick)
 	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min0)
 	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min1)
+
+	// get list of Relayer bitcoin an rune UTXOs
+	relayerScriptAddress := signedMsgTx.TxOut[0].PkScript
+	sequenceNumberUTXO, bitcoinUTXOs, runeUTXOs, err := GetRelayerReceivedUTXO(signedMsgTx, 0, relayerScriptAddress)
+	fmt.Println("-------------GetRelayerReceivedUTXO:")
+	fmt.Println("relayerScriptAddress: ", relayerScriptAddress)
+	fmt.Println("err: ", err)
+	fmt.Println("sequenceNumberUTXO: ", sequenceNumberUTXO.IsRelayersMultisig, sequenceNumberUTXO.OutputIdx, sequenceNumberUTXO.OutputAmount, sequenceNumberUTXO.TxHash)
+	fmt.Println("bitcoinUTXOs: ")
+	for _, utxo := range bitcoinUTXOs {
+		fmt.Println("bitcoinUTXO: ", utxo.IsRelayersMultisig, utxo.OutputIdx, utxo.OutputAmount, utxo.TxHash)
+	}
+	fmt.Println("runeUTXOs: ")
+	for _, utxo := range runeUTXOs {
+		fmt.Println("runeUTXO: ", utxo.edict, utxo.edictUTXO.IsRelayersMultisig, utxo.edictUTXO.OutputIdx, utxo.edictUTXO.OutputAmount, utxo.edictUTXO.TxHash)
+	}
 }
 
 func TestRadFiSwap(t *testing.T) {

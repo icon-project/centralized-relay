@@ -4,6 +4,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/bxelab/runestone"
 )
 
 type MultisigInfo struct {
@@ -31,6 +32,11 @@ type UTXO struct {
 	TxHash        		string `bson:"tx_hash" json:"txHash"`
 	OutputIdx     		uint32 `bson:"output_idx" json:"outputIdx"`
 	OutputAmount  		uint64 `bson:"output_amount" json:"outputAmount"`
+}
+
+type RuneUTXO struct {
+	edict		runestone.Edict
+	edictUTXO	*UTXO
 }
 
 type TapSigParams struct {
