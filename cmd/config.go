@@ -9,6 +9,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/bitcoin"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
 	"github.com/icon-project/centralized-relay/relayer"
@@ -255,6 +256,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.Config)
+	case "bitcoin":
+		iw.Value = new(bitcoin.Config)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}

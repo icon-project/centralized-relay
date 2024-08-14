@@ -4,22 +4,20 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/icon-project/centralized-relay/utils/multisig"
 	"math/big"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	"github.com/btcsuite/btcd/txscript"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/multisig"
 	"github.com/icon-project/icon-bridge/common/codec"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
@@ -28,19 +26,46 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 type Provider struct {
-	logger *zap.Logger
-	// cfg                 *Config
+	logger               *zap.Logger
+	cfg                  *Config
 	client               IClient
-	kms                  kms.KMS
-	wallet               sdkTypes.AccountI
-	contracts            map[string]relayTypes.EventMap
-	eventList            []sdkTypes.Event
 	LastSavedHeightFunc  func() uint64
 	LastSerialNumFunc    func() *big.Int
 	multisigAddrScript   []byte //
 	assetManagerAddrIcon string
 	bearToken            string
 	unitsatEndpoint      string
+}
+
+type Config struct {
+	provider.CommonConfig `json:",inline" yaml:",inline"`
+	StepMin               int64 `json:"step-min" yaml:"step-min"`
+	StepLimit             int64 `json:"step-limit" yaml:"step-limit"`
+	StepAdjustment        int64 `json:"step-adjustment" yaml:"step-adjustment"`
+}
+
+// NewProvider returns new Icon provider
+func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if err := c.sanitize(); err != nil {
+		return nil, err
+	}
+
+	client, err := newClient(ctx, c.RPCUrl, true, false, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new client: %v", err)
+	}
+
+	c.ChainName = chainName
+	c.HomeDir = homepath
+
+	return &Provider{
+		logger: log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
+		cfg:    c,
+		client: client,
+	}, nil
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -79,7 +104,7 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 }
 
 // Wallet returns the wallet of the provider
-func (p *Provider) Wallet() sdkTypes.AccAddress {
+func (p *Provider) Wallet() error {
 	return nil
 }
 
@@ -134,54 +159,55 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err != nil {
 		return err
 	}
-	seq := p.wallet.GetSequence() + 1
-	if err := p.wallet.SetSequence(seq); err != nil {
-		p.logger.Error("failed to set sequence", zap.Error(err))
-	}
-	p.waitForTxResult(ctx, message.MessageKey(), res.TxHash, callback)
+	// seq := p.wallet.GetSequence() + 1
+	// if err := p.wallet.SetSequence(seq); err != nil {
+	// 	p.logger.Error("failed to set sequence", zap.Error(err))
+	// }
+	p.waitForTxResult(ctx, message.MessageKey(), res, callback)
 	return nil
 }
 
 // call the smart contract to send the message
-func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkTypes.TxResponse, error) {
-	rawMsg, err := p.getRawContractMessage(message)
-	if err != nil {
-		return nil, err
-	}
+func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (string, error) {
+	// rawMsg, err := p.getRawContractMessage(message)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	var contract string
+	// var contract string
 
-	switch message.EventType {
-	case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
-		//contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	case events.CallMessage, events.RollbackMessage:
-		//contract = p.cfg.Contracts[relayTypes.XcallContract]
-	default:
-		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
-	}
+	// switch message.EventType {
+	// case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
+	// 	//contract = p.cfg.Contracts[relayTypes.ConnectionContract]
+	// case events.CallMessage, events.RollbackMessage:
+	// 	//contract = p.cfg.Contracts[relayTypes.XcallContract]
+	// default:
+	// 	return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
+	// }
 
-	msg := &wasmTypes.MsgExecuteContract{
-		Sender:   p.Wallet().String(),
-		Contract: contract,
-		Msg:      rawMsg,
-	}
+	// msg := &wasmTypes.MsgExecuteContract{
+	// 	Sender:   p.Wallet().String(),
+	// 	Contract: contract,
+	// 	Msg:      rawMsg,
+	// }
 
-	msgs := []sdkTypes.Msg{msg}
+	// msgs := []sdkTypes.Msg{msg}
 
-	res, err := p.sendMessage(ctx, msgs...)
-	if err != nil {
-		if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
-			if mmErr := p.handleSequence(ctx); mmErr != nil {
-				return res, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
-			}
-			return p.sendMessage(ctx, msgs...)
-		}
-	}
-	return res, err
+	// res, err := p.sendMessage(ctx, msgs...)
+	// if err != nil {
+	// 	if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
+	// 		if mmErr := p.handleSequence(ctx); mmErr != nil {
+	// 			return res, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
+	// 		}
+	// 		return p.sendMessage(ctx, msgs...)
+	// 	}
+	// }
+	return "", nil
 }
 
-func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-	return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
+func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (string, error) {
+	// return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
+	return "", nil
 }
 
 func (p *Provider) handleSequence(ctx context.Context) error {
@@ -735,4 +761,16 @@ func (p *Provider) SetSerialNumberFunc(f func() *big.Int) {
 
 func (p *Provider) GetSerialNumber() *big.Int {
 	return p.LastSerialNumFunc()
+}
+
+func (p *Config) sanitize() error {
+	// TODO:
+	return nil
+}
+
+func (c *Config) Validate() error {
+	if c.RPCUrl == "" {
+		return fmt.Errorf("bitcoin provider rpc endpoint is empty")
+	}
+	return nil
 }

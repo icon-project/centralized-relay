@@ -3,13 +3,15 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"os"
+
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"go.uber.org/zap"
-	"os"
+
 	// "github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
@@ -45,12 +47,12 @@ type Client struct {
 }
 
 // create new client
-func newClient(rpcUrl, user, pass string, httpPostMode, disableTLS bool, l *zap.Logger, chainParam *chaincfg.Params) (IClient, error) {
+func newClient(ctx context.Context, rpcUrl string, httpPostMode, disableTLS bool, l *zap.Logger) (IClient, error) {
 	// Connect to the Bitcoin Core RPC server
 	connConfig := &rpcclient.ConnConfig{
 		Host:         rpcUrl,
-		User:         user,
-		Pass:         pass,
+		User:         "123",
+		Pass:         "123",
 		HTTPPostMode: httpPostMode,
 		DisableTLS:   disableTLS,
 	}
@@ -63,9 +65,8 @@ func newClient(rpcUrl, user, pass string, httpPostMode, disableTLS bool, l *zap.
 	// ws
 
 	return &Client{
-		log:        l,
-		client:     client,
-		chainParam: chainParam,
+		log:    l,
+		client: client,
 	}, nil
 }
 
