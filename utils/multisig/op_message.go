@@ -20,6 +20,7 @@ const (
 	OP_RADFI_SWAP				= txscript.OP_2
 	OP_RADFI_WITHDRAW_LIQUIDITY	= txscript.OP_3
 	OP_RADFI_COLLECT_FEES		= txscript.OP_4
+	OP_RADFI_INCREASE_LIQUIDITY	= txscript.OP_5
 )
 
 type RadFiInitPoolMsg struct {
@@ -56,6 +57,13 @@ type RadFiCollectFeesMsg struct {
 	RecipientIndex	uint32
 	NftId			*uint256.Int
 }
+
+type RadFiIncreaseLiquidityMsg struct {
+	Min0		uint16
+	Min1		uint16
+	NftId		*uint256.Int
+}
+
 type RadFiDecodedMsg struct {
 	Flag					byte
 	InitPoolMsg				*RadFiInitPoolMsg
@@ -63,6 +71,7 @@ type RadFiDecodedMsg struct {
 	SwapMsg					*RadFiSwapMsg
 	WithdrawLiquidityMsg	*RadFiWithdrawLiquidityMsg
 	CollectFeesMsg			*RadFiCollectFeesMsg
+	IncreaseLiquidityMsg	*RadFiIncreaseLiquidityMsg
 }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
@@ -203,6 +212,25 @@ func CreateCollectFeesScript(msg *RadFiCollectFeesMsg) ([]byte, error) {
 	data := append(recipientIndexByte, msg.NftId.Bytes()...)
 
 	return builder.AddData(data).Script()
+}
+
+func CreateIncreaseLiquidityScript(msg *RadFiIncreaseLiquidityMsg) ([]byte, error) {
+	builder := txscript.NewScriptBuilder()
+
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddOp(OP_RADFI_IDENT)
+	builder.AddOp(OP_RADFI_INCREASE_LIQUIDITY)
+	// encode message content
+	buf := new(bytes.Buffer)
+	var data = []any{ msg.Min0, msg.Min1 }
+	for _, v := range data {
+		err := binary.Write(buf, binary.BigEndian, v)
+		if err != nil {
+			fmt.Println("CreateIncreaseLiquidityScript encode data failed:", err)
+		}
+	}
+
+	return builder.AddData(append(buf.Bytes(), msg.NftId.Bytes()...)).Script()
 }
 
 func ReadBridgeMessage(transaction *wire.MsgTx) ([]byte, error) {
@@ -354,9 +382,19 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 
 			return &RadFiDecodedMsg {
 				Flag				: flag,
-				CollectFeesMsg: &RadFiCollectFeesMsg{
+				CollectFeesMsg		: &RadFiCollectFeesMsg{
 					RecipientIndex	: recipientIndex,
 					NftId			: nftId,
+				},
+			}, nil
+
+		case OP_RADFI_INCREASE_LIQUIDITY:
+			return &RadFiDecodedMsg {
+				Flag				: flag,
+				IncreaseLiquidityMsg: &RadFiIncreaseLiquidityMsg{
+					Min0			: binary.BigEndian.Uint16(payload[:2]),
+					Min1			: binary.BigEndian.Uint16(payload[2:4]),
+					NftId			: new(uint256.Int).SetBytes(payload[4:]),
 				},
 			}, nil
 
