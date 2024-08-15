@@ -93,7 +93,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 								zap.Uint64("req-id", msg.ReqID.Uint64()),
 								zap.String("src", msg.Src),
 								zap.String("dst", msg.Dst),
-								zap.String("tx_hash", v.Hash.String()),
 								zap.String("event_type", msg.EventType),
 								zap.Any("data", hex.EncodeToString(msg.Data)),
 							)
