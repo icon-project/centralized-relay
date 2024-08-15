@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -12,7 +13,13 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req-id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event-type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)))
+
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
 		return err
