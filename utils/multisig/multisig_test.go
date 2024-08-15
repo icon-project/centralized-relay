@@ -434,6 +434,81 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	fmt.Println("decoded message : ", string(decodedMessage))
 }
 
+func TestRadFiInitPool(t *testing.T) {
+	chainParam := &chaincfg.SigNetParams
+
+	inputs := []*UTXO{
+		{
+			IsRelayersMultisig: false,
+			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
+			OutputIdx:     1,
+			OutputAmount:  10000,
+		},
+	}
+
+	outputs := []*OutputTx{
+		{
+			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
+			Amount:          1000,
+		},
+	}
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+
+	// Add RadFi Init pool Message
+	radfiMsg := RadFiInitPoolMsg {
+		Fee:		30,
+		UpperTick:	12345,
+		LowerTick: 	-12345,
+		Min0:		0,
+		Min1:		10000,
+		InitPrice:  uint256.MustFromDecimal("123456789"),
+	}
+	script2, _ := CreateInitPoolScript(&radfiMsg)
+	fmt.Println("OP_RETURN script: ", script2)
+	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+
+	tapSigParams := TapSigParams {
+		TxSigHashes: txSigHashes,
+		RelayersPKScript: []byte{},
+		RelayersTapLeaf: txscript.TapLeaf{},
+		UserPKScript: userMultisigWallet.PKScript,
+		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+	}
+	totalSigs := [][][]byte{}
+
+	// USER SIGN TX
+	userSigs, _ := PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, tapSigParams, chainParam, true)
+	totalSigs = append(totalSigs, userSigs)
+
+	// COMBINE SIGNS
+	signedMsgTx, err := CombineMultisigSigs(msgTx, inputs, userMultisigWallet, 0, userMultisigWallet, 1, totalSigs)
+
+	var signedTx bytes.Buffer
+	signedMsgTx.Serialize(&signedTx)
+	hexSignedTx := hex.EncodeToString(signedTx.Bytes())
+	signedMsgTxID := signedMsgTx.TxHash().String()
+
+	fmt.Println("hexSignedTx: ", hexSignedTx)
+	fmt.Println("signedMsgTxID: ", signedMsgTxID)
+	fmt.Println("err sign: ", err)
+
+	// Decode Radfi message
+	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
+	fmt.Println("err decode: ", err)
+	fmt.Println("decoded message - Flag     : ", decodedRadFiMessage.Flag)
+	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.InitPoolMsg.Fee)
+	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.InitPoolMsg.UpperTick)
+	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.InitPoolMsg.LowerTick)
+	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.InitPoolMsg.Min0)
+	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.InitPoolMsg.Min1)
+	fmt.Println("decoded message - InitPrice: ", decodedRadFiMessage.InitPoolMsg.InitPrice)
+}
+
 func TestRadFiProvideLiquidity(t *testing.T) {
 	chainParam := &chaincfg.SigNetParams
 
