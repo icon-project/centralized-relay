@@ -114,6 +114,26 @@ type CosmosRelayerChainConfigValue struct {
 	GasAdjustment          float64           `yaml:"gas-adjustment"`
 	FinalityBlock          uint64            `yaml:"finality-block"`
 }
+type Dapp struct {
+	Name      string `yaml:"name"`
+	ProgramID string `yaml:"program-id"`
+}
+type SolanaRelayerChainConfigValue struct {
+	Disabled          bool     `yaml:"disabled" json:"disabled"`
+	ChainName         string   `yaml:"-"`
+	RPCUrl            string   `yaml:"rpc-url"`
+	Address           string   `yaml:"address"`
+	XcallProgram      string   `yaml:"xcall-program"`
+	ConnectionProgram string   `yaml:"connection-program"`
+	OtherConnections  []string `yaml:"other-connections"`
+	Dapps             []Dapp   `yaml:"dapps"`
+	CpNIDs            []string `yaml:"cp-nids"`     //counter party NIDs Eg: ["0x2.icon", "0x7.icon"]
+	AltAddress        string   `yaml:"alt-address"` // address lookup table address
+	NID               string   `yaml:"nid"`
+	HomeDir           string   `yaml:"home-dir"`
+	GasLimit          uint64   `yaml:"gas-limit"`
+	StartHeight       uint64   `yaml:"start-height"`
+}
 
 type ICONRelayerChainConfig struct {
 	Type  string                      `json:"type"`
@@ -133,6 +153,11 @@ type CosmosRelayerChainConfig struct {
 type SUIRelayerChainConfig struct {
 	Type  string                     `json:"type"`
 	Value SUIRelayerChainConfigValue `json:"value"`
+}
+
+type SolanaRelayerChainConfig struct {
+	Type  string                        `json:"type"`
+	Value SolanaRelayerChainConfigValue `json:"value"`
 }
 
 const (

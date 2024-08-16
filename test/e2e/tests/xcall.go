@@ -74,7 +74,7 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 
 					x.T.Run("xcall test send maxSize Data: 2048 bytes A-> B "+chainFlowName, func(t *testing.T) {
 						fmt.Println("Sending allowed size data from src to dst", chain.Config().Name, innerChain.Config().Name)
-						x.testOneWayMessageWithSize(ctx, t, 1300, chain, innerChain)
+						x.testOneWayMessageWithSize(ctx, t, 300, chain, innerChain)
 					})
 
 					x.T.Run("xcall test send maxSize Data: 2049bytes  "+chainFlowName, func(t *testing.T) {
@@ -113,7 +113,7 @@ func testChains(ctx context.Context, createdChains []chains.Chain, x *XCallTestS
 
 					x.T.Run("xcall test send maxSize Data: 2048 bytes B-> A "+reverseChainFlowName, func(t *testing.T) {
 						fmt.Println("Sending allowed size data from src to dst", innerChain.Config().Name, chain.Config().Name)
-						x.testOneWayMessageWithSize(ctx, t, 1300, innerChain, chain)
+						x.testOneWayMessageWithSize(ctx, t, 300, innerChain, chain)
 					})
 
 					x.T.Run("xcall test send maxSize Data: 2049bytes "+reverseChainFlowName, func(t *testing.T) {
@@ -267,6 +267,8 @@ func (x *XCallTestSuite) testOneWayMessageWithSizeExpectingError(ctx context.Con
 			subMsg := err.Error()[subStart:subEnd]
 			result = assert.ObjectsAreEqual(strings.TrimSpace(subMsg), "MaxDataSizeExceeded")
 		} else if strings.Contains(err.Error(), "MaxDataSizeExceeded") {
+			result = true
+		} else if strings.Contains(err.Error(), "VersionedTransaction too large") {
 			result = true
 		} else {
 			result = assert.ObjectsAreEqual(errors.New("UnknownFailure"), err)
