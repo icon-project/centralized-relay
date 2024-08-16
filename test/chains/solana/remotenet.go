@@ -201,7 +201,10 @@ func (sn *SolanaRemoteNet) populateIDL(ctx context.Context, idlFilePath,
 		if err != nil {
 			return err
 		}
-		sn.syncIdl(ctx, filePath, programId.String())
+		err = sn.syncIdl(ctx, "/workdir/target/idl/"+idlFilePath, programId.String())
+		if err != nil {
+			return err
+		}
 	}
 	sn.appIds[programName] = progIdl
 	return nil
@@ -963,12 +966,6 @@ func (sn *SolanaRemoteNet) ExecTx(ctx context.Context, contractName string, comm
 // with the chain node binary.
 func (sn *SolanaRemoteNet) TxCommand(ctx context.Context, contractName string, command ...string) []string {
 	command = append([]string{"deploy", "--provider.cluster", sn.testconfig.RPCUri, "--program-name", contractName}, command...)
-	// command = append([]string{"upgrade", "--provider.cluster", sn.testconfig.RPCUri, "--program-id", "591xUJDYzoYDZtsE8ywYxZFbZtqGbNDERmpHzs9vqZeB"}, command...)
-	return sn.NodeCommand(command...)
-}
-
-func (sn *SolanaRemoteNet) TxUpgradeCommand(ctx context.Context, contractName string, command ...string) []string {
-	command = append([]string{"upgrade", "--provider.cluster", sn.testconfig.RPCUri, "--program-id", "591xUJDYzoYDZtsE8ywYxZFbZtqGbNDERmpHzs9vqZeB", "/workdir/target/deploy/mock_dapp_multi.so"}, command...)
 	return sn.NodeCommand(command...)
 }
 
