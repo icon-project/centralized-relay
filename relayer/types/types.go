@@ -190,8 +190,8 @@ func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
 }
 
 type Coin struct {
-	Denom  string
-	Amount uint64
+	Denom  string `json:"denom"`
+	Amount uint64 `json:"amount"`
 }
 
 func NewCoin(denom string, amount uint64) *Coin {

@@ -26,6 +26,10 @@ const (
 	EventGetLatestProcessedBlock Event = "GetLatestProcessedBlock"
 	EventGetBlockRange           Event = "GetBlockRange"
 	EventGetConfig               Event = "GetConfig"
+	EventListChainInfo           Event = "ListChainInfo"
+	EventGetBalance              Event = "GetChainBalance"
+	EventRelayInfo               Event = "RelayInfo"
+	EventMessageReceived         Event = "MessageReceived"
 )
 
 var (
@@ -50,17 +54,12 @@ func NewClient() (*Client, error) {
 }
 
 // send sends message to socket
-func (c *Client) send(event Event, req interface{}) error {
+func (c *Client) send(req interface{}) error {
 	data, err := jsoniter.Marshal(req)
 	if err != nil {
 		return err
 	}
-	msg := &Message{Event: event, Data: data}
-	payload, err := jsoniter.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	if _, err := c.conn.Write(payload); err != nil {
+	if _, err := c.conn.Write(data); err != nil {
 		return err
 	}
 	return nil
@@ -73,99 +72,8 @@ func (c *Client) read() (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	msg := new(Message)
-	if err := jsoniter.Unmarshal(buf[:nr], msg); err != nil {
-		return nil, err
-	}
-	return c.parseEvent(msg)
-}
-
-// parse event from message
-func (c *Client) parseEvent(msg *Message) (interface{}, error) {
-	switch msg.Event {
-	case EventGetBlock:
-		var res []*ResGetBlock
-		if err := jsoniter.Unmarshal(msg.Data, &res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetMessageList:
-		res := new(ResMessageList)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventRelayMessage:
-		res := new(ResRelayMessage)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventMessageRemove:
-		res := new(ResMessageRemove)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventPruneDB:
-		res := new(ResPruneDB)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventError:
-		return nil, ErrUnknown
-	case EventRevertMessage:
-		res := new(ResRevertMessage)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetFee:
-		res := new(ResGetFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventSetFee:
-		res := new(ResSetFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventClaimFee:
-		res := new(ResClaimFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetLatestHeight:
-		res := new(ResChainHeight)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetLatestProcessedBlock:
-		res := new(ResProcessedBlock)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventRelayRangeMessage:
-		res := new(ResRelayRangeMessage)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetBlockRange:
-		res := new(ResRangeBlockQuery)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	default:
-		return nil, ErrUnknownEvent
-	}
+	msg := new(Response)
+	return msg, jsoniter.Unmarshal(buf[:nr], msg)
 }
 
 func (c *Client) Close() error {
@@ -175,7 +83,7 @@ func (c *Client) Close() error {
 // GetBlock sends GetBlock event to socket
 func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
 	req := &ReqGetBlock{Chain: chain, All: chain == ""}
-	if err := c.send(EventGetBlock, req); err != nil {
+	if err := c.send(&Request{Event: EventGetBlock, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -192,7 +100,7 @@ func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
 // GetMessageList sends GetMessageList event to socket
 func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*ResMessageList, error) {
 	req := &ReqMessageList{Chain: chain, Pagination: pagination}
-	if err := c.send(EventGetMessageList, req); err != nil {
+	if err := c.send(&Request{Event: EventGetMessageList, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -208,8 +116,8 @@ func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*Re
 
 // RelayMessage sends RelayMessage event to socket
 func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRelayMessage, error) {
-	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
-	if err := c.send(EventRelayMessage, req); err != nil {
+	req := &ReqRelayMessage{Chain: chain, FromHeight: height, ToHeight: height}
+	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -225,7 +133,7 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 
 func (c *Client) RelayRangeMessage(chain string, fromHeight, toHeight uint64) (*ResRelayRangeMessage, error) {
 	req := &ReqRelayRangeMessage{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
-	if err := c.send(EventRelayRangeMessage, req); err != nil {
+	if err := c.send(&Request{Event: EventRelayRangeMessage, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -242,7 +150,7 @@ func (c *Client) RelayRangeMessage(chain string, fromHeight, toHeight uint64) (*
 // MessageRemove sends MessageRemove event to socket
 func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, error) {
 	req := &ReqMessageRemove{Chain: chain, Sn: sn}
-	if err := c.send(EventMessageRemove, req); err != nil {
+	if err := c.send(&Request{Event: EventMessageRemove, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -259,7 +167,7 @@ func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, er
 // PruneDB sends PruneDB event to socket
 func (c *Client) PruneDB() (*ResPruneDB, error) {
 	req := &ReqPruneDB{}
-	if err := c.send(EventPruneDB, req); err != nil {
+	if err := c.send(&Request{Event: EventPruneDB, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -276,7 +184,7 @@ func (c *Client) PruneDB() (*ResPruneDB, error) {
 // RevertMessage sends RevertMessage event to socket
 func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, error) {
 	req := &ReqRevertMessage{Chain: chain, Sn: sn}
-	if err := c.send(EventRevertMessage, req); err != nil {
+	if err := c.send(&Request{Event: EventRevertMessage, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -293,7 +201,7 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 // GetFee sends GetFee event to socket
 func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFee, error) {
 	req := &ReqGetFee{Chain: chain, Network: network, Response: isReponse}
-	if err := c.send(EventGetFee, req); err != nil {
+	if err := c.send(&Request{Event: EventGetFee, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -310,7 +218,7 @@ func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFe
 // SetFee sends SetFee event to socket
 func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSetFee, error) {
 	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
-	if err := c.send(EventSetFee, req); err != nil {
+	if err := c.send(&Request{Event: EventSetFee, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -327,7 +235,7 @@ func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSet
 // ClaimFee sends ClaimFee event to socket
 func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
 	req := &ReqClaimFee{Chain: chain}
-	if err := c.send(EventClaimFee, req); err != nil {
+	if err := c.send(&Request{Event: EventClaimFee, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -343,7 +251,7 @@ func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
 
 func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
 	req := &ReqChainHeight{Chain: chain}
-	if err := c.send(EventGetLatestHeight, req); err != nil {
+	if err := c.send(&Request{Event: EventGetLatestHeight, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -359,7 +267,7 @@ func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
 
 func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, error) {
 	req := &ReqGetBlock{Chain: chain}
-	if err := c.send(EventGetLatestProcessedBlock, req); err != nil {
+	if err := c.send(&Request{Event: EventGetLatestProcessedBlock, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()
@@ -375,7 +283,7 @@ func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, erro
 
 func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {
 	req := &ReqRangeBlockQuery{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
-	if err := c.send(EventGetBlockRange, req); err != nil {
+	if err := c.send(&Request{Event: EventGetBlockRange, Data: req}); err != nil {
 		return nil, err
 	}
 	data, err := c.read()

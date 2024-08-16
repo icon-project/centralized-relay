@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	Version                   = "dev"
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000 * 5
 
@@ -458,7 +459,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// generateMessage
-				messages, err := srcChainRuntime.Provider.GenerateMessages(ctx, txObject.MessageKeyWithMessageHeight)
+				messages, err := srcChainRuntime.Provider.GenerateMessages(ctx, txObject.TxHeight, txObject.TxHeight)
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),
@@ -489,7 +490,6 @@ func (r *Relayer) SaveChainsBlockHeight(ctx context.Context) {
 			continue
 		}
 	}
-
 }
 
 // cleanExpiredMessages

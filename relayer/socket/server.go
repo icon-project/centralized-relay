@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -24,7 +25,7 @@ func NewSocket(rly *relayer.Relayer) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{listener: l, rly: rly}, nil
+	return &Server{listener: l, startedAt: time.Now().Unix(), rly: rly}, nil
 }
 
 // Listen to socket
@@ -58,23 +59,20 @@ func (s *Server) server(c net.Conn) {
 
 // Parse message from socket
 func (s *Server) parse(data []byte) ([]byte, error) {
-	msg := new(Message)
+	msg := new(Request)
 	if err := jsoniter.Unmarshal(data, msg); err != nil {
-		return nil, err
+		return makeError(err), nil
 	}
-	payload, err := s.parseEvent(msg)
-	if err != nil {
-		return nil, err
-	}
+	payload := s.parseEvent(msg)
 	return jsoniter.Marshal(payload)
 }
 
 // makeError for the client to write to socket
 func makeError(err error) []byte {
-	message := &Message{EventError, []byte(fmt.Sprintf(`{"message": "%s"}`, err.Error()))}
+	message := &Response{Event: EventError, Message: err.Error()}
 	data, err := jsoniter.Marshal(message)
 	if err != nil {
-		return []byte(fmt.Sprintf(`{"error": "%s"}`, err.Error()))
+		return []byte(fmt.Sprintf(`{"event":"%s","message":"%s","success":false}`, EventError, err.Error()))
 	}
 	return data
 }
@@ -89,292 +87,217 @@ func (s *Server) send(conn net.Conn, data []byte) error {
 }
 
 // parseEvent for the client to write to socket
-func (s *Server) parseEvent(msg *Message) (*Message, error) {
+func (s *Server) parseEvent(msg *Request) *Response {
+	data, err := jsoniter.Marshal(msg.Data)
+	if err != nil {
+		return &Response{ID: msg.ID, Event: EventError, Message: err.Error()}
+	}
+	response := &Response{ID: msg.ID, Event: msg.Event}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	switch msg.Event {
 	case EventGetBlock:
 		req := new(ReqGetBlock)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		var blocks []*ResGetBlock
-
 		if req.All {
 			for _, chain := range s.rly.GetAllChainsRuntime() {
 				blocks = append(blocks, &ResGetBlock{chain.Provider.NID(), chain.LastSavedHeight})
 			}
-			data, err := jsoniter.Marshal(blocks)
-			if err != nil {
-				return nil, err
-			}
-			return &Message{EventGetBlock, data}, nil
+			return response.SetData(blocks)
 		}
 
 		store := s.rly.GetBlockStore()
 		height, err := store.GetLastStoredBlock(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-
 		blocks = append(blocks, &ResGetBlock{req.Chain, height})
-		data, err := jsoniter.Marshal(blocks)
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetBlock, data}, nil
+		return response.SetData(blocks)
 	case EventGetMessageList:
 		req := new(ReqMessageList)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		store := s.rly.GetMessageStore()
 		messages, err := store.GetMessages(req.Chain, req.Pagination)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
 		total, err := store.TotalCountByChain(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResMessageList{messages, int(total)})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetMessageList, data}, nil
+		return response.SetData(&ResMessageList{messages, int(total)})
 	case EventMessageRemove:
 		req := new(ReqMessageRemove)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		store := s.rly.GetMessageStore()
 		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
 		message, err := store.GetMessage(key)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
 		if err := store.DeleteMessage(key); err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResMessageRemove{req.Sn, req.Chain, message.Dst, message.MessageHeight, message.EventType})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventMessageRemove, data}, nil
+		return response.SetData(&ResMessageRemove{req.Sn, req.Chain, message.Dst, message.MessageHeight, message.EventType})
 	case EventRelayMessage:
 		req := new(ReqRelayMessage)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
-
 		src, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-
-		if req.Height != 0 {
-			msgs, err := src.Provider.GenerateMessages(context.Background(), types.NewMessagekeyWithMessageHeight(&types.MessageKey{Src: req.Chain, Sn: req.Sn}, req.Height))
-			if err != nil {
-				return nil, err
-			}
-			for _, msg := range msgs {
-				src.MessageCache.Add(types.NewRouteMessage(msg))
-			}
-			data, err := jsoniter.Marshal(&ResRelayMessage{types.NewRouteMessage(msgs[0])})
-			if err != nil {
-				return nil, err
-			}
-			return &Message{EventRelayMessage, data}, nil
-		}
-
-		store := s.rly.GetMessageStore()
-		key := &types.MessageKey{Src: req.Chain, Sn: req.Sn}
-		message, err := store.GetMessage(key)
+		msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		src.MessageCache.Add(message)
-		data, err := jsoniter.Marshal(&ResRelayMessage{message})
-		if err != nil {
-			return nil, err
+		var foundMessages []*ResRelayMessage
+		for _, msg := range msgs {
+			src.MessageCache.Add(types.NewRouteMessage(msg))
+			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, RequestID: msg.ReqID.Uint64()})
 		}
-		return &Message{EventRelayMessage, data}, nil
+		return response.SetData(foundMessages)
 	case EventPruneDB:
+		req := new(ReqPruneDB)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
 		if err := s.rly.PruneDB(); err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResPruneDB{"Success"})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventPruneDB, data}, nil
+		return response.SetData(&ResPruneDB{"Success"})
 	case EventRevertMessage:
 		req := new(ReqRevertMessage)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		if err := chain.Provider.RevertMessage(context.Background(), big.NewInt(0).SetUint64(req.Sn)); err != nil {
-			return nil, err
+		if err := chain.Provider.RevertMessage(ctx, new(big.Int).SetUint64(req.Sn)); err != nil {
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResRevertMessage{req.Sn})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventRevertMessage, data}, nil
+		return response.SetData(&ResRevertMessage{req.Sn})
 	case EventGetFee:
 		req := new(ReqGetFee)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		fee, err := chain.Provider.GetFee(context.Background(), req.Network, req.Response)
+		fee, err := chain.Provider.GetFee(ctx, req.Network, req.Response)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResGetFee{Chain: req.Chain, Fee: fee})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetFee, data}, nil
+		return response.SetData(&ResGetFee{Chain: req.Chain, Fee: fee})
 	case EventSetFee:
 		req := new(ReqSetFee)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		if err := chain.Provider.SetFee(context.Background(), req.Network, req.MsgFee, req.ResFee); err != nil {
-			return nil, err
+		if err := chain.Provider.SetFee(ctx, req.Network, req.MsgFee, req.ResFee); err != nil {
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResSetFee{"Success"})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventSetFee, data}, nil
+		return response.SetData(&ResSetFee{"Success"})
 	case EventClaimFee:
 		req := new(ReqClaimFee)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		if err := chain.Provider.ClaimFee(context.Background()); err != nil {
-			return nil, err
+		if err := chain.Provider.ClaimFee(ctx); err != nil {
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(&ResClaimFee{"Success"})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventClaimFee, data}, nil
-	case EventGetLatestHeight:
-		req := new(ReqChainHeight)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
-		}
-		chain, err := s.rly.FindChainRuntime(req.Chain)
-		if err != nil {
-			return nil, err
-		}
-		height, err := chain.Provider.QueryLatestHeight(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		data, err := jsoniter.Marshal(&ResChainHeight{Chain: req.Chain, Height: height})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetLatestHeight, data}, nil
-	case EventGetLatestProcessedBlock:
-		req := new(ReqProcessedBlock)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
-		}
-		chain, err := s.rly.FindChainRuntime(req.Chain)
-		if err != nil {
-			return nil, err
-		}
-		height, err := chain.Provider.GetLastProcessedBlockHeight(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		data, err := jsoniter.Marshal(&ResProcessedBlock{Chain: req.Chain, Height: height})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetLatestProcessedBlock, data}, nil
-	case EventRelayRangeMessage:
-		req := new(ReqRelayRangeMessage)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
-		}
-		if req.FromHeight > req.ToHeight {
-			return nil, fmt.Errorf("from_height %d must be lesser than to_height %d ", req.FromHeight, req.ToHeight)
-		}
-		src, err := s.rly.FindChainRuntime(req.Chain)
-		if err != nil {
-			return nil, err
-		}
-		msgs, err := src.Provider.QueryBlockMessages(context.Background(), req.FromHeight, req.ToHeight)
-		if err != nil {
-			return nil, err
-		}
-		var routeMessages []*types.RouteMessage
-		for _, msg := range msgs {
-			routeMessage := types.NewRouteMessage(msg)
-			src.MessageCache.Add(routeMessage)
-			routeMessages = append(routeMessages, routeMessage)
-		}
-		data, err := jsoniter.Marshal(&ResRelayRangeMessage{
-			Chain:    req.Chain,
-			Messages: routeMessages,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventRelayRangeMessage, data}, nil
-	case EventGetBlockRange:
-		req := new(ReqRangeBlockQuery)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
-		}
-		chain, err := s.rly.FindChainRuntime(req.Chain)
-		if err != nil {
-			return nil, err
-		}
-		msgs, err := chain.Provider.QueryBlockMessages(context.Background(), req.FromHeight, req.ToHeight)
-		if err != nil {
-			return nil, err
-		}
-		data, err := jsoniter.Marshal(&ResRangeBlockQuery{Chain: req.Chain, Msgs: msgs})
-		if err != nil {
-			return nil, err
-		}
-		return &Message{EventGetBlockRange, data}, nil
+		return response.SetData(&ResClaimFee{"Success"})
 	case EventGetConfig:
 		req := new(ReqChainHeight)
-		if err := jsoniter.Unmarshal(msg.Data, req); err != nil {
-			return nil, err
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
 		}
 		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		data, err := jsoniter.Marshal(chain.Provider.Config())
+		return response.SetData(chain.Provider.Config())
+	case EventListChainInfo:
+		req := new(ReqListChain)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chains := s.rly.GetAllChainsRuntime()
+		chainNames := make([]*ResChainInfo, 0, len(chains))
+		for _, chain := range chains {
+			latestHeight, _ := chain.Provider.QueryLatestHeight(ctx)
+			chainNames = append(chainNames, &ResChainInfo{
+				Name:           chain.Provider.Name(),
+				NID:            chain.Provider.NID(),
+				Address:        chain.Provider.Config().GetWallet(),
+				Type:           chain.Provider.Type(),
+				LatestHeight:   latestHeight,
+				LastCheckPoint: chain.LastSavedHeight,
+				Contracts:      chain.Provider.Config().ContractsAddress(),
+			})
+		}
+		return response.SetData(chainNames)
+	case EventGetBalance:
+		var reqs []ReqGetBalance
+		if err := jsoniter.Unmarshal(data, &reqs); err != nil {
+			return response.SetError(err)
+		}
+		res := make([]*ResGetBalance, 0, len(reqs))
+		for _, req := range reqs {
+			chain, err := s.rly.FindChainRuntime(req.Chain)
+			if err != nil {
+				return &Response{ID: msg.ID, Event: EventGetBalance, Data: res, Message: err.Error()}
+			}
+			balance, err := chain.Provider.QueryBalance(ctx, req.Address)
+			if err != nil {
+				return response.SetError(err)
+			}
+			res = append(res, &ResGetBalance{Chain: req.Chain, Address: req.Address, Balance: balance})
+		}
+		return response.SetData(res)
+	case EventMessageReceived:
+		req := new(ReqMessageReceived)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
 		if err != nil {
-			return nil, err
+			return response.SetError(err)
 		}
-		return &Message{EventGetConfig, data}, nil
+		key := &types.MessageKey{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}
+		received, err := chain.Provider.MessageReceived(context.Background(), key)
+		if err != nil {
+			return response.SetError(err)
+		}
+		return response.SetData(&ResMessageReceived{Chain: req.Chain, Sn: req.Sn, Received: received})
+	case EventRelayInfo:
+		req := new(ReqRelayInfo)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		return response.SetData(&ResRelayInfo{Version: relayer.Version, UpTime: s.startedAt})
 	default:
-		return nil, fmt.Errorf("invalid request")
+		return response.SetError(fmt.Errorf("unknown event %s", msg.Event))
 	}
 }
 

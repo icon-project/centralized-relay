@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	provider "github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	"go.uber.org/zap"
 )
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -49,18 +49,15 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, 
 }
 
 // TODO: may not be need anytime soon so its ok to implement later on
-func (p *Provider) GenerateMessages(ctx context.Context, key *types.MessageKeyWithMessageHeight) ([]*types.Message, error) {
-	header, err := p.client.GetHeaderByHeight(ctx, new(big.Int).SetUint64(key.Height))
-	if err != nil {
-		return nil, err
-	}
-	p.blockReq.FromBlock = new(big.Int).SetUint64(key.Height)
-	p.blockReq.ToBlock = new(big.Int).SetUint64(key.Height)
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
+	p.log.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	p.blockReq.FromBlock = new(big.Int).SetUint64(fromHeight)
+	p.blockReq.ToBlock = new(big.Int).SetUint64(toHeight)
 	logs, err := p.client.FilterLogs(ctx, p.blockReq)
 	if err != nil {
 		return nil, err
 	}
-	return p.FindMessages(ctx, &provider.BlockNotification{Height: new(big.Int).SetUint64(key.Height), Header: header, Logs: logs, Hash: header.Hash()})
+	return p.FindMessages(ctx, logs)
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error) {

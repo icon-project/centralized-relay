@@ -420,8 +420,9 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 	return true, nil
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	p.logger.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{Start: fromHeight, End: toHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +588,6 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
 					searchParam.Page = &i
 					resNext, err := p.client.TxSearch(ctx, searchParam)
-
 					if err != nil {
 						errorChan <- err
 						return
