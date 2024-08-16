@@ -47,7 +47,8 @@ func (p *Provider) Name() string {
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
 	p.kms = kms
 	if err := p.RestoreKeystore(ctx); err != nil {
-		return fmt.Errorf("failed to load wallet: %w", err)
+		p.log.Warn("failed to load wallet", zap.Error(err))
+		return nil
 	}
 
 	if p.cfg.AltAddress == "" {
