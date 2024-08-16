@@ -297,6 +297,9 @@ func (sn *SolanaRemoteNet) SetupConnection(ctx context.Context, target chains.Ch
 	if sn.testconfig.Environment == "preconfigured" {
 		return nil
 	}
+	if sn.IBCAddresses["connection"] != "" {
+		return nil
+	}
 	if err := sn.syncProgramId(ctx, connectionProgName); err != nil {
 		return err
 	}
