@@ -142,12 +142,12 @@ func (p *Provider) executeRouteCallback(
 }
 
 func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.PublicKey, error) {
-	recentSlot, err := p.client.GetLatestBlockHeight(ctx, solrpc.CommitmentFinalized)
+	recentSlot, err := p.client.GetLatestSlot(ctx, solrpc.CommitmentConfirmed)
 	if err != nil {
 		return nil, err
 	}
 
-	recentSlot = recentSlot - 1
+	recentSlot = recentSlot - 100
 
 	altCreateInstruction, accountAddr, err := alt.CreateLookupTable(
 		p.wallet.PublicKey(),
