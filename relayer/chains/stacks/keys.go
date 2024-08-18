@@ -1,7 +1,6 @@
 package stacks
 
 import (
-	"encoding/hex"
 	"fmt"
 
 	"github.com/tyler-smith/go-bip32"
@@ -33,11 +32,9 @@ func DeriveStxPrivateKey(mnemonic string, index uint32) ([]byte, error) {
 
 	privateKey := key.Key
 
-	fmt.Println("privateKey", hex.EncodeToString(privateKey))
-
 	compressedPrivKey := make([]byte, 33)
-	copy(compressedPrivKey[1:], privateKey)
-	compressedPrivKey[0] = 0x01
+	copy(compressedPrivKey, privateKey)
+	compressedPrivKey[32] = 0x01
 
 	return compressedPrivKey, nil
 }
