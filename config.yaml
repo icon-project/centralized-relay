@@ -1,0 +1,35 @@
+global:
+  timeout: 10s
+  kms-key-id: f5c550ca-a6f2-4597-895c-4846ab8e4ad2
+chains:
+  # icon:
+  #   type: icon
+  #   value:
+  #     rpc-url: https://lisbon.net.solidwallet.io/api/v3/
+  #     address: hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
+  #     start-height: 42066559
+  #     step-min: 1
+  #     step-limit: 2000000000000000000
+  #     contracts:
+  #       xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
+  #       connection: cx8d02efb10359105f7e033149556eaea531a3740e
+  #     network-id: 2
+  #     finality-block: 10
+  #     nid: 0x2.icon
+
+  bitcoin:
+    type: bitcoin
+    value:
+      rpc-url: thrumming-light-mountain.btc.quiknode.pro:443/9010506d85a546fd92e68fff9b9af3478f0708a6/
+      rpc-user: 123
+      rpc-password: 123
+      address: tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd
+      unisat-url: https://open-api.unisat.io/v1/indexer
+      start-height: 847735
+      network-id: 1
+      finality-block: 10
+      nid: 0x1.btc
+      chain-name: bitcoin
+      mode: slave
+      port: 8082
+      api-key: key

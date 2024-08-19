@@ -3,7 +3,6 @@ package bitcoin
 import (
 	"bytes"
 	"context"
-	"os"
 
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
@@ -15,15 +14,6 @@ import (
 	// "github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
-
-func RunApp() {
-	goEnv := os.Getenv("GO_ENV")
-	if goEnv == "master" {
-		startMaster()
-	} else {
-		startSlave()
-	}
-}
 
 type IClient interface {
 	// IsConnected() bool
@@ -47,12 +37,12 @@ type Client struct {
 }
 
 // create new client
-func newClient(ctx context.Context, rpcUrl string, httpPostMode, disableTLS bool, l *zap.Logger) (IClient, error) {
+func newClient(ctx context.Context, rpcUrl string, user string, password string, httpPostMode, disableTLS bool, l *zap.Logger) (IClient, error) {
 	// Connect to the Bitcoin Core RPC server
 	connConfig := &rpcclient.ConnConfig{
 		Host:         rpcUrl,
-		User:         "123",
-		Pass:         "123",
+		User:         user,
+		Pass:         password,
 		HTTPPostMode: httpPostMode,
 		DisableTLS:   disableTLS,
 	}

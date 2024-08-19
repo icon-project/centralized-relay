@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/btcsuite/btcd/txscript"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -25,6 +27,11 @@ import (
 
 //var _ provider.ChainProvider = (*Provider)(nil)
 
+var (
+	BTCToken      = "0:0"
+	MethodDeposit = "Deposit"
+)
+
 type Provider struct {
 	logger               *zap.Logger
 	cfg                  *Config
@@ -34,14 +41,23 @@ type Provider struct {
 	multisigAddrScript   []byte //
 	assetManagerAddrIcon string
 	bearToken            string
-	unitsatEndpoint      string
 }
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
-	StepMin               int64 `json:"step-min" yaml:"step-min"`
-	StepLimit             int64 `json:"step-limit" yaml:"step-limit"`
-	StepAdjustment        int64 `json:"step-adjustment" yaml:"step-adjustment"`
+	UniSatURL             string `json:"unisat-url" yaml:"unisat-url"`
+	Type                  string `json:"type" yaml:"type"`
+	User                  string `json:"rpc-user" yaml:"rpc-user"`
+	Password              string `json:"rpc-password" yaml:"rpc-password"`
+}
+
+func RunApp() {
+	goEnv := os.Getenv("GO_ENV")
+	if goEnv == "master" {
+		startMaster()
+	} else {
+		startSlave()
+	}
 }
 
 // NewProvider returns new Icon provider
@@ -53,7 +69,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, err
 	}
 
-	client, err := newClient(ctx, c.RPCUrl, true, false, log)
+	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, false, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new client: %v", err)
 	}
@@ -86,13 +102,11 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 }
 
 func (p *Provider) NID() string {
-	//return p.cfg.NID
-	return ""
+	return p.cfg.NID
 }
 
 func (p *Provider) Name() string {
-	//return p.cfg.ChainName
-	return ""
+	return p.cfg.ChainName
 }
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
@@ -109,7 +123,7 @@ func (p *Provider) Wallet() error {
 }
 
 func (p *Provider) Type() string {
-	return types.ChainType
+	return "bitcoin"
 }
 
 func (p *Provider) Config() provider.Config {
@@ -117,6 +131,7 @@ func (p *Provider) Config() provider.Config {
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayTypes.BlockInfo) error {
+	// run http server to help btc interact each others
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		p.logger.Error("failed to get latest block height", zap.Error(err))
@@ -485,7 +500,7 @@ func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64,
 	//	return startHeight, nil
 	//}
 
-	return latestHeight, nil
+	return lastSavedHeight, nil
 }
 
 func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *HeightRange {
@@ -536,7 +551,7 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
 	var (
 		// todo: query from provide.config
-		multisigAddress = "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
+		multisigAddress = p.cfg.Address
 		preFixOP        = txscript.OP_13
 	)
 
@@ -574,7 +589,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	_, err = codec.RLP.UnmarshalFromBytes(decodeMessage, &messageInfo)
 	if err != nil {
 		fmt.Printf("\n not a xcall format request \n")
-	} else if messageInfo.Action == "Deposit" && messageInfo.To == p.assetManagerAddrIcon { // maybe get this function name from cf file
+	} else if messageInfo.Action == MethodDeposit && messageInfo.To == p.assetManagerAddrIcon {
+		// maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
 		tokenId := messageInfo.TokenAddress
@@ -594,14 +610,14 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 				continue
 			}
 
-			if messageInfo.TokenAddress == "0:0" {
+			if messageInfo.TokenAddress == BTCToken {
 				if amount.Cmp(big.NewInt(out.Value)) == 0 {
 					verified = true
 					break
 				}
 			} else {
 				// https://open-api.unisat.io/v1/indexer/runes/utxo
-				runes, err := GetRuneTxIndex(p.unitsatEndpoint, "GET", p.bearToken, tx.Tx.TxHash().String(), i)
+				runes, err := GetRuneTxIndex(p.cfg.UniSatURL, "GET", p.bearToken, tx.Tx.TxHash().String(), i)
 				if err != nil {
 					return nil, err
 				}

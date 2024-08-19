@@ -3,13 +3,14 @@ package bitcoin
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 
 	bitcoinABI "github.com/icon-project/centralized-relay/relayer/chains/bitcoin/abi"
 	"github.com/icon-project/centralized-relay/utils/multisig"
@@ -18,7 +19,7 @@ import (
 
 func GetRuneTxIndex(endpoint, method, bearToken, txId string, index int) (*RuneTxIndexResponse, error) {
 	client := &http.Client{}
-	endpoint = endpoint + "/utxo/" + txId + "/" + strconv.FormatUint(uint64(index), 10) + "/balance"
+	endpoint = endpoint + "/runes/utxo/" + txId + "/" + strconv.FormatUint(uint64(index), 10) + "/balance"
 	fmt.Println(endpoint)
 	req, err := http.NewRequest(method, endpoint, nil)
 
@@ -35,7 +36,7 @@ func GetRuneTxIndex(endpoint, method, bearToken, txId string, index int) (*RuneT
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
