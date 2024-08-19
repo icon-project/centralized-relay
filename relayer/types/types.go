@@ -25,13 +25,16 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst           string   `json:"dst"`
-	Src           string   `json:"src"`
-	Sn            *big.Int `json:"sn"`
-	Data          []byte   `json:"data"`
-	MessageHeight uint64   `json:"messageHeight"`
-	EventType     string   `json:"eventType"`
-	ReqID         *big.Int `json:"reqID,omitempty"`
+	Dst             string   `json:"dst"`
+	Src             string   `json:"src"`
+	Sn              *big.Int `json:"sn"`
+	Data            []byte   `json:"data"`
+	MessageHeight   uint64   `json:"messageHeight"`
+	EventType       string   `json:"eventType"`
+	ReqID           *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
+
+	TxInfo []byte `json:"-"`
 }
 
 type ContractConfigMap map[string]string
@@ -154,13 +157,13 @@ func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyW
 }
 
 type MessageCache struct {
-	Messages map[MessageKey]*RouteMessage
+	Messages map[string]*RouteMessage
 	*sync.RWMutex
 }
 
 func NewMessageCache() *MessageCache {
 	return &MessageCache{
-		Messages: make(map[MessageKey]*RouteMessage),
+		Messages: make(map[string]*RouteMessage),
 		RWMutex:  new(sync.RWMutex),
 	}
 }
@@ -168,7 +171,10 @@ func NewMessageCache() *MessageCache {
 func (m *MessageCache) Add(r *RouteMessage) {
 	m.Lock()
 	defer m.Unlock()
-	m.Messages[*r.MessageKey()] = r
+	cacheKey := m.GetCacheKey(r.MessageKey())
+	if !m.HasCacheKey(cacheKey) {
+		m.Messages[cacheKey] = r
+	}
 }
 
 func (m *MessageCache) Len() int {
@@ -178,15 +184,26 @@ func (m *MessageCache) Len() int {
 func (m *MessageCache) Remove(key *MessageKey) {
 	m.Lock()
 	defer m.Unlock()
-	delete(m.Messages, *key)
+	cacheKey := m.GetCacheKey(key)
+	delete(m.Messages, cacheKey)
 }
 
 // Get returns the message from the cache
 func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
 	m.RLock()
 	defer m.RUnlock()
-	msg, ok := m.Messages[*key]
+	cacheKey := m.GetCacheKey(key)
+	msg, ok := m.Messages[cacheKey]
 	return msg, ok
+}
+
+func (m *MessageCache) GetCacheKey(key *MessageKey) string {
+	return key.Src + "-" + key.Dst + "-" + key.EventType + "-" + key.Sn.String()
+}
+
+func (m *MessageCache) HasCacheKey(cacheKey string) bool {
+	_, ok := m.Messages[cacheKey]
+	return ok
 }
 
 type Coin struct {
@@ -223,4 +240,9 @@ type Receipt struct {
 	TxHash string
 	Height uint64
 	Status bool
+}
+
+type LastProcessedTx struct {
+	Height uint64
+	Info   []byte
 }
