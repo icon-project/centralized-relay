@@ -48,14 +48,14 @@ func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath 
 	xcallIdl := IDL{}
 	if pc.XcallProgram != "" {
 		if err := client.FetchIDL(ctx, pc.XcallProgram, &xcallIdl); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch xcall idl: %w", err)
 		}
 	}
 
 	connIdl := IDL{}
 	if pc.ConnectionProgram != "" {
 		if err := client.FetchIDL(ctx, pc.ConnectionProgram, &connIdl); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch conn idl: %w", err)
 		}
 	}
 
