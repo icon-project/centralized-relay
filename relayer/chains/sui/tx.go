@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	"cosmossdk.io/errors"
@@ -70,15 +70,6 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
-		coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
-		if err != nil {
-			return nil, err
-		}
-		_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(int64(suiBaseFee)), p.cfg.GasLimit, types.PickBigger)
-		if err != nil {
-			return nil, err
-		}
-
 		module, err := p.getModule(func(mod DappModule) bool {
 			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
 		})
@@ -86,71 +77,17 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, fmt.Errorf("module cap id %s not found: %w", message.DappModuleCapID, err)
 		}
 
-		var callParams []SuiCallArg
-		typeArgs := []string{}
-
-		switch module.Name {
-		case ModuleMockDapp:
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
-				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-			}
-		case ModuleXcallManager:
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
-				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-			}
-		case ModuleAssetManager:
-			xcallManagerModule, err := p.getModule(func(mod DappModule) bool {
-				return mod.Name == ModuleXcallManager
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to find xcall manager module: %w", err)
-			}
-
-			withdrawTokenType, err := p.getWithdrawTokentype(context.Background(), message)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get withdraw token type: %w", err)
-			}
-
-			typeArgs = append(typeArgs, *withdrawTokenType)
-
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgObject, Val: suiClockObjectId},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
-				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-			}
-		case ModuleBalancedDollar:
-			xcallManagerModule, err := p.getModule(func(mod DappModule) bool {
-				return mod.Name == ModuleXcallManager
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to find xcall manager module: %w", err)
-			}
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: xcallManagerModule.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgObject, Val: coin.CoinObjectId.String()},
-				{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
-				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-			}
-
-		default:
-			return nil, fmt.Errorf("received unknown dapp module cap id: %s", message.DappModuleCapID)
+		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), MethodGetExecuteCallParams, message, *module)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
 
-		return p.NewSuiMessage(typeArgs, callParams, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
+		callArgs = append(callArgs, []SuiCallArg{
+			{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
+			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+		}...)
+
+		return p.NewSuiMessage(typeArgs, callArgs, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
 
 	case events.RollbackMessage:
 		module, err := p.getModule(func(mod DappModule) bool {
@@ -165,42 +102,16 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
-		var callParams []SuiCallArg
-		typeArgs := []string{}
-
-		switch module.Name {
-		case ModuleMockDapp:
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgPure, Val: snU128},
-			}
-		case ModuleAssetManager:
-			withdrawTokenType, err := p.getWithdrawTokentype(context.Background(), message)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get withdraw token type: %w", err)
-			}
-
-			typeArgs = append(typeArgs, *withdrawTokenType)
-
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgPure, Val: snU128},
-				{Type: CallArgObject, Val: suiClockObjectId},
-			}
-		case ModuleBalancedDollar:
-			callParams = []SuiCallArg{
-				{Type: CallArgObject, Val: module.ConfigID},
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgPure, Val: snU128},
-			}
-
-		default:
-			return nil, fmt.Errorf("received unknown dapp module cap id: %s", message.DappModuleCapID)
+		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), MethodGetExecuteRollbackParams, message, *module)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
 
-		return p.NewSuiMessage(typeArgs, callParams, p.cfg.DappPkgID, module.Name, MethodExecuteRollback), nil
+		callArgs = append(callArgs, []SuiCallArg{
+			{Type: CallArgPure, Val: snU128},
+		}...)
+
+		return p.NewSuiMessage(typeArgs, callArgs, p.cfg.DappPkgID, module.Name, MethodExecuteRollback), nil
 
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
@@ -491,29 +402,54 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 	default:
 		return true, fmt.Errorf("unknown event type")
 	}
-
 }
 
-func (p *Provider) getWithdrawTokentype(ctx context.Context, message *relayertypes.Message) (*string, error) {
+func (p *Provider) getExecuteParams(ctx context.Context, method string, message *relayertypes.Message, dappModule DappModule) (typeArgs []string, callArgs []SuiCallArg, err error) {
 	suiMessage := p.NewSuiMessage(
 		[]string{},
 		[]SuiCallArg{
+			{Type: CallArgObject, Val: dappModule.ConfigID},
 			{Type: CallArgPure, Val: message.Data},
-		}, p.cfg.DappPkgID, ModuleAssetManager, MethodGetWithdrawTokentype)
-	var tokenType string
+		},
+		p.cfg.DappPkgID,
+		dappModule.Name,
+		method,
+	)
+
+	args := struct {
+		TypeArgs []string
+		Args     []string
+	}{}
+
 	wallet, err := p.Wallet()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	txBytes, err := p.preparePTB(suiMessage)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &tokenType); err != nil {
-		return nil, err
+	if err := p.client.QueryContract(ctx, wallet.Address, txBytes, &args); err != nil {
+		return nil, nil, err
 	}
 
-	return &tokenType, nil
+	typeArgs = args.TypeArgs
+
+	for _, arg := range args.Args {
+		if strings.HasPrefix(arg, "0x") {
+			callArgs = append(callArgs, SuiCallArg{
+				Type: CallArgObject, Val: arg,
+			})
+		} else {
+			if keyObjID, ok := p.cfg.DappConstants[arg]; ok {
+				callArgs = append(callArgs, SuiCallArg{
+					Type: CallArgObject, Val: keyObjID,
+				})
+			}
+		}
+	}
+
+	return
 }

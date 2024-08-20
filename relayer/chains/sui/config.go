@@ -27,6 +27,8 @@ type Config struct {
 	DappPkgID   string       `yaml:"dapp-package-id" json:"dapp-package-id"`
 	DappModules []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
 
+	DappConstants DappConstants `yaml:"dapp-constants" json:"dapp-constants"`
+
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
 	Disabled bool   `json:"disabled" yaml:"disabled"`
@@ -42,6 +44,9 @@ type DappModule struct {
 	CapID    string `yaml:"cap-id" json:"cap-id"`
 	ConfigID string `yaml:"config-id" json:"config-id"`
 }
+
+// DappConstant is a map of name of sui constant to object id.
+type DappConstants map[string]string
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	pc.HomeDir = homePath
