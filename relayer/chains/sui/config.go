@@ -29,6 +29,8 @@ type Config struct {
 
 	DappConstants DappConstants `yaml:"dapp-constants" json:"dapp-constants"`
 
+	Dapps []Dapp `yaml:"dapps" json:"dapps"`
+
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
 	Disabled bool   `json:"disabled" yaml:"disabled"`
@@ -45,7 +47,15 @@ type DappModule struct {
 	ConfigID string `yaml:"config-id" json:"config-id"`
 }
 
-// DappConstant is a map of name of sui constant to object id.
+type Dapp struct {
+	PkgID string `json:"package-id" yaml:"package-id"`
+
+	// DappConstant is a map of name of sui constant to object id.
+	Constants map[string]string `json:"constants" yaml:"constants"`
+
+	Modules []DappModule `json:"modules" yaml:"modules"`
+}
+
 type DappConstants map[string]string
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
