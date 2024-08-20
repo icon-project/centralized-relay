@@ -17,7 +17,6 @@ import (
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/centralized-relay/utils/hexstr"
 	"go.uber.org/zap"
 )
 
@@ -70,14 +69,12 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
-		module, err := p.getModule(func(mod DappModule) bool {
-			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
-		})
+		dapp, module, err := p.getModule(message.DappModuleCapID)
 		if err != nil {
 			return nil, fmt.Errorf("module cap id %s not found: %w", message.DappModuleCapID, err)
 		}
 
-		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), MethodGetExecuteCallParams, message, *module)
+		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), message, dapp, module, MethodGetExecuteCallParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
@@ -87,12 +84,10 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}...)
 
-		return p.NewSuiMessage(typeArgs, callArgs, p.cfg.DappPkgID, module.Name, MethodExecuteCall), nil
+		return p.NewSuiMessage(typeArgs, callArgs, dapp.PkgID, module.Name, MethodExecuteCall), nil
 
 	case events.RollbackMessage:
-		module, err := p.getModule(func(mod DappModule) bool {
-			return hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(message.DappModuleCapID)
-		})
+		dapp, module, err := p.getModule(message.DappModuleCapID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get module cap id %s: %w", message.DappModuleCapID, err)
 		}
@@ -102,7 +97,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
-		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), MethodGetExecuteRollbackParams, message, *module)
+		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), message, dapp, module, MethodGetExecuteRollbackParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
@@ -111,20 +106,23 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: snU128},
 		}...)
 
-		return p.NewSuiMessage(typeArgs, callArgs, p.cfg.DappPkgID, module.Name, MethodExecuteRollback), nil
+		return p.NewSuiMessage(typeArgs, callArgs, dapp.PkgID, module.Name, MethodExecuteRollback), nil
 
 	default:
 		return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 	}
 }
 
-func (p *Provider) getModule(condition func(module DappModule) bool) (*DappModule, error) {
-	for _, mod := range p.cfg.DappModules {
-		if condition(mod) {
-			return &mod, nil
+func (p *Provider) getModule(moduleCapID string) (*Dapp, *DappModule, error) {
+	for _, dapp := range p.cfg.Dapps {
+		for _, mod := range dapp.Modules {
+			if mod.CapID == moduleCapID {
+				return &dapp, &mod, nil
+			}
 		}
 	}
-	return nil, fmt.Errorf("module not found")
+
+	return nil, nil, fmt.Errorf("module not found")
 }
 
 func (p *Provider) preparePTB(msg *SuiMessage) (lib.Base64Data, error) {
@@ -404,14 +402,20 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 	}
 }
 
-func (p *Provider) getExecuteParams(ctx context.Context, method string, message *relayertypes.Message, dappModule DappModule) (typeArgs []string, callArgs []SuiCallArg, err error) {
+func (p *Provider) getExecuteParams(
+	ctx context.Context,
+	message *relayertypes.Message,
+	dapp *Dapp,
+	dappModule *DappModule,
+	method string,
+) (typeArgs []string, callArgs []SuiCallArg, err error) {
 	suiMessage := p.NewSuiMessage(
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: dappModule.ConfigID},
 			{Type: CallArgPure, Val: message.Data},
 		},
-		p.cfg.DappPkgID,
+		dapp.PkgID,
 		dappModule.Name,
 		method,
 	)
@@ -443,7 +447,7 @@ func (p *Provider) getExecuteParams(ctx context.Context, method string, message 
 				Type: CallArgObject, Val: arg,
 			})
 		} else {
-			if keyObjID, ok := p.cfg.DappConstants[arg]; ok {
+			if keyObjID, ok := dapp.Constants[arg]; ok {
 				callArgs = append(callArgs, SuiCallArg{
 					Type: CallArgObject, Val: keyObjID,
 				})

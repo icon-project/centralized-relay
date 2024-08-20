@@ -24,11 +24,6 @@ type Config struct {
 	ConnectionID    string `yaml:"connection-id" json:"connection-id"`
 	ConnectionCapID string `yaml:"connection-cap-id" json:"connection-cap-id"`
 
-	DappPkgID   string       `yaml:"dapp-package-id" json:"dapp-package-id"`
-	DappModules []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
-
-	DappConstants DappConstants `yaml:"dapp-constants" json:"dapp-constants"`
-
 	Dapps []Dapp `yaml:"dapps" json:"dapps"`
 
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
@@ -55,8 +50,6 @@ type Dapp struct {
 
 	Modules []DappModule `json:"modules" yaml:"modules"`
 }
-
-type DappConstants map[string]string
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	pc.HomeDir = homePath
