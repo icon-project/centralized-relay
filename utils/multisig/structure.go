@@ -23,6 +23,7 @@ type MultisigWallet struct {
 }
 
 type OutputTx struct {
+	OpReturnScript	[]byte
 	ReceiverAddress string
 	Amount          uint64
 }

@@ -18,7 +18,7 @@ import (
 )
 
 func TestGenerateKeys(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	for i := 0; i < 3; i++ {
 		privKey := GeneratePrivateKeyFromSeed([]byte{byte(i)}, chainParam)
@@ -32,7 +32,7 @@ func TestGenerateKeys(t *testing.T) {
 }
 
 func TestLoadWalletFromPrivateKey(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	wif, _ := btcutil.DecodeWIF("cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy")
 	pubKey := wif.SerializePubKey();
@@ -43,11 +43,11 @@ func TestLoadWalletFromPrivateKey(t *testing.T) {
 }
 
 func TestRandomKeys(t *testing.T) {
-	randomKeys(3, &chaincfg.SigNetParams, []int{0, 1, 2})
+	randomKeys(3, &chaincfg.TestNet3Params, []int{0, 1, 2})
 }
 
 func TestBuildMultisigTapScript(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	_, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
@@ -62,7 +62,7 @@ func TestBuildMultisigTapScript(t *testing.T) {
 }
 
 func TestMultisigUserClaimLiquidity(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -134,7 +134,7 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 }
 
 func TestMultisigUserSwap(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -251,7 +251,7 @@ func TestParseTx(t *testing.T) {
 }
 
 func TestUserRecoveryTimeLock(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -302,7 +302,7 @@ func TestUserRecoveryTimeLock(t *testing.T) {
 }
 
 func TestTransferRune(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -368,37 +368,39 @@ func TestTransferRune(t *testing.T) {
 }
 
 func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
-			OutputIdx:     1,
-			OutputAmount:  3808,
+			TxHash:        "88cce50b4c9ff0d1c3f58f769fdb8b2e2bfbd3a637664c78b1a38c0f1e492b8f",
+			OutputIdx:     0,
+			OutputAmount:  2000000,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          1000,
+			ReceiverAddress: "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
+			Amount:          10000,
 		},
+	}
+
+	// Add Bridge Message
+	message := []byte("{\"msg\":\"Test Bridge Message\"}")
+	scripts, _ := CreateBridgeMessageScripts(message, 70)
+	for i, script := range scripts {
+		fmt.Println("OP_RETURN ", i, " script ", script)
+		outputs = append(outputs, &OutputTx{
+			OpReturnScript: script,
+		})
 	}
 
 	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
-	// Add Bridge Message
-	message := []byte("{\"msg\":\"Test Bridge Message\"}")
-	scripts, _ := CreateBridgeMessageScripts(message, 5)
-	for i, script := range scripts {
-		fmt.Println("OP_RETURN ", i, " script ", script)
-		msgTx.AddTxOut(wire.NewTxOut(0, script))
-	}
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 8000, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 
 	tapSigParams := TapSigParams {
@@ -435,30 +437,23 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 }
 
 func TestRadFiInitPool(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
-			OutputIdx:     1,
-			OutputAmount:  10000,
+			TxHash:        "96f43d22e98f9abf78422b27bd31412912b7c5e3a2b3f706d61148fc8d0f6550",
+			OutputIdx:     2,
+			OutputAmount:  1989000,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          1000,
+			ReceiverAddress: "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
+			Amount:          10000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add RadFi Init pool Message
 	radfiMsg := RadFiInitPoolMsg {
 		Fee:		30,
@@ -468,9 +463,17 @@ func TestRadFiInitPool(t *testing.T) {
 		Min1:		10000,
 		InitPrice:  uint256.MustFromDecimal("123456789"),
 	}
-	script2, _ := CreateInitPoolScript(&radfiMsg)
-	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	script, _ := CreateInitPoolScript(&radfiMsg)
+	fmt.Println("OP_RETURN script: ", script)
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script,
+	})
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 8000, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
@@ -510,46 +513,29 @@ func TestRadFiInitPool(t *testing.T) {
 }
 
 func TestRadFiProvideLiquidity(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
-			OutputIdx:     1,
-			OutputAmount:  10000,
+			TxHash:        "96f43d22e98f9abf78422b27bd31412912b7c5e3a2b3f706d61148fc8d0f6550",
+			OutputIdx:     2,
+			OutputAmount:  1989000,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          1000,
-		},
-		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          2000,
-		},
-		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          1000,
-		},
-		{
-			ReceiverAddress: "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u",
-			Amount:          2100,
+			ReceiverAddress: "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
+			Amount:          10000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script1,
+	})
 
 	// Add RadFi Provive Liquidity Message
 	radfiMsg := RadFiProvideLiquidityMsg {
@@ -561,7 +547,15 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	}
 	script2, _ := CreateProvideLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script2,
+	})
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 8000, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
@@ -616,7 +610,7 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 }
 
 func TestRadFiSwap(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -633,17 +627,12 @@ func TestRadFiSwap(t *testing.T) {
 			Amount:          1000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
-	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script1,
+	})
 
 	// Add RadFi Swap Message
 	radfiMsg := RadFiSwapMsg {
@@ -652,7 +641,16 @@ func TestRadFiSwap(t *testing.T) {
 	}
 	script2, _ := CreateSwapScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script2,
+	})
+
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
@@ -689,7 +687,7 @@ func TestRadFiSwap(t *testing.T) {
 }
 
 func TestRadFiWithdrawLiquidity(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -706,17 +704,12 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 			Amount:          1000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
-	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script1,
+	})
 
 	// Add RadFi Withdraw Liquidity Message
 	radfiMsg := RadFiWithdrawLiquidityMsg {
@@ -726,7 +719,15 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 	}
 	script2, _ := CreateWithdrawLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script2,
+	})
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
@@ -764,14 +765,14 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 }
 
 func TestRadFiCollectFees(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
+			TxHash:        "9c07074364e5ce367f4d07a2657337a60684730158fd093ab6cb694f75984cb9",
 			OutputIdx:     1,
-			OutputAmount:  3808,
+			OutputAmount:  4900,
 		},
 	}
 
@@ -781,17 +782,12 @@ func TestRadFiCollectFees(t *testing.T) {
 			Amount:          1000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
-	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script1,
+	})
 
 	// Add RadFi Withdraw Liquidity Message
 	radfiMsg := RadFiCollectFeesMsg {
@@ -800,7 +796,15 @@ func TestRadFiCollectFees(t *testing.T) {
 	}
 	script2, _ := CreateCollectFeesScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script2,
+	})
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
@@ -837,7 +841,7 @@ func TestRadFiCollectFees(t *testing.T) {
 }
 
 func TestRadFiIncreaseLiquidity(t *testing.T) {
-	chainParam := &chaincfg.SigNetParams
+	chainParam := &chaincfg.TestNet3Params
 
 	inputs := []*UTXO{
 		{
@@ -854,17 +858,12 @@ func TestRadFiIncreaseLiquidity(t *testing.T) {
 			Amount:          1000,
 		},
 	}
-
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
-	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
-
-	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-
 	// Add Rune transfering
 	// rune id 840000:3, amount 10000 (5 decimals), to output id 0
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
-	msgTx.AddTxOut(wire.NewTxOut(0, script1))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script1,
+	})
 
 	// Add RadFi Withdraw Liquidity Message
 	radfiMsg := RadFiIncreaseLiquidityMsg {
@@ -874,7 +873,15 @@ func TestRadFiIncreaseLiquidity(t *testing.T) {
 	}
 	script2, _ := CreateIncreaseLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
-	msgTx.AddTxOut(wire.NewTxOut(0, script2))
+	outputs = append(outputs, &OutputTx{
+		OpReturnScript: script2,
+	})
+
+	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
+
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, 200, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := TapSigParams {
 		TxSigHashes: txSigHashes,
