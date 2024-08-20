@@ -22,13 +22,23 @@ var (
 	MaxSupportedTxVersion = 0
 )
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	// fromSignature := "3K48n5Zmnzcvg5b1ksaZX7WFn1cVrnjrWPMskZmu9Xcp2Vo1UsYCaHCvBdWiu1MuUuyEN44918zbjpwoy1MwVY7J"
-	fromSignature := ""
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfo chan *relayertypes.BlockInfo) error {
+	txInfo := new(types.TxInfo)
 
-	p.log.Info("started querying from height", zap.String("from-signature", fromSignature))
+	if lastProcessedTx.Info != nil {
+		if err := txInfo.Deserialize(lastProcessedTx.Info); err != nil {
+			p.log.Error("failed to deserialize last processed tx digest", zap.Error(err))
+			return err
+		}
+	}
 
-	return p.listenByPolling(ctx, fromSignature, blockInfo)
+	if p.cfg.StartTxSign != "" {
+		txInfo.TxSign = p.cfg.StartTxSign
+	}
+
+	p.log.Info("started querying from height", zap.String("from-signature", txInfo.TxSign))
+
+	return p.listenByPolling(ctx, txInfo.TxSign, blockInfo)
 }
 
 func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, blockInfo chan *relayertypes.BlockInfo) error {
@@ -110,6 +120,12 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
 	messages := []*relayertypes.Message{}
 
+	txInfo := types.TxInfo{TxSign: solEvent.Signature.String()}
+	txInfoBytes, err := txInfo.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, log := range solEvent.Logs {
 		if strings.HasPrefix(log, types.EventLogPrefix) {
 			eventLog := strings.Replace(log, types.EventLogPrefix, "", 1)
@@ -135,6 +151,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						if err := borsh.Deserialize(&smEvent, eventBytes); err != nil {
 							return nil, fmt.Errorf("failed to decode send message event: %w", err)
 						}
+
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.EmitMessage,
 							Sn:            &smEvent.ConnSn,
@@ -142,6 +159,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 							Dst:           smEvent.TargetNetwork,
 							Data:          smEvent.Msg,
 							MessageHeight: solEvent.Slot,
+							TxInfo:        txInfoBytes,
 						})
 
 					case types.EventCallMessage:
@@ -158,6 +176,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 							Dst:           p.NID(),
 							Data:          cmEvent.Data,
 							MessageHeight: solEvent.Slot,
+							TxInfo:        txInfoBytes,
 						})
 
 					case types.EventRollbackMessage:
@@ -171,6 +190,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 							Src:           p.NID(),
 							Dst:           p.NID(),
 							MessageHeight: solEvent.Slot,
+							TxInfo:        txInfoBytes,
 						})
 					}
 

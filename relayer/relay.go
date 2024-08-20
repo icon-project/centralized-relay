@@ -260,7 +260,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 
 			// if message is received we can remove the message from db
-			if key.EventType == events.EmitMessage && messageReceived {
+			if message.EventType == events.EmitMessage && messageReceived {
 				dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue

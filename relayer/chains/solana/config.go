@@ -16,24 +16,23 @@ type Config struct {
 	Disabled  bool   `yaml:"disabled" json:"disabled"`
 	ChainName string `yaml:"-"`
 
-	RPCUrl  string `yaml:"rpc-url"`
-	Address string `yaml:"address"`
+	RPCUrl  string `yaml:"rpc-url" json:"rpc-url"`
+	Address string `yaml:"address" json:"address"`
 
-	XcallProgram string `yaml:"xcall-program"`
+	XcallProgram string `yaml:"xcall-program" json:"xcall-program"`
 
-	ConnectionProgram string   `yaml:"connection-program"`
-	OtherConnections  []string `yaml:"other-connections"`
+	ConnectionProgram string   `yaml:"connection-program" json:"connection-program"`
+	OtherConnections  []string `yaml:"other-connections" json:"other-connections"`
 
-	Dapps []types.Dapp `yaml:"dapps"`
+	Dapps []types.Dapp `yaml:"dapps" json:"dapps"`
 
-	CpNIDs []string `yaml:"cp-nids"` //counter party NIDs Eg: ["0x2.icon", "0x7.icon"]
+	CpNIDs []string `yaml:"cp-nids" json:"cp-nids"` //counter party NIDs Eg: ["0x2.icon", "0x7.icon"]
 
-	AltAddress string `yaml:"alt-address"` // address lookup table address
+	AltAddress string `yaml:"alt-address" json:"alt-address"` // address lookup table address
 
-	NID         string `yaml:"nid"`
-	HomeDir     string `yaml:"home-dir"`
-	GasLimit    uint64 `yaml:"gas-limit"`
-	StartHeight uint64 `yaml:"start-height"`
+	NID         string `yaml:"nid" json:"nid"`
+	HomeDir     string `yaml:"home-dir" json:"home-dir"`
+	StartTxSign string `yaml:"start-tx-sign" json:"start-tx-sign"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
