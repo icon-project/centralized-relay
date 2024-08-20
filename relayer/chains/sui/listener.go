@@ -75,10 +75,10 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
-			zap.String("event-type", msg.EventType),
+			zap.String("event_type", msg.EventType),
 			zap.Any("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
-			zap.Any("req-id", msg.ReqID),
+			zap.Any("req_id", msg.ReqID),
 			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
@@ -218,11 +218,11 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 
 	p.log.Info("Detected event log: ",
 		zap.Uint64("checkpoint", msg.MessageHeight),
-		zap.String("event-type", msg.EventType),
+		zap.String("event_type", msg.EventType),
 		zap.Any("sn", msg.Sn),
 		zap.String("dst", msg.Dst),
-		zap.Any("req-id", msg.ReqID),
-		zap.String("dapp-module-cap-id", msg.DappModuleCapID),
+		zap.Any("req_id", msg.ReqID),
+		zap.String("dapp_module_cap_id", msg.DappModuleCapID),
 		zap.Any("data", hex.EncodeToString(msg.Data)),
 	)
 

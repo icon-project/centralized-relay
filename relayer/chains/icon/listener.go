@@ -90,7 +90,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
 								zap.Uint64("sn", msg.Sn.Uint64()),
-								zap.Uint64("req-id", msg.ReqID.Uint64()),
+								zap.Uint64("req_id", msg.ReqID.Uint64()),
 								zap.String("src", msg.Src),
 								zap.String("dst", msg.Dst),
 								zap.String("event_type", msg.EventType),

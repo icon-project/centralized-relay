@@ -15,9 +15,9 @@ import (
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message",
 		zap.Any("sn", message.Sn),
-		zap.Any("req-id", message.ReqID),
+		zap.Any("req_id", message.ReqID),
 		zap.String("src", message.Src),
-		zap.String("event-type", message.EventType),
+		zap.String("event_type", message.EventType),
 		zap.String("data", hex.EncodeToString(message.Data)))
 
 	iconMessage, err := p.MakeIconMessage(message)
