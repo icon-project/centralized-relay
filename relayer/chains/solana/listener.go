@@ -64,6 +64,7 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				sign := txSigns[i].Signature
+				time.Sleep(1 * time.Second)
 				if err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
 					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
 				}
