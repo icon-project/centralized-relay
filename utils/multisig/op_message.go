@@ -15,7 +15,6 @@ const (
 	OP_RUNE_IDENT				= txscript.OP_13
 	OP_BRIDGE_IDENT				= txscript.OP_14
 
-	OP_RADFI_INIT_POOL			= txscript.OP_11
 	OP_RADFI_PROVIDE_LIQUIDITY	= txscript.OP_1
 	OP_RADFI_SWAP				= txscript.OP_2
 	OP_RADFI_WITHDRAW_LIQUIDITY	= txscript.OP_3
@@ -23,21 +22,17 @@ const (
 	OP_RADFI_INCREASE_LIQUIDITY	= txscript.OP_5
 )
 
-type RadFiInitPoolMsg struct {
+type RadFiProvideLiquidityDetail struct {
 	Fee			uint8
 	UpperTick	int32
 	LowerTick	int32
 	Min0		uint16
 	Min1		uint16
-	InitPrice	*uint256.Int
 }
 
 type RadFiProvideLiquidityMsg struct {
-	Fee			uint8
-	UpperTick	int32
-	LowerTick	int32
-	Min0		uint16
-	Min1		uint16
+	Detail		*RadFiProvideLiquidityDetail
+	InitPrice	*uint256.Int
 }
 
 type RadFiSwapMsg struct {
@@ -66,7 +61,6 @@ type RadFiIncreaseLiquidityMsg struct {
 
 type RadFiDecodedMsg struct {
 	Flag					byte
-	InitPoolMsg				*RadFiInitPoolMsg
 	ProvideLiquidityMsg		*RadFiProvideLiquidityMsg
 	SwapMsg					*RadFiSwapMsg
 	WithdrawLiquidityMsg	*RadFiWithdrawLiquidityMsg
@@ -103,25 +97,6 @@ func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error)
 	return scripts, nil
 }
 
-func CreateInitPoolScript(msg *RadFiInitPoolMsg) ([]byte, error) {
-	builder := txscript.NewScriptBuilder()
-
-	builder.AddOp(txscript.OP_RETURN)
-	builder.AddOp(OP_RADFI_IDENT)
-	builder.AddOp(OP_RADFI_INIT_POOL)
-	// encode message content
-	buf := new(bytes.Buffer)
-	var data = []any{ msg.Fee, msg.UpperTick, msg.LowerTick, msg.Min0, msg.Min1 }
-	for _, v := range data {
-		err := binary.Write(buf, binary.BigEndian, v)
-		if err != nil {
-			fmt.Println("CreateProvideLiquidityScript encode data failed:", err)
-		}
-	}
-
-	return builder.AddData(append(buf.Bytes(), msg.InitPrice.Bytes()...)).Script()
-}
-
 func CreateProvideLiquidityScript(msg *RadFiProvideLiquidityMsg) ([]byte, error) {
 	builder := txscript.NewScriptBuilder()
 
@@ -130,12 +105,16 @@ func CreateProvideLiquidityScript(msg *RadFiProvideLiquidityMsg) ([]byte, error)
 	builder.AddOp(OP_RADFI_PROVIDE_LIQUIDITY)
 	// encode message content
 	buf := new(bytes.Buffer)
-	var data = []any{ msg.Fee, msg.UpperTick, msg.LowerTick, msg.Min0, msg.Min1 }
+	var data = []any{ msg.Detail.Fee, msg.Detail.UpperTick, msg.Detail.LowerTick, msg.Detail.Min0, msg.Detail.Min1 }
 	for _, v := range data {
 		err := binary.Write(buf, binary.BigEndian, v)
 		if err != nil {
 			fmt.Println("CreateProvideLiquidityScript encode data failed:", err)
 		}
+	}
+
+	if msg.InitPrice != nil {
+		return builder.AddData(append(buf.Bytes(), msg.InitPrice.Bytes()...)).Script()
 	}
 
 	return builder.AddData(buf.Bytes()).Script()
@@ -294,36 +273,28 @@ func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {
 
 	// Decode RadFi message
 	switch flag {
-		case OP_RADFI_INIT_POOL:
-			r := bytes.NewReader(payload[:13])
-			var provideLiquidityMsg RadFiProvideLiquidityMsg
-			if err := binary.Read(r, binary.BigEndian, &provideLiquidityMsg); err != nil {
-				return nil, fmt.Errorf("ReadRadFiMessage - OP_RADFI_INIT_POOL Read failed")
-			}
-
-			initPrice := new(uint256.Int).SetBytes(payload[13:])
-			return &RadFiDecodedMsg {
-				Flag				: flag,
-				InitPoolMsg			: &RadFiInitPoolMsg{
-					Fee				: provideLiquidityMsg.Fee,
-					UpperTick		: provideLiquidityMsg.UpperTick,
-					LowerTick		: provideLiquidityMsg.LowerTick,
-					Min0			: provideLiquidityMsg.Min0,
-					Min1			: provideLiquidityMsg.Min1,
-					InitPrice		: initPrice,
-				},
-			}, nil
-
 		case OP_RADFI_PROVIDE_LIQUIDITY:
-			r := bytes.NewReader(payload)
-			var provideLiquidityMsg RadFiProvideLiquidityMsg
-			if err := binary.Read(r, binary.BigEndian, &provideLiquidityMsg); err != nil {
+			r := bytes.NewReader(payload[:13])
+			var provideLiquidityDetail RadFiProvideLiquidityDetail
+			if err := binary.Read(r, binary.BigEndian, &provideLiquidityDetail); err != nil {
 				return nil, fmt.Errorf("ReadRadFiMessage - OP_RADFI_PROVIDE_LIQUIDITY Read failed")
 			}
 
+			if len(payload) > 13 {
+				return &RadFiDecodedMsg {
+					Flag				: flag,
+					ProvideLiquidityMsg	: &RadFiProvideLiquidityMsg{
+						Detail			: &provideLiquidityDetail,
+						InitPrice		: new(uint256.Int).SetBytes(payload[13:]),
+					},
+				}, nil
+			}
+
 			return &RadFiDecodedMsg {
 				Flag				: flag,
-				ProvideLiquidityMsg	: &provideLiquidityMsg,
+				ProvideLiquidityMsg	: &RadFiProvideLiquidityMsg{
+					Detail			: &provideLiquidityDetail,
+				},
 			}, nil
 
 		case OP_RADFI_SWAP:

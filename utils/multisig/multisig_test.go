@@ -455,15 +455,17 @@ func TestRadFiInitPool(t *testing.T) {
 		},
 	}
 	// Add RadFi Init pool Message
-	radfiMsg := RadFiInitPoolMsg {
-		Fee:		30,
-		UpperTick:	12345,
-		LowerTick: 	-12345,
-		Min0:		0,
-		Min1:		10000,
+	radfiMsg := RadFiProvideLiquidityMsg {
+		Detail: &RadFiProvideLiquidityDetail{
+			Fee:		30,
+			UpperTick:	12345,
+			LowerTick: 	-12345,
+			Min0:		0,
+			Min1:		10000,
+		},
 		InitPrice:  uint256.MustFromDecimal("123456789"),
 	}
-	script, _ := CreateInitPoolScript(&radfiMsg)
+	script, _ := CreateProvideLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script)
 	outputs = append(outputs, &OutputTx{
 		OpReturnScript: script,
@@ -504,12 +506,12 @@ func TestRadFiInitPool(t *testing.T) {
 	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
 	fmt.Println("err decode: ", err)
 	fmt.Println("decoded message - Flag     : ", decodedRadFiMessage.Flag)
-	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.InitPoolMsg.Fee)
-	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.InitPoolMsg.UpperTick)
-	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.InitPoolMsg.LowerTick)
-	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.InitPoolMsg.Min0)
-	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.InitPoolMsg.Min1)
-	fmt.Println("decoded message - InitPrice: ", decodedRadFiMessage.InitPoolMsg.InitPrice)
+	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Fee)
+	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.UpperTick)
+	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.LowerTick)
+	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Min0)
+	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Min1)
+	fmt.Println("decoded message - InitPrice: ", decodedRadFiMessage.ProvideLiquidityMsg.InitPrice)
 }
 
 func TestRadFiProvideLiquidity(t *testing.T) {
@@ -539,11 +541,13 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 
 	// Add RadFi Provive Liquidity Message
 	radfiMsg := RadFiProvideLiquidityMsg {
-		Fee:		30,
-		UpperTick:	12345,
-		LowerTick: 	-12345,
-		Min0:		0,
-		Min1:		10000,
+		Detail: &RadFiProvideLiquidityDetail{
+			Fee:		30,
+			UpperTick:	12345,
+			LowerTick: 	-12345,
+			Min0:		0,
+			Min1:		10000,
+		},
 	}
 	script2, _ := CreateProvideLiquidityScript(&radfiMsg)
 	fmt.Println("OP_RETURN script: ", script2)
@@ -586,11 +590,12 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	decodedRadFiMessage, err := ReadRadFiMessage(signedMsgTx)
 	fmt.Println("err decode: ", err)
 	fmt.Println("decoded message - Flag     : ", decodedRadFiMessage.Flag)
-	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.ProvideLiquidityMsg.Fee)
-	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.ProvideLiquidityMsg.UpperTick)
-	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.ProvideLiquidityMsg.LowerTick)
-	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min0)
-	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.ProvideLiquidityMsg.Min1)
+	fmt.Println("decoded message - Fee      : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Fee)
+	fmt.Println("decoded message - UpperTick: ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.UpperTick)
+	fmt.Println("decoded message - LowerTick: ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.LowerTick)
+	fmt.Println("decoded message - Min0     : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Min0)
+	fmt.Println("decoded message - Min1     : ", decodedRadFiMessage.ProvideLiquidityMsg.Detail.Min1)
+	fmt.Println("decoded message - InitPrice: ", decodedRadFiMessage.ProvideLiquidityMsg.InitPrice)
 
 	// get list of Relayer bitcoin an rune UTXOs
 	relayerScriptAddress := signedMsgTx.TxOut[0].PkScript
