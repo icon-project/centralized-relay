@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains/cosmos"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
+	"github.com/icon-project/centralized-relay/test/chains/sui"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
 
@@ -100,6 +101,10 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	if err := s.SetupXCall(ctx); err != nil {
 		return nil, err
 	}
+	portId := "transfer"
+	if err := s.DeployXCallMockApp(ctx, portId); err != nil {
+		return nil, err
+	}
 
 	if err := ic.BuildRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID); err != nil {
 		return nil, err
@@ -123,13 +128,12 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
 	createdChains := s.GetChains()
-	// chainA, chainB := createdChains[0], createdChains[1]
 	for idx, chain := range createdChains {
 		var connections []chains.XCallConnection
 		for id, cn := range createdChains {
 			if id != idx {
 				connections = append(connections, chains.XCallConnection{
-					Nid:         cn.(ibc.Chain).Config().ChainID,
+					Nid:         cn.Config().ChainID,
 					Destination: cn.GetContractAddress("connection"),
 					Connection:  "connection",
 				})
@@ -188,12 +192,12 @@ func (s *E2ETestSuite) GetChains(chainOpts ...testconfig.ChainOptionConfiguratio
 func (s *E2ETestSuite) GetRelayerWallets(relayer ibc.Relayer) (ibc.Wallet, ibc.Wallet, error) {
 	chains := s.GetChains()
 	chainA, chainB := chains[0], chains[1]
-	chainARelayerWallet, ok := relayer.GetWallet(chainA.(ibc.Chain).Config().ChainID)
+	chainARelayerWallet, ok := relayer.GetWallet(chainA.Config().ChainID)
 	if !ok {
 		return nil, nil, fmt.Errorf("unable to find chain A relayer wallet")
 	}
 
-	chainBRelayerWallet, ok := relayer.GetWallet(chainB.(ibc.Chain).Config().ChainID)
+	chainBRelayerWallet, ok := relayer.GetWallet(chainB.Config().ChainID)
 	if !ok {
 		return nil, nil, fmt.Errorf("unable to find chain B relayer wallet")
 	}
@@ -277,18 +281,19 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 	var (
 		chain chains.Chain
 	)
-	ibcChainConfig := cfg.ChainConfig.GetIBCChainConfig(&chain)
 	switch cfg.ChainConfig.Type {
 	case "icon":
-		chain = icon.NewIconRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain = icon.NewIconRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "evm":
-		chain = evm.NewEVMRemotenet(testName, log, ibcChainConfig, s.DockerClient, s.network, cfg)
+		chain = evm.NewEVMRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "wasm", "cosmos":
-		interchainTestConfig := toInterchantestConfig(ibcChainConfig)
-		chain, err := cosmos.NewCosmosRemotenet(testName, log, interchainTestConfig, s.DockerClient, s.network, cfg)
+		chain, err := cosmos.NewCosmosRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, err
+	case "sui":
+		chain := sui.NewSuiRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
+		return chain, nil
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)
 	}

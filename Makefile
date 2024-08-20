@@ -25,7 +25,7 @@ build: go.sum
 	ifeq ($(OS),Windows_NT)
 		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
 	else
-		@go build $(BUILD_FLAGS) -o build/centralized-relay main.go
+		@go build -tags=muslc $(BUILD_FLAGS) -o build/centralized-relay main.go
 	endif
 
 build-docker:
@@ -41,14 +41,17 @@ install-dev: go.sum
 	@go build -mod=readonly -ldflags '$(ldflags)' -o $(GOBIN)/centralized-relay main.go
 
 e2e-test:
-	@go test -v ./test/e2e -testify.m TestE2E_all
+	@go test -v ./test/e2e -testify.m TestE2E_all -timeout 30m
+
+test-all:
+	@go test -v ./...
 
 test-all:
 	@go test -v ./...
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.4
-LIBWASM_VERSION 		 ?= v2.0.1
+LIBWASM_VERSION 		 ?= v2.1.0
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
@@ -63,7 +66,7 @@ release-dry-run:
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \
 		goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		--clean --skip-validate --skip-publish
+		--clean --auto-snapshot
 
 .PHONY: release
 release:
