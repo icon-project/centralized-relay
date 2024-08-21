@@ -51,7 +51,10 @@ $ %s ch l`, appName, appName)),
 			if err != nil {
 				return err
 			}
-
+			if a.config == nil {
+				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no config files found (do you need to run 'rly config init'?)")
+				return nil
+			}
 			configs := a.config.Wrapped().ProviderConfigs
 			if len(configs) == 0 {
 				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no chains found (do you need to run 'rly chains add'?)")
