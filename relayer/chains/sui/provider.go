@@ -36,6 +36,7 @@ var (
 	XcallModule      = "xcall"
 
 	suiCurrencyDenom = "SUI"
+	suiBaseFee       = 1000
 )
 
 type Provider struct {

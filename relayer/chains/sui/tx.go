@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -79,11 +80,6 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
 
-		callArgs = append(callArgs, []SuiCallArg{
-			{Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64()))},
-			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-		}...)
-
 		return p.NewSuiMessage(typeArgs, callArgs, dapp.PkgID, module.Name, MethodExecuteCall), nil
 
 	case events.RollbackMessage:
@@ -91,21 +87,10 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		if err != nil {
 			return nil, fmt.Errorf("failed to get module cap id %s: %w", message.DappModuleCapID, err)
 		}
-
-		snU128, err := bcs.NewUint128FromBigInt(message.Sn)
-		if err != nil {
-			return nil, err
-		}
-
 		typeArgs, callArgs, err := p.getExecuteParams(context.Background(), message, dapp, module, MethodGetExecuteRollbackParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get execute params: %w", err)
 		}
-
-		callArgs = append(callArgs, []SuiCallArg{
-			{Type: CallArgPure, Val: snU128},
-		}...)
-
 		return p.NewSuiMessage(typeArgs, callArgs, dapp.PkgID, module.Name, MethodExecuteRollback), nil
 
 	default:
@@ -447,6 +432,36 @@ func (p *Provider) getExecuteParams(
 				Type: CallArgObject, Val: arg,
 			})
 		} else {
+			switch arg {
+			case "coin":
+				coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
+				if err != nil {
+					return nil, nil, err
+				}
+				_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(int64(suiBaseFee)), p.cfg.GasLimit, types.PickBigger)
+				if err != nil {
+					return nil, nil, err
+				}
+				callArgs = append(callArgs, SuiCallArg{
+					Type: CallArgObject, Val: coin,
+				})
+			case "sn":
+				snU128, err := bcs.NewUint128FromBigInt(message.Sn)
+				if err != nil {
+					return nil, nil, err
+				}
+				callArgs = append(callArgs, SuiCallArg{
+					Type: CallArgPure, Val: snU128,
+				})
+			case "request_id":
+				callArgs = append(callArgs, SuiCallArg{
+					Type: CallArgPure, Val: strconv.Itoa(int(message.ReqID.Int64())),
+				})
+			case "data":
+				callArgs = append(callArgs, SuiCallArg{
+					Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data),
+				})
+			}
 			if keyObjID, ok := dapp.Constants[arg]; ok {
 				callArgs = append(callArgs, SuiCallArg{
 					Type: CallArgObject, Val: keyObjID,
