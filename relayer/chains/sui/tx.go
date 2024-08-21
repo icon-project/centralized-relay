@@ -443,7 +443,7 @@ func (p *Provider) getExecuteParams(
 					return nil, nil, err
 				}
 				callArgs = append(callArgs, SuiCallArg{
-					Type: CallArgObject, Val: coin,
+					Type: CallArgObject, Val: coin.CoinObjectId.String(),
 				})
 			case "sn":
 				snU128, err := bcs.NewUint128FromBigInt(message.Sn)
