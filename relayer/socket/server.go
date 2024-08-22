@@ -12,6 +12,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -121,12 +122,12 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err := jsoniter.Unmarshal(data, req); err != nil {
 			return response.SetError(err)
 		}
-		store := s.rly.GetMessageStore()
-		messages, err := store.GetMessages(req.Chain, req.Pagination)
+		msgStore := s.rly.GetMessageStore()
+		messages, err := msgStore.GetMessages(req.Chain, &store.Pagination{Limit: req.Limit})
 		if err != nil {
 			return response.SetError(err)
 		}
-		total, err := store.TotalCountByChain(req.Chain)
+		total, err := msgStore.TotalCountByChain(req.Chain)
 		if err != nil {
 			return response.SetError(err)
 		}

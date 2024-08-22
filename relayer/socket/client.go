@@ -6,8 +6,6 @@ import (
 	"net"
 
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/icon-project/centralized-relay/relayer/store"
 )
 
 const (
@@ -99,8 +97,8 @@ func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
 }
 
 // GetMessageList sends GetMessageList event to socket
-func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*ResMessageList, error) {
-	req := &ReqMessageList{Chain: chain, Pagination: pagination}
+func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, error) {
+	req := &ReqMessageList{Chain: chain, Limit: limit}
 	if err := c.send(&Request{Event: EventGetMessageList, Data: req}); err != nil {
 		return nil, err
 	}
@@ -128,22 +126,6 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 	res, ok := data.(*ResRelayMessage)
 	if !ok {
 		return nil, ErrInvalidResponse(err)
-	}
-	return res, nil
-}
-
-func (c *Client) RelayRangeMessage(chain string, fromHeight, toHeight uint64) (*ResRelayRangeMessage, error) {
-	req := &ReqRelayRangeMessage{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
-	if err := c.send(&Request{Event: EventRelayRangeMessage, Data: req}); err != nil {
-		return nil, err
-	}
-	data, err := c.read()
-	if err != nil {
-		return nil, err
-	}
-	res, ok := data.(*ResRelayRangeMessage)
-	if !ok {
-		return &ResRelayRangeMessage{}, nil
 	}
 	return res, nil
 }

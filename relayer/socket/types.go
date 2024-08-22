@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/icon-project/centralized-relay/relayer"
-	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -42,9 +41,14 @@ type Server struct {
 	rly       *relayer.Relayer
 }
 
+type Pagination struct {
+	Page  uint
+	Limit uint
+}
+
 type ReqMessageList struct {
-	Chain      string            `json:"chain"`
-	Pagination *store.Pagination `json:"pagination"`
+	Chain string `json:"chain"`
+	Limit uint   `json:"pagination"`
 }
 
 type ReqGetBlock struct {
@@ -56,17 +60,6 @@ type ReqRelayMessage struct {
 	Chain      string `json:"chain"`
 	FromHeight uint64 `json:"from_height"`
 	ToHeight   uint64 `json:"to_height"`
-}
-
-type ReqRelayRangeMessage struct {
-	Chain      string `json:"chain"`
-	FromHeight uint64 `json:"from_height"`
-	ToHeight   uint64 `json:"to_height"`
-}
-
-type ResRelayRangeMessage struct {
-	Chain    string                `json:"chain"`
-	Messages []*types.RouteMessage `json:"messages"`
 }
 
 type ReqMessageRemove struct {
@@ -83,8 +76,8 @@ type ResMessageRemove struct {
 }
 
 type ResMessageList struct {
-	Messages []*types.RouteMessage `json:"messages"`
-	Total    int                   `json:"total"`
+	Message []*types.RouteMessage `json:"message"`
+	Total   int                   `json:"total"`
 }
 
 type ResGetBlock struct {

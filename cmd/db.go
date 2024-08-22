@@ -10,7 +10,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/icon-project/centralized-relay/relayer/socket"
-	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/spf13/cobra"
 )
 
@@ -91,19 +90,17 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 				return err
 			}
 			defer client.Close()
-			pg := store.NewPagination().WithPage(d.page, d.limit)
-			messages, err := client.GetMessageList(d.chain, pg)
+			messages, err := client.GetMessageList(d.chain, d.limit)
 			if err != nil {
 				return err
 			}
 
 			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
 			// Print messages
-			for _, msg := range messages.Messages {
+			for _, msg := range messages.Message {
 				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
 					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry)
 			}
-
 			return nil
 		},
 	}

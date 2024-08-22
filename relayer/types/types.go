@@ -69,9 +69,9 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry      uint8
-	Processing bool
-	LastTry    time.Time
+	Retry      uint8     `json:"retry"`
+	Processing bool      `json:"processing"`
+	LastTry    time.Time `json:"lastTry"`
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
