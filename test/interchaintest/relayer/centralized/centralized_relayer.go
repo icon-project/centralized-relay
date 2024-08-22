@@ -53,28 +53,36 @@ type ICONRelayerChainConfigValue struct {
 }
 
 type SUIRelayerChainConfigValue struct {
-	NID             string          `yaml:"nid"`
-	RPCURL          string          `yaml:"rpc-url"`
-	WebsocketUrl    string          `yaml:"ws-url"`
-	StartHeight     int             `yaml:"start-height"`
-	XcallPkgIds     []string        `yaml:"xcall-package-ids"`
-	ConnectionId    string          `yaml:"connection-id"`
-	ConnectionCapId string          `yaml:"connection-cap-id"`
-	DappPkgId       string          `yaml:"dapp-package-id"`
-	XcallStorageId  string          `yaml:"xcall-storage-id"`
-	NetworkID       int             `yaml:"network-id"`
-	BlockInterval   string          `yaml:"block-interval"`
-	Address         string          `yaml:"address"`
-	FinalityBlock   uint64          `yaml:"finality-block"`
-	GasPrice        int64           `yaml:"gas-price"`
-	GasLimit        int             `yaml:"gas-limit"`
-	DappModules     []SuiDappModule `yaml:"dapp-modules"`
+	NID             string    `yaml:"nid"`
+	RPCURL          string    `yaml:"rpc-url"`
+	WebsocketUrl    string    `yaml:"ws-url"`
+	StartHeight     int       `yaml:"start-height"`
+	XcallPkgIds     []string  `yaml:"xcall-package-ids"`
+	ConnectionId    string    `yaml:"connection-id"`
+	ConnectionCapId string    `yaml:"connection-cap-id"`
+	XcallStorageId  string    `yaml:"xcall-storage-id"`
+	NetworkID       int       `yaml:"network-id"`
+	BlockInterval   string    `yaml:"block-interval"`
+	Address         string    `yaml:"address"`
+	FinalityBlock   uint64    `yaml:"finality-block"`
+	GasPrice        int64     `yaml:"gas-price"`
+	GasLimit        int       `yaml:"gas-limit"`
+	Dapps           []SuiDapp `yaml:"dapps"`
 }
 
 type SuiDappModule struct {
-	Name     string `yaml:"name"`
-	CapId    string `yaml:"cap-id"`
-	ConfigId string `yaml:"config-id"`
+	Name     string `yaml:"name" json:"name"`
+	CapID    string `yaml:"cap-id" json:"cap-id"`
+	ConfigID string `yaml:"config-id" json:"config-id"`
+}
+
+type SuiDapp struct {
+	PkgID string `json:"package-id" yaml:"package-id"`
+
+	// DappConstant is a map of name of sui constant to object id.
+	Constants map[string]string `json:"constants" yaml:"constants"`
+
+	Modules []SuiDappModule `json:"modules" yaml:"modules"`
 }
 
 type EVMRelayerChainConfigValue struct {
