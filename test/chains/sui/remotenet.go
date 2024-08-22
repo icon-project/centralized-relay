@@ -172,8 +172,8 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 		params = []SuiCallArg{
 			{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StateSuffix]},
 			{Type: CallArgPure, Val: connection.Nid},
-			{Type: CallArgPure, Val: connectionName},
-			{Type: CallArgPure, Val: connection.Destination},
+			{Type: CallArgPure, Val: []string{connectionName}},
+			{Type: CallArgPure, Val: []string{connection.Destination}},
 		}
 
 		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "add_connection")
@@ -543,11 +543,10 @@ func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	params = []SuiCallArg{
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallAdmin]},
-		{Type: CallArgPure, Val: "sui"},
 		{Type: CallArgPure, Val: connectionName},
 		{Type: CallArgPure, Val: an.testconfig.RelayWalletAddress},
 	}
-	msg = an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection")
+	msg = an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection_admin")
 	resp, err := an.callContract(ctx, msg)
 	if err != nil {
 		return err
