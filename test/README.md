@@ -36,13 +36,13 @@ To conduct tests for the IBC integration system, follow these steps:
 
 Before initiating the tests, configure essential environment variables:
 
-- **`E2E_CONFIG_PATH`**: Set this variable to the absolute path of your chosen configuration file. You can create these configuration files using the sample files provided in the `centralised-relay` source folder. Sample configuration files are available at the following locations:
+- **`TEST_CONFIG_PATH`**: Set this variable to the absolute path of your chosen configuration file. You can create these configuration files using the sample files provided in the `centralised-relay` source folder. Sample configuration files are available at the following locations:
     - sample config : `centralised-relay/test/testsuite/sample-config.yaml`
 
 Here's an example of environment variable configuration:
 
 ```bash
-export E2E_CONFIG_PATH=/path/to/config.yaml
+export TEST_CONFIG_PATH=/path/to/config.yaml
 ```
 
 ℹ️ Please note that most of the config content can be used same as it in sample config however you may need to update the image name and version for Archway, Neutron, and Icon in the configuration file you create.
