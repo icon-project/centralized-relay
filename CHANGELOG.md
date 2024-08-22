@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2024-08-12
+
+### Added
+- SUI chain implementation.
+- Add `LastProcessedTxStore` to store the chain specific information about the last processed transaction.
+
+### Changed
+- While switching in between multiple relayer wallet address, set admin before saving config.
+- Add two new fields in the relayer's `Message` type: 
+    - `DappModuleCapID` to track to which dapp module the message need to relayed. This is used for `ExecuteCall` and `ExecuteRollback` only.
+    - `TxInfo` to store the information of transaction in which the message is contained in the source chain.
+        This field is opaque to relayer's core and its type is known only in the chain's implementation.
+- Changed the `Listener` method signature in the chain provider interface from `Listener(ctx context.Context, lastSavedHeight uint64, blockInfo chan *types.BlockInfo) error` to `Listener(ctx context.Context, lastProcessedTx types.LastProcessedTx, blockInfo chan *types.BlockInfo) error`.
+
+
+## [1.5.1] - 2024-08-12
+
+### Changed
+
+- RPC retries and exponential backoffs.
+- Websocket healthcheck timout from 1 min to 10 second.
+- Initiate startup tasks early.
+- EVM websocket healthcheck uses latest query, previosly genesis block query.
+
+### Fixed
+
+- Addressed wasm response format changes.
+- WASM chain healthcheck frequency.
+- WASM sdk context lockup issue.
+- WASM duplicated block when batching requests.
+- Recovery start from genesis block when databse is empty.
+- Docker build issues.
+
 ## [1.5.0-rc1] - 2024-08-03
 
 ### Added

@@ -119,3 +119,7 @@ type ReqClaimFee struct {
 type ResClaimFee struct {
 	Status string
 }
+
+type ChainProviderError struct {
+	Message string
+}

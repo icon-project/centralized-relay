@@ -24,12 +24,13 @@ var (
 	prefixMessageStore  = "message"
 	prefixBlockStore    = "block"
 	prefixFinalityStore = "finality"
+
+	prefixLastProcessedTx = "lastProcessedTx"
 )
 
 // main start loop
 func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh bool) (chan error, error) {
 	errorChan := make(chan error, 1)
-
 	// once flush completes then only start processing
 	if fresh {
 		// flush all the packet and then continue
@@ -53,12 +54,13 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 }
 
 type Relayer struct {
-	log           *zap.Logger
-	db            store.Store
-	chains        map[string]*ChainRuntime
-	messageStore  *store.MessageStore
-	blockStore    *store.BlockStore
-	finalityStore *store.FinalityStore
+	log                  *zap.Logger
+	db                   store.Store
+	chains               map[string]*ChainRuntime
+	messageStore         *store.MessageStore
+	blockStore           *store.BlockStore
+	finalityStore        *store.FinalityStore
+	lastProcessedTxStore *store.LastProcessedTxStore
 }
 
 func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
@@ -77,6 +79,9 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 
 	// finality store
 	finalityStore := store.NewFinalityStore(db, prefixFinalityStore)
+
+	//last processed tx store
+	lastProcessedTxStore := store.NewLastProcessedTxStore(db, prefixLastProcessedTx)
 
 	chainRuntimes := make(map[string]*ChainRuntime, len(chains))
 	for _, chain := range chains {
@@ -97,12 +102,13 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	}
 
 	return &Relayer{
-		log:           log,
-		db:            db,
-		chains:        chainRuntimes,
-		messageStore:  messageStore,
-		blockStore:    blockStore,
-		finalityStore: finalityStore,
+		log:                  log,
+		db:                   db,
+		chains:               chainRuntimes,
+		messageStore:         messageStore,
+		blockStore:           blockStore,
+		finalityStore:        finalityStore,
+		lastProcessedTxStore: lastProcessedTxStore,
 	}, nil
 }
 
@@ -121,7 +127,15 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 
 	for _, chainRuntime := range r.chains {
 		eg.Go(func() error {
-			return chainRuntime.Provider.Listener(ctx, chainRuntime.LastSavedHeight, chainRuntime.listenerChan)
+			lastProcessedTxInfo, err := r.lastProcessedTxStore.Get(chainRuntime.Provider.NID())
+			if err != nil {
+				r.log.Warn("failed to get last processed tx", zap.Error(err), zap.String("nid", chainRuntime.Provider.NID()))
+			}
+			lastProcessedTx := types.LastProcessedTx{
+				Height: chainRuntime.LastSavedHeight,
+				Info:   lastProcessedTxInfo,
+			}
+			return chainRuntime.Provider.Listener(ctx, lastProcessedTx, chainRuntime.listenerChan)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -220,11 +234,11 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages uint) ([]*t
 
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
-		for key, message := range src.MessageCache.Messages {
+		for _, message := range src.MessageCache.Messages {
 			dst, err := r.FindChainRuntime(message.Dst)
 			if err != nil {
 				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
 
@@ -236,7 +250,8 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			message.ToggleProcessing()
 
 			// if message reached delete the message
-			messageReceived, err := dst.Provider.MessageReceived(ctx, &key)
+
+			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 			if err != nil {
 				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
 				message.ToggleProcessing()
@@ -246,7 +261,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			// if message is received we can remove the message from db
 			if messageReceived {
 				dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
-				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
 			go r.RouteMessage(ctx, message, dst, src)
@@ -265,6 +280,11 @@ func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, block
 		src.MessageCache.Add(msg)
 		if err := r.messageStore.StoreMessage(msg); err != nil {
 			r.log.Error("failed to store a message in db", zap.Error(err))
+		}
+		if err := r.lastProcessedTxStore.Set(src.Provider.NID(), msg.TxInfo); err != nil {
+			r.log.Error("failed to save last processed tx",
+				zap.Error(err),
+				zap.Any("msg", msg))
 		}
 	}
 }
@@ -304,7 +324,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
 				zap.String("event_type", routeMessage.EventType),
-				zap.Uint64("sn", key.Sn.Uint64()),
+				zap.Any("sn", key.Sn),
 				zap.String("tx_hash", response.TxHash),
 			)
 
