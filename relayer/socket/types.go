@@ -97,8 +97,8 @@ type ResRelayMessage struct {
 	Dst       string `json:"dst"`
 	Sn        uint64 `json:"sn"`
 	Height    uint64 `json:"height"`
-	EventType string `json:"event_type"`
-	RequestID uint64 `json:"request_id"`
+	EventType string `json:"eventType"`
+	ReqID     uint64 `json:"reqId"`
 }
 
 type ReqPruneDB struct {
@@ -187,7 +187,9 @@ type ResRangeBlockQuery struct {
 	Msgs  []*types.Message `json:"messages"`
 }
 
-type ReqListChain struct{}
+type ReqListChain struct {
+	Chains []string `json:"chains,omitempty"`
+}
 
 type ResChainInfo struct {
 	Name           string            `json:"name"`
@@ -214,7 +216,7 @@ type ReqRelayInfo struct{}
 
 type ResRelayInfo struct {
 	Version string `json:"version"`
-	UpTime  int64  `json:"uptime"`
+	Uptime  int64  `json:"uptime"`
 }
 
 type ReqMessageReceived struct {
@@ -226,4 +228,16 @@ type ResMessageReceived struct {
 	Chain    string `json:"chain"`
 	Sn       uint64 `json:"sn"`
 	Received bool   `json:"received"`
+}
+
+type ReqGetBlockEvents struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
+}
+
+type ResGetBlockEvents struct {
+	Chain   string   `json:"chain"`
+	Address string   `json:"address"`
+	Event   []string `json:"event"`
+	Height  uint64   `json:"height"`
 }

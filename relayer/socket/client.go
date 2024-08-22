@@ -28,8 +28,9 @@ const (
 	EventGetConfig               Event = "GetConfig"
 	EventListChainInfo           Event = "ListChainInfo"
 	EventGetBalance              Event = "GetChainBalance"
-	EventRelayInfo               Event = "RelayInfo"
+	EventRelayerInfo             Event = "RelayerInfo"
 	EventMessageReceived         Event = "MessageReceived"
+	EventGetBlockEvents          Event = "GetBlockEvents"
 )
 
 var (

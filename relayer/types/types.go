@@ -224,3 +224,8 @@ type Receipt struct {
 	Height uint64
 	Status bool
 }
+
+type EventLog struct {
+	Height uint64
+	Events []string
+}

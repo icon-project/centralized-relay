@@ -155,6 +155,14 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err != nil {
 			return response.SetError(err)
 		}
+		if req.FromHeight > req.ToHeight {
+			return response.SetError(fmt.Errorf("fromHeight should be less than toHeight"))
+		} else if req.ToHeight-req.FromHeight > 100 {
+			return response.SetError(fmt.Errorf("fromHeight and toHeight should be less than 100"))
+		} else if req.ToHeight == 0 {
+			req.ToHeight = req.FromHeight
+		}
+
 		msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
 		if err != nil {
 			return response.SetError(err)
@@ -162,7 +170,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		var foundMessages []*ResRelayMessage
 		for _, msg := range msgs {
 			src.MessageCache.Add(types.NewRouteMessage(msg))
-			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, RequestID: msg.ReqID.Uint64()})
+			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, ReqID: msg.ReqID.Uint64()})
 		}
 		return response.SetData(foundMessages)
 	case EventPruneDB:
@@ -242,8 +250,21 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err := jsoniter.Unmarshal(data, req); err != nil {
 			return response.SetError(err)
 		}
-		chains := s.rly.GetAllChainsRuntime()
-		chainNames := make([]*ResChainInfo, 0, len(chains))
+		var (
+			chainNames []*ResChainInfo
+			chains     []*relayer.ChainRuntime
+		)
+		if len(req.Chains) > 0 {
+			for _, chainName := range req.Chains {
+				chain, err := s.rly.FindChainRuntime(chainName)
+				if err != nil {
+					return response.SetError(err)
+				}
+				chains = append(chains, chain)
+			}
+		} else {
+			chains = s.rly.GetAllChainsRuntime()
+		}
 		for _, chain := range chains {
 			latestHeight, _ := chain.Provider.QueryLatestHeight(ctx)
 			chainNames = append(chainNames, &ResChainInfo{
@@ -290,12 +311,30 @@ func (s *Server) parseEvent(msg *Request) *Response {
 			return response.SetError(err)
 		}
 		return response.SetData(&ResMessageReceived{Chain: req.Chain, Sn: req.Sn, Received: received})
-	case EventRelayInfo:
+	case EventRelayerInfo:
 		req := new(ReqRelayInfo)
 		if err := jsoniter.Unmarshal(data, req); err != nil {
 			return response.SetError(err)
 		}
-		return response.SetData(&ResRelayInfo{Version: relayer.Version, UpTime: s.startedAt})
+		return response.SetData(&ResRelayInfo{Version: relayer.Version, Uptime: s.startedAt})
+	case EventGetBlockEvents:
+		req := new(ReqGetBlockEvents)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return response.SetError(err)
+		}
+		msgs, err := chain.Provider.GenerateMessages(ctx, req.Height, req.Height)
+		if err != nil {
+			return response.SetError(err)
+		}
+		var foundMessages []*ResRelayMessage
+		for _, msg := range msgs {
+			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, ReqID: msg.ReqID.Uint64()})
+		}
+		return response.SetData(foundMessages)
 	default:
 		return response.SetError(fmt.Errorf("unknown event %s", msg.Event))
 	}
