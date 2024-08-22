@@ -195,6 +195,14 @@ func TestSerializationTestVectors(t *testing.T) {
 		assert.Equal(t, "050011deadbeef11ababffff11deadbeef11ababffff", hex.EncodeToString(serialized))
 	})
 
+	t.Run("Standard Principal Vector 2", func(t *testing.T) {
+		cv, err := StringToPrincipal("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM")
+		assert.NoError(t, err)
+		serialized, err := cv.Serialize()
+		assert.NoError(t, err)
+		assert.Equal(t, "051a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce", hex.EncodeToString(serialized))
+	})
+
 	t.Run("Contract Principal Vector", func(t *testing.T) {
 		addressBytes, _ := hex.DecodeString("11deadbeef11ababffff11deadbeef11ababffff")
 		var hash160 [20]byte
