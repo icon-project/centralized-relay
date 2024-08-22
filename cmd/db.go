@@ -64,7 +64,7 @@ func dbCmd(a *appState) *cobra.Command {
 		Short:   "Get messages stored in the database",
 		Aliases: []string{"m"},
 	}
-	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRelayRange(a), db.messagesRm(a), db.revertMessage(a))
+	messagesCmd.AddCommand(db.messagesList(a), db.messagesRelay(a), db.messagesRm(a), db.revertMessage(a))
 
 	blockCmd := &cobra.Command{
 		Use:     "block",
@@ -133,41 +133,8 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			return nil
 		},
 	}
-	d.messageMsgIDFlag(rly, true)
 	d.messageChainFlag(rly, true)
 	d.messageHeightFlag(rly)
-	return rly
-}
-
-func (d *dbState) messagesRelayRange(app *appState) *cobra.Command {
-	rly := &cobra.Command{
-		Use:     "relay-range",
-		Aliases: []string{"rly-range"},
-		Short:   "Relay message from block range",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			return d.closeSocket()
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := d.getSocket(app)
-			if err != nil {
-				return err
-			}
-			results, err := client.RelayRangeMessage(d.chain, d.fromHeight, d.toHeight)
-			if err != nil {
-				return err
-			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
-			for _, result := range results.Messages {
-				printValues(result.Sn, result.Src, result.Dst, result.MessageHeight, result.EventType, result.Retry)
-			}
-			return nil
-		},
-	}
-	d.messageChainFlag(rly, true)
-	rly.Flags().Uint64Var(&d.fromHeight, "from_height", 0, "from block height")
-	rly.Flags().Uint64Var(&d.toHeight, "to_height", 0, "to block height")
-	rly.MarkFlagRequired("from_height")
-	rly.MarkFlagRequired("to_height")
 	return rly
 }
 
