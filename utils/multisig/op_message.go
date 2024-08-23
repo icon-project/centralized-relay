@@ -3,11 +3,13 @@ package multisig
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/holiman/uint256"
+	"github.com/icon-project/goloop/common/codec"
 )
 
 const (
@@ -21,6 +23,15 @@ const (
 	OP_RADFI_COLLECT_FEES		= txscript.OP_4
 	OP_RADFI_INCREASE_LIQUIDITY	= txscript.OP_5
 )
+
+type XCallMessage struct {
+	Action       string
+	TokenAddress string
+	From         string
+	To           string
+	Amount       []byte
+	Data         []byte
+}
 
 type RadFiProvideLiquidityDetail struct {
 	Fee			uint8
@@ -59,6 +70,12 @@ type RadFiIncreaseLiquidityMsg struct {
 	NftId		*uint256.Int
 }
 
+type BridgeDecodedMsg struct {
+	ChainId uint8
+	Address string
+	Message *XCallMessage
+}
+
 type RadFiDecodedMsg struct {
 	Flag					byte
 	ProvideLiquidityMsg		*RadFiProvideLiquidityMsg
@@ -66,6 +83,20 @@ type RadFiDecodedMsg struct {
 	WithdrawLiquidityMsg	*RadFiWithdrawLiquidityMsg
 	CollectFeesMsg			*RadFiCollectFeesMsg
 	IncreaseLiquidityMsg	*RadFiIncreaseLiquidityMsg
+}
+
+func CreateBridgePayload(chainId uint8, address string, message *XCallMessage) ([]byte, error) {
+	payload, err := codec.RLP.MarshalToBytes(message)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal message - Error %v", err)
+	}
+
+	bytesAddress, err := hex.DecodeString(address)
+	if err != nil {
+		return nil, fmt.Errorf("could decode string address - Error %v", err)
+	}
+
+	return append(append(payload, chainId), bytesAddress...), nil
 }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
@@ -109,7 +140,7 @@ func CreateProvideLiquidityScript(msg *RadFiProvideLiquidityMsg) ([]byte, error)
 	for _, v := range data {
 		err := binary.Write(buf, binary.BigEndian, v)
 		if err != nil {
-			fmt.Println("CreateProvideLiquidityScript encode data failed:", err)
+			return nil, fmt.Errorf("could encode data - Error %v", err)
 		}
 	}
 
@@ -205,14 +236,14 @@ func CreateIncreaseLiquidityScript(msg *RadFiIncreaseLiquidityMsg) ([]byte, erro
 	for _, v := range data {
 		err := binary.Write(buf, binary.BigEndian, v)
 		if err != nil {
-			fmt.Println("CreateIncreaseLiquidityScript encode data failed:", err)
+			return nil, fmt.Errorf("could encode data - Error %v", err)
 		}
 	}
 
 	return builder.AddData(append(buf.Bytes(), msg.NftId.Bytes()...)).Script()
 }
 
-func ReadBridgeMessage(transaction *wire.MsgTx) ([]byte, error) {
+func ReadBridgeMessage(transaction *wire.MsgTx) (*BridgeDecodedMsg, error) {
 	payload := []byte{}
 	for _, output := range transaction.TxOut {
 		tokenizer := txscript.MakeScriptTokenizer(0, output.PkScript)
@@ -235,10 +266,20 @@ func ReadBridgeMessage(transaction *wire.MsgTx) ([]byte, error) {
 	}
 
 	if len(payload) == 0 {
-		return nil, fmt.Errorf("ReadBridgeMessage - no Bridge message found")
+		return nil, fmt.Errorf("no Bridge message found")
 	}
 
-	return payload, nil
+	var message XCallMessage
+	remainData, err := codec.RLP.UnmarshalFromBytes(payload, &message)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal message - Error %v", err)
+	}
+
+	return &BridgeDecodedMsg {
+		ChainId: uint8(remainData[0]),
+		Address: hex.EncodeToString(remainData[1:]),
+		Message: &message,
+	}, nil
 }
 
 func ReadRadFiMessage(transaction *wire.MsgTx) (*RadFiDecodedMsg, error) {

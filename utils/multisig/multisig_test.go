@@ -387,8 +387,18 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	}
 
 	// Add Bridge Message
-	message := []byte("{\"msg\":\"Test Bridge Message\"}")
-	scripts, _ := CreateBridgeMessageScripts(message, 70)
+	payload, _ := CreateBridgePayload(
+		1,
+		"18403e24f5f5f7cf7a7bae8885d3e1d27ce5fd10",
+		&XCallMessage{
+			Action:       "Deposit",
+			TokenAddress: "0:0",                                                            // bitcoin address
+			To:           "0x2.icon/hx39eddef484f6bb08072c59cc0a206e6713fc6d7d",            //(receiver)
+			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su", //user
+			Amount:       new(big.Int).SetUint64(1000).Bytes(),
+			Data:         []byte(""),
+		})
+	scripts, _ := CreateBridgeMessageScripts(payload, 76)
 	for i, script := range scripts {
 		fmt.Println("OP_RETURN ", i, " script ", script)
 		outputs = append(outputs, &OutputTx{
@@ -432,8 +442,15 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	// Decode bridge message
 	decodedMessage, err := ReadBridgeMessage(signedMsgTx)
 	fmt.Println("err decode: ", err)
-	fmt.Println("original message: ", string(message))
-	fmt.Println("decoded message : ", string(decodedMessage))
+	fmt.Println("-----------decodedMessage---------- ")
+	fmt.Println("ChainId: ", decodedMessage.ChainId)
+	fmt.Println("Address: ", decodedMessage.Address)
+	fmt.Println("Message.Action: ", decodedMessage.Message.Action)
+	fmt.Println("Message.TokenAddress: ", decodedMessage.Message.TokenAddress)
+	fmt.Println("Message.From: ", decodedMessage.Message.From)
+	fmt.Println("Message.To: ", decodedMessage.Message.To)
+	fmt.Println("Message.Amount: ", decodedMessage.Message.Amount)
+	fmt.Println("Message.Data: ", decodedMessage.Message.Data)
 }
 
 func TestRadFiInitPool(t *testing.T) {
