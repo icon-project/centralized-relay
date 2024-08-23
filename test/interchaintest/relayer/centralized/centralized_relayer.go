@@ -79,9 +79,6 @@ type SuiDappModule struct {
 type SuiDapp struct {
 	PkgID string `json:"package-id" yaml:"package-id"`
 
-	// DappConstant is a map of name of sui constant to object id.
-	Constants map[string]string `json:"constants" yaml:"constants"`
-
 	Modules []SuiDappModule `json:"modules" yaml:"modules"`
 }
 

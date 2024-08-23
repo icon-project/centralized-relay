@@ -18,6 +18,7 @@ import (
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/hexstr"
 	"go.uber.org/zap"
 )
 
@@ -101,7 +102,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 func (p *Provider) getModule(moduleCapID string) (*Dapp, *DappModule, error) {
 	for _, dapp := range p.cfg.Dapps {
 		for _, mod := range dapp.Modules {
-			if mod.CapID == moduleCapID {
+			if hexstr.NewFromString(mod.CapID) == hexstr.NewFromString(moduleCapID) {
 				return &dapp, &mod, nil
 			}
 		}
