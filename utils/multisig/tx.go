@@ -11,6 +11,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/bxelab/runestone"
 )
 
 // create unsigned multisig transaction
@@ -63,24 +64,28 @@ func CreateMultisigTx(
 	// totalOutputAmount in external unit
 	totalOutputAmount := uint64(0)
 	for _, out := range outputs {
-		// adding the output to tx
-		decodedAddr, err := btcutil.DecodeAddress(out.ReceiverAddress, chainParam)
-		if err != nil {
-			return nil, "", nil, fmt.Errorf("CreateRawExternalTx - Error when decoding receiver address: %v - %v", err, out.ReceiverAddress)
-		}
-		destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
-		if err != nil {
-			return nil, "", nil, err
-		}
+		if len(out.OpReturnScript) > 0 {
+			msgTx.AddTxOut(wire.NewTxOut(0, out.OpReturnScript))
+		} else {
+			// adding the output to tx
+			decodedAddr, err := btcutil.DecodeAddress(out.ReceiverAddress, chainParam)
+			if err != nil {
+				return nil, "", nil, fmt.Errorf("CreateRawExternalTx - Error when decoding receiver address: %v - %v", err, out.ReceiverAddress)
+			}
+			destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
+			if err != nil {
+				return nil, "", nil, err
+			}
 
-		// adding the destination address and the amount to the transaction
-		if out.Amount <= feePerOutput || out.Amount-feePerOutput < MIN_SAT {
-			return nil, "", nil, fmt.Errorf("[CreateRawExternalTx-BTC] Output amount %v must greater than fee %v", out.Amount, feePerOutput)
-		}
-		redeemTxOut := wire.NewTxOut(int64(out.Amount-feePerOutput), destinationAddrByte)
+			// adding the destination address and the amount to the transaction
+			if out.Amount <= feePerOutput || out.Amount-feePerOutput < MIN_SAT {
+				return nil, "", nil, fmt.Errorf("[CreateRawExternalTx-BTC] Output amount %v must greater than fee %v", out.Amount, feePerOutput)
+			}
+			redeemTxOut := wire.NewTxOut(int64(out.Amount-feePerOutput), destinationAddrByte)
 
-		msgTx.AddTxOut(redeemTxOut)
-		totalOutputAmount += out.Amount
+			msgTx.AddTxOut(redeemTxOut)
+			totalOutputAmount += out.Amount
+		}
 	}
 
 	// check amount of input coins and output coins
@@ -242,4 +247,60 @@ func ParseTx(data string) (*wire.MsgTx, error) {
 		return nil, err
 	}
 	return tx, nil
+}
+
+// filter the relayer UTXO from tx
+// input: tx, id of sequence number in output (0 is default, -1 if not existed), relayer script address
+// output: sequence number UTXO, bitcoin UTXOs, rune UTXOs
+func GetRelayerReceivedUTXO(
+	msgTx *wire.MsgTx,
+	sequenceNumberIdx int,
+	relayerScriptAddress []byte,
+) (*UTXO, []*UTXO, []*RuneUTXO, error) {
+	// Decipher runestone
+	r := &runestone.Runestone{}
+	artifact, err := r.Decipher(msgTx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	edictOutputs := []uint32{}
+	for _, edict := range artifact.Runestone.Edicts {
+		edictOutputs = append(edictOutputs, edict.Output)
+	}
+
+	var sequenceNumberUTXO *UTXO
+	bitcoinUTXOs := []*UTXO{}
+	runeUTXOs := []*RuneUTXO{}
+	Exit:
+		for idx, output := range msgTx.TxOut {
+			// Skip non-relayer received UTXO
+			if !bytes.Equal(output.PkScript, relayerScriptAddress) {
+				continue
+			}
+			currentUTXO := &UTXO{
+				IsRelayersMultisig: true,
+				TxHash:        msgTx.TxHash().String(),
+				OutputIdx:     uint32(idx),
+				OutputAmount:  uint64(output.Value),
+			}
+			// check if is sequenceNumber UTXO
+			if idx == sequenceNumberIdx {
+				sequenceNumberUTXO = currentUTXO
+				continue
+			}
+			// check if is rune UTXO
+			for edictIdx, edictOutput := range edictOutputs {
+				if idx == int(edictOutput) {
+					runeUTXOs = append(runeUTXOs, &RuneUTXO{
+						edict:		artifact.Runestone.Edicts[edictIdx],
+						edictUTXO:	currentUTXO,
+					})
+					continue Exit
+				}
+			}
+			// or else it will be bitcoin UTXO
+			bitcoinUTXOs = append(bitcoinUTXOs, currentUTXO)
+		}
+
+	return sequenceNumberUTXO, bitcoinUTXOs, runeUTXOs, nil
 }
