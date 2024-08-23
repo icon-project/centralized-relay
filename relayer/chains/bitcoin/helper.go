@@ -77,17 +77,17 @@ func ToXCallMessage(data interface{}, from, to string, sn uint, protocols []stri
 		mintParams := bitcoinABI.INonfungiblePositionManagerMintParams{
 			Token0:         token0,
 			Token1:         token1,
-			Fee:            big.NewInt(int64(dataMint.Fee) * 100),
-			TickLower:      big.NewInt(int64(dataMint.LowerTick)),
-			TickUpper:      big.NewInt(int64(dataMint.UpperTick)),
+			Fee:            big.NewInt(int64(dataMint.Detail.Fee) * 100),
+			TickLower:      big.NewInt(int64(dataMint.Detail.LowerTick)),
+			TickUpper:      big.NewInt(int64(dataMint.Detail.UpperTick)),
 			Amount0Desired: amount0,
 			Amount1Desired: big.NewInt(539580403982610478),
 			Recipient:      common.HexToAddress(to),
 			Deadline:       big.NewInt(1000000000),
 		}
 
-		mintParams.Amount0Min = mulDiv(mintParams.Amount0Desired, big.NewInt(int64(dataMint.Min0)), big.NewInt(1e4))
-		mintParams.Amount1Min = mulDiv(mintParams.Amount1Desired, big.NewInt(int64(dataMint.Min1)), big.NewInt(1e4))
+		mintParams.Amount0Min = mulDiv(mintParams.Amount0Desired, big.NewInt(int64(dataMint.Detail.Min0)), big.NewInt(1e4))
+		mintParams.Amount1Min = mulDiv(mintParams.Amount1Desired, big.NewInt(int64(dataMint.Detail.Min1)), big.NewInt(1e4))
 
 		// encode
 		// todo: for init pool

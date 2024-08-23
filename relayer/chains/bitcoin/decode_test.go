@@ -37,11 +37,13 @@ func TestGetRuneBalanceAtIndex(t *testing.T) {
 func TestEncodeToXcallMessage(t *testing.T) {
 	//
 	test1 := multisig.RadFiProvideLiquidityMsg{
-		Fee:       30,
-		UpperTick: -173940,
-		LowerTick: -178320,
-		Min0:      0,
-		Min1:      0,
+		Detail: &multisig.RadFiProvideLiquidityDetail{
+			Fee:       30,
+			UpperTick: -173940,
+			LowerTick: -178320,
+			Min0:      0,
+			Min1:      0,
+		},
 	}
 
 	protocols := []string{
