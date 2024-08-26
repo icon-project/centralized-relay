@@ -52,12 +52,12 @@ $ %s ch l`, appName, appName)),
 				return err
 			}
 			if a.config == nil {
-				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no config files found (do you need to run 'rly config init'?)")
+				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no config files found (do you need to run 'crly config init'?)")
 				return nil
 			}
 			configs := a.config.Wrapped().ProviderConfigs
 			if len(configs) == 0 {
-				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no chains found (do you need to run 'rly chains add'?)")
+				fmt.Fprintln(cmd.ErrOrStderr(), "warning: no chains found (do you need to run 'crly chains add'?)")
 			}
 
 			switch {
