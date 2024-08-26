@@ -9,11 +9,7 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
-	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,82 +17,79 @@ import (
 )
 
 const (
-	RPCCallRetry             = 5
-	MaxGasPriceInceremtRetry = 5
-	GasPriceRatio            = 10.0
-	DefaultMinedTimeout      = time.Second * 60
+	DefaultPollingInterval = time.Second * 30
+	MaximumPollTry         = 15
+	DefaultCreateTimeout   = time.Second * 10
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
-	clrpc, err := rpc.Dial(rpcUrl)
+	createCtx, cancel := context.WithTimeout(ctx, DefaultCreateTimeout)
+	defer cancel()
+	rpc, err := ethclient.DialContext(createCtx, rpcUrl)
 	if err != nil {
 		return nil, err
 	}
-	cleth, err := ethclient.DialContext(ctx, websocketUrl)
+	ws, err := ethclient.DialContext(createCtx, websocketUrl)
 	if err != nil {
 		return nil, err
 	}
-
-	connection, err := bridgeContract.NewConnection(connectionContract, cleth)
+	connection, err := bridgeContract.NewConnection(connectionContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
-
-	xcall, err := bridgeContract.NewXcall(XcallContract, cleth)
+	xcall, err := bridgeContract.NewXcall(XcallContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
-
 	// getting the chain id
-	evmChainId, err := cleth.ChainID(ctx)
+	evmChainId, err := ws.ChainID(createCtx)
 	if err != nil {
 		return nil, err
+	}
+	reconnectFunc := func() (IClient, error) {
+		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
 	}
 
 	return &Client{
 		log:        l,
-		rpc:        clrpc,
-		eth:        cleth,
+		eth:        ws,
+		ethRpc:     rpc,
 		EVMChainID: evmChainId,
 		connection: connection,
 		xcall:      xcall,
+		reconnect:  reconnectFunc,
 	}, nil
 }
 
 // grouped rpc api clients
 type Client struct {
-	log      *zap.Logger
-	rpc      *rpc.Client
-	eth      *ethclient.Client
-	verifier *Client
-	// evm chain ID
+	log        *zap.Logger
+	eth        *ethclient.Client
+	ethRpc     *ethclient.Client
 	EVMChainID *big.Int
 	connection *bridgeContract.Connection
 	xcall      *bridgeContract.Xcall
+	reconnect  func() (IClient, error)
 }
 
 type IClient interface {
 	Log() *zap.Logger
 	GetBalance(ctx context.Context, hexAddr string) (*big.Int, error)
-	GetBlockNumber() (uint64, error)
-	GetBlockByHash(hash common.Hash) (*types.Block, error)
+	GetBlockNumber(context.Context) (uint64, error)
 	GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error)
-	GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error)
 	GetChainID() *big.Int
 
 	// ethClient
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
-	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
-	TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
+	SuggestGasTip(ctx context.Context) (*big.Int, error)
+	PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
-	WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error)
-	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
-	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
-	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error)
+	Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
+	Reconnect() (IClient, error)
 
 	// abiContract for connection
 	ParseConnectionMessage(log ethTypes.Log) (*bridgeContract.ConnectionMessage, error)
@@ -110,42 +103,22 @@ type IClient interface {
 	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
-	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
 
-func (c *Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
-	nonce, err := c.eth.NonceAt(ctx, account, blockNumber)
+func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+	nonce, err := c.eth.PendingNonceAt(ctx, account)
 	if err != nil {
 		return nil, err
 	}
 	return new(big.Int).SetUint64(nonce), nil
 }
 
-func (cl *Client) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
-	return cl.eth.TransactionCount(ctx, blockHash)
-}
-
-func (cl *Client) TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*ethTypes.Transaction, error) {
-	return cl.eth.TransactionInBlock(ctx, blockHash, index)
-}
-
-func (cl *Client) TransactionByHash(ctx context.Context, blockHash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error) {
-	return cl.eth.TransactionByHash(ctx, blockHash)
-}
-
 func (cl *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error) {
 	return cl.eth.TransactionReceipt(ctx, txHash)
-}
-
-// Wait for the transaction to be mined
-func (cl *Client) WaitForTransactionMined(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
-	receipt, err := bind.WaitMined(ctx, cl.eth, tx)
-	if err != nil {
-		return nil, err
-	}
-	return receipt, nil
 }
 
 func (cl *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
@@ -160,95 +133,27 @@ func (cl *Client) GetBalance(ctx context.Context, hexAddr string) (*big.Int, err
 }
 
 func (cl *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
-	return cl.eth.FilterLogs(ctx, q)
+	return cl.ethRpc.FilterLogs(ctx, q)
 }
 
-func (cl *Client) GetBlockNumber() (uint64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
+func (cl *Client) GetBlockNumber(ctx context.Context) (uint64, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
-	bn, err := cl.eth.BlockNumber(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return bn, nil
+	return cl.eth.BlockNumber(ctx)
 }
 
 func (cl *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return cl.eth.SuggestGasPrice(ctx)
 }
 
-func (cl *Client) GetBlockByHash(hash common.Hash) (*types.Block, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
-	defer cancel()
-	hb := new(types.Block)
-	return hb, cl.rpc.CallContext(ctx, hb, "eth_getBlockByHash", hash, false)
+func (cl *Client) SuggestGasTip(ctx context.Context) (*big.Int, error) {
+	return cl.eth.SuggestGasTipCap(ctx)
 }
 
 func (cl *Client) GetHeaderByHeight(ctx context.Context, height *big.Int) (*ethTypes.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
 	return cl.eth.HeaderByNumber(ctx, height)
-}
-
-func (cl *Client) GetBlockReceipts(hash common.Hash) (ethTypes.Receipts, error) {
-	c := IClient(cl)
-
-	hb, err := c.GetBlockByHash(hash)
-	if err != nil {
-		return nil, err
-	}
-	if hb.GasUsed == "0x0" || len(hb.Transactions) == 0 {
-		return nil, nil
-	}
-	txhs := hb.Transactions
-	// fetch all txn receipts concurrently
-	type rcq struct {
-		txh   string
-		v     *ethTypes.Receipt
-		err   error
-		retry uint8
-	}
-	qch := make(chan *rcq, len(txhs))
-	for _, txh := range txhs {
-		qch <- &rcq{txh, nil, nil, providerTypes.MaxTxRetry}
-	}
-	rmap := make(map[string]*ethTypes.Receipt)
-	for q := range qch {
-		switch {
-		case q.err != nil:
-			if q.retry == 0 {
-				return nil, q.err
-			}
-			q.retry--
-			q.err = nil
-			qch <- q
-		case q.v != nil:
-			rmap[q.txh] = q.v
-			if len(rmap) == cap(qch) {
-				close(qch)
-			}
-		default:
-			go func(q *rcq) {
-				defer func() { qch <- q }()
-				ctx, cancel := context.WithTimeout(context.Background(), defaultReadTimeout)
-				defer cancel()
-				if q.v == nil {
-					q.v = &ethTypes.Receipt{}
-				}
-				q.v, err = c.TransactionReceipt(ctx, common.HexToHash(q.txh))
-				if q.err != nil {
-					q.err = errors.Wrapf(q.err, "getTranasctionReceipt: %v", q.err)
-				}
-			}(q)
-		}
-	}
-	receipts := make(ethTypes.Receipts, 0, len(txhs))
-	for _, txh := range txhs {
-		if r, ok := rmap[txh]; ok {
-			receipts = append(receipts, r)
-		}
-	}
-	return receipts, nil
 }
 
 func (c *Client) GetChainID() *big.Int {
@@ -291,8 +196,12 @@ func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.
 	return c.connection.RevertMessage(opts, sn)
 }
 
-func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
+func (c *Client) ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
 	return c.xcall.ParseCallMessage(log)
+}
+
+func (c *Client) ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error) {
+	return c.xcall.ParseRollbackMessage(log)
 }
 
 func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {
@@ -324,6 +233,11 @@ func (c *Client) ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethType
 }
 
 // Subscribe
-func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan ethTypes.Log) (ethereum.Subscription, error) {
+func (c *Client) Subscribe(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error) {
 	return c.eth.SubscribeFilterLogs(ctx, q, ch)
+}
+
+// Reconnect
+func (c *Client) Reconnect() (IClient, error) {
+	return c.reconnect()
 }

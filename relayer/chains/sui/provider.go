@@ -45,16 +45,22 @@ var (
 )
 
 type Provider struct {
-	log    *zap.Logger
-	cfg    *Config
-	client IClient
-	wallet *account.Account
-	kms    kms.KMS
-	txmut  *sync.Mutex
+	log                 *zap.Logger
+	cfg                 *Config
+	client              IClient
+	wallet              *account.Account
+	kms                 kms.KMS
+	txmut               *sync.Mutex
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return p.client.GetLatestCheckpointSeq(ctx)
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
 }
 
 func (p *Provider) NID() string {
@@ -96,31 +102,15 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	req := types.SuiGetCheckpointsRequest{
-		Cursor:          strconv.Itoa(int(messageKey.Height) - 1),
-		Limit:           1,
-		DescendingOrder: false,
-	}
-	paginatedRes, err := p.client.GetCheckpoints(ctx, req)
+	checkpoint, err := p.client.GetCheckpoint(ctx, messageKey.Height)
 	if err != nil {
-		p.log.Error("failed to fetch checkpoints", zap.Error(err))
+		p.log.Error("failed to fetch checkpoint", zap.Error(err))
 		return nil, err
 	}
 
 	var messages []*relayertypes.Message
 
-	if len(paginatedRes.Data) == 0 {
-		p.log.Info("messages not found", zap.Uint64("height", messageKey.Height))
-		return messages, nil
-	}
-
-	digests := []string{}
-
-	for _, txDigests := range p.GenerateTxDigests(paginatedRes.Data, types.QUERY_MAX_RESULT_LIMIT) {
-		digests = append(digests, txDigests.Digests...)
-	}
-
-	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), digests)
+	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), checkpoint.Transactions)
 	if err != nil {
 		p.log.Error("failed to query events", zap.Error(err))
 		return nil, err
@@ -174,15 +164,15 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	return fee, nil
 }
 
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	suiMessage := p.NewSuiMessage(
 		[]string{},
 		[]SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 			{Type: CallArgPure, Val: networkID},
-			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee))},
-			{Type: CallArgPure, Val: strconv.Itoa(int(resFee))},
+			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee.Int64()))},
+			{Type: CallArgPure, Val: strconv.Itoa(int(resFee.Int64()))},
 		}, p.xcallPkgIDLatest(), ModuleEntry, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {

@@ -17,6 +17,7 @@ type Config struct {
 	Address   string `yaml:"address" json:"address"`
 	NID       string `yaml:"nid" json:"nid"`
 
+	// list of xcall package ids in order of latest to oldest in descending order
 	XcallPkgIDs    []string `yaml:"xcall-package-ids" json:"xcall-package-ids"`
 	XcallStorageID string   `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
@@ -28,6 +29,12 @@ type Config struct {
 
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
+	Disabled bool   `json:"disabled" yaml:"disabled"`
+
+	// Start tx-digest cursor to begin querying for events.
+	// Should be empty if we want to query using last saved tx-digest
+	// from database.
+	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
 }
 
 type DappModule struct {
@@ -68,4 +75,9 @@ func (pc *Config) GetWallet() string {
 func (pc *Config) Validate() error {
 	//Todo
 	return nil
+}
+
+// Enabled returns true if the chain is enabled
+func (c *Config) Enabled() bool {
+	return !c.Disabled
 }

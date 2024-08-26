@@ -1,6 +1,7 @@
 {
   "type": "sui",
   "value": {
+    "disabled": false,
     "nid": "sui-test",
     "rpc-url": "https://fullnode.testnet.sui.io:443",
     "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
@@ -28,6 +29,7 @@
         "config-id": "0x2427b3a3b95600749848e69f694ddffef5f96b2a0cc03e3d56d8a8b83ce94826"
       }
     ],
-    "gas-limit": 5000000
+    "gas-limit": 5000000,
+    "start-tx-digest": ""
   }
 }

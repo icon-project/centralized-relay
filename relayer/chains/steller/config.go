@@ -27,6 +27,7 @@ type Config struct {
 	BlockInterval     time.Duration                  `json:"block-interval" yaml:"block-interval"`
 	NetworkPassphrase string                         `json:"network-passphrase" yaml:"network-passphrase"`
 	StartHeight       uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
+	Disabled          bool                           `json:"disabled" yaml:"disabled"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -70,4 +71,9 @@ func (pc *Config) GetWallet() string {
 func (pc *Config) Validate() error {
 	//Todo
 	return nil
+}
+
+// Enabled returns true if the chain is enabled
+func (pc *Config) Enabled() bool {
+	return !pc.Disabled
 }

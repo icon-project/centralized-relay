@@ -17,12 +17,13 @@ import (
 )
 
 type Provider struct {
-	log    *zap.Logger
-	cfg    *Config
-	client IClient
-	kms    kms.KMS
-	wallet *keypair.Full
-	txmut  *sync.Mutex
+	log                 *zap.Logger
+	cfg                 *Config
+	client              IClient
+	kms                 kms.KMS
+	wallet              *keypair.Full
+	txmut               *sync.Mutex
+	LastSavedHeightFunc func() uint64
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -94,7 +95,7 @@ func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	message := &relayertypes.Message{
 		EventType: evtypes.RevertMessage,
-		Sn:        sn.Uint64(),
+		Sn:        sn,
 	}
 	callArgs, err := p.newMiscContractCallArgs(*message)
 	if err != nil {
@@ -118,7 +119,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 	return uint64(fee), err
 }
 
-func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee uint64) error {
+func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
 	message := &relayertypes.Message{
 		EventType: evtypes.SetFee,
 		Src:       networkID,
@@ -175,4 +176,9 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
+}
+
+// SetLastSavedBlockHeightFunc sets the function to save the last saved block height
+func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
+	p.LastSavedHeightFunc = f
 }

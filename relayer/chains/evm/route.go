@@ -3,7 +3,6 @@ package evm
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -18,31 +17,35 @@ const (
 	ErrorLessGas          = "transaction underpriced"
 	ErrorLimitLessThanGas = "max fee per gas less than block base fee"
 	ErrUnKnown            = "unknown"
-	ErrMaxTried           = "max tried"
 	ErrNonceTooLow        = "nonce too low"
 	ErrNonceTooHigh       = "nonce too high"
 )
 
 // this will be executed in go route
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+	// lock here to prevent transcation replacement
+	p.routerMutex.Lock()
+
 	p.log.Info("starting to route message", zap.Any("message", message))
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
+		p.routerMutex.Unlock()
 		return fmt.Errorf("routing failed: %w", err)
 	}
 
 	messageKey := message.MessageKey()
 
-	tx, err := p.SendTransaction(ctx, opts, message, MaxGasPriceInceremtRetry)
+	tx, err := p.SendTransaction(ctx, opts, message)
+	p.routerMutex.Unlock()
 	if err != nil {
 		return fmt.Errorf("routing failed: %w", err)
 	}
-	p.NonceTracker.Inc(p.wallet.Address)
+	p.log.Info("transaction sent", zap.String("tx_hash", tx.Hash().String()), zap.Any("message", messageKey))
 	return p.WaitForTxResult(ctx, tx, messageKey, callback)
 }
 
-func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message, maxRetry uint8) (*types.Transaction, error) {
+func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
 	var (
 		tx  *types.Transaction
 		err error
@@ -60,50 +63,51 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	if gasLimit < p.cfg.GasMin {
 		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
 	}
-	opts.GasLimit = gasLimit
+
+	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
+
+	p.log.Info("transaction info",
+		zap.Uint64("gas_cap", opts.GasFeeCap.Uint64()),
+		zap.Uint64("gas_tip", opts.GasTipCap.Uint64()),
+		zap.Uint64("estimated_limit", gasLimit),
+		zap.Uint64("adjusted_limit", opts.GasLimit),
+		zap.Uint64("nonce", opts.Nonce.Uint64()),
+		zap.String("event_type", message.EventType),
+		zap.String("src", message.Src),
+		zap.Uint64("sn", message.Sn.Uint64()),
+	)
 
 	switch message.EventType {
-	// check estimated gas and gas price
 	case events.EmitMessage:
-		tx, err = p.client.ReceiveMessage(opts, message.Src, big.NewInt(int64(message.Sn)), message.Data)
+		tx, err = p.client.ReceiveMessage(opts, message.Src, message.Sn, message.Data)
 	case events.CallMessage:
-		tx, err = p.client.ExecuteCall(opts, big.NewInt(0).SetUint64(message.ReqID), message.Data)
+		tx, err = p.client.ExecuteCall(opts, message.ReqID, message.Data)
 	case events.SetAdmin:
 		addr := common.HexToAddress(message.Src)
 		tx, err = p.client.SetAdmin(opts, addr)
 	case events.RevertMessage:
-		tx, err = p.client.RevertMessage(opts, big.NewInt(int64(message.Sn)))
+		tx, err = p.client.RevertMessage(opts, message.Sn)
 	case events.ClaimFee:
 		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
-		tx, err = p.client.SetFee(opts, message.Src, big.NewInt(int64(message.Sn)), big.NewInt(int64(message.ReqID)))
-	case events.ExecuteRollback:
-		tx, err = p.client.ExecuteRollback(opts, big.NewInt(0).SetUint64(message.Sn))
+		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
+	case events.RollbackMessage:
+		tx, err = p.client.ExecuteRollback(opts, message.Sn)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 	if err != nil {
-		switch p.parseErr(err, maxRetry > 0) {
-		case ErrorLessGas, ErrorLimitLessThanGas:
-			p.log.Info("gasfee low", zap.Error(err))
-			gasPrice, err := p.client.SuggestGasPrice(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get gas price: %w", err)
-			}
-			opts.GasPrice = gasPrice
-		case ErrNonceTooLow, ErrNonceTooHigh:
-			p.log.Info("nonce mismatch", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Error(err))
-			nonce, err := p.client.NonceAt(ctx, p.wallet.Address, nil)
+		switch p.parseErr(err) {
+		case ErrNonceTooLow, ErrNonceTooHigh, ErrorLessGas:
+			nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
 			if err != nil {
 				return nil, err
 			}
-			opts.Nonce = nonce
+			p.log.Info("nonce mismatch", zap.Uint64("tx", opts.Nonce.Uint64()), zap.Uint64("current", nonce.Uint64()), zap.Error(err))
 			p.NonceTracker.Set(p.wallet.Address, nonce)
 		default:
 			return nil, err
 		}
-		p.log.Info("adjusted", zap.Uint64("nonce", opts.Nonce.Uint64()), zap.Uint64("gas_price", opts.GasPrice.Uint64()), zap.Any("message", message))
-		return p.SendTransaction(ctx, opts, message, maxRetry-1)
 	}
 	return tx, err
 }
@@ -144,22 +148,28 @@ func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *type
 		zap.Any("message-key", message),
 		zap.String("tx_hash", receipt.TxHash.String()),
 		zap.Int64("height", receipt.BlockNumber.Int64()),
+		zap.Uint64("gas_used", receipt.GasUsed),
+		zap.String("contract_address", receipt.ContractAddress.Hex()),
 	)
 }
 
 func (p *Provider) LogFailedTx(messageKey *providerTypes.MessageKey, result *types.Receipt, err error) {
-	p.log.Info("failed transaction",
+	p.log.Error("failed transaction",
 		zap.String("tx_hash", result.TxHash.String()),
 		zap.Int64("height", result.BlockNumber.Int64()),
+		zap.Uint64("gas_used", result.GasUsed),
+		zap.Uint("tx_index", result.TransactionIndex),
+		zap.String("event_type", messageKey.EventType),
+		zap.Uint64("sn", messageKey.Sn.Uint64()),
+		zap.String("src", messageKey.Src),
+		zap.String("contract_address", result.ContractAddress.Hex()),
 		zap.Error(err),
 	)
 }
 
-func (p *Provider) parseErr(err error, shouldParse bool) string {
+func (p *Provider) parseErr(err error) string {
 	msg := err.Error()
 	switch {
-	case !shouldParse:
-		return ErrMaxTried
 	case strings.Contains(msg, ErrorLimitLessThanGas):
 		return ErrorLimitLessThanGas
 	case strings.Contains(msg, ErrorLessGas):

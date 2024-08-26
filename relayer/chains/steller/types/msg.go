@@ -1,6 +1,8 @@
 package types
 
 import (
+	"math/big"
+
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stellar/go/xdr"
 )
@@ -9,11 +11,27 @@ type StellerMsg struct {
 	relayertypes.Message
 }
 
+// Convert big.Int to Uint128
+func BigIntToUint128(b *big.Int) xdr.UInt128Parts {
+	lowMask := new(big.Int).SetUint64(0xFFFFFFFFFFFFFFFF)
+	low := new(big.Int).And(b, lowMask).Uint64()
+	high := new(big.Int).Rsh(b, 64).Uint64()
+	return xdr.UInt128Parts{
+		Hi: xdr.Uint64(high),
+		Lo: xdr.Uint64(low),
+	}
+}
+
+func Uint128ToBigInt(u xdr.UInt128Parts) *big.Int {
+	high := new(big.Int).SetUint64(uint64(u.Hi))
+	high.Lsh(high, 64)
+	low := new(big.Int).SetUint64(uint64(u.Lo))
+	high.Add(high, low)
+	return high
+}
+
 func (m StellerMsg) ScvSn() xdr.ScVal {
-	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, xdr.UInt128Parts{
-		Hi: xdr.Uint64(0),
-		Lo: xdr.Uint64(m.Sn),
-	})
+	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, BigIntToUint128(m.Sn))
 	return scVal
 }
 
@@ -23,10 +41,7 @@ func (m StellerMsg) ScvMessageHeight() xdr.ScVal {
 }
 
 func (m StellerMsg) ScvReqID() xdr.ScVal {
-	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, xdr.UInt128Parts{
-		Hi: xdr.Uint64(0),
-		Lo: xdr.Uint64(m.ReqID),
-	})
+	scVal, _ := xdr.NewScVal(xdr.ScValTypeScvU128, BigIntToUint128(m.ReqID))
 	return scVal
 }
 

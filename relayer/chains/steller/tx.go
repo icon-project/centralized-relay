@@ -50,7 +50,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 
 	callback(message.MessageKey(), cbTxResp, cbErr)
 
-	return nil
+	return err
 }
 
 func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizon.Transaction, error) {
@@ -78,7 +78,6 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 			TimeBounds: txnbuild.NewTimeout(300),
 		},
 	}
-
 	simtx, err := txnbuild.NewTransaction(txParam)
 	if err != nil {
 		return nil, err
@@ -375,31 +374,39 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	connAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
-	if err != nil {
-		return false, err
-	}
-	stellerMsg := types.StellerMsg{
-		Message: relayertypes.Message{
-			Sn:  key.Sn,
-			Src: key.Src,
-		},
-	}
-	callArgs := xdr.InvokeContractArgs{
-		ContractAddress: *connAddr,
-		FunctionName:    xdr.ScSymbol("get_receipt"),
-		Args: []xdr.ScVal{
-			stellerMsg.ScvSrc(),
-			stellerMsg.ScvSn(),
-		},
+	switch key.EventType {
+	case evtypes.EmitMessage:
+		connAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+		if err != nil {
+			return false, err
+		}
+		stellerMsg := types.StellerMsg{
+			Message: relayertypes.Message{
+				Sn:  key.Sn,
+				Src: key.Src,
+			},
+		}
+		callArgs := xdr.InvokeContractArgs{
+			ContractAddress: *connAddr,
+			FunctionName:    xdr.ScSymbol("get_receipt"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSrc(),
+				stellerMsg.ScvSn(),
+			},
+		}
+		var isReceived types.ScvBool
+		if err := p.queryContract(callArgs, &isReceived); err != nil {
+			return false, err
+		}
+		return bool(isReceived), nil
+	case evtypes.CallMessage:
+		return false, nil
+	case evtypes.RollbackMessage:
+		return false, nil
+	default:
+		return true, fmt.Errorf("unknown event type")
 	}
 
-	var isReceived types.ScvBool
-	if err := p.queryContract(callArgs, &isReceived); err != nil {
-		return false, err
-	}
-
-	return bool(isReceived), nil
 }
 
 func (p *Provider) queryContract(callArgs xdr.InvokeContractArgs, dest types.ScValConverter) error {

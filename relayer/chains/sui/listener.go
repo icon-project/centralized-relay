@@ -5,10 +5,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"math/big"
 	"strings"
 	"time"
 
+	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/sui_types"
+	cctypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	relayerEvents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -16,56 +19,21 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Provider) Listener(ctx context.Context, lastSavedCheckpointSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
-	latestCheckpointSeq, err := p.client.GetLatestCheckpointSeq(ctx)
-	if err != nil {
-		return err
-	}
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfo chan *relayertypes.BlockInfo) error {
+	txInfo := new(types.TxInfo)
 
-	startCheckpointSeq := latestCheckpointSeq
-	if lastSavedCheckpointSeq != 0 && lastSavedCheckpointSeq < latestCheckpointSeq {
-		startCheckpointSeq = lastSavedCheckpointSeq
-	}
-
-	return p.listenByPolling(ctx, startCheckpointSeq, blockInfo)
-}
-
-func (p *Provider) listenByPolling(ctx context.Context, startCheckpointSeq uint64, blockStream chan *relayertypes.BlockInfo) error {
-	done := make(chan interface{})
-	defer close(done)
-
-	txDigestsStream := p.getTxDigestsStream(done, strconv.Itoa(int(startCheckpointSeq)-1))
-
-	p.log.Info("Started to query sui from", zap.Uint64("checkpoint", startCheckpointSeq))
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case txDigests, ok := <-txDigestsStream:
-			if ok {
-				p.log.Debug("executing query",
-					zap.Any("from-checkpoint", txDigests.FromCheckpoint),
-					zap.Any("to-checkpoint", txDigests.ToCheckpoint),
-					zap.Any("tx-digests", txDigests.Digests),
-				)
-
-				eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), txDigests.Digests)
-				if err != nil {
-					p.log.Error("failed to query events", zap.Error(err))
-				}
-
-				blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
-				if err != nil {
-					p.log.Error("failed to parse messages from events", zap.Error(err))
-				}
-
-				for _, blockMsg := range blockInfoList {
-					blockStream <- &blockMsg
-				}
-			}
+	if lastProcessedTx.Info != nil {
+		if err := txInfo.Deserialize(lastProcessedTx.Info); err != nil {
+			p.log.Error("failed to deserialize last processed tx digest", zap.Error(err))
+			return err
 		}
 	}
+
+	if p.cfg.StartTxDigest != "" {
+		txInfo.TxDigest = p.cfg.StartTxDigest
+	}
+
+	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
 }
 
 func (p *Provider) allowedEventTypes() []string {
@@ -80,26 +48,41 @@ func (p *Provider) allowedEventTypes() []string {
 	return allowedEvents
 }
 
+func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
+	// if relayer is not an executor then skip CallMessage and RollbackMessage events.
+	if p.cfg.DappPkgID == "" &&
+		(msg.EventType == relayerEvents.CallMessage ||
+			msg.EventType == relayerEvents.RollbackMessage) {
+		return true
+	}
+	return false
+}
+
 func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]relayertypes.BlockInfo, error) {
 	checkpointMessages := make(map[uint64][]*relayertypes.Message)
 	for _, ev := range events {
 		msg, err := p.parseMessageFromEvent(ev)
 		if err != nil {
-			if err.Error() == types.ConnectionIDMismatchError {
+			if err.Error() == types.InvalidEventError {
 				continue
 			}
 			return nil, err
 		}
 
+		if p.shouldSkipMessage(msg) {
+			continue
+		}
+
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
 			zap.String("event-type", msg.EventType),
-			zap.Uint64("sn", msg.Sn),
+			zap.Any("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
-			zap.Uint64("req-id", msg.ReqID),
+			zap.Any("req-id", msg.ReqID),
+			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
 			zap.Any("data", hex.EncodeToString(msg.Data)),
 		)
-		checkpointMessages[ev.Checkpoint] = append(checkpointMessages[ev.Checkpoint], msg)
+		checkpointMessages[ev.Checkpoint.Uint64()] = append(checkpointMessages[ev.Checkpoint.Uint64()], msg)
 	}
 
 	var blockInfoList []relayertypes.BlockInfo
@@ -119,9 +102,16 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 
 func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.Message, error) {
 	msg := relayertypes.Message{
-		MessageHeight: ev.Checkpoint,
+		MessageHeight: ev.Checkpoint.Uint64(),
 		Src:           p.cfg.NID,
 	}
+
+	txInfo := types.TxInfo{TxDigest: ev.Id.TxDigest.String()}
+	txInfoBytes, err := txInfo.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	msg.TxInfo = txInfoBytes
 
 	eventBytes, err := json.Marshal(ev.ParsedJson)
 	if err != nil {
@@ -139,15 +129,15 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 			return nil, err
 		}
 		if emitEvent.ConnectionID != p.cfg.ConnectionID {
-			return nil, fmt.Errorf(types.ConnectionIDMismatchError)
+			return nil, fmt.Errorf(types.InvalidEventError)
 		}
-
-		sn, err := strconv.Atoi(emitEvent.Sn)
-		if err != nil {
+		sn, ok := new(big.Int).SetString(emitEvent.Sn, 10)
+		if !ok {
 			return nil, err
 		}
-		msg.Sn = uint64(sn)
+		msg.Sn = sn
 		msg.Data = emitEvent.Msg
+		msg.Src = p.cfg.NID
 		msg.Dst = emitEvent.To
 
 	case fmt.Sprintf("%s::%s", ModuleMain, "CallMessage"):
@@ -156,12 +146,21 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
 			return nil, err
 		}
+		msg.Src = callMsgEvent.From.NetID
 		msg.Data = callMsgEvent.Data
-		reqID, err := strconv.Atoi(callMsgEvent.ReqId)
-		if err != nil {
+
+		sn, ok := new(big.Int).SetString(callMsgEvent.Sn, 10)
+		if !ok {
 			return nil, err
 		}
-		msg.ReqID = uint64(reqID)
+
+		reqID, ok := new(big.Int).SetString(callMsgEvent.ReqId, 10)
+		if !ok {
+			return nil, err
+		}
+
+		msg.Sn = sn
+		msg.ReqID = reqID
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
 
@@ -171,132 +170,163 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {
 			return nil, err
 		}
-		sn, err := strconv.Atoi(rollbackMsgEvent.Sn)
-		if err != nil {
-			return nil, err
+
+		sn, ok := new(big.Int).SetString(rollbackMsgEvent.Sn, 10)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse sn from rollback event")
 		}
-		msg.Sn = uint64(sn)
+		msg.Sn = sn
 		msg.DappModuleCapID = rollbackMsgEvent.DappModuleCapId
+		msg.Src = p.cfg.NID
 		msg.Dst = p.cfg.NID
 		msg.Data = rollbackMsgEvent.Data
 
 	default:
-		return nil, fmt.Errorf("invalid event type")
+		return nil, fmt.Errorf(types.InvalidEventError)
 	}
-
-	msg.Src = p.cfg.NID
 
 	return &msg, nil
 }
 
-// GenerateTxDigests forms the packets of txDigests from the list of checkpoint responses such that each packet
-// contains as much as possible number of digests but not exceeding max limit of maxDigests value
-func (p *Provider) GenerateTxDigests(checkpointResponses []types.CheckpointResponse, maxDigestsPerItem int) []types.TxDigests {
-	// stage-1: split checkpoint to multiple checkpoints if number of transactions is greater than maxDigests
-	var checkpoints []types.CheckpointResponse
-	for _, cp := range checkpointResponses {
-		if len(cp.Transactions) > maxDigestsPerItem {
-			totalBatches := len(cp.Transactions) / maxDigestsPerItem
-			if (len(cp.Transactions) % maxDigestsPerItem) != 0 {
-				totalBatches = totalBatches + 1
-			}
-			for i := 0; i < totalBatches; i++ {
-				fromIndex := i * maxDigestsPerItem
-				toIndex := fromIndex + maxDigestsPerItem
-				if i == totalBatches-1 {
-					toIndex = len(cp.Transactions)
-				}
-				subCheckpoint := types.CheckpointResponse{
-					SequenceNumber: cp.SequenceNumber,
-					Transactions:   cp.Transactions[fromIndex:toIndex],
-				}
-				checkpoints = append(checkpoints, subCheckpoint)
-			}
-		} else {
-			checkpoints = append(checkpoints, cp)
+func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
+	for ev.Checkpoint == nil {
+		p.log.Warn("checkpoint not found for transaction", zap.String("tx-digest", ev.Id.TxDigest.String()))
+		time.Sleep(1 * time.Second)
+		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
+		if err != nil {
+			p.log.Error("failed to get transaction while handling event notification",
+				zap.Error(err), zap.Any("event", ev))
+			return
 		}
+		ev.Checkpoint = txRes.Checkpoint
 	}
 
-	// stage-2: form packets of txDigests
-	var txDigestsList []types.TxDigests
-
-	digests := []string{}
-	fromCheckpoint, _ := strconv.Atoi(checkpoints[0].SequenceNumber)
-	for i, cp := range checkpoints {
-		if (len(digests) + len(cp.Transactions)) > maxDigestsPerItem {
-			toCheckpoint, _ := strconv.Atoi(checkpoints[i-1].SequenceNumber)
-			if len(digests) < maxDigestsPerItem {
-				toCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
-			}
-			for i, tx := range cp.Transactions {
-				if len(digests) == maxDigestsPerItem {
-					txDigestsList = append(txDigestsList, types.TxDigests{
-						FromCheckpoint: uint64(fromCheckpoint),
-						ToCheckpoint:   uint64(toCheckpoint),
-						Digests:        digests,
-					})
-					digests = cp.Transactions[i:]
-					fromCheckpoint, _ = strconv.Atoi(cp.SequenceNumber)
-					break
-				} else {
-					digests = append(digests, tx)
-				}
-			}
-		} else {
-			digests = append(digests, cp.Transactions...)
+	msg, err := p.parseMessageFromEvent(ev)
+	if err != nil {
+		if err.Error() == types.InvalidEventError {
+			return
 		}
+		p.log.Error("failed to parse message from event while handling event notification",
+			zap.Error(err),
+			zap.Any("event", ev))
+		return
 	}
 
-	lastCheckpointSeq := checkpoints[len(checkpoints)-1].SequenceNumber
-	lastCheckpoint, _ := strconv.Atoi(lastCheckpointSeq)
-	txDigestsList = append(txDigestsList, types.TxDigests{
-		FromCheckpoint: uint64(fromCheckpoint),
-		ToCheckpoint:   uint64(lastCheckpoint),
-		Digests:        digests,
-	})
+	if p.shouldSkipMessage(msg) {
+		return
+	}
 
-	return txDigestsList
+	p.log.Info("Detected event log: ",
+		zap.Uint64("checkpoint", msg.MessageHeight),
+		zap.String("event-type", msg.EventType),
+		zap.Any("sn", msg.Sn),
+		zap.String("dst", msg.Dst),
+		zap.Any("req-id", msg.ReqID),
+		zap.String("dapp-module-cap-id", msg.DappModuleCapID),
+		zap.Any("data", hex.EncodeToString(msg.Data)),
+	)
+
+	blockStream <- &relayertypes.BlockInfo{
+		Height:   msg.MessageHeight,
+		Messages: []*relayertypes.Message{msg},
+	}
 }
 
-func (p *Provider) getTxDigestsStream(done chan interface{}, afterSeq string) <-chan types.TxDigests {
-	txDigestsStream := make(chan types.TxDigests)
+func (p *Provider) listenByPolling(ctx context.Context, lastSavedTxDigestStr string, blockStream chan *relayertypes.BlockInfo) error {
+	done := make(chan interface{})
+	defer close(done)
+
+	var lastSavedTxDigest *sui_types.TransactionDigest
+
+	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest
+		var err error
+		lastSavedTxDigest, err = sui_types.NewDigest(lastSavedTxDigestStr)
+		if err != nil {
+			return err
+		}
+		currentEvents, err := p.client.GetEvents(ctx, *lastSavedTxDigest)
+		if err != nil {
+			return err
+		}
+
+		for _, ev := range currentEvents {
+			p.handleEventNotification(ctx, types.EventResponse{SuiEvent: ev}, blockStream)
+		}
+	}
+
+	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, lastSavedTxDigest)
+
+	p.log.Info("event query started from last saved tx digest", zap.String("last-saved-tx-digest", lastSavedTxDigestStr))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-eventStream:
+			if ok {
+				p.handleEventNotification(ctx, ev, blockStream)
+			}
+		}
+	}
+}
+
+func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, afterTxDigest *sui_types.TransactionDigest) <-chan types.EventResponse {
+	eventStream := make(chan types.EventResponse)
 
 	go func() {
-		nextCursor := afterSeq
-		checkpointTicker := time.NewTicker(3 * time.Second) //todo need to decide this interval
+		defer close(eventStream)
+
+		inputObj, err := sui_types.NewObjectIdFromHex(objectID)
+		if err != nil {
+			p.log.Panic("failed to create object from hex string", zap.Error(err))
+		}
+
+		query := cctypes.SuiTransactionBlockResponseQuery{
+			Filter: &cctypes.TransactionFilter{
+				InputObject: inputObj,
+			},
+			Options: &cctypes.SuiTransactionBlockResponseOptions{
+				ShowEvents: true,
+			},
+		}
+
+		cursor := afterTxDigest
+
+		limit := uint(100)
+
+		ticker := time.NewTicker(3 * time.Second)
 
 		for {
 			select {
 			case <-done:
 				return
-			case <-checkpointTicker.C:
-				req := types.SuiGetCheckpointsRequest{
-					Cursor:          nextCursor,
-					Limit:           types.QUERY_MAX_RESULT_LIMIT,
-					DescendingOrder: false,
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer cancel()
-				paginatedRes, err := p.client.GetCheckpoints(ctx, req)
+			case <-ticker.C:
+				res, err := p.client.QueryTxBlocks(context.Background(), query, cursor, &limit, false)
 				if err != nil {
-					p.log.Error("failed to fetch checkpoints", zap.Error(err))
-					continue
+					p.log.Error("failed to query tx blocks", zap.Error(err), zap.Any("cursor", cursor))
+					break
 				}
 
-				if len(paginatedRes.Data) > 0 {
-					for _, txDigests := range p.GenerateTxDigests(paginatedRes.Data, types.QUERY_MAX_RESULT_LIMIT) {
-						txDigestsStream <- types.TxDigests{
-							FromCheckpoint: uint64(txDigests.FromCheckpoint),
-							ToCheckpoint:   uint64(txDigests.ToCheckpoint),
-							Digests:        txDigests.Digests,
+				p.log.Debug("tx block query successful", zap.Any("cursor", cursor))
+
+				if len(res.Data) > 0 {
+					var nextCursor *lib.Base58
+					for _, blockRes := range res.Data {
+						for _, ev := range blockRes.Events {
+							eventStream <- types.EventResponse{
+								SuiEvent:   ev,
+								Checkpoint: blockRes.Checkpoint,
+							}
+							nextCursor = &ev.Id.TxDigest
 						}
 					}
-
-					nextCursor = paginatedRes.Data[len(paginatedRes.Data)-1].SequenceNumber
+					if nextCursor != nil {
+						cursor = nextCursor
+					}
 				}
 			}
 		}
 	}()
 
-	return txDigestsStream
+	return eventStream
 }

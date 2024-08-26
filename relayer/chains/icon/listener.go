@@ -29,8 +29,7 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
-	errCh := make(chan error)             // error channel
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.LastProcessedTx, incoming chan *providerTypes.BlockInfo) error {
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
@@ -39,6 +38,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		default:
 		}
 	}
+
+	lastSavedHeight := lastProcessedTx.Height
 
 	processedheight, err := p.StartFromHeight(ctx, lastSavedHeight)
 	if err != nil {
@@ -53,20 +54,17 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		Height:           types.NewHexInt(processedheight),
 		EventFilter:      p.GetMonitorEventFilters(),
 		Logs:             types.NewHexInt(1),
-		ProgressInterval: types.NewHexInt(15),
+		ProgressInterval: types.NewHexInt(25),
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-errCh:
-			return err
-
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 			go func(ctx context.Context, cancel context.CancelFunc) {
-				err := p.client.MonitorEvent(ctx, eventReq, func(v *types.EventNotification) error {
+				err := p.client.MonitorEvent(ctx, eventReq, incoming, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						p.log.Debug("event notification received", zap.Any("event", v))
 						if v.Progress != "" {
@@ -76,7 +74,10 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 								return err
 							}
 							if height > 0 {
-								eventReq.Height = types.NewHexInt(height + 1)
+								eventReq.Height = types.NewHexInt(height)
+							}
+							if height < processedheight {
+								p.log.Info("Synced", zap.Int64("height", height), zap.Int64("delta", processedheight-height))
 							}
 							return nil
 						}
@@ -89,11 +90,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							p.log.Info("Detected eventlog",
 								zap.Uint64("height", msg.MessageHeight),
 								zap.String("target_network", msg.Dst),
-								zap.Uint64("sn", msg.Sn),
+								zap.Uint64("sn", msg.Sn.Uint64()),
+								zap.String("tx_hash", v.Hash.String()),
 								zap.String("event_type", msg.EventType),
 							)
-							incoming <- &providerTypes.BlockInfo{
-								Messages: msgs,
+							outgoing <- &providerTypes.BlockInfo{
+								Messages: []*providerTypes.Message{msg},
 								Height:   msg.MessageHeight,
 							}
 						}
@@ -104,7 +106,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-					time.Sleep(time.Second * 5)
+					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))
 				}

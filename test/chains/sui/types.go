@@ -3,14 +3,14 @@ package sui
 import (
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/docker/docker/client"
-	ibcLocal "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
+	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"go.uber.org/zap"
 )
 
 type SuiRemotenet struct {
-	cfg          ibcLocal.ChainConfig
+	cfg          chains.ChainConfig
 	filepath     map[string]string
 	IBCAddresses map[string]string     `json:"addresses"`
 	Wallets      map[string]ibc.Wallet `json:"wallets"`
@@ -20,13 +20,6 @@ type SuiRemotenet struct {
 	testconfig   *testconfig.Chain
 	testName     string
 	client       *suisdkClient.Client
-}
-
-func (c *SuiRemotenet) OverrideConfig(key string, value any) {
-	if value == nil {
-		return
-	}
-	c.cfg.ConfigFileOverrides[key] = value
 }
 
 type MoveTomlConfig struct {
@@ -45,11 +38,12 @@ type Dependency struct {
 }
 
 type DepoymentInfo struct {
-	PackageId string
-	AdminCap  string
-	Storage   string
-	Witness   string
-	IdCap     string
+	PackageId  string
+	AdminCap   string
+	UpgradeCap string
+	Storage    string
+	Witness    string
+	IdCap      string
 }
 
 type PackageInfo struct {

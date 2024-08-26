@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/coming-chat/go-sui/v2/account"
+	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/coming-chat/go-sui/v2/lib"
+	"github.com/coming-chat/go-sui/v2/sui_types"
 	"github.com/coming-chat/go-sui/v2/types"
 	suitypes "github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -71,9 +75,7 @@ func (*mockClient) GetTransaction(ctx context.Context, txDigest string) (*types.
 func (*mockClient) QueryContract(ctx context.Context, suiMessage *SuiMessage, address string, gasBudget uint64) (any, error) {
 	panic("not implemented")
 }
-func (*mockClient) GetCheckpoints(ctx context.Context, req suitypes.SuiGetCheckpointsRequest) (*suitypes.PaginatedCheckpointsResponse, error) {
-	panic("not implemented")
-}
+
 func (*mockClient) GetEventsFromTxBlocks(ctx context.Context, packageID string, digests []string) ([]suitypes.EventResponse, error) {
 	panic("not implemented")
 }
@@ -129,145 +131,62 @@ func TestImportKeystore(t *testing.T) {
 	assert.Equal(t, expectedDecodedPrivKey, hex.EncodeToString(pro.wallet.KeyPair.PrivateKey()[:32]))
 }
 
-func TestGenerateTxDigests(t *testing.T) {
-	type test struct {
-		name           string
-		input          []suitypes.CheckpointResponse
-		expectedOutput []suitypes.TxDigests
+func newRootLogger() *zap.Logger {
+	config := zap.NewProductionEncoderConfig()
+	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
+		encoder.AppendString(ts.UTC().Format("2006-01-02T15:04:05.000000Z07:00"))
 	}
+	config.LevelKey = "lvl"
 
-	p, err := GetSuiProvider()
+	enc := zapcore.NewJSONEncoder(config)
+	level := zap.InfoLevel
+
+	core := zapcore.NewTee(zapcore.NewCore(enc, os.Stderr, level))
+
+	return zap.New(core)
+}
+func TestQueryTxBlocks(t *testing.T) {
+	rpcClient, err := suisdkClient.Dial("https://fullnode.testnet.sui.io:443")
 	assert.NoError(t, err)
 
-	maxDigests := 5
+	client := NewClient(rpcClient, newRootLogger())
 
-	tests := []test{
-		{
-			name: "case-1",
-			input: []suitypes.CheckpointResponse{
-				{
-					SequenceNumber: "1",
-					Transactions:   []string{"tx1", "tx2"},
-				},
-			},
-			expectedOutput: []suitypes.TxDigests{
-				{
-					FromCheckpoint: 1,
-					ToCheckpoint:   1,
-					Digests:        []string{"tx1", "tx2"},
-				},
-			},
+	inputObj, err := sui_types.NewObjectIdFromHex("0xde9b85d02710e2651f530e83ba2fb1daea45fd05e72f1c0dd2398239b917b46c")
+	assert.NoError(t, err)
+
+	query := types.SuiTransactionBlockResponseQuery{
+		Filter: &types.TransactionFilter{
+			InputObject: inputObj,
 		},
-		{
-			name: "case-2",
-			input: []suitypes.CheckpointResponse{
-				{
-					SequenceNumber: "1",
-					Transactions:   []string{"tx1", "tx2"},
-				},
-				{
-					SequenceNumber: "2",
-					Transactions:   []string{"tx3", "tx4"},
-				},
-			},
-			expectedOutput: []suitypes.TxDigests{
-				{
-					FromCheckpoint: 1,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx1", "tx2", "tx3", "tx4"},
-				},
-			},
-		},
-		{
-			name: "case-3",
-			input: []suitypes.CheckpointResponse{
-				{
-					SequenceNumber: "1",
-					Transactions:   []string{"tx1", "tx2"},
-				},
-				{
-					SequenceNumber: "2",
-					Transactions:   []string{"tx3", "tx4", "tx5", "tx6"},
-				},
-			},
-			expectedOutput: []suitypes.TxDigests{
-				{
-					FromCheckpoint: 1,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx1", "tx2", "tx3", "tx4", "tx5"},
-				},
-				{
-					FromCheckpoint: 2,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx6"},
-				},
-			},
-		},
-		{
-			name: "case-4",
-			input: []suitypes.CheckpointResponse{
-				{
-					SequenceNumber: "1",
-					Transactions:   []string{"tx1", "tx2"},
-				},
-				{
-					SequenceNumber: "2",
-					Transactions:   []string{"tx3", "tx4", "tx5", "tx6", "tx7", "tx8", "tx9", "tx10", "tx11"},
-				},
-			},
-			expectedOutput: []suitypes.TxDigests{
-				{
-					FromCheckpoint: 1,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx1", "tx2", "tx3", "tx4", "tx5"},
-				},
-				{
-					FromCheckpoint: 2,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx6", "tx7", "tx8", "tx9", "tx10"},
-				},
-				{
-					FromCheckpoint: 2,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx11"},
-				},
-			},
-		},
-		{
-			name: "case-5",
-			input: []suitypes.CheckpointResponse{
-				{
-					SequenceNumber: "1",
-					Transactions:   []string{},
-				},
-				{
-					SequenceNumber: "2",
-					Transactions:   []string{"tx1", "tx2", "tx3", "tx4", "tx5", "tx6", "tx7", "tx8", "tx9", "tx10", "tx11"},
-				},
-			},
-			expectedOutput: []suitypes.TxDigests{
-				{
-					FromCheckpoint: 1,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx1", "tx2", "tx3", "tx4", "tx5"},
-				},
-				{
-					FromCheckpoint: 2,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx6", "tx7", "tx8", "tx9", "tx10"},
-				},
-				{
-					FromCheckpoint: 2,
-					ToCheckpoint:   2,
-					Digests:        []string{"tx11"},
-				},
-			},
+		Options: &types.SuiTransactionBlockResponseOptions{
+			ShowEvents: true,
 		},
 	}
 
-	for _, eachTest := range tests {
-		t.Run(eachTest.name, func(subTest *testing.T) {
-			assert.Equal(subTest, eachTest.expectedOutput, p.GenerateTxDigests(eachTest.input, maxDigests))
-		})
+	cursor, err := sui_types.NewDigest("HGjoM1cL5dzR7B6radZ1woPFESe2cvwAaN6z46rBN9c5")
+	assert.NoError(t, err)
+
+	limit := uint(100)
+	res, err := client.QueryTxBlocks(context.Background(), query, cursor, &limit, false)
+	assert.NoError(t, err)
+
+	count := 0
+	for _, blockRes := range res.Data {
+		checkpoint := ""
+		if blockRes.Checkpoint != nil {
+			checkpoint = blockRes.Checkpoint.Decimal().String()
+		}
+		for _, ev := range blockRes.Events {
+			count++
+			client.log.Info("event",
+				zap.String("checkpoint", checkpoint),
+				zap.String("package-id", ev.PackageId.String()),
+				zap.String("module", ev.TransactionModule),
+				zap.String("event-type", ev.Type),
+				zap.String("tx-digest", ev.Id.TxDigest.String()),
+			)
+		}
 	}
+
+	fmt.Println("Total Events: ", count)
 }

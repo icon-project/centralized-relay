@@ -15,10 +15,12 @@ var (
 	hzContextTimeout = 2 * time.Minute
 )
 
-func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx,
+	blockInfo chan *relayertypes.BlockInfo) error {
 	if err := p.RestoreKeystore(ctx); err != nil {
 		return fmt.Errorf("failed to restore key: %w", err)
 	}
+	lastSavedLedgerSeq := lastProcessedTx.Height
 	latestLedger, err := p.client.GetLatestLedger(ctx)
 	if err != nil {
 		return err
@@ -71,7 +73,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedLedgerSeq uint64, bloc
 		case <-reconnectCh:
 			p.log.Info("Query started.", zap.Uint64("from-seq", startSeq))
 			eventFilter := types.EventFilter{
-				LedgerSeq:   startSeq,
+				LedgerSeq:   startSeq + 1,
 				ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
 				Topics:      []string{"Message", "CallMessage", "RollbackMessage"},
 			}
@@ -143,14 +145,14 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 				p.log.Warn("failed to decode sn", zap.Any("value", mapItem.Val))
 				return nil
 			}
-			msg.Sn = uint64(sn.Lo)
+			msg.Sn = types.Uint128ToBigInt(sn)
 		case "reqId":
 			reqId, ok := mapItem.Val.GetU128()
 			if !ok {
 				p.log.Warn("failed to decode req_id", zap.Any("value", mapItem.Val))
 				return nil
 			}
-			msg.ReqID = uint64(reqId.Lo)
+			msg.ReqID = types.Uint128ToBigInt(reqId)
 		case "from":
 			msg.Src = mapItem.Val.String()
 		case "targetNetwork", "to":
@@ -164,14 +166,14 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 			msg.Data = data
 		}
 	}
-
-	//skip invalid message
-	if msg.Src == "" && msg.Dst != "" {
+	switch eventType {
+	case relayerevents.EmitMessage:
 		msg.Src = p.cfg.NID
-	}
-	if msg.EventType == "" {
-		p.log.Warn("detected invalid message: ", zap.Any("msg", msg))
-		return nil
+	case relayerevents.CallMessage:
+		msg.Dst = p.cfg.NID
+	case relayerevents.RollbackMessage:
+		msg.Src = p.cfg.NID
+		msg.Dst = p.cfg.NID
 	}
 	p.log.Info("Detected eventlog:", zap.Any("event", *msg))
 	return msg

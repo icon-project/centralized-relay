@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/blockdb"
 	"github.com/icon-project/centralized-relay/test/interchaintest/_internal/dockerutil"
 	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
 	"github.com/icon-project/centralized-relay/test/interchaintest/relayer/centralized"
@@ -30,7 +29,7 @@ import (
 type StellarRemotenet struct {
 	log           *zap.Logger
 	testName      string
-	cfg           ibc.ChainConfig
+	cfg           chains.ChainConfig
 	scorePaths    map[string]string
 	IBCAddresses  map[string]string     `json:"addresses"`
 	Wallets       map[string]ibc.Wallet `json:"wallets"`
@@ -44,7 +43,8 @@ type StellarRemotenet struct {
 const xcall = "xcall"
 const connection = "connection"
 
-func NewStellarRemotenet(testName string, log *zap.Logger, chainConfig ibc.ChainConfig, client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
+func NewStellarRemotenet(testName string, log *zap.Logger, chainConfig chains.ChainConfig,
+	client *client.Client, network string, testconfig *testconfig.Chain) chains.Chain {
 	httpClient := http.Client{}
 	stellarHorizonClient := &horizonclient.Client{
 		HorizonURL: testconfig.WebsocketUrl,
@@ -72,25 +72,8 @@ func NewStellarRemotenet(testName string, log *zap.Logger, chainConfig ibc.Chain
 }
 
 // Config fetches the chain configuration.
-func (sn *StellarRemotenet) Config() ibc.ChainConfig {
+func (sn *StellarRemotenet) Config() chains.ChainConfig {
 	return sn.cfg
-}
-
-func (sn *StellarRemotenet) OverrideConfig(key string, value any) {
-	if value == nil {
-		return
-	}
-	sn.cfg.ConfigFileOverrides[key] = value
-}
-
-// Initialize initializes node structs so that things like initializing keys can be done before starting the chain
-func (sn *StellarRemotenet) Initialize(ctx context.Context, testName string, cli *client.Client, networkID string) error {
-	return nil
-}
-
-// Start sets up everything needed (validators, gentx, fullnodes, peering, additional accounts) for chain to start from genesis.
-func (sn *StellarRemotenet) Start(testName string, ctx context.Context, additionalGenesisWallets ...ibc.WalletAmount) error {
-	return nil
 }
 
 // Exec runs an arbitrary command using Chain's docker environment.
@@ -100,7 +83,7 @@ func (sn *StellarRemotenet) Start(testName string, ctx context.Context, addition
 // "env" are environment variables in the format "MY_ENV_VAR=value"
 func (sn *StellarRemotenet) Exec(ctx context.Context, cmd []string, env []string) (stdout []byte, stderr []byte, err error) {
 	cmd = append([]string{}, cmd...)
-	job := dockerutil.NewImage(sn.log, sn.Client, sn.Network, sn.testName, sn.cfg.Images[0].Repository, sn.cfg.Images[0].Version)
+	job := dockerutil.NewImage(sn.log, sn.Client, sn.Network, sn.testName, sn.cfg.Images.Repository, sn.cfg.Images.Version)
 	bindPaths := []string{
 		sn.testconfig.ContractsPath + ":/contracts",
 	}
@@ -163,21 +146,6 @@ func (sn *StellarRemotenet) GetHostGRPCAddress() string {
 	return sn.testconfig.RPCUri
 }
 
-// HomeDir is the home directory of a node running in a docker container. Therefore, this maps to
-// the container's filesystem (not the host).
-func (sn *StellarRemotenet) HomeDir() string {
-	return ""
-}
-
-func (sn *StellarRemotenet) createKeystore(ctx context.Context, keyName string) (string, string, error) {
-	return "", "", nil
-}
-
-// RecoverKey recovers an existing user from a given mnemonic.
-func (sn *StellarRemotenet) RecoverKey(ctx context.Context, name string, mnemonic string) error {
-	panic("not implemented") // TODO: Implement
-}
-
 // GetAddress fetches the bech32 address for a test key on the "user" node (either the first fullnode or the first validator if no fullnodes).
 func (sn *StellarRemotenet) GetAddress(ctx context.Context, keyName string) ([]byte, error) {
 	addrInByte, err := json.Marshal(keyName)
@@ -185,11 +153,6 @@ func (sn *StellarRemotenet) GetAddress(ctx context.Context, keyName string) ([]b
 		return nil, err
 	}
 	return addrInByte, nil
-}
-
-// SendFunds sends funds to a wallet from a user account.
-func (sn *StellarRemotenet) SendFunds(ctx context.Context, keyName string, amount ibc.WalletAmount) error {
-	return nil
 }
 
 // Height returns the current block height or an error if unable to get current height.
@@ -203,26 +166,6 @@ func (sn *StellarRemotenet) GetGasFeesInNativeDenom(gasPaid int64) int64 {
 	gasPrice, _ := strconv.ParseFloat(strings.Replace(sn.cfg.GasPrices, sn.cfg.Denom, "", 1), 64)
 	fees := float64(gasPaid) * gasPrice
 	return int64(fees)
-}
-
-// BuildRelayerWallet will return a chain-specific wallet populated with the mnemonic so that the wallet can
-// be restored in the relayer node using the mnemonic. After it is built, that address is included in
-// genesis with some funds.
-func (sn *StellarRemotenet) BuildRelayerWallet(ctx context.Context, keyName string) (ibc.Wallet, error) {
-	return sn.BuildWallet(ctx, keyName, "")
-}
-
-func (sn *StellarRemotenet) BuildWallet(ctx context.Context, keyName string, mnemonic string) (ibc.Wallet, error) {
-	return nil, nil
-}
-
-func (sn *StellarRemotenet) FindTxs(ctx context.Context, height uint64) ([]blockdb.Tx, error) {
-	return nil, nil
-}
-
-// GetBalance fetches the current balance for a specific account address and denom.
-func (sn *StellarRemotenet) GetBalance(ctx context.Context, address string, denom string) (int64, error) {
-	return 0, nil
 }
 
 func (sn *StellarRemotenet) SetupConnection(ctx context.Context, target chains.Chain) error {
@@ -355,7 +298,7 @@ func (sn *StellarRemotenet) FindTargetXCallMessage(ctx context.Context, target c
 }
 
 func (sn *StellarRemotenet) XCall(ctx context.Context, targetChain chains.Chain, keyName, to string, data, rollback []byte) (*chains.XCallResponse, error) {
-	height, err := targetChain.(ibc.Chain).Height(ctx)
+	height, err := targetChain.Height(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -365,26 +308,6 @@ func (sn *StellarRemotenet) XCall(ctx context.Context, targetChain chains.Chain,
 		return nil, err
 	}
 	return sn.FindTargetXCallMessage(ctx, targetChain, height, strings.Split(to, "/")[1])
-}
-
-func (sn *StellarRemotenet) ExecuteCall(ctx context.Context, reqId, data string) (context.Context, error) {
-	panic("not required in e2e")
-}
-
-func (sn *StellarRemotenet) ExecuteRollback(ctx context.Context, sno string) (context.Context, error) {
-	params := make(map[string]string)
-	params["sequence_no"] = sno
-	ctx, err := sn.executeContract(ctx, sn.IBCAddresses["xcall"], "execute_rollback", params)
-	if err != nil {
-		return nil, err
-	}
-	height, _ := sn.Height(ctx)
-	_, err = sn.FindEvent(ctx, height-20, "xcall", "RollbackExecuted", sno)
-	if err != nil {
-		return ctx, err
-	}
-	return context.WithValue(ctx, "IsRollbackEventFound", true), nil
-
 }
 
 func (sn *StellarRemotenet) FindCallMessage(ctx context.Context, startHeight uint64, from, to, sno string) (string, string, error) {
@@ -445,14 +368,6 @@ func (sn *StellarRemotenet) executeContract(ctx context.Context, contractAddress
 	return context.WithValue(ctx, "sno", output), err
 }
 
-func (sn *StellarRemotenet) ExecuteContract(ctx context.Context, contractAddress, keyName, methodName string, params map[string]interface{}) (context.Context, error) {
-	return nil, nil
-}
-
-func (sn *StellarRemotenet) GetBlockByHeight(context.Context) (context.Context, error) {
-	panic("not implemented")
-}
-
 // GetBlockByHeight implements chains.Chain
 func (sn *StellarRemotenet) GetClientBlockByHeight(ctx context.Context, height int64) (string, error) {
 	return "", nil
@@ -465,17 +380,9 @@ func (sn *StellarRemotenet) GetLastBlock(ctx context.Context) (context.Context, 
 	return context.WithValue(ctx, chains.LastBlock{}, h), err
 }
 
-func (sn *StellarRemotenet) InitEventListener(ctx context.Context, contract string) chains.EventListener {
-	return nil
-}
-
 // QueryContract implements chains.Chain
 func (sn *StellarRemotenet) QueryContract(ctx context.Context, contractAddress, methodName string, params map[string]interface{}) (context.Context, error) {
 	return ctx, nil
-}
-
-func (sn *StellarRemotenet) BuildWallets(ctx context.Context, keyName string) (ibc.Wallet, error) {
-	panic("not implemented")
 }
 
 func (sn *StellarRemotenet) NodeCommand(command ...string) []string {
