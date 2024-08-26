@@ -1,0 +1,58 @@
+---
+# - name: Refresh inventory to ensure new instances exist in inventory
+#   ansible.builtin.meta: refresh_inventory
+- debug:
+    msg: "{{ relay_instance_public_ip }}"
+- name: Download Centralized Relay binary
+  get_url:
+    url: "{{ centralized_relay_url }}"
+    dest: "/tmp/centralized-relay_{{ centralized_relay_version }}.tar.gz"
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+- name: Extract Centralized Relay binary
+  unarchive:
+    src: "/tmp/centralized-relay_{{ centralized_relay_version }}.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+- name: Move Centralized Relay binary to installation path
+  command: mv /tmp/centralized-relay /usr/local/bin/centralized-relay
+  delegate_to: "{{ relay_instance_public_ip }}"
+  become: yes
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+- name: Ensure Centralized Relay binary has execute permissions
+  file:
+    path: "/usr/local/bin/centralized-relay"
+    mode: '0755'
+  delegate_to: "{{ relay_instance_public_ip }}"
+  become: yes
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+
+- name: Initialize Centralized Relay
+  command: centralized-relay config init
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+
+- name: Deploy Centralized Relay config
+  template:
+    src: templates/config.yml.j2
+    dest: "/home/ubuntu/.centralized-relay/config.yaml"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+  delegate_to: "{{ relay_instance_public_ip }}"
+  become: yes
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
