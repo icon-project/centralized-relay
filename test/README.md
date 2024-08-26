@@ -8,13 +8,13 @@ To run the demo, the following software needs to be installed.
 
 ## Setting up the Environment
 
-1. Create an `e2e-tests` folder and clone the `centralised-relay` repository:
+1. Create an `e2e-tests` folder and clone the `centralized-relay` repository:
 
     ```bash
     mkdir e2e-tests
     cd e2e-tests
-    git clone https://github.com/icon-project/centralised-relay.git
-    cd centralised-relay
+    git clone https://github.com/icon-project/centralized-relay.git
+    cd centralized-relay
     make build-docker
     cd -  # Back to the root folder
     ```
@@ -36,8 +36,8 @@ To conduct tests for the IBC integration system, follow these steps:
 
 Before initiating the tests, configure essential environment variables:
 
-- **`TEST_CONFIG_PATH`**: Set this variable to the absolute path of your chosen configuration file. You can create these configuration files using the sample files provided in the `centralised-relay` source folder. Sample configuration files are available at the following locations:
-    - sample config : `centralised-relay/test/testsuite/sample-config.yaml`
+- **`TEST_CONFIG_PATH`**: Set this variable to the absolute path of your chosen configuration file. You can create these configuration files using the sample files provided in the `centralized-relay` source folder. Sample configuration files are available at the following locations:
+    - sample config : `centralized-relay/test/testsuite/sample-config.yaml`
 
 Here's an example of environment variable configuration:
 
@@ -48,10 +48,10 @@ export TEST_CONFIG_PATH=/path/to/config.yaml
 ℹ️ Please note that most of the config content can be used same as it in sample config however you may need to update the image name and version for Archway, Neutron, and Icon in the configuration file you create.
 
 
-After configuring these variables, navigate to the `centralised-relay` source folder:
+After configuring these variables, navigate to the `centralized-relay` source folder:
 
 ```bash
-cd centralised-relay
+cd centralized-relay
 ```
 
 #### 2. Run the Test Script
