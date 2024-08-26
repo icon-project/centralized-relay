@@ -1,17 +1,17 @@
 name: E2E Job
 
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       tests_to_run:
-#         description: 'Comma-separated list of chain names to run (e.g., archway,icon,foundry)'
-#         required: true
-#         default: ''
-#         type: string
 on:
-  push:
-    branches:
-      - "**"
+  workflow_dispatch:
+    inputs:
+      tests_to_run:
+        description: 'Comma-separated list of chain names to run (e.g., archway,icon,foundry)'
+        required: true
+        default: ''
+        type: string
+# on:
+#   push:
+#     branches:
+#       - "**"
 
 jobs:
   e2e:
