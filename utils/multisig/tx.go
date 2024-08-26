@@ -20,7 +20,7 @@ import (
 func CreateMultisigTx(
 	inputs []*UTXO,
 	outputs []*OutputTx,
-	feePerOutput uint64,
+	txFee uint64,
 	relayersMultisigWallet *MultisigWallet,
 	userMultisigWallet *MultisigWallet,
 	chainParam *chaincfg.Params,
@@ -62,7 +62,7 @@ func CreateMultisigTx(
 
 	// add TxOuts into raw tx
 	// totalOutputAmount in external unit
-	totalOutputAmount := uint64(0)
+	totalOutputAmount := txFee
 	for _, out := range outputs {
 		if len(out.OpReturnScript) > 0 {
 			msgTx.AddTxOut(wire.NewTxOut(0, out.OpReturnScript))
@@ -70,7 +70,7 @@ func CreateMultisigTx(
 			// adding the output to tx
 			decodedAddr, err := btcutil.DecodeAddress(out.ReceiverAddress, chainParam)
 			if err != nil {
-				return nil, "", nil, fmt.Errorf("CreateRawExternalTx - Error when decoding receiver address: %v - %v", err, out.ReceiverAddress)
+				return nil, "", nil, fmt.Errorf("CreateMultisigTx - Error when decoding receiver address: %v - %v", err, out.ReceiverAddress)
 			}
 			destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
 			if err != nil {
@@ -78,10 +78,10 @@ func CreateMultisigTx(
 			}
 
 			// adding the destination address and the amount to the transaction
-			if out.Amount <= feePerOutput || out.Amount-feePerOutput < MIN_SAT {
-				return nil, "", nil, fmt.Errorf("[CreateRawExternalTx-BTC] Output amount %v must greater than fee %v", out.Amount, feePerOutput)
+			if out.Amount < MIN_SAT {
+				return nil, "", nil, fmt.Errorf("CreateMultisigTx - Output amount %v must greater than minimum UTXO value %v", out.Amount, MIN_SAT)
 			}
-			redeemTxOut := wire.NewTxOut(int64(out.Amount-feePerOutput), destinationAddrByte)
+			redeemTxOut := wire.NewTxOut(int64(out.Amount), destinationAddrByte)
 
 			msgTx.AddTxOut(redeemTxOut)
 			totalOutputAmount += out.Amount
@@ -90,29 +90,26 @@ func CreateMultisigTx(
 
 	// check amount of input coins and output coins
 	if totalInputAmount < totalOutputAmount {
-		return nil, "", nil, fmt.Errorf("[CreateRawExternalTx-BTC] Total input amount %v is less than total output amount %v", totalInputAmount, totalOutputAmount)
+		return nil, "", nil, fmt.Errorf("CreateMultisigTx - Total input amount %v is less than total output amount %v", totalInputAmount, totalOutputAmount)
 	}
 
 	// calculate the change output
-	changeAmt := uint64(0)
 	if totalInputAmount > totalOutputAmount {
-		// adding the output to tx
-		decodedAddr, err := btcutil.DecodeAddress(changeReceiverAddress, chainParam)
-		if err != nil {
-			return nil, "", nil, err
-		}
-		destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		// adding the destination address and the amount to the transaction
-		changeAmt = totalInputAmount - totalOutputAmount
+		changeAmt := totalInputAmount - totalOutputAmount
 		if changeAmt >= MIN_SAT {
+			// adding the output to tx
+			decodedAddr, err := btcutil.DecodeAddress(changeReceiverAddress, chainParam)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			destinationAddrByte, err := txscript.PayToAddrScript(decodedAddr)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			// adding the destination address and the amount to the transaction
 			redeemTxOut := wire.NewTxOut(int64(changeAmt), destinationAddrByte)
 			msgTx.AddTxOut(redeemTxOut)
-		} else {
-			changeAmt = 0
 		}
 	}
 
@@ -122,7 +119,6 @@ func CreateMultisigTx(
 		return nil, "", nil, err
 	}
 	hexRawTx := hex.EncodeToString(rawTxBytes.Bytes())
-
 	txSigHashes := txscript.NewTxSigHashes(msgTx, prevOuts)
 
 	return msgTx, hexRawTx, txSigHashes, nil
