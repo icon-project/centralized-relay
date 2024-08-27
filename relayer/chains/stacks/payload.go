@@ -2,6 +2,7 @@
 package stacks
 
 import (
+	"bytes"
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
@@ -56,10 +57,8 @@ func (p *TokenTransferPayload) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint64(amountBytes, p.Amount)
 	buf = append(buf, amountBytes...)
 
-	memoBytes, err := serializeString(p.Memo, MemoMaxLengthBytes)
-	if err != nil {
-		return nil, err
-	}
+	memoBytes := make([]byte, MemoMaxLengthBytes)
+	copy(memoBytes, p.Memo)
 	buf = append(buf, memoBytes...)
 
 	return buf, nil
@@ -85,12 +84,11 @@ func (p *TokenTransferPayload) Deserialize(data []byte) (int, error) {
 	p.Amount = binary.BigEndian.Uint64(data[offset : offset+8])
 	offset += 8
 
-	memo, n, err := deserializeString(data[offset:], MemoMaxLengthBytes)
-	if err != nil {
-		return 0, err
+	if len(data[offset:]) < MemoMaxLengthBytes {
+		return 0, errors.New("insufficient data for memo")
 	}
-	p.Memo = memo
-	offset += n
+	p.Memo = string(bytes.TrimRight(data[offset:offset+MemoMaxLengthBytes], "\x00"))
+	offset += MemoMaxLengthBytes
 
 	return offset, nil
 }

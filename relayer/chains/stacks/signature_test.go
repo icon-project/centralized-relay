@@ -171,3 +171,55 @@ func createTestTransaction() *TokenTransferTransaction {
 		},
 	}
 }
+
+func TestCalculatePresignSighash(t *testing.T) {
+	curSigHash := "2be5719a864803128bc90aba66a2c42a28e07431fb3c7362f43dadf3c6be6cb5"
+	authType := AuthTypeStandard
+	fee := uint64(1)
+	nonce := uint64(1)
+
+	expectedHash := "9047149584c3e1af556484afc14dd599351c04cf5caca37c6e4d438490cead7b"
+
+	curSigHashBytes, _ := hex.DecodeString(curSigHash)
+	result := calculatePresignSighash(curSigHashBytes, authType, fee, nonce)
+
+	if hex.EncodeToString(result) != expectedHash {
+		t.Errorf("calculatePresignSighash mismatch. Got %s, want %s", hex.EncodeToString(result), expectedHash)
+	}
+}
+
+func TestSignWithKey2(t *testing.T) {
+	privateKey := "c1d5bb638aa70862621667f9997711fce692cad782694103f8d9561f62e9f19701"
+	messageHash := "9047149584c3e1af556484afc14dd599351c04cf5caca37c6e4d438490cead7b"
+
+	expectedSignature := "001ca86b18448768a0eacc41ed749eceeb2c3073e424e9fc36b8e86481d92ad2244ac572e30782158b5a1d954a0f50ed3f6f02d1ff9c9dd6efe6d14c52878c52da"
+
+	privateKeyBytes, _ := hex.DecodeString(privateKey)
+	signature, err := SignWithKey(privateKeyBytes, messageHash)
+	if err != nil {
+		t.Fatalf("SignWithKey failed: %v", err)
+	}
+
+	if signature.Data != expectedSignature {
+		t.Fatalf("SignWithKey signature mismatch. Got %s, want %s", signature.Data, expectedSignature)
+	}
+}
+
+// func TestCalculatePostSignSighash(t *testing.T) {
+// 	presignSighash := "9047149584c3e1af556484afc14dd599351c04cf5caca37c6e4d438490cead7b"
+// 	publicKey := "0332fc778e5beb5f944c75b2b63c21dd12c40bdcdf99ba0663168ae0b2be880aef"
+// 	signature := MessageSignature{
+// 		Type: MessageSignatureType,
+// 		Data: "001ca86b18448768a0eacc41ed749eceeb2c3073e424e9fc36b8e86481d92ad2244ac572e30782158b5a1d954a0f50ed3f6f02d1ff9c9dd6efe6d14c52878c52da",
+// 	}
+
+// 	expectedHash := "f3a8b86e09c962a61074207427d6236e85cb04cf0e3ff3a2f44be2eb7a51a4b6"
+
+// 	presignSighashBytes, _ := hex.DecodeString(presignSighash)
+// 	publicKeyBytes, _ := hex.DecodeString(publicKey)
+// 	result := calculatePostSignSighash(presignSighashBytes, publicKeyBytes, signature)
+
+// 	if hex.EncodeToString(result) != expectedHash {
+// 		t.Errorf("calculatePostSignSighash mismatch. Got %s, want %s", hex.EncodeToString(result), expectedHash)
+// 	}
+// }

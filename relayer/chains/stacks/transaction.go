@@ -47,17 +47,39 @@ type ContractCallTransaction struct {
 	Payload ContractCallPayload
 }
 
-func NewTokenTransferTransaction(recipient string, amount uint64, memo string) (*TokenTransferTransaction, error) {
+func NewTokenTransferTransaction(
+	recipient string,
+	amount uint64,
+	memo string,
+	version TransactionVersion,
+	chainID ChainID,
+	signer [20]byte,
+	nonce uint64,
+	fee uint64,
+	anchorMode AnchorMode,
+	postConditionMode PostConditionMode,
+) (*TokenTransferTransaction, error) {
 	payload, err := NewTokenTransferPayload(recipient, amount, memo)
 	if err != nil {
 		return nil, err
 	}
 	return &TokenTransferTransaction{
 		BaseTransaction: BaseTransaction{
-			Version:           TransactionVersionMainnet,
-			ChainID:           ChainIDMainnet,
-			AnchorMode:        AnchorModeOnChainOnly,
-			PostConditionMode: PostConditionModeAllow,
+			Version: version,
+			ChainID: chainID,
+			Auth: TransactionAuth{
+				AuthType: AuthTypeStandard,
+				OriginAuth: SpendingCondition{
+					HashMode:    AddressHashModeSerializeP2PKH,
+					Signer:      signer,
+					Nonce:       nonce,
+					Fee:         fee,
+					KeyEncoding: PubKeyEncodingCompressed,
+					Signature:   [65]byte{}, // This will be filled when signing the transaction
+				},
+			},
+			AnchorMode:        anchorMode,
+			PostConditionMode: postConditionMode,
 			PostConditions:    []PostCondition{}, // Empty post condition
 		},
 		Payload: *payload,
@@ -102,8 +124,6 @@ func (t *TokenTransferTransaction) Serialize() ([]byte, error) {
 	postConditionsLenBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(postConditionsLenBytes, uint32(len(t.PostConditions)))
 	buf = append(buf, postConditionsLenBytes...)
-
-	buf = append(buf, byte(PayloadTypeTokenTransfer))
 
 	payloadBytes, err := t.Payload.Serialize()
 	if err != nil {
@@ -420,7 +440,6 @@ func DeserializeTransaction(data []byte) (StacksTransaction, error) {
 		return nil, errors.New("insufficient data for payload type")
 	}
 	payloadType := PayloadType(data[offset])
-	offset++
 
 	var tx StacksTransaction
 

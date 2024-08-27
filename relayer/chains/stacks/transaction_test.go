@@ -7,6 +7,7 @@ import (
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/clarity"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSTXTokenTransferTransactionSerializationAndDeserialization(t *testing.T) {
@@ -198,6 +199,104 @@ func TestInvalidSpendingConditions(t *testing.T) {
 	serialized, _ := sp.SerializeSpendingCondition()
 	_, err = sp.DeserializeSpendingCondition(serialized)
 	assert.Error(t, err, "Expected error for incompatible hash mode and key encoding")
+}
+
+func TestNewTokenTransferTransaction(t *testing.T) {
+	tests := []struct {
+		name              string
+		recipient         string
+		amount            uint64
+		memo              string
+		version           TransactionVersion
+		chainID           ChainID
+		signer            [20]byte
+		nonce             uint64
+		fee               uint64
+		anchorMode        AnchorMode
+		postConditionMode PostConditionMode
+	}{
+		{
+			name:              "Valid transaction",
+			recipient:         "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+			amount:            1000000,
+			memo:              "Test transfer",
+			version:           TransactionVersionMainnet,
+			chainID:           ChainIDMainnet,
+			signer:            [20]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+			nonce:             1,
+			fee:               1000,
+			anchorMode:        AnchorModeOnChainOnly,
+			postConditionMode: PostConditionModeAllow,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, err := NewTokenTransferTransaction(
+				tt.recipient,
+				tt.amount,
+				tt.memo,
+				tt.version,
+				tt.chainID,
+				tt.signer,
+				tt.nonce,
+				tt.fee,
+				tt.anchorMode,
+				tt.postConditionMode,
+			)
+
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+
+			// Check initial values
+			assertTokenTransferTransactionFields(t, tx, tt)
+
+			// Serialize the transaction
+			serialized, err := tx.Serialize()
+			require.NoError(t, err)
+			require.NotEmpty(t, serialized)
+
+			// Deserialize the transaction
+			deserialized, err := DeserializeTransaction(serialized)
+			require.NoError(t, err)
+			require.NotNil(t, deserialized)
+
+			// Check that the deserialized transaction is of the correct type
+			deserializedTx, ok := deserialized.(*TokenTransferTransaction)
+			require.True(t, ok, "Deserialized transaction is not a TokenTransferTransaction")
+
+			// Check that all fields are preserved after serialization and deserialization
+			assertTokenTransferTransactionFields(t, deserializedTx, tt)
+		})
+	}
+}
+
+func assertTokenTransferTransactionFields(t *testing.T, tx *TokenTransferTransaction, expected struct {
+	name              string
+	recipient         string
+	amount            uint64
+	memo              string
+	version           TransactionVersion
+	chainID           ChainID
+	signer            [20]byte
+	nonce             uint64
+	fee               uint64
+	anchorMode        AnchorMode
+	postConditionMode PostConditionMode
+}) {
+	assert.Equal(t, expected.version, tx.Version)
+	assert.Equal(t, expected.chainID, tx.ChainID)
+	assert.Equal(t, expected.signer, tx.Auth.OriginAuth.Signer)
+	assert.Equal(t, expected.nonce, tx.Auth.OriginAuth.Nonce)
+	assert.Equal(t, expected.fee, tx.Auth.OriginAuth.Fee)
+	assert.Equal(t, expected.anchorMode, tx.AnchorMode)
+	assert.Equal(t, expected.postConditionMode, tx.PostConditionMode)
+	assert.Equal(t, expected.amount, tx.Payload.Amount)
+	assert.Equal(t, expected.memo, tx.Payload.Memo)
+
+	recipient := tx.Payload.Recipient
+	expectedRecipient, _ := clarity.StringToPrincipal(expected.recipient)
+	assert.Equal(t, expectedRecipient, recipient)
 }
 
 func createSingleSigSpendingCondition(hashMode AddressHashMode, pubKey string, nonce, fee uint64) SpendingCondition {

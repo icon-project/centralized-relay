@@ -3,6 +3,7 @@ package stacks
 
 import (
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -110,16 +111,19 @@ func calculateSighash(serializedTx []byte) []byte {
 	return hash[:]
 }
 
-func calculatePresignSighash(sighash []byte, hashMode AddressHashMode, fee uint64, nonce uint64) []byte {
-	h := sha256.New()
-	h.Write(sighash)
-	h.Write([]byte{byte(hashMode)})
+func calculatePresignSighash(sighash []byte, authType AuthType, fee uint64, nonce uint64) []byte {
+	data := make([]byte, 0, len(sighash)+1+8+8)
+	data = append(data, sighash...)
+	data = append(data, byte(authType))
 	feeBytes := make([]byte, 8)
 	nonceBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(feeBytes, fee)
 	binary.BigEndian.PutUint64(nonceBytes, nonce)
-	h.Write(feeBytes)
-	h.Write(nonceBytes)
+	data = append(data, feeBytes...)
+	data = append(data, nonceBytes...)
+
+	h := sha512.New512_256()
+	h.Write(data)
 	return h.Sum(nil)
 }
 
@@ -137,7 +141,7 @@ func SignTransaction(tx *TokenTransferTransaction, privateKey []byte) error {
 	sighash := calculateSighash(serializedTx)
 
 	// 4. Calculate the presign-sighash
-	presignSighash := calculatePresignSighash(sighash, tx.Auth.OriginAuth.HashMode, tx.Auth.OriginAuth.Fee, tx.Auth.OriginAuth.Nonce)
+	presignSighash := calculatePresignSighash(sighash, tx.Auth.AuthType, tx.Auth.OriginAuth.Fee, tx.Auth.OriginAuth.Nonce)
 
 	// 5. Sign the presign-sighash
 	signature, err := SignWithKey(privateKey, hex.EncodeToString(presignSighash))
@@ -171,7 +175,7 @@ func VerifyTransaction(tx *TokenTransferTransaction, publicKey []byte) (bool, er
 	sighash := calculateSighash(serializedTx)
 
 	// 5. Calculate the presign-sighash
-	presignSighash := calculatePresignSighash(sighash, txCopy.Auth.OriginAuth.HashMode, txCopy.Auth.OriginAuth.Fee, txCopy.Auth.OriginAuth.Nonce)
+	presignSighash := calculatePresignSighash(sighash, txCopy.Auth.AuthType, txCopy.Auth.OriginAuth.Fee, txCopy.Auth.OriginAuth.Nonce)
 
 	// 6. Verify the signature
 	messageSignature := MessageSignature{
