@@ -2,34 +2,41 @@ global:
   timeout: 10s
   kms-key-id: f5c550ca-a6f2-4597-895c-4846ab8e4ad2
 chains:
-  # icon:
-  #   type: icon
-  #   value:
-  #     rpc-url: https://lisbon.net.solidwallet.io/api/v3/
-  #     address: hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
-  #     start-height: 42066559
-  #     step-min: 1
-  #     step-limit: 2000000000000000000
-  #     contracts:
-  #       xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
-  #       connection: cx8d02efb10359105f7e033149556eaea531a3740e
-  #     network-id: 2
-  #     finality-block: 10
-  #     nid: 0x2.icon
+  icon:
+    type: icon
+    value:
+      rpc-url: https://lisbon.net.solidwallet.io/api/v3/
+      address: hx9a530643c071f15e8411eadd9f0b2ee5a871d37f
+      start-height: 42842964
+      step-min: 1
+      step-limit: 2000000000000000000
+      contracts:
+        xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
+        connection: cx577f5e756abd89cbcba38a58508b60a12754d2f5
+      network-id: 2
+      finality-block: 10
+      nid: 0x2.icon
 
   bitcoin:
     type: bitcoin
     value:
-      rpc-url: thrumming-light-mountain.btc.quiknode.pro:443/9010506d85a546fd92e68fff9b9af3478f0708a6/
+      rpc-url: stylish-white-paper.btc-testnet.quiknode.pro/f87ecf84754d9daf8cf45b0334ba3fee9b356db6/
       rpc-user: 123
       rpc-password: 123
-      address: tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd
+      address: tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su
+      protocals:
+        - cx577f5e756abd89cbcba38a58508b60a12754d2f5
+        # - cxf5a0b146af1572e44775a40ef06c5a39b143ed1e
       unisat-url: https://open-api.unisat.io/v1/indexer
-      start-height: 847735
-      network-id: 1
+      # start-height: 2874137
+      start-height: 2874459
+      network-id: 2
+      op-code: 0x5e
       finality-block: 10
-      nid: 0x1.btc
+      nid: 0x2.btc
       chain-name: bitcoin
-      mode: slave
+      mode: master
+      slave-server-1: http://localhost:8081
+      slave-server-2: http://localhost:8082
       port: 8082
       api-key: key

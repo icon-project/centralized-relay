@@ -5,13 +5,11 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 	"runtime"
 	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	"github.com/btcsuite/btcd/txscript"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -20,7 +18,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/multisig"
-	"github.com/icon-project/icon-bridge/common/codec"
+	"github.com/icon-project/goloop/common/codec"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
@@ -30,7 +28,17 @@ import (
 var (
 	BTCToken      = "0:0"
 	MethodDeposit = "Deposit"
+	MasterMode    = "master"
+	SlaveMode     = "slave"
 )
+
+var chainIdToName = map[uint8]string{
+	1: "0x1.icon",
+	2: "0x1.btc",
+	3: "0x2.icon",
+	4: "0x2.btc",
+	// Add more mappings as needed
+}
 
 type Provider struct {
 	logger               *zap.Logger
@@ -38,26 +46,25 @@ type Provider struct {
 	client               IClient
 	LastSavedHeightFunc  func() uint64
 	LastSerialNumFunc    func() *big.Int
-	multisigAddrScript   []byte //
+	multisigAddrScript   []byte
 	assetManagerAddrIcon string
 	bearToken            string
+	httpServer           chan struct{}
 }
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
-	UniSatURL             string `json:"unisat-url" yaml:"unisat-url"`
-	Type                  string `json:"type" yaml:"type"`
-	User                  string `json:"rpc-user" yaml:"rpc-user"`
-	Password              string `json:"rpc-password" yaml:"rpc-password"`
-}
-
-func RunApp() {
-	goEnv := os.Getenv("GO_ENV")
-	if goEnv == "master" {
-		startMaster()
-	} else {
-		startSlave()
-	}
+	OpCode                int      `json:"op-code" yaml:"op-code"`
+	UniSatURL             string   `json:"unisat-url" yaml:"unisat-url"`
+	Type                  string   `json:"type" yaml:"type"`
+	User                  string   `json:"rpc-user" yaml:"rpc-user"`
+	Password              string   `json:"rpc-password" yaml:"rpc-password"`
+	Protocals             []string `yaml:"protocals"`
+	Mode                  string   `json:"mode" yaml:"mode"`
+	SlaveServer1          string   `json:"slave-server-1" yaml:"slave-server-1"`
+	SlaveServer2          string   `json:"slave-server-2" yaml:"slave-server-2"`
+	Port                  string   `json:"port" yaml:"port"`
+	ApiKey                string   `json:"api-key" yaml:"api-key"`
 }
 
 // NewProvider returns new Icon provider
@@ -77,11 +84,49 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	c.ChainName = chainName
 	c.HomeDir = homepath
 
-	return &Provider{
-		logger: log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
-		cfg:    c,
-		client: client,
-	}, nil
+	p := &Provider{
+		logger:            log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
+		cfg:               c,
+		client:            client,
+		LastSerialNumFunc: func() *big.Int { return big.NewInt(0) },
+		httpServer:        make(chan struct{}),
+	}
+	// Run an http server to help btc interact each others
+	go func() {
+		if c.Mode == MasterMode {
+			startMaster(c)
+		} else {
+			startSlave(c)
+		}
+		close(p.httpServer)
+	}()
+
+	return p, nil
+}
+
+func (p *Provider) CallSlaves(txId string) []string {
+	resultChan := make(chan []string)
+	go func() {
+		responses := make(chan string, 2)
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go requestPartialSign(p.cfg.SlaveServer1, txId, responses, &wg)
+		go requestPartialSign(p.cfg.SlaveServer2, txId, responses, &wg)
+
+		go func() {
+			wg.Wait()
+			close(responses)
+		}()
+
+		var results []string
+		for res := range responses {
+			results = append(results, res)
+		}
+		resultChan <- results
+	}()
+
+	return <-resultChan
 }
 
 func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
@@ -123,7 +168,7 @@ func (p *Provider) Wallet() error {
 }
 
 func (p *Provider) Type() string {
-	return "bitcoin"
+	return p.cfg.ChainName
 }
 
 func (p *Provider) Config() provider.Config {
@@ -170,15 +215,21 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message", zap.Any("message", message))
-	res, err := p.call(ctx, message)
-	if err != nil {
-		return err
-	}
+
+	// TODO: Implement logic to route message to bitcoin network
+
+	// p.cfg.Mode == MasterMode
+	// p.CallSlaves(txid)
+	// build bitcoin transaction
+	// send icon tx id to slaves get the multisig signature
+	// collect signature
+	// trigger call funtion to broadcast transaction to bitcoin network
+
 	// seq := p.wallet.GetSequence() + 1
 	// if err := p.wallet.SetSequence(seq); err != nil {
 	// 	p.logger.Error("failed to set sequence", zap.Error(err))
 	// }
-	p.waitForTxResult(ctx, message.MessageKey(), res, callback)
+	// p.waitForTxResult(ctx, message.MessageKey(), res, callback)
 	return nil
 }
 
@@ -221,6 +272,7 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (strin
 }
 
 func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (string, error) {
+
 	// return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 	return "", nil
 }
@@ -487,20 +539,20 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 
 // todo:
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
-	//startHeight := lastSavedHeight
-	//if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
-	//	return p.cfg.StartHeight, nil
-	//}
-	//
-	//if startHeight > latestHeight {
-	//	return 0, fmt.Errorf("last saved height cannot be greater than latest height")
-	//}
-	//
-	//if startHeight != 0 && startHeight < latestHeight {
-	//	return startHeight, nil
-	//}
+	startHeight := lastSavedHeight
+	if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
+		return p.cfg.StartHeight, nil
+	}
 
-	return lastSavedHeight, nil
+	if startHeight > latestHeight {
+		return 0, fmt.Errorf("last saved height cannot be greater than latest height")
+	}
+
+	if startHeight != 0 && startHeight < latestHeight {
+		return startHeight, nil
+	}
+
+	return latestHeight, nil
 }
 
 func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64) <-chan *HeightRange {
@@ -549,10 +601,11 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
+
 	var (
 		// todo: query from provide.config
 		multisigAddress = p.cfg.Address
-		preFixOP        = txscript.OP_13
+		preFixOP        = p.cfg.OpCode
 	)
 
 	multiSigScript, err := p.client.DecodeAddress(multisigAddress)
@@ -579,17 +632,16 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
 	// handle for bitcoin bridge
 	// decode message from OP_RETURN
-	decodeMessage, err := multisig.ReadBridgeMessage(tx.Tx)
+	p.logger.Info("parseMessageFromTx",
+		zap.Uint64("height", tx.Height))
+
+	bridgeMessage, err := multisig.ReadBridgeMessage(tx.Tx)
 	if err != nil {
 		return nil, err
 	}
+	messageInfo := bridgeMessage.Message
 
-	// check if it is Deposit request
-	messageInfo := XCallMessage{}
-	_, err = codec.RLP.UnmarshalFromBytes(decodeMessage, &messageInfo)
-	if err != nil {
-		fmt.Printf("\n not a xcall format request \n")
-	} else if messageInfo.Action == MethodDeposit && messageInfo.To == p.assetManagerAddrIcon {
+	if messageInfo.Action == MethodDeposit && messageInfo.To == p.assetManagerAddrIcon {
 		// maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
@@ -651,14 +703,23 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	// todo: handle for rad fi
 
+	// TODO: call xcallformat and then replace to data
+
+	from := p.cfg.NID + "/" + p.cfg.Address
+	decodeMessage, _ := codec.RLP.MarshalToBytes(messageInfo)
+	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Address, uint(tx.Height), p.cfg.Protocals)
+
 	return &relayTypes.Message{
 		// todo:
-		Dst:           "icon",
-		Src:           messageInfo.From,
-		Sn:            p.LastSerialNumFunc(),
-		Data:          decodeMessage,
+		Dst: "0x2.icon",
+		// Dst: chainIdToName[bridgeMessage.ChainId],
+		Src: p.NID(),
+		// Sn:            p.LastSerialNumFunc(),
+		Sn:            new(big.Int).SetUint64(tx.Height<<32 + 4), // TODO should implement it
+		Data:          data,
 		MessageHeight: tx.Height,
-		EventType:     events.CallMessage,
+		EventType:     events.EmitMessage,
+		// ReqID:         new(big.Int).SetUint64(tx.Height<<32 + 1), // TODO: should implement it
 	}, nil
 }
 
@@ -678,11 +739,11 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayT
 			zap.String("event_type", msg.EventType),
 		)
 		messages = append(messages, &relayTypes.BlockInfo{
-			Height: resultTx.Height,
-			//Messages: msgs,
+			Height:   resultTx.Height,
+			Messages: []*relayTypes.Message{msg},
 		})
 	}
-	return nil, nil
+	return messages, nil
 }
 
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {

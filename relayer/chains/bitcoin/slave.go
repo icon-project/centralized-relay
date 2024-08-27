@@ -7,9 +7,9 @@ import (
 	"os"
 )
 
-func startSlave() {
+func startSlave(c *Config) {
 	http.HandleFunc("/", handleRoot)
-	port := os.Getenv("PORT")
+	port := c.Port
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: nil,

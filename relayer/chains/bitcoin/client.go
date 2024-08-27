@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
@@ -63,12 +64,13 @@ func newClient(ctx context.Context, rpcUrl string, user string, password string,
 // query block height
 func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
 	// Get the current block height
-	blockCount, err := c.client.GetBlockCount()
-	if err != nil {
-		return 0, err
-	}
+	// blockCount, err := c.client.GetBlockCount()
+	// if err != nil {
+	// 	return 0, err
+	// }
 
-	return uint64(blockCount), nil
+	// return uint64(blockCount), nil
+	return 2874461, nil
 }
 
 // get transaction reciept
@@ -112,19 +114,31 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 	meetRequirement2 := 0
 
 	for i := param.StartHeight; i <= param.EndHeight; i++ {
+
 		blockHash, err := c.client.GetBlockHash(int64(i))
 		if err != nil {
 			return nil, err
 		}
 
+		// Print the block hash to a string
+		blockHashStr := fmt.Sprintf("%v", blockHash)
+		c.log.Info("Block Hash", zap.String("blockHash", blockHashStr))
+
 		block, err := c.client.GetBlock(blockHash)
+		if err != nil {
+			return nil, err
+		}
 		// loop thru transactions
 		for _, tx := range block.Transactions {
 			// loop thru tx output
 			for _, txOutput := range tx.TxOut {
 				if len(txOutput.PkScript) > 2 {
+
 					// check OP_RETURN
-					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == byte(param.OPReturnPrefix) {
+					if txOutput.PkScript[0] == txscript.OP_RETURN && (txOutput.PkScript[1] == byte(param.OPReturnPrefix) || txOutput.PkScript[1] == byte(param.OPReturnPrefix)) {
+						c.log.Info("TxSearch txhash",
+							zap.String("txhash", tx.TxHash().String()),
+						)
 						meetRequirement1++
 					}
 
@@ -134,6 +148,9 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 					}
 
 					if meetRequirement2*meetRequirement1 != 0 {
+						c.log.Info("TxSearch found op_return",
+							zap.Uint64("height", i),
+						)
 						res = append(res, &TxSearchRes{Height: i, Tx: tx})
 						break
 					}

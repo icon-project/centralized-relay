@@ -11,9 +11,9 @@ import (
 	"sync"
 )
 
-func startMaster() {
+func startMaster(c *Config) {
 	http.HandleFunc("/execute", handleExecute)
-	port := os.Getenv("PORT")
+	port := c.Port
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: nil,
@@ -29,7 +29,7 @@ func startMaster() {
 }
 
 func handleExecute(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
