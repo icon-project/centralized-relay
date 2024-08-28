@@ -715,7 +715,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		// Dst: chainIdToName[bridgeMessage.ChainId],
 		Src: p.NID(),
 		// Sn:            p.LastSerialNumFunc(),
-		Sn:            new(big.Int).SetUint64(tx.Height<<32 + 4), // TODO should implement it
+		Sn:            new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex),
 		Data:          data,
 		MessageHeight: tx.Height,
 		EventType:     events.EmitMessage,

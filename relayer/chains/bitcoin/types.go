@@ -29,6 +29,7 @@ type TxSearchParam struct {
 type TxSearchRes struct {
 	Tx     *wire.MsgTx
 	Height uint64
+	TxIndex uint64
 }
 
 // HightRange is a struct to represent a range of heights

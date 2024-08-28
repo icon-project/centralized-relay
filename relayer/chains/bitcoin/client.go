@@ -129,13 +129,13 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 			return nil, err
 		}
 		// loop thru transactions
-		for _, tx := range block.Transactions {
+		for j, tx := range block.Transactions {
 			// loop thru tx output
 			for _, txOutput := range tx.TxOut {
 				if len(txOutput.PkScript) > 2 {
 
 					// check OP_RETURN
-					if txOutput.PkScript[0] == txscript.OP_RETURN && (txOutput.PkScript[1] == byte(param.OPReturnPrefix) || txOutput.PkScript[1] == byte(param.OPReturnPrefix)) {
+					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == byte(param.OPReturnPrefix) {
 						c.log.Info("TxSearch txhash",
 							zap.String("txhash", tx.TxHash().String()),
 						)
@@ -151,7 +151,7 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 						c.log.Info("TxSearch found op_return",
 							zap.Uint64("height", i),
 						)
-						res = append(res, &TxSearchRes{Height: i, Tx: tx})
+						res = append(res, &TxSearchRes{Height: i, Tx: tx, TxIndex: uint64(j)})
 						break
 					}
 				}
