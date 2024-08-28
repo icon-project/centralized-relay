@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultTxConfirmationTime = 2 * time.Second
+	defaultTxConfirmationTime = 15 * time.Second
 	accountsQueryMaxLimit     = 30
 )
 
@@ -104,9 +104,9 @@ func (p *Provider) waitForTxConfirmation(timeout time.Duration, sign solana.Sign
 			if err != nil {
 				cbErr = err
 			} else if txStatus != nil && txStatus.Err != nil {
-				cbErr = fmt.Errorf("failed to get tx signature status: %v", txStatus.Err)
+				cbErr = fmt.Errorf("failed to get tx signature status [sign: %s]: %v", sign, txStatus.Err)
 			} else {
-				cbErr = fmt.Errorf("failed to finalize tx signature")
+				cbErr = fmt.Errorf("failed to finalize tx signature [sign: %s]", sign)
 			}
 			return nil, cbErr
 		}
@@ -147,7 +147,7 @@ func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.Public
 		return nil, err
 	}
 
-	recentSlot = recentSlot - 1
+	recentSlot = recentSlot - 150
 
 	altCreateInstruction, accountAddr, err := alt.CreateLookupTable(
 		p.wallet.PublicKey(),
@@ -1115,7 +1115,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
 		return nil, fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 

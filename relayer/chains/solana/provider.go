@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
-	"time"
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
@@ -171,7 +170,7 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
 		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
@@ -230,7 +229,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
 		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
@@ -334,7 +333,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
 		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
@@ -395,7 +394,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(3*time.Second, txSign); err != nil {
+	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
 		return fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
 	}
 
