@@ -50,7 +50,7 @@ func (p *Provider) allowedEventTypes() []string {
 
 func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
 	// if relayer is not an executor then skip CallMessage and RollbackMessage events.
-	if p.cfg.DappPkgID == "" &&
+	if len(p.cfg.Dapps) == 0 &&
 		(msg.EventType == relayerEvents.CallMessage ||
 			msg.EventType == relayerEvents.RollbackMessage) {
 		return true
