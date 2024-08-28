@@ -70,11 +70,13 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			return ctx.Err()
 		case err := <-errChan:
 			if p.isConnectionError(err) {
-				p.log.Warn("connection error", zap.Error(err))
-				for err != nil {
+				p.log.Error("connection error", zap.Error(err))
+				clientReconnected := false
+				for !clientReconnected {
 					p.log.Info("reconnecting client")
 					client, err := p.client.Reconnect()
 					if err == nil {
+						clientReconnected = true
 						p.log.Info("client reconnected")
 						p.client = client
 					} else {

@@ -16,32 +16,27 @@ import (
 )
 
 var (
-	MethodClaimFee             = "claim_fees"
-	MethodGetReceipt           = "get_receipt"
-	MethodSetFee               = "set_fee"
-	MethodGetFee               = "get_fee"
-	MethodRevertMessage        = "revert_message"
-	MethodSetAdmin             = "set_admin"
-	MethodGetAdmin             = "get_admin"
-	MethodRecvMessage          = "receive_message"
-	MethodExecuteCall          = "execute_call"
-	MethodExecuteRollback      = "execute_rollback"
-	MethodGetWithdrawTokentype = "get_withdraw_token_type"
+	MethodClaimFee                 = "claim_fees"
+	MethodGetReceipt               = "get_receipt"
+	MethodSetFee                   = "set_fee"
+	MethodGetFee                   = "get_fee"
+	MethodRevertMessage            = "revert_message"
+	MethodSetAdmin                 = "set_admin"
+	MethodGetAdmin                 = "get_admin"
+	MethodRecvMessage              = "receive_message"
+	MethodExecuteCall              = "execute_call"
+	MethodExecuteRollback          = "execute_rollback"
+	MethodGetWithdrawTokentype     = "get_withdraw_token_type"
+	MethodGetExecuteCallParams     = "get_execute_params"
+	MethodGetExecuteRollbackParams = "get_rollback_params"
 
 	ModuleConnection = "centralized_connection"
 	ModuleEntry      = "centralized_entry"
 	ModuleMain       = "main"
 	XcallModule      = "xcall"
 
-	ModuleMockDapp       = "mock_dapp"
-	ModuleXcallManager   = "xcall_manager"
-	ModuleAssetManager   = "asset_manager"
-	ModuleBalancedDollar = "balanced_dollar_crosschain"
-
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
-
-	suiClockObjectId = "0x6"
 )
 
 type Provider struct {
