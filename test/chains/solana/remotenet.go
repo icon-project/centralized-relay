@@ -275,6 +275,13 @@ func (sn *SolanaRemoteNet) initConnection(ctx context.Context, connectionProgId 
 		IsWritable: true,
 		IsSigner:   true,
 	}
+	seeds = [][]byte{
+		[]byte("connection_authority"),
+	}
+	connAuthAc, _, err := solana.FindProgramAddress(seeds, solana.MustPublicKeyFromBase58(connectionProgId))
+	if err != nil {
+		log.Fatalf("Failed to find program address: %v", err)
+	}
 	accountsMeta := solana.AccountMetaSlice{
 		&payerAccount,
 		&solana.AccountMeta{
@@ -282,6 +289,10 @@ func (sn *SolanaRemoteNet) initConnection(ctx context.Context, connectionProgId 
 		},
 		{
 			PublicKey:  configAc,
+			IsWritable: true,
+		},
+		{
+			PublicKey:  connAuthAc,
 			IsWritable: true,
 		},
 	}
