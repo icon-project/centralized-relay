@@ -56,3 +56,37 @@
   connection: ssh
   remote_user: ubuntu
   run_once: yes
+  
+- name: Create Centralized Relay systemd service file
+  template:
+    src: templates/centralized-relay.service.j2
+    dest: "/home/ubuntu/.config/systemd/user/centralized-relay.service"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+  delegate_to: "{{ relay_instance_public_ip }}"
+  become: yes
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+
+- name: Reload systemd daemon for user
+  command: systemctl --user daemon-reload
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+
+- name: Enable Centralized Relay service
+  command: systemctl --user enable centralized-relay.service
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
+
+- name: Start Centralized Relay service
+  command: systemctl --user start centralized-relay.service
+  delegate_to: "{{ relay_instance_public_ip }}"
+  connection: ssh
+  remote_user: ubuntu
+  run_once: yes
