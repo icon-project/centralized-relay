@@ -40,7 +40,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	c.HomeDir = homepath
 
 	return &Provider{
-		log:       log.With(zap.Stringp("nid ", &c.NID), zap.Stringp("name", &c.ChainName)),
+		log:       log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
 		client:    client,
 		cfg:       c,
 		networkID: NetworkInfo.NetworkID,
@@ -275,4 +275,12 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) SaveHeightFunc(f func(ht uint64) uint64) {
+
+}
+
+func (p *Provider) IsBackLogProcessing() bool {
+	return false
 }

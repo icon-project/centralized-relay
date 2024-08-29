@@ -206,3 +206,11 @@ func (p *MockProvider) SetFee(context.Context, string, *big.Int, *big.Int) error
 func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
 
 }
+
+func (p *MockProvider) SaveHeightFunc(f func(ht uint64) uint64) {
+
+}
+
+func (p *MockProvider) IsBackLogProcessing() bool {
+	return false
+}

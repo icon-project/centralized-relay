@@ -24,6 +24,10 @@ const (
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 5
 	DefaultFinalityBlock       = 10
+	pollerTime                 = 5 * time.Second
+	PollFetch                  = "poll"
+	WsFetch                    = "ws"
+	RPCRedundancy              = "rpc-verify"
 	BaseRetryInterval          = 3 * time.Second
 	MaxRetryInterval           = 5 * time.Minute
 	MaxRetryCount              = 5
@@ -57,11 +61,28 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		return err
 	}
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
+	return p.listenNormalWsNPoll(ctx, startHeight, blockInfoChan)
+}
 
+func (p *Provider) listenNormalWsNPoll(ctx context.Context, startHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
 	var (
 		subscribeStart = time.NewTicker(time.Second * 1)
+		pollerStart    = time.NewTicker(pollerTime)
 		errChan        = make(chan error)
 	)
+
+	if p.cfg.Fetch == PollFetch {
+		if p.cfg.Redundancy == RPCRedundancy {
+			panic("cannot set rpc-verify on poll fetch strategy")
+		}
+		subscribeStart.Stop()
+		p.backlogProcessing = true
+	} else {
+		pollerStart.Stop()
+		if p.cfg.Redundancy == RPCRedundancy {
+			p.backlogProcessing = true
+		}
+	}
 
 	for {
 		select {
@@ -89,52 +110,70 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
-			go p.Subscribe(ctx, blockInfoChan, errChan)
-
 			latestHeight := p.latestHeight(ctx)
-			if startHeight == 0 {
-				startHeight = latestHeight
-			}
+			go p.Subscribe(ctx, blockInfoChan, errChan, latestHeight)
+			p.backlogProcessing = true
+			startHeight = processBlocks(ctx, startHeight, latestHeight, p, blockInfoChan)
+			p.backlogProcessing = false
+		case <-pollerStart.C:
+			latestHeight := p.latestHeight(ctx)
+			startHeight = processBlocks(ctx, startHeight, latestHeight, p, blockInfoChan)
+			pollerStart.Reset(pollerTime)
+		}
+	}
+}
 
-			var blockReqs []*blockReq
-			for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
-				end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
-				blockReqs = append(blockReqs, &blockReq{start, end, nil})
-			}
+func processBlocks(ctx context.Context, startHeight uint64, latestHeight uint64, p *Provider, blockInfoChan chan *relayertypes.BlockInfo) uint64 {
+	if startHeight == 0 {
+		startHeight = latestHeight
+	}
+	blockReqs := getBlockReqs(startHeight, latestHeight, p)
+	for _, br := range blockReqs {
+		filter := ethereum.FilterQuery{
+			FromBlock: new(big.Int).SetUint64(br.start),
+			ToBlock:   new(big.Int).SetUint64(br.end),
+			Addresses: p.blockReq.Addresses,
+			Topics:    p.blockReq.Topics,
+		}
+		p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+		logs, err := p.getLogsRetry(ctx, filter)
+		if err != nil {
+			p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
+			continue
+		}
+		p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
+		processLogs(logs, p, blockInfoChan)
+	}
+	p.saveHeightFunc(latestHeight)
+	return startHeight
+}
 
-			for _, br := range blockReqs {
-				filter := ethereum.FilterQuery{
-					FromBlock: new(big.Int).SetUint64(br.start),
-					ToBlock:   new(big.Int).SetUint64(br.end),
-					Addresses: p.blockReq.Addresses,
-					Topics:    p.blockReq.Topics,
-				}
-				p.log.Info("syncing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				logs, err := p.getLogsRetry(ctx, filter)
-				if err != nil {
-					p.log.Warn("failed to fetch blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
-					continue
-				}
-				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight), zap.Uint64("delta", latestHeight-br.end))
-				for _, log := range logs {
-					message, err := p.getRelayMessageFromLog(log)
-					if err != nil {
-						p.log.Error("failed to get relay message from log", zap.Error(err))
-						continue
-					}
-					p.log.Info("Detected eventlog",
-						zap.String("target_network", message.Dst),
-						zap.Uint64("sn", message.Sn.Uint64()),
-						zap.String("event_type", message.EventType),
-						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
-					)
-					blockInfoChan <- &relayertypes.BlockInfo{
-						Height:   log.BlockNumber,
-						Messages: []*relayertypes.Message{message},
-					}
-				}
-			}
+func getBlockReqs(startHeight uint64, latestHeight uint64, p *Provider) []*blockReq {
+	var blockReqs []*blockReq
+	for start := startHeight; start <= latestHeight; start += p.cfg.BlockBatchSize {
+		end := min(start+p.cfg.BlockBatchSize-1, latestHeight)
+		blockReqs = append(blockReqs, &blockReq{start, end, nil})
+	}
+	return blockReqs
+}
+
+func processLogs(logs []ethTypes.Log, p *Provider, blockInfoChan chan *relayertypes.BlockInfo) {
+	for _, log := range logs {
+		message, err := p.getRelayMessageFromLog(log)
+		if err != nil {
+			p.log.Error("failed to get relay message from log", zap.Error(err))
+			continue
+		}
+		p.log.Info("Detected eventlog",
+			zap.String("target_network", message.Dst),
+			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+			zap.Uint64("block_number", log.BlockNumber),
+		)
+		blockInfoChan <- &relayertypes.BlockInfo{
+			Height:   log.BlockNumber,
+			Messages: []*relayertypes.Message{message},
 		}
 	}
 }
@@ -226,11 +265,16 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 }
 
 // Subscribe listens to new blocks and sends them to the channel
-func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
+func (p *Provider) Subscribe(ctx context.Context,
+	blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error,
+	latestHeight uint64) error {
 	ch := make(chan ethTypes.Log, 10)
+	wsEventsFound := false
 	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
+		//TODO: required for some rpcs, review
+		FromBlock: new(big.Int).SetUint64(latestHeight),
 	}, ch)
 	if err != nil {
 		p.log.Error("failed to subscribe", zap.Error(err))
@@ -250,6 +294,7 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 			resetCh <- err
 			return err
 		case log := <-ch:
+			wsEventsFound = true
 			message, err := p.getRelayMessageFromLog(log)
 			if err != nil {
 				p.log.Error("failed to get relay message from log", zap.Error(err))
@@ -267,12 +312,57 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
-			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
-			defer cancel()
-			if _, err := p.QueryLatestHeight(ctx); err != nil {
-				resetCh <- err
-				return err
+			if p.cfg.Redundancy == RPCRedundancy {
+				lastSavedHeight := p.GetLastSavedBlockHeight()
+				if lastSavedHeight == 0 {
+					lastSavedHeight = latestHeight
+				}
+				p.handleRpcVerification(ctx, wsEventsFound, lastSavedHeight, resetCh, blockInfoChan)
+			} else {
+				ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+				defer cancel()
+				if _, err := p.QueryLatestHeight(ctx); err != nil {
+					resetCh <- err
+					return err
+				}
 			}
 		}
+
+	}
+}
+
+func (p *Provider) handleRpcVerification(ctx context.Context, wsEventsFound bool, latestHeight uint64,
+	resetCh chan error, blockInfoChan chan *relayertypes.BlockInfo) {
+	if !wsEventsFound {
+		p.log.Info("No events found in ws,verifying rpc")
+		currentLatestHeight := p.latestHeight(ctx)
+		if latestHeight < currentLatestHeight {
+			blockReqs := getBlockReqs(latestHeight, currentLatestHeight, p)
+			messageFound := false
+			for _, br := range blockReqs {
+				filter := ethereum.FilterQuery{
+					FromBlock: new(big.Int).SetUint64(br.start),
+					ToBlock:   new(big.Int).SetUint64(br.end),
+					Addresses: p.blockReq.Addresses,
+					Topics:    p.blockReq.Topics,
+				}
+				p.log.Info("syncing missing", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+				logs, err := p.getLogsRetry(ctx, filter)
+				if err != nil {
+					resetCh <- err
+					p.log.Warn("failed to fetch missing blocks", zap.Uint64("from", br.start), zap.Uint64("to", br.end), zap.Error(err))
+				}
+				if len(logs) > 0 {
+					p.log.Info("got missing logs", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+				}
+				p.log.Info("synced", zap.Uint64("start", br.start), zap.Uint64("end", br.end), zap.Uint64("latest", latestHeight))
+				processLogs(logs, p, blockInfoChan)
+			}
+			if messageFound {
+				p.log.Info("Need to reset ws connections")
+				resetCh <- errors.New("ws stale connection")
+			}
+		}
+		p.saveHeightFunc(currentLatestHeight)
 	}
 }
