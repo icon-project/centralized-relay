@@ -295,7 +295,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 	txnData, err := p.client.GetTransaction(context.Background(), txRes.Digest.String())
 	if err != nil {
 		callback(messageKey, res, err)
-		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+		p.log.Error("failed to get transaction details after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
 		return
 	}
 
@@ -305,7 +305,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
 		if err != nil {
 			callback(messageKey, res, err)
-			p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+			p.log.Error("failed to get transaction details due to nil checkpoint after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
 			return
 		}
 	}
