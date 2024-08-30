@@ -97,6 +97,20 @@ func (s *Server) parseEvent(msg *Request) *Response {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	switch msg.Event {
+	case EventGetLatestHeight:
+		req := new(ReqChainHeight)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return response.SetError(err)
+		}
+		latestHeight, err := chain.Provider.QueryLatestHeight(ctx)
+		if err != nil {
+			return response.SetError(err)
+		}
+		return response.SetData(&ResChainHeight{req.Chain, latestHeight})
 	case EventGetBlock:
 		req := new(ReqGetBlock)
 		if err := jsoniter.Unmarshal(data, req); err != nil {
@@ -333,9 +347,30 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		}
 		var foundMessages []*ResRelayMessage
 		for _, msg := range msgs {
-			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, ReqID: msg.ReqID.Uint64()})
+			foundMessages = append(foundMessages, &ResRelayMessage{
+				Src:       msg.Src,
+				Sn:        msg.Sn.Uint64(),
+				Dst:       msg.Dst,
+				Height:    msg.MessageHeight,
+				EventType: msg.EventType,
+				ReqID:     msg.ReqID.Uint64(),
+			})
 		}
 		return response.SetData(foundMessages)
+	case EventGetBlockRange:
+		req := new(ReqRangeBlockQuery)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return response.SetError(err)
+		}
+		msgs, err := chain.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
+		if err != nil {
+			return response.SetError(err)
+		}
+		return response.SetData(ResRangeBlockQuery{req.Chain, msgs})
 	default:
 		return response.SetError(fmt.Errorf("unknown event %s", msg.Event))
 	}

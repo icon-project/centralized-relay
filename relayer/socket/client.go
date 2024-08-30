@@ -126,7 +126,7 @@ func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, erro
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRelayMessage, error) {
+func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) ([]*ResRelayMessage, error) {
 	req := &ReqRelayMessage{Chain: chain, FromHeight: height, ToHeight: height}
 	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 		return nil, err
 	}
 
-	resData := new(ResRelayMessage)
+	resData := []*ResRelayMessage{}
 	if err := parseResData(res.Data, &resData); err != nil {
 		return nil, err
 	}
@@ -286,12 +286,18 @@ func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, erro
 		return nil, err
 	}
 
-	resData := new(ResProcessedBlock)
+	resData := []*ResGetBlock{}
 	if err := parseResData(res.Data, &resData); err != nil {
 		return nil, err
 	}
 
-	return resData, nil
+	if len(resData) > 0 {
+		return &ResProcessedBlock{
+			resData[0].Chain, resData[0].Height,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("latest processed block not found for chain %s", chain)
 }
 
 func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {

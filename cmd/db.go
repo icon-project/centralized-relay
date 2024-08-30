@@ -121,12 +121,14 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
+			messages, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
 			if err != nil {
 				return err
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
-			printValues(result.Sn, result.Src, result.Dst, result.EventType)
+			printLabels("Sn", "Src", "Dst", "Height", "Event")
+			for _, msg := range messages {
+				printValues(msg.Sn, msg.Src, msg.Dst, msg.Height, msg.EventType)
+			}
 			return nil
 		},
 	}
