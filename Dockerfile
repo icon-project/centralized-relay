@@ -45,7 +45,7 @@ RUN ln sh pwd && \
     ln sh tar && \
     ln sh tee && \
     ln sh du && \
-    rm ln rm
+    rm ln
 
 # Install chain binaries
 COPY --from=build-env /go/bin/centralized-relay /bin

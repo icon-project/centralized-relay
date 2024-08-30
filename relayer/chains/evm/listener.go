@@ -26,6 +26,7 @@ const (
 	BaseRetryInterval          = 3 * time.Second
 	MaxRetryInterval           = 5 * time.Minute
 	MaxRetryCount              = 5
+	ClientReconnectDelay       = 5 * time.Second
 )
 
 type BnOptions struct {
@@ -47,12 +48,13 @@ func (r *Provider) latestHeight(ctx context.Context) uint64 {
 	return height
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfoChan chan *relayertypes.BlockInfo) error {
+	lastSavedHeight := lastProcessedTx.Height
+
 	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
 	}
-
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	var (
@@ -68,12 +70,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case err := <-errChan:
 			if p.isConnectionError(err) {
 				p.log.Error("connection error", zap.Error(err))
-				client, err := p.client.Reconnect()
-				if err != nil {
-					p.log.Error("failed to reconnect", zap.Error(err))
-				} else {
-					p.log.Info("client reconnected")
-					p.client = client
+				clientReconnected := false
+				for !clientReconnected {
+					p.log.Info("reconnecting client")
+					client, err := p.client.Reconnect()
+					if err == nil {
+						clientReconnected = true
+						p.log.Info("client reconnected")
+						p.client = client
+					} else {
+						p.log.Error("failed to re-connect", zap.Error(err))
+						time.Sleep(ClientReconnectDelay)
+					}
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()

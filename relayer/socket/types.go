@@ -234,3 +234,7 @@ type ResGetBlockEvents struct {
 	Event   []string `json:"event"`
 	Height  uint64   `json:"height"`
 }
+
+type ChainProviderError struct {
+	Message string
+}

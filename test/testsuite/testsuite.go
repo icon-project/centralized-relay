@@ -8,6 +8,7 @@ import (
 	"github.com/icon-project/centralized-relay/test/chains/cosmos"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
+	"github.com/icon-project/centralized-relay/test/chains/sui"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
 	"github.com/icon-project/centralized-relay/test/testsuite/testconfig"
 
@@ -100,6 +101,10 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 	if err := s.SetupXCall(ctx); err != nil {
 		return nil, err
 	}
+	portId := "transfer"
+	if err := s.DeployXCallMockApp(ctx, portId); err != nil {
+		return nil, err
+	}
 
 	if err := ic.BuildRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID); err != nil {
 		return nil, err
@@ -123,7 +128,6 @@ func (s *E2ETestSuite) SetupRelayer(ctx context.Context, name string) (ibc.Relay
 
 func (s *E2ETestSuite) DeployXCallMockApp(ctx context.Context, port string) error {
 	createdChains := s.GetChains()
-	// chainA, chainB := createdChains[0], createdChains[1]
 	for idx, chain := range createdChains {
 		var connections []chains.XCallConnection
 		for id, cn := range createdChains {
@@ -277,7 +281,6 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 	var (
 		chain chains.Chain
 	)
-	// ibcChainConfig := cfg.ChainConfig.GetIBCChainConfig(&chain)
 	switch cfg.ChainConfig.Type {
 	case "icon":
 		chain = icon.NewIconRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
@@ -286,9 +289,11 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 		chain = evm.NewEVMRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, nil
 	case "wasm", "cosmos":
-		// interchainTestConfig := toInterchantestConfig(ibcChainConfig)
 		chain, err := cosmos.NewCosmosRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
 		return chain, err
+	case "sui":
+		chain := sui.NewSuiRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
+		return chain, nil
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)
 	}
