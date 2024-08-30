@@ -96,29 +96,30 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	checkpoint, err := p.client.GetCheckpoint(ctx, messageKey.Height)
-	if err != nil {
-		p.log.Error("failed to fetch checkpoint", zap.Error(err))
-		return nil, err
-	}
-
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayertypes.Message, error) {
 	var messages []*relayertypes.Message
+	for h := fromHeight; h <= toHeight; h++ {
+		checkpoint, err := p.client.GetCheckpoint(ctx, h)
+		if err != nil {
+			p.log.Error("failed to fetch checkpoint", zap.Error(err))
+			return nil, err
+		}
 
-	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), checkpoint.Transactions)
-	if err != nil {
-		p.log.Error("failed to query events", zap.Error(err))
-		return nil, err
-	}
+		eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), checkpoint.Transactions)
+		if err != nil {
+			p.log.Error("failed to query events", zap.Error(err))
+			return nil, err
+		}
 
-	blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
-	if err != nil {
-		p.log.Error("failed to parse messages from events", zap.Error(err))
-		return nil, err
-	}
+		blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+		if err != nil {
+			p.log.Error("failed to parse messages from events", zap.Error(err))
+			return nil, err
+		}
 
-	for _, bi := range blockInfoList {
-		messages = append(messages, bi.Messages...)
+		for _, bi := range blockInfoList {
+			messages = append(messages, bi.Messages...)
+		}
 	}
 
 	return messages, nil
