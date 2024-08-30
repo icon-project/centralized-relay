@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -12,6 +13,8 @@ import (
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 
+	"path/filepath"
+
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -20,6 +23,7 @@ import (
 	"github.com/icon-project/centralized-relay/utils/multisig"
 	"github.com/icon-project/goloop/common/codec"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +34,7 @@ var (
 	MethodDeposit = "Deposit"
 	MasterMode    = "master"
 	SlaveMode     = "slave"
+	BtcSlaveDB    = "btc_slave.db"
 )
 
 var chainIdToName = map[uint8]string{
@@ -50,6 +55,7 @@ type Provider struct {
 	assetManagerAddrIcon string
 	bearToken            string
 	httpServer           chan struct{}
+	db                   *leveldb.DB
 }
 
 type Config struct {
@@ -76,8 +82,18 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, err
 	}
 
+	// Create the database file path
+	dbPath := filepath.Join(homepath+"/data", BtcSlaveDB)
+
+	// Open the database, creating it if it doesn't exist
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open or create database: %v", err)
+	}
+
 	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, false, log)
 	if err != nil {
+		db.Close() // Close the database if client creation fails
 		return nil, fmt.Errorf("failed to create new client: %v", err)
 	}
 
@@ -90,6 +106,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		client:            client,
 		LastSerialNumFunc: func() *big.Int { return big.NewInt(0) },
 		httpServer:        make(chan struct{}),
+		db:                db, // Add the database to the Provider
 	}
 	// Run an http server to help btc interact each others
 	go func() {
@@ -216,20 +233,38 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message", zap.Any("message", message))
 
-	// TODO: Implement logic to route message to bitcoin network
+	if p.cfg.Mode == SlaveMode {
+		// Store the message in LevelDB
+		messageJSON, err := json.Marshal(message)
+		if err != nil {
+			return fmt.Errorf("failed to marshal message: %v", err)
+		}
+		// TODO: replace key with txid
+		key := []byte(fmt.Sprintf("bitcoin_message_%s", message.Sn.String()))
+		err = p.db.Put(key, messageJSON, nil)
+		if err != nil {
+			return fmt.Errorf("failed to store message in LevelDB: %v", err)
+		}
 
-	// p.cfg.Mode == MasterMode
-	// p.CallSlaves(txid)
-	// build bitcoin transaction
-	// send icon tx id to slaves get the multisig signature
-	// collect signature
-	// trigger call funtion to broadcast transaction to bitcoin network
+		p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
+		return nil
+	} else if p.cfg.Mode == MasterMode {
+		// TODO: Implement logic to build bitcoin transaction using signatures
+	}
 
-	// seq := p.wallet.GetSequence() + 1
-	// if err := p.wallet.SetSequence(seq); err != nil {
-	// 	p.logger.Error("failed to set sequence", zap.Error(err))
-	// }
-	// p.waitForTxResult(ctx, message.MessageKey(), res, callback)
+	// MasterMode logic
+	// txid := "example_txid" // Replace with actual txid generation logic
+	// signatures := p.CallSlaves(txid)
+
+	// TODO: Implement logic to build bitcoin transaction using signatures
+
+	// TODO: Broadcast transaction to bitcoin network
+
+	// After successful broadcast, remove the message from LevelDB if it exists
+
+	// TODO: Implement proper callback handling
+	// callback(message.MessageKey(), txResponse, nil)
+
 	return nil
 }
 
@@ -710,7 +745,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Address, uint(tx.Height), p.cfg.Protocals)
 
 	return &relayTypes.Message{
-		// todo:
+		// TODO:
 		Dst: "0x2.icon",
 		// Dst: chainIdToName[bridgeMessage.ChainId],
 		Src: p.NID(),
@@ -719,7 +754,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		Data:          data,
 		MessageHeight: tx.Height,
 		EventType:     events.EmitMessage,
-		// ReqID:         new(big.Int).SetUint64(tx.Height<<32 + 1), // TODO: should implement it
 	}, nil
 }
 
