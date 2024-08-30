@@ -65,14 +65,22 @@ func (c *Client) send(req interface{}) error {
 }
 
 // read and parse message from socket
-func (c *Client) read() (interface{}, error) {
+func (c *Client) read() (*Response, error) {
 	buf := make([]byte, 1024*100)
 	nr, err := c.conn.Read(buf)
 	if err != nil {
 		return nil, err
 	}
-	msg := new(Response)
-	return msg, jsoniter.Unmarshal(buf[:nr], msg)
+	res := new(Response)
+	if err := jsoniter.Unmarshal(buf[:nr], res); err != nil {
+		return nil, err
+	}
+
+	if !res.Success {
+		return nil, fmt.Errorf(res.Message)
+	}
+
+	return res, nil
 }
 
 func (c *Client) Close() error {
@@ -85,15 +93,17 @@ func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
 	if err := c.send(&Request{Event: EventGetBlock, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.([]*ResGetBlock)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := []*ResGetBlock{}
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // GetMessageList sends GetMessageList event to socket
@@ -102,15 +112,17 @@ func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, erro
 	if err := c.send(&Request{Event: EventGetMessageList, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResMessageList)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResMessageList)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // RelayMessage sends RelayMessage event to socket
@@ -119,15 +131,17 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRel
 	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResRelayMessage)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResRelayMessage)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // MessageRemove sends MessageRemove event to socket
@@ -136,15 +150,17 @@ func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, er
 	if err := c.send(&Request{Event: EventMessageRemove, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResMessageRemove)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResMessageRemove)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // PruneDB sends PruneDB event to socket
@@ -153,15 +169,17 @@ func (c *Client) PruneDB() (*ResPruneDB, error) {
 	if err := c.send(&Request{Event: EventPruneDB, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResPruneDB)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResPruneDB)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // RevertMessage sends RevertMessage event to socket
@@ -170,15 +188,17 @@ func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, erro
 	if err := c.send(&Request{Event: EventRevertMessage, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResRevertMessage)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResRevertMessage)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // GetFee sends GetFee event to socket
@@ -187,15 +207,17 @@ func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFe
 	if err := c.send(&Request{Event: EventGetFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResGetFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResGetFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // SetFee sends SetFee event to socket
@@ -204,15 +226,17 @@ func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSet
 	if err := c.send(&Request{Event: EventSetFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResSetFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResSetFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // ClaimFee sends ClaimFee event to socket
@@ -221,15 +245,17 @@ func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
 	if err := c.send(&Request{Event: EventClaimFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResClaimFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResClaimFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
@@ -237,15 +263,17 @@ func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
 	if err := c.send(&Request{Event: EventGetLatestHeight, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResChainHeight)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResChainHeight)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, error) {
@@ -253,15 +281,17 @@ func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, erro
 	if err := c.send(&Request{Event: EventGetLatestProcessedBlock, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResProcessedBlock)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResProcessedBlock)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {
@@ -269,13 +299,28 @@ func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*Re
 	if err := c.send(&Request{Event: EventGetBlockRange, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResRangeBlockQuery)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResRangeBlockQuery)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
+}
+
+func parseResData(data any, dest interface{}) error {
+	jsonData, err := jsoniter.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	if err := jsoniter.Unmarshal(jsonData, dest); err != nil {
+		return err
+	}
+
+	return nil
 }
