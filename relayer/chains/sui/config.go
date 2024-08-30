@@ -2,6 +2,7 @@ package sui
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
@@ -92,5 +93,13 @@ func (c *Config) Enabled() bool {
 }
 
 func (c *Config) ContractsAddress() types.ContractConfigMap {
-	return nil
+	dapps, _ := json.Marshal(c.Dapps)
+
+	return types.ContractConfigMap{
+		"xcall-package-id":  c.XcallPkgIDs[0],
+		"xcall-storage-id":  c.XcallStorageID,
+		"connection-id":     c.ConnectionID,
+		"connection-cap-id": c.ConnectionCapID,
+		"dapps":             string(dapps),
+	}
 }
