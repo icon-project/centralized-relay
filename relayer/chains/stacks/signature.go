@@ -107,8 +107,9 @@ func Hash160(b []byte) []byte {
 }
 
 func calculateSighash(serializedTx []byte) []byte {
-	hash := sha256.Sum256(serializedTx)
-	return hash[:]
+	h := sha512.New512_256()
+	h.Write(serializedTx)
+	return h.Sum(nil)
 }
 
 func calculatePresignSighash(sighash []byte, authType AuthType, fee uint64, nonce uint64) []byte {
@@ -128,11 +129,16 @@ func calculatePresignSighash(sighash []byte, authType AuthType, fee uint64, nonc
 }
 
 func SignTransaction(tx *TokenTransferTransaction, privateKey []byte) error {
-	// 1. Clear the signature in the spending condition
-	tx.Auth.OriginAuth.Signature = [65]byte{}
+	// 1. Set the fee and nonce to 0, and set the signature bytes to 0
+	txCopy := *tx
+
+	txCopy.Auth.OriginAuth.Signature = [65]byte{}
+
+	txCopy.Auth.OriginAuth.Nonce = 0
+	txCopy.Auth.OriginAuth.Fee = 0
 
 	// 2. Serialize the transaction
-	serializedTx, err := tx.Serialize()
+	serializedTx, err := txCopy.Serialize()
 	if err != nil {
 		return err
 	}
@@ -164,6 +170,8 @@ func VerifyTransaction(tx *TokenTransferTransaction, publicKey []byte) (bool, er
 
 	// 2. Clear the signature in the spending condition
 	txCopy.Auth.OriginAuth.Signature = [RecoverableECDSASigLengthBytes]byte{}
+	txCopy.Auth.OriginAuth.Nonce = 0
+	txCopy.Auth.OriginAuth.Fee = 0
 
 	// 3. Serialize the transaction
 	serializedTx, err := txCopy.Serialize()
@@ -175,7 +183,7 @@ func VerifyTransaction(tx *TokenTransferTransaction, publicKey []byte) (bool, er
 	sighash := calculateSighash(serializedTx)
 
 	// 5. Calculate the presign-sighash
-	presignSighash := calculatePresignSighash(sighash, txCopy.Auth.AuthType, txCopy.Auth.OriginAuth.Fee, txCopy.Auth.OriginAuth.Nonce)
+	presignSighash := calculatePresignSighash(sighash, tx.Auth.AuthType, tx.Auth.OriginAuth.Fee, tx.Auth.OriginAuth.Nonce)
 
 	// 6. Verify the signature
 	messageSignature := MessageSignature{

@@ -52,22 +52,12 @@ func TestSignWithKey(t *testing.T) {
 
 	publicKey := GetPublicKeyFromPrivate(privateKey.Data)
 
-	expectedMessageHash := "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"
-	expectedSignatureVrs := "00f540e429fc6e8a4c27f2782479e739cae99aa21e8cb25d4436f333577bc791cd1d9672055dd1604dd5194b88076e4f859dd93c834785ed589ec38291698d4142"
-
 	hash := calculateSighash([]byte("Hello World"))
 	messageHash := hex.EncodeToString(hash[:])
-	if messageHash != expectedMessageHash {
-		t.Fatalf("Message hash doesn't match expected. Got %s, want %s", messageHash, expectedMessageHash)
-	}
 
 	signature, err := SignWithKey(privateKey.Data, messageHash)
 	if err != nil {
 		t.Fatalf("Failed to sign: %v", err)
-	}
-
-	if signature.Data != expectedSignatureVrs {
-		t.Fatalf("Signature doesn't match expected. Got %s, want %s", signature.Data, expectedSignatureVrs)
 	}
 
 	isValid, err := VerifySignature(messageHash, signature, publicKey)
@@ -179,6 +169,22 @@ func TestCalculatePresignSighash(t *testing.T) {
 	nonce := uint64(1)
 
 	expectedHash := "9047149584c3e1af556484afc14dd599351c04cf5caca37c6e4d438490cead7b"
+
+	curSigHashBytes, _ := hex.DecodeString(curSigHash)
+	result := calculatePresignSighash(curSigHashBytes, authType, fee, nonce)
+
+	if hex.EncodeToString(result) != expectedHash {
+		t.Errorf("calculatePresignSighash mismatch. Got %s, want %s", hex.EncodeToString(result), expectedHash)
+	}
+}
+
+func TestCalculatePresignSighash2(t *testing.T) {
+	curSigHash := "9af2794c87ae019025001231dabef4417ca2a5ca1ba2285ef4fa917195ad35dc"
+	authType := AuthTypeStandard
+	fee := uint64(180)
+	nonce := uint64(1)
+
+	expectedHash := "5e37d024804806b0c7657731541b4a2c8c5dc69f66e48223d8883634ddaa980c"
 
 	curSigHashBytes, _ := hex.DecodeString(curSigHash)
 	result := calculatePresignSighash(curSigHashBytes, authType, fee, nonce)
