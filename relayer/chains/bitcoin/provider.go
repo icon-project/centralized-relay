@@ -3,8 +3,10 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"runtime"
 	"sync"
@@ -43,6 +45,13 @@ var chainIdToName = map[uint8]string{
 	3: "0x2.icon",
 	4: "0x2.btc",
 	// Add more mappings as needed
+}
+
+type MessageDecoded struct {
+	Action       string
+	TokenAddress string
+	To           string
+	Amount       []byte
 }
 
 type Provider struct {
@@ -228,6 +237,35 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		}
 	}
+}
+
+func (p *Provider) decodeWithdrawToMessage(input string) (*MessageDecoded, error) {
+	// Decode base64
+	decodedBytes, err := base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		return nil, err
+	}
+
+	withdrawInfoWrapper := CSMessage{}
+	_, err = codec.RLP.UnmarshalFromBytes(decodedBytes, &withdrawInfoWrapper)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// withdraw info data
+	withdrawInfoWrapperV2 := CSMessageRequestV2{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapper.Payload, &withdrawInfoWrapperV2)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	// withdraw info
+	withdrawInfo := &MessageDecoded{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapperV2.Data, &withdrawInfo)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	return withdrawInfo, nil
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {

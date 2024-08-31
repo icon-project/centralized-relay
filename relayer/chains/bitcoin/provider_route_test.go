@@ -16,6 +16,20 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestDecodeWithdrawToMessage(t *testing.T) {
+	p := &Provider{}
+	input := "+QEdAbkBGfkBFrMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1gh6FAbhS+FCKV2l0aGRyYXdUb4MwOjC4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1ZPhIuEYweDIuYnRjL3RiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1"
+
+	result, err := p.decodeWithdrawToMessage(input)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su", result.To)
+	assert.Equal(t, big.NewInt(100).Bytes(), result.Amount)
+	assert.Equal(t, "WithdrawTo", result.Action)
+	assert.Equal(t, "0:0", result.TokenAddress)
+}
+
 func TestProvider_Route(t *testing.T) {
 	// Setup
 	tempDir, err := os.MkdirTemp("", "bitcoin_provider_test")
