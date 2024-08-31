@@ -22,6 +22,37 @@ func TestDecode(t *testing.T) {
 	}
 
 	fmt.Println(depositInfo)
+	fmt.Println("\n =============")
+
+	// test decode 2
+	data, _ = hex.DecodeString("f9011d01b90119f90116b33078322e69636f6e2f637866633836656537363837653162663638316235353438623236363738343434383563306537313932b83e74623170677a7838383079667237713864677a38647168773530736e6375346634686d7735636e3338303033353474757a6379396a783573687676377375821e8501b852f8508a5769746864726177546f83303a30b83e74623170677a7838383079667237713864677a38647168773530736e6375346634686d7735636e3338303033353474757a6379396a78357368767637737564f848b8463078322e6274632f74623170677a7838383079667237713864677a38647168773530736e6375346634686d7735636e3338303033353474757a6379396a783573687676377375")
+	withdrawInfoWrapper := CSMessage{}
+	_, err = codec.RLP.UnmarshalFromBytes(data, &withdrawInfoWrapper)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	fmt.Println(withdrawInfoWrapper)
+	fmt.Println("\n =============")
+
+	// withdraw info data
+	withdrawInfoWrapperV2 := CSMessageRequestV2{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapper.Payload, &withdrawInfoWrapperV2)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	fmt.Println(withdrawInfoWrapperV2)
+	fmt.Println("\n =============")
+
+	// withdraw info
+	withdrawInfo := XCallMessage{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapperV2.Data, &withdrawInfo)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	fmt.Println(withdrawInfo)
 }
 
 func TestGetRuneBalanceAtIndex(t *testing.T) {
