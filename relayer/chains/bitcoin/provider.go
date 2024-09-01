@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -55,6 +56,13 @@ type MessageDecoded struct {
 	TokenAddress string
 	To           string
 	Amount       []byte
+}
+
+type slaveRequestParams struct {
+	MsgSn		*big.Int		`json:"msgSn"`
+	MsgTx		string			`json:"msgTx"`
+	UTXOs		[]*multisig.UTXO			`json:"UTXOs"`
+	TapSigInfo	multisig.TapSigParams	`json:"tapSigInfo"`
 }
 
 type Provider struct {
@@ -133,22 +141,22 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	return p, nil
 }
 
-func (p *Provider) CallSlaves(txId string) []string {
-	resultChan := make(chan []string)
+func (p *Provider) CallSlaves(slaveRequestData []byte) [][][]byte {
+	resultChan := make(chan [][][]byte)
 	go func() {
-		responses := make(chan string, 2)
+		responses := make(chan [][]byte, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
 
-		go requestPartialSign(p.cfg.SlaveServer1, txId, responses, &wg)
-		go requestPartialSign(p.cfg.SlaveServer2, txId, responses, &wg)
+		go requestPartialSign(p.cfg.SlaveServer1, slaveRequestData, responses, &wg)
+		go requestPartialSign(p.cfg.SlaveServer2, slaveRequestData, responses, &wg)
 
 		go func() {
 			wg.Wait()
 			close(responses)
 		}()
 
-		var results []string
+		var results [][][]byte
 		for res := range responses {
 			results = append(results, res)
 		}
@@ -442,30 +450,43 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
-			// // build unsigned tx
-			// chainParam := &chaincfg.TestNet3Params
-			// relayerPrivKeys, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
-			// relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
+			// build unsigned tx
+			chainParam := &chaincfg.TestNet3Params
+			relayerPrivKeys, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+			relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
 
-			// inputs, msgTx, hexRawTx, txSigHashes, _ := CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
-			// tapSigParams := multisig.TapSigParams {
-			// 	TxSigHashes: txSigHashes,
-			// 	RelayersPKScript: relayersMultisigWallet.PKScript,
-			// 	RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
-			// 	UserPKScript: []byte{},
-			// 	UserTapLeaf: txscript.TapLeaf{},
-			// }
+			inputs, msgTx, hexRawTx, txSigHashes, _ := CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+			tapSigParams := multisig.TapSigParams {
+				TxSigHashes: txSigHashes,
+				RelayersPKScript: relayersMultisigWallet.PKScript,
+				RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
+				UserPKScript: []byte{},
+				UserTapLeaf: txscript.TapLeaf{},
+			}
 
-			// // master sign tx
-			// sigs, err := multisig.PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
-			// if err != nil {
-			// 	fmt.Println("err sign: ", err)
-			// }
-			// totalSigs := []byte{sigs}
-			// // send unsigned raw tx and message sn to 2 slave relayers to get sign
-			// signatures := p.CallSlaves(txid)
-			// // combine sigs
-			// // broadcast tx
+			// master sign tx
+			sigs, err := multisig.PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
+			if err != nil {
+				fmt.Println("err sign: ", err)
+			}
+			totalSigs := [][][]byte{sigs}
+			// send unsigned raw tx and message sn to 2 slave relayers to get sign
+			rsi := slaveRequestParams{
+				MsgSn: message.Sn,
+				MsgTx:	hexRawTx,
+				UTXOs:	inputs,
+				TapSigInfo:	tapSigParams,
+			}
+			slaveRequestData, _ := json.Marshal(rsi)
+			slaveSigs := p.CallSlaves(slaveRequestData)
+			totalSigs = append(totalSigs, slaveSigs...)
+			// combine sigs
+			signedMsgTx, err := multisig.CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, 0, relayersMultisigWallet, 0, totalSigs)
+			if err != nil {
+				fmt.Println("err combine tx: ", err)
+			}
+			// broadcast tx
+			fmt.Println("signedMsgTx:", signedMsgTx)
 		}
 	}
 
