@@ -55,9 +55,9 @@ func TestRandomKeys(t *testing.T) {
 func TestBuildMultisigTapScript(t *testing.T) {
 	chainParam := &chaincfg.TestNet3Params
 
-	_, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	_, relayersMultisigInfo := RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
-	_, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	_, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	relayersMultisigAddress, err := AddressOnChain(chainParam, relayersMultisigWallet)
@@ -86,7 +86,7 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 		},
 	}
 
-	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayerPrivKeys, relayersMultisigInfo := RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
@@ -164,9 +164,9 @@ func TestMultisigUserSwap(t *testing.T) {
 		},
 	}
 
-	relayerPrivKeys, relayersMultisigInfo := randomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayerPrivKeys, relayersMultisigInfo := RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
@@ -262,20 +262,20 @@ func TestUserRecoveryTimeLock(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
-			OutputIdx:     1,
-			OutputAmount:  3808,
+			TxHash:        "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:     4,
+			OutputAmount:  1929000,
 		},
 	}
 
 	outputs := []*OutputTx{
 		{
 			ReceiverAddress: RELAYER_MULTISIG_ADDRESS,
-			Amount:          1000,
+			Amount:          1000000,
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -326,7 +326,7 @@ func TestTransferRune(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -412,7 +412,7 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 		})
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -494,7 +494,7 @@ func TestRadFiInitPool(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -597,7 +597,7 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -720,7 +720,7 @@ func TestRadFiSwap(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -834,7 +834,7 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 			Amount:          1000,
 		},
 	}
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -949,7 +949,7 @@ func TestRadFiCollectFees(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
@@ -1045,7 +1045,7 @@ func TestRadFiIncreaseLiquidity(t *testing.T) {
 		},
 	}
 
-	userPrivKeys, userMultisigInfo := randomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS

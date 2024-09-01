@@ -3,16 +3,19 @@ package bitcoin
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 
 	"path/filepath"
@@ -239,15 +242,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	}
 }
 
-func (p *Provider) decodeWithdrawToMessage(input string) (*MessageDecoded, error) {
-	// Decode base64
-	decodedBytes, err := base64.StdEncoding.DecodeString(input)
-	if err != nil {
-		return nil, err
-	}
-
+func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
 	withdrawInfoWrapper := CSMessage{}
-	_, err = codec.RLP.UnmarshalFromBytes(decodedBytes, &withdrawInfoWrapper)
+	_, err := codec.RLP.UnmarshalFromBytes(input, &withdrawInfoWrapper)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -265,29 +262,211 @@ func (p *Provider) decodeWithdrawToMessage(input string) (*MessageDecoded, error
 		log.Fatal(err.Error())
 	}
 
-	return withdrawInfo, nil
+	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
+}
+
+func GetBitcoinUTXOs(server, address string, amountRequired uint64, timeout uint) ([]*multisig.UTXO, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	// TODO: loop query until sastified amountRequired
+	resp, err := GetBtcUtxo(ctx, UNISAT_DEFAULT_TESTNET, "60b7bf52654454f19d8553e1b6427fb9fd2c722ea8dc6822bdf1dd7615b4b35d", address, 0, 32)
+	if err != nil {
+		return nil , fmt.Errorf("failed to query bitcoin UTXOs from unisat: %v", err)
+	}
+	outputs := []*multisig.UTXO{}
+	var totalAmount uint64
+	for _, utxo := range resp.Data.Utxo {
+		if totalAmount >= amountRequired {
+			break
+		}
+		outputAmount := utxo.Satoshi.Uint64()
+		outputs = append(outputs, &multisig.UTXO{
+			IsRelayersMultisig: true,
+			TxHash:        utxo.TxId,
+			OutputIdx:     uint32(utxo.Vout),
+			OutputAmount:  outputAmount,
+		})
+		totalAmount += outputAmount
+	}
+
+	return outputs, nil
+}
+
+func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout uint) ([]*multisig.UTXO, uint64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	// TODO: loop query until sastified amountRequired
+	resp, err := GetRuneUtxo(ctx, UNISAT_DEFAULT_TESTNET, address, runeId)
+	if err != nil {
+		return nil , 0, fmt.Errorf("failed to query rune UTXOs from unisat: %v", err)
+	}
+	outputs := []*multisig.UTXO{}
+	var totalAmount uint64
+	for _, utxo := range resp.Data.Utxo {
+		if totalAmount >= amountRequired {
+			break
+		}
+		outputs = append(outputs, &multisig.UTXO{
+			IsRelayersMultisig: true,
+			TxHash:        utxo.TxId,
+			OutputIdx:     uint32(utxo.Vout),
+			OutputAmount:  utxo.Satoshi.Uint64(),
+		})
+		if len(utxo.Runes) != 1 {
+			return nil , 0, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
+		}
+		runeAmount, _ := strconv.ParseUint(utxo.Runes[0].Amount, 10, 64)
+		totalAmount += runeAmount
+	}
+
+	return outputs, totalAmount - amountRequired, nil
+}
+
+func CreateBitcoinMultisigTx(
+	messageData []byte,
+	feePerOutput uint64,
+	relayersMultisigWallet *multisig.MultisigWallet,
+	chainParam *chaincfg.Params,
+	server string,
+) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
+	// ----- BUILD OUTPUTS -----
+	outputs := []*multisig.OutputTx{}
+	var bitcoinAmountRequired, runeAmountRequired uint64
+	var runeRequired multisig.Rune
+	decodedData, opreturnData, err := decodeWithdrawToMessage(messageData)
+	// add bridge message to output
+	scripts, _ := multisig.CreateBridgeMessageScripts(opreturnData, 76)
+	for _, script := range scripts {
+		outputs = append(outputs, &multisig.OutputTx{
+			OpReturnScript: script,
+		})
+	}
+	// add withdraw output
+	if err == nil {
+		amount := new(big.Int).SetBytes(decodedData.Amount).Uint64()
+		if decodedData.Action == "WithdrawTo" {
+			if decodedData.TokenAddress == "0:0" {
+				// transfer btc
+				outputs = append(outputs, &multisig.OutputTx{
+					ReceiverAddress: decodedData.To,
+					Amount: amount,
+				})
+
+				bitcoinAmountRequired = amount
+			} else {
+				// transfer rune
+				runeAddress := strings.Split(decodedData.TokenAddress, ":")
+				blockNumber, _ := strconv.ParseUint(runeAddress[0], 10, 64)
+				txIndex, _ := strconv.ParseUint(runeAddress[0], 10, 32)
+				runeRequired = multisig.Rune{
+					BlockNumber: blockNumber,
+					TxIndex: uint32(txIndex),
+				}
+				runeScript, _ := multisig.CreateRuneTransferScript(
+					runeRequired,
+					new(big.Int).SetUint64(amount),
+					uint64(len(outputs)+2),
+				)
+				outputs = append(outputs, &multisig.OutputTx{
+					OpReturnScript: runeScript,
+				})
+				outputs = append(outputs, &multisig.OutputTx{
+					ReceiverAddress: decodedData.To,
+					Amount: 1000,
+				})
+
+				bitcoinAmountRequired = 1000
+				runeAmountRequired = amount
+			}
+		}
+	}
+
+	// ----- BUILD INPUTS -----
+	relayersMultisigAddress, err := multisig.AddressOnChain(chainParam, relayersMultisigWallet)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	relayersMultisigAddressStr := relayersMultisigAddress.String()
+	// add tx fee the the required bitcoin amount
+	inputs := []*multisig.UTXO{}
+	var inputsSatNeeded uint64
+	if runeAmountRequired != 0 {
+		// query rune UTXOs from unisat
+		runeInputs, runeChangeAmount, err := GetRuneUTXOs(server, relayersMultisigAddressStr, decodedData.TokenAddress, runeAmountRequired, 3)
+		if err != nil {
+			return nil, nil, "", nil, err
+		}
+		inputs = append(inputs, runeInputs...)
+		// add rune change to outputs
+		runeScript, _ := multisig.CreateRuneTransferScript(
+			runeRequired,
+			new(big.Int).SetUint64(runeChangeAmount),
+			uint64(len(outputs)+2),
+		)
+		outputs = append(outputs, &multisig.OutputTx{
+			OpReturnScript: runeScript,
+		})
+		outputs = append(outputs, &multisig.OutputTx{
+			ReceiverAddress: relayersMultisigAddressStr,
+			Amount: 1000,
+		})
+		inputsSatNeeded = 1000
+	}
+	txFee := uint64(len(outputs)) * feePerOutput
+	inputsSatNeeded += bitcoinAmountRequired + txFee
+	// todo: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
+	// query bitcoin UTXOs from unisat
+	bitcoinInputs, err := GetBitcoinUTXOs(server, relayersMultisigAddressStr, inputsSatNeeded, 3)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	inputs = append(inputs, bitcoinInputs...)
+	// create raw tx
+	msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, txFee, relayersMultisigWallet, nil, chainParam, relayersMultisigAddressStr, 0)
+
+	return inputs, msgTx, hexRawTx, txSigHashes, err
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message", zap.Any("message", message))
 
-	if p.cfg.Mode == SlaveMode {
-		// Store the message in LevelDB
-		messageJSON, err := json.Marshal(message)
-		if err != nil {
-			return fmt.Errorf("failed to marshal message: %v", err)
-		}
-		// TODO: replace key with txid
-		key := []byte(fmt.Sprintf("bitcoin_message_%s", message.Sn.String()))
-		err = p.db.Put(key, messageJSON, nil)
-		if err != nil {
-			return fmt.Errorf("failed to store message in LevelDB: %v", err)
-		}
+	if (message.Src == "0x2.icon" && message.Dst == "0x2.btc") {
+		if p.cfg.Mode == SlaveMode {
+			// Store the message in LevelDB
+			key := []byte(fmt.Sprintf("bitcoin_message_%s", message.Sn.String()))
+			err := p.db.Put(key, message.Data, nil)
+			if err != nil {
+				return fmt.Errorf("failed to store message in LevelDB: %v", err)
+			}
 
-		p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
-		return nil
-	} else if p.cfg.Mode == MasterMode {
-		// TODO: Implement logic to build bitcoin transaction using signatures
+			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
+			return nil
+		} else if p.cfg.Mode == MasterMode {
+			// // build unsigned tx
+			// chainParam := &chaincfg.TestNet3Params
+			// relayerPrivKeys, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+			// relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
+
+			// inputs, msgTx, hexRawTx, txSigHashes, _ := CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+			// tapSigParams := multisig.TapSigParams {
+			// 	TxSigHashes: txSigHashes,
+			// 	RelayersPKScript: relayersMultisigWallet.PKScript,
+			// 	RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
+			// 	UserPKScript: []byte{},
+			// 	UserTapLeaf: txscript.TapLeaf{},
+			// }
+
+			// // master sign tx
+			// sigs, err := multisig.PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
+			// if err != nil {
+			// 	fmt.Println("err sign: ", err)
+			// }
+			// totalSigs := []byte{sigs}
+			// // send unsigned raw tx and message sn to 2 slave relayers to get sign
+			// signatures := p.CallSlaves(txid)
+			// // combine sigs
+			// // broadcast tx
+		}
 	}
 
 	// MasterMode logic

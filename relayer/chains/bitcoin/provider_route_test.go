@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -9,18 +10,23 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/multisig"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"
 )
 
 func TestDecodeWithdrawToMessage(t *testing.T) {
-	p := &Provider{}
 	input := "+QEdAbkBGfkBFrMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1gh6FAbhS+FCKV2l0aGRyYXdUb4MwOjC4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1ZPhIuEYweDIuYnRjL3RiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1"
+	// Decode base64
+	decodedBytes, _ := base64.StdEncoding.DecodeString(input)
 
-	result, err := p.decodeWithdrawToMessage(input)
+	result, data, err := decodeWithdrawToMessage(decodedBytes)
+
+	fmt.Println("data", data)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -28,6 +34,21 @@ func TestDecodeWithdrawToMessage(t *testing.T) {
 	assert.Equal(t, big.NewInt(100).Bytes(), result.Amount)
 	assert.Equal(t, "WithdrawTo", result.Action)
 	assert.Equal(t, "0:0", result.TokenAddress)
+}
+
+func TestCreateBitcoinMultisigTx(t *testing.T) {
+	data := "+QEdAbkBGfkBFrMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1gh6FAbhS+FCKV2l0aGRyYXdUb4MwOjC4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1ZPhIuEYweDIuYnRjL3RiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1"
+	// Decode base64
+	dataBytes, _ := base64.StdEncoding.DecodeString(data)
+
+	chainParam := &chaincfg.TestNet3Params
+	_, relayersMultisigInfo := // multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
+
+	_, _, hexRawTx, _, err := CreateBitcoinMultisigTx(dataBytes, 5000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+	fmt.Println("err: ", err)
+	fmt.Println("hexRawTx: ", hexRawTx)
 }
 
 func TestProvider_Route(t *testing.T) {

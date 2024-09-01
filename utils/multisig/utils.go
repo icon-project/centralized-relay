@@ -42,7 +42,7 @@ func randomKeys(n int, chainParam *chaincfg.Params, seeds []int) ([]string, [][]
 	return privKeys, pubKeys, ECPubKeys
 }
 
-func randomMultisigInfo(n int, k int, chainParam *chaincfg.Params, seeds []int, recoveryKeyIdx int, recoveryLockTime uint64) ([]string, *MultisigInfo) {
+func RandomMultisigInfo(n int, k int, chainParam *chaincfg.Params, seeds []int, recoveryKeyIdx int, recoveryLockTime uint64) ([]string, *MultisigInfo) {
 	privKeys, pubKeys, EcPubKeys := randomKeys(n, chainParam, seeds)
 	vaultInfo := MultisigInfo{
 		PubKeys:				pubKeys,
