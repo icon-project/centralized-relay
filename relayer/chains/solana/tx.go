@@ -302,18 +302,12 @@ func (p *Provider) initStaticAlts() error {
 		}
 		addresses = append(addresses, dappCfgAddr)
 
-		if dapp.Name == types.AssetManager {
-			vaultNativeAddr, err := types.GetPDA(dappAddr, types.PrefixVaultNative)
+		for _, prefix := range dapp.OtherPrefix {
+			pdaAddr, err := types.GetPDA(dappAddr, prefix)
 			if err != nil {
 				return err
 			}
-			addresses = append(addresses, vaultNativeAddr)
-		} else if dapp.Name == types.BalancedDollar {
-			authorityAddr, err := types.GetPDA(dappAddr, types.PrefixBnUSDAuthority)
-			if err != nil {
-				return err
-			}
-			addresses = append(addresses, authorityAddr)
+			addresses = append(addresses, pdaAddr)
 		}
 	}
 
@@ -1147,12 +1141,8 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 
 func (p *Provider) getDappConfigPrefix(dappProgID string) string {
 	for _, dapp := range p.cfg.Dapps {
-		if dappProgID == dapp.ProgramID {
-			if dapp.Name != types.MockDapp {
-				return types.PrefixState
-			} else {
-				return types.PrefixConfig
-			}
+		if dapp.ProgramID == dappProgID {
+			return dapp.ConfigPrefix
 		}
 	}
 	return ""

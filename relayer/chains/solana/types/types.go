@@ -36,15 +36,6 @@ const (
 	EventRollbackMessage = "RollbackMessage"
 
 	SolanaDenom = "lamport"
-
-	MockDapp       = "mock_dapp"
-	XcallManager   = "xcall_manager"
-	AssetManager   = "asset_manager"
-	BalancedDollar = "balanced_dollar"
-)
-
-var (
-	DappsEnabled = []string{MockDapp, XcallManager, AssetManager, BalancedDollar}
 )
 
 type SolEvent struct {
@@ -80,6 +71,8 @@ type QueryAccountsResponse struct {
 }
 
 type Dapp struct {
-	Name      string `yaml:"name"`
-	ProgramID string `yaml:"program-id"`
+	Name         string   `yaml:"name"`
+	ProgramID    string   `yaml:"program-id"`
+	ConfigPrefix string   `yaml:"config_prefix"`
+	OtherPrefix  []string `yaml:"other_prefix"`
 }

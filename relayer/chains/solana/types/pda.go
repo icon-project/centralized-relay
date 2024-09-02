@@ -15,11 +15,6 @@ const (
 	PrefixNetworkFee   = "fee"
 	PrefixClaimFees    = "claim_fees"
 	PrefixReceipt      = "receipt"
-
-	PrefixState = "state"
-
-	PrefixVaultNative    = "vault_native"
-	PrefixBnUSDAuthority = "bnusd_authority"
 )
 
 type PDA struct {
