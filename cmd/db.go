@@ -127,7 +127,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			}
 			printLabels("Sn", "Src", "Dst", "Height", "Event")
 			for _, msg := range messages {
-				printValues(msg.Sn, msg.Src, msg.Dst, msg.Height, msg.EventType)
+				printValues(msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType)
 			}
 			return nil
 		},

@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"net"
 
+	"github.com/icon-project/centralized-relay/relayer/types"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -126,7 +127,7 @@ func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, erro
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) ([]*ResRelayMessage, error) {
+func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) ([]*types.Message, error) {
 	req := &ReqRelayMessage{Chain: chain, FromHeight: height, ToHeight: height}
 	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
@@ -136,7 +137,7 @@ func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) ([]*ResR
 		return nil, err
 	}
 
-	resData := []*ResRelayMessage{}
+	resData := []*types.Message{}
 	if err := parseResData(res.Data, &resData); err != nil {
 		return nil, err
 	}

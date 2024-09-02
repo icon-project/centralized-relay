@@ -85,15 +85,6 @@ type ResGetBlock struct {
 	Height uint64 `json:"height"`
 }
 
-type ResRelayMessage struct {
-	Src       string `json:"src"`
-	Dst       string `json:"dst"`
-	Sn        uint64 `json:"sn"`
-	Height    uint64 `json:"height"`
-	EventType string `json:"eventType"`
-	ReqID     uint64 `json:"reqId"`
-}
-
 type ReqPruneDB struct {
 	ID    string `json:"id"`
 	Chain string `json:"chain"`

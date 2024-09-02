@@ -182,12 +182,10 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err != nil {
 			return response.SetError(err)
 		}
-		var foundMessages []*ResRelayMessage
 		for _, msg := range msgs {
 			src.MessageCache.Add(types.NewRouteMessage(msg))
-			foundMessages = append(foundMessages, &ResRelayMessage{Src: msg.Src, Sn: msg.Sn.Uint64(), Dst: msg.Dst, Height: msg.MessageHeight, EventType: msg.EventType, ReqID: msg.ReqID.Uint64()})
 		}
-		return response.SetData(foundMessages)
+		return response.SetData(msgs)
 	case EventPruneDB:
 		req := new(ReqPruneDB)
 		if err := jsoniter.Unmarshal(data, req); err != nil {
@@ -345,18 +343,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err != nil {
 			return response.SetError(err)
 		}
-		var foundMessages []*ResRelayMessage
-		for _, msg := range msgs {
-			foundMessages = append(foundMessages, &ResRelayMessage{
-				Src:       msg.Src,
-				Sn:        msg.Sn.Uint64(),
-				Dst:       msg.Dst,
-				Height:    msg.MessageHeight,
-				EventType: msg.EventType,
-				ReqID:     msg.ReqID.Uint64(),
-			})
-		}
-		return response.SetData(foundMessages)
+		return response.SetData(msgs)
 	case EventGetBlockRange:
 		req := new(ReqRangeBlockQuery)
 		if err := jsoniter.Unmarshal(data, req); err != nil {
