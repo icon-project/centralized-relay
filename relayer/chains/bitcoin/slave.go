@@ -9,8 +9,10 @@ import (
 	"os"
 )
 
-func startSlave(c *Config) {
-	http.HandleFunc("/", handleRoot)
+func startSlave(c *Config, p *Provider) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		handleRoot(w, r, p)
+	})
 	port := c.Port
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -21,7 +23,7 @@ func startSlave(c *Config) {
 	log.Fatal(server.ListenAndServe())
 }
 
-func handleRoot(w http.ResponseWriter, r *http.Request) {
+func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 	if r.Method == http.MethodPost {
 		apiKey := r.Header.Get("x-api-key")
 		if apiKey == "" {
@@ -45,7 +47,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error decoding request body", http.StatusInternalServerError)
 			return
 		}
-		sigs, _ := loadSigsFromDb(rsi.MsgSn)
+		sigs, _ := loadSigsFromDb(rsi.MsgSn, p)
 		// return sigs to master
 		returnData, _ := json.Marshal(sigs)
 		w.Write(returnData)
@@ -54,8 +56,17 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func loadSigsFromDb(sn *big.Int) ([][]byte, error) {
-	// TODO: read db to get keys
-	return [][]byte{}, nil
-}
+func loadSigsFromDb(sn *big.Int, p *Provider) ([][]byte, error) {
+	key := sn.String()
+	data, err := p.db.Get([]byte(key), nil)
+	if err != nil {
+		return nil, err
+	}
 
+	var sigs [][]byte
+	err = json.Unmarshal(data, &sigs)
+	if err != nil {
+		return nil, err
+	}
+	return sigs, nil
+}
