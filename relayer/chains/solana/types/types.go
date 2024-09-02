@@ -73,6 +73,6 @@ type QueryAccountsResponse struct {
 type Dapp struct {
 	Name         string   `yaml:"name"`
 	ProgramID    string   `yaml:"program-id"`
-	ConfigPrefix string   `yaml:"config_prefix"`
-	OtherPrefix  []string `yaml:"other_prefix"`
+	ConfigPrefix string   `yaml:"config-prefix"`
+	OtherPrefix  []string `yaml:"other-prefix"`
 }
