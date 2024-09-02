@@ -141,7 +141,10 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 			discriminator := eventLogBytes[:8]
 			eventBytes := eventLogBytes[8:]
 
-			allEvents := append(p.xcallIdl.Events, p.connIdl.Events...)
+			allEvents := p.connIdl.Events
+			if len(p.cfg.Dapps) > 0 {
+				allEvents = append(allEvents, p.xcallIdl.Events...)
+			}
 
 			for _, ev := range allEvents {
 				if slices.Equal(ev.Discriminator, discriminator) {
