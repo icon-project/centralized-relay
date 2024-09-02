@@ -60,9 +60,6 @@ type MessageDecoded struct {
 
 type slaveRequestParams struct {
 	MsgSn		*big.Int		`json:"msgSn"`
-	MsgTx		string			`json:"msgTx"`
-	UTXOs		[]*multisig.UTXO			`json:"UTXOs"`
-	TapSigInfo	multisig.TapSigParams	`json:"tapSigInfo"`
 }
 
 type Provider struct {
@@ -439,10 +436,32 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	p.logger.Info("starting to route message", zap.Any("message", message))
 
 	if (message.Src == "0x2.icon" && message.Dst == "0x2.btc") {
+		// build unsigned tx
+		// TODO: Build Multisig Wallet from config
+		chainParam := &chaincfg.TestNet3Params
+		_, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+		relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
+
+		inputs, msgTx, _, txSigHashes, _ := CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+		tapSigParams := multisig.TapSigParams {
+			TxSigHashes: txSigHashes,
+			RelayersPKScript: relayersMultisigWallet.PKScript,
+			RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
+			UserPKScript: []byte{},
+			UserTapLeaf: txscript.TapLeaf{},
+		}
+		// TODO: Load priv key from config
+		relayerPrivKey := "RELAYER_PRIV_KEY"
+		// relayer sign tx
+		relayerSigs, err := multisig.PartSignOnRawExternalTx(relayerPrivKey, msgTx, inputs, tapSigParams, chainParam, false)
+		if err != nil {
+			fmt.Println("err sign: ", err)
+		}
 		if p.cfg.Mode == SlaveMode {
-			// Store the message in LevelDB
+			// Store the sigs in LevelDB
 			key := []byte(fmt.Sprintf("bitcoin_message_%s", message.Sn.String()))
-			err := p.db.Put(key, message.Data, nil)
+			value, _ := json.Marshal(relayerSigs)
+			err := p.db.Put(key, value, nil)
 			if err != nil {
 				return fmt.Errorf("failed to store message in LevelDB: %v", err)
 			}
@@ -450,32 +469,10 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
-			// build unsigned tx
-			chainParam := &chaincfg.TestNet3Params
-			relayerPrivKeys, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
-			relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
-
-			inputs, msgTx, hexRawTx, txSigHashes, _ := CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
-			tapSigParams := multisig.TapSigParams {
-				TxSigHashes: txSigHashes,
-				RelayersPKScript: relayersMultisigWallet.PKScript,
-				RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
-				UserPKScript: []byte{},
-				UserTapLeaf: txscript.TapLeaf{},
-			}
-
-			// master sign tx
-			sigs, err := multisig.PartSignOnRawExternalTx(relayerPrivKeys[0], msgTx, inputs, tapSigParams, chainParam, true)
-			if err != nil {
-				fmt.Println("err sign: ", err)
-			}
-			totalSigs := [][][]byte{sigs}
+			totalSigs := [][][]byte{relayerSigs}
 			// send unsigned raw tx and message sn to 2 slave relayers to get sign
 			rsi := slaveRequestParams{
 				MsgSn: message.Sn,
-				MsgTx:	hexRawTx,
-				UTXOs:	inputs,
-				TapSigInfo:	tapSigParams,
 			}
 			slaveRequestData, _ := json.Marshal(rsi)
 			slaveSigs := p.CallSlaves(slaveRequestData)

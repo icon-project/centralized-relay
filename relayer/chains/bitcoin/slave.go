@@ -1,8 +1,10 @@
 package bitcoin
 
 import (
+	"encoding/json"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 )
@@ -37,9 +39,23 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Printf("Received payload: %s", string(body))
-		w.Write([]byte("Payload received" + string(body)))
+		var rsi slaveRequestParams
+		err = json.Unmarshal(body, &rsi)
+		if err != nil {
+			http.Error(w, "Error decoding request body", http.StatusInternalServerError)
+			return
+		}
+		sigs, _ := loadSigsFromDb(rsi.MsgSn)
+		// return sigs to master
+		returnData, _ := json.Marshal(sigs)
+		w.Write(returnData)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
+
+func loadSigsFromDb(sn *big.Int) ([][]byte, error) {
+	// TODO: read db to get keys
+	return [][]byte{}, nil
+}
+
