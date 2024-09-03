@@ -135,6 +135,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 	}
 	d.messageChainFlag(rly, true)
 	d.messageHeightFlag(rly)
+	d.messageTxHashFlag(rly)
 	return rly
 }
 
