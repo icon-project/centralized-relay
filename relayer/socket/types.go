@@ -155,11 +155,6 @@ type ReqProcessedBlock struct {
 	Chain string `json:"chain"`
 }
 
-type ResProcessedBlock struct {
-	Chain  string `json:"chain"`
-	Height uint64 `json:"height"`
-}
-
 type ReqRangeBlockQuery struct {
 	Chain      string `json:"chain"`
 	FromHeight uint64 `json:"from_height"`

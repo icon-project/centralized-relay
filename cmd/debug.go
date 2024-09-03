@@ -109,7 +109,7 @@ func (c *DebugState) getLatestHeight(app *appState) *cobra.Command {
 func (c *DebugState) getLatestProcessedBlock(app *appState) *cobra.Command {
 	getLatestHeight := &cobra.Command{
 		Use:     "get",
-		Short:   "Get the latest chain height",
+		Short:   "Get the last processed block height",
 		Aliases: []string{"g"},
 		Example: strings.TrimSpace(fmt.Sprintf(`$ %s dbg block get --chain [chain-id]`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -121,17 +121,18 @@ func (c *DebugState) getLatestProcessedBlock(app *appState) *cobra.Command {
 			if c.server != nil {
 				defer c.server.Close()
 			}
-			res, err := client.GetLatestProcessedBlock(c.chain)
+			res, err := client.GetBlock(c.chain)
 			if err != nil {
 				fmt.Println(err)
 				return err
 			}
 			printLabels("Chain", "Last Processed Block")
-			printValues(c.chain, res.Height)
+			for _, block := range res {
+				printValues(block.Chain, block.Height)
+			}
 			return nil
 		},
 	}
 	getLatestHeight.Flags().StringVar(&c.chain, "chain", "", "Chain ID")
-	getLatestHeight.MarkFlagRequired("chain")
 	return getLatestHeight
 }

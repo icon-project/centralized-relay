@@ -10,26 +10,25 @@ import (
 )
 
 const (
-	EventGetBlock                Event = "GetBlock"
-	EventGetMessageList          Event = "GetMessageList"
-	EventRelayMessage            Event = "RelayMessage"
-	EventRelayRangeMessage       Event = "RelayRangeMessage"
-	EventMessageRemove           Event = "MessageRemove"
-	EventPruneDB                 Event = "PruneDB"
-	EventRevertMessage           Event = "RevertMessage"
-	EventError                   Event = "Error"
-	EventGetFee                  Event = "GetFee"
-	EventSetFee                  Event = "SetFee"
-	EventClaimFee                Event = "ClaimFee"
-	EventGetLatestHeight         Event = "GetLatestHeight"
-	EventGetLatestProcessedBlock Event = "GetLatestProcessedBlock"
-	EventGetBlockRange           Event = "GetBlockRange"
-	EventGetConfig               Event = "GetConfig"
-	EventListChainInfo           Event = "ListChainInfo"
-	EventGetBalance              Event = "GetChainBalance"
-	EventRelayerInfo             Event = "RelayerInfo"
-	EventMessageReceived         Event = "MessageReceived"
-	EventGetBlockEvents          Event = "GetBlockEvents"
+	EventGetBlock          Event = "GetBlock"
+	EventGetMessageList    Event = "GetMessageList"
+	EventRelayMessage      Event = "RelayMessage"
+	EventRelayRangeMessage Event = "RelayRangeMessage"
+	EventMessageRemove     Event = "MessageRemove"
+	EventPruneDB           Event = "PruneDB"
+	EventRevertMessage     Event = "RevertMessage"
+	EventError             Event = "Error"
+	EventGetFee            Event = "GetFee"
+	EventSetFee            Event = "SetFee"
+	EventClaimFee          Event = "ClaimFee"
+	EventGetLatestHeight   Event = "GetLatestHeight"
+	EventGetBlockRange     Event = "GetBlockRange"
+	EventGetConfig         Event = "GetConfig"
+	EventListChainInfo     Event = "ListChainInfo"
+	EventGetBalance        Event = "GetChainBalance"
+	EventRelayerInfo       Event = "RelayerInfo"
+	EventMessageReceived   Event = "MessageReceived"
+	EventGetBlockEvents    Event = "GetBlockEvents"
 )
 
 var (
@@ -275,30 +274,6 @@ func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
 	}
 
 	return resData, nil
-}
-
-func (c *Client) GetLatestProcessedBlock(chain string) (*ResProcessedBlock, error) {
-	req := &ReqGetBlock{Chain: chain}
-	if err := c.send(&Request{Event: EventGetLatestProcessedBlock, Data: req}); err != nil {
-		return nil, err
-	}
-	res, err := c.read()
-	if err != nil {
-		return nil, err
-	}
-
-	resData := []*ResGetBlock{}
-	if err := parseResData(res.Data, &resData); err != nil {
-		return nil, err
-	}
-
-	if len(resData) > 0 {
-		return &ResProcessedBlock{
-			resData[0].Chain, resData[0].Height,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("latest processed block not found for chain %s", chain)
 }
 
 func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {
