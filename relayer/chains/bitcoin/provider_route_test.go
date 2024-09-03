@@ -37,16 +37,21 @@ func TestDecodeWithdrawToMessage(t *testing.T) {
 }
 
 func TestCreateBitcoinMultisigTx(t *testing.T) {
+	provider := &Provider{
+		logger: nil,
+		cfg:    &Config{Mode: SlaveMode},
+		db:     nil,
+	}
+
 	data := "+QEdAbkBGfkBFrMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1gh6FAbhS+FCKV2l0aGRyYXdUb4MwOjC4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1ZPhIuEYweDIuYnRjL3RiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1"
 	// Decode base64
 	dataBytes, _ := base64.StdEncoding.DecodeString(data)
 
 	chainParam := &chaincfg.TestNet3Params
-	_, relayersMultisigInfo := // multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
-	multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	_, relayersMultisigInfo := multisig.RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := multisig.BuildMultisigWallet(relayersMultisigInfo)
 
-	_, _, hexRawTx, _, err := CreateBitcoinMultisigTx(dataBytes, 5000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+	_, _, hexRawTx, _, err := provider.CreateBitcoinMultisigTx(dataBytes, 5000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
 	fmt.Println("err: ", err)
 	fmt.Println("hexRawTx: ", hexRawTx)
 }

@@ -27,7 +27,7 @@ chains:
       protocals:
         - cx577f5e756abd89cbcba38a58508b60a12754d2f5
         # - cxf5a0b146af1572e44775a40ef06c5a39b143ed1e
-      unisat-url: https://open-api.unisat.io/v1/indexer
+      unisat-url: https://open-api-testnet.unisat.io/v1/indexer
       unisat-key: 60b7bf52654454f19d8553e1b6427fb9fd2c722ea8dc6822bdf1dd7615b4b35d
       # start-height: 2874137
       # start-height: 2874459
@@ -42,8 +42,8 @@ chains:
       slave-server-2: http://localhost:8082
       port: 8082
       api-key: key
-      masterPubKey: string
-      slave1PubKey: string
-      slave2PubKey: string
-      relayerPrivKey: string
-      recoveryLockTime: 01234
+      masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
+      slave1PubKey: 0230edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052
+      slave2PubKey: 021e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833
+      relayerPrivKey: cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy
+      recoveryLockTime: 1234

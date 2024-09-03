@@ -55,13 +55,19 @@ func TestRandomKeys(t *testing.T) {
 func TestBuildMultisigTapScript(t *testing.T) {
 	chainParam := &chaincfg.TestNet3Params
 
-	_, relayersMultisigInfo := RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
+	relayerPrivKeys, relayersMultisigInfo := RandomMultisigInfo(3, 3, chainParam, []int{0, 1, 2}, 0, 1)
 	relayersMultisigWallet, _ := BuildMultisigWallet(relayersMultisigInfo)
 	_, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
 	relayersMultisigAddress, err := AddressOnChain(chainParam, relayersMultisigWallet)
 	fmt.Println("relayersMultisigAddress, err : ", relayersMultisigAddress, err)
+	fmt.Println("relayersPubKey Master : ", hex.EncodeToString(relayersMultisigInfo.PubKeys[0]))
+	fmt.Println("relayersPubKey Slave 1 : ", hex.EncodeToString(relayersMultisigInfo.PubKeys[1]))
+	fmt.Println("relayersPubKey Slave 2 : ", hex.EncodeToString(relayersMultisigInfo.PubKeys[2]))
+	fmt.Println("relayersPrivKey Master : ", relayerPrivKeys[0])
+	fmt.Println("relayersPrivKey Slave 1 : ", relayerPrivKeys[1])
+	fmt.Println("relayersPrivKey Slave 2 : ", relayerPrivKeys[2])
 
 	userMultisigAddress, err := AddressOnChain(chainParam, userMultisigWallet)
 	fmt.Println("userMultisigAddress, err : ", userMultisigAddress, err)

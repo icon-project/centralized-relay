@@ -7,6 +7,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
+
+	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
 func startSlave(c *Config, p *Provider) {
@@ -47,7 +50,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 			http.Error(w, "Error decoding request body", http.StatusInternalServerError)
 			return
 		}
-		sigs, _ := loadSigsFromDb(rsi.MsgSn, p)
+		sigs, _ := buildAndSignTxFromDbMessage(rsi.MsgSn, p)
 		// return sigs to master
 		returnData, _ := json.Marshal(sigs)
 		w.Write(returnData)
@@ -56,17 +59,23 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 	}
 }
 
-func loadSigsFromDb(sn *big.Int, p *Provider) ([][]byte, error) {
+func buildAndSignTxFromDbMessage(sn *big.Int, p *Provider) ([][]byte, error) {
 	key := sn.String()
 	data, err := p.db.Get([]byte(key), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var sigs [][]byte
-	err = json.Unmarshal(data, &sigs)
+	var message *relayTypes.Message
+	err = json.Unmarshal(data, &message)
 	if err != nil {
 		return nil, err
 	}
-	return sigs, nil
+
+	_, _, _, relayerSigns, err := p.BuildAndPartSignBitcoinMessageTx(message, strings.Split(message.Dst, ".")[0])
+	if err != nil {
+		return nil, err
+	}
+
+	return relayerSigns, nil
 }
