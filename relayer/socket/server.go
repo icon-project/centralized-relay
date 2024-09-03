@@ -173,7 +173,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if req.FromHeight > req.ToHeight {
 			return response.SetError(fmt.Errorf("fromHeight should be less than toHeight"))
 		} else if req.ToHeight-req.FromHeight > 100 {
-			return response.SetError(fmt.Errorf("fromHeight and toHeight should be less than 100"))
+			return response.SetError(fmt.Errorf("height range should be less than 100"))
 		} else if req.ToHeight == 0 {
 			req.ToHeight = req.FromHeight
 		}
