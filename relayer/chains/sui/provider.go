@@ -125,6 +125,25 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 	return messages, nil
 }
 
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
+	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), []string{txHash})
+	if err != nil {
+		return nil, err
+	}
+
+	blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	var messages []*relayertypes.Message
+	for _, bi := range blockInfoList {
+		messages = append(messages, bi.Messages...)
+	}
+
+	return messages, nil
+}
+
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 	//implementation not needed in sui

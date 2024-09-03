@@ -3,6 +3,7 @@ package icon
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -67,6 +68,41 @@ func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTyp
 func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
 	p.log.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
 	return p.QueryBlockMessages(ctx, fromHeight, toHeight)
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*providerTypes.Message, error) {
+	txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{
+		Hash: types.HexBytes(txHash),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	connectionContract := types.Address(p.cfg.Contracts[providerTypes.ConnectionContract])
+	xcallContract := types.Address(p.cfg.Contracts[providerTypes.XcallContract])
+	allowedAddresses := []types.Address{connectionContract, xcallContract}
+
+	messages := []*providerTypes.Message{}
+	for _, log := range txResult.EventLogs {
+		if slices.Contains(allowedAddresses, log.Addr) {
+			event := types.EventNotificationLog{
+				Address: log.Addr,
+				Indexed: log.Indexed,
+				Data:    log.Data,
+			}
+			height, err := txResult.BlockHeight.Int64()
+			if err != nil {
+				return nil, err
+			}
+			msg, err := p.parseMessageFromEventLog(uint64(height), &event)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, msg)
+		}
+	}
+
+	return messages, nil
 }
 
 // QueryTransactionReceipt ->

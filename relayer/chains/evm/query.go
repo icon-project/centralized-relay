@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -57,6 +58,26 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 	if err != nil {
 		return nil, err
 	}
+	return p.FindMessages(ctx, logs)
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*types.Message, error) {
+	txReceipt, err := p.client.TransactionReceipt(ctx, common.HexToHash(txHash))
+	if err != nil {
+		return nil, err
+	}
+
+	connectionContract := common.HexToAddress(p.cfg.Contracts[types.ConnectionContract])
+	xcallContract := common.HexToAddress(p.cfg.Contracts[types.XcallContract])
+	allowedAddresses := []common.Address{connectionContract, xcallContract}
+
+	logs := []ethTypes.Log{}
+	for _, log := range txReceipt.Logs {
+		if slices.Contains(allowedAddresses, log.Address) {
+			logs = append(logs, *log)
+		}
+	}
+
 	return p.FindMessages(ctx, logs)
 }
 

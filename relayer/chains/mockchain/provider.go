@@ -169,6 +169,14 @@ func (ip *MockProvider) GenerateMessages(ctx context.Context, fromHeight, toHeig
 	return nil, nil
 }
 
+func (ip *MockProvider) FetchTxMessages(ctx context.Context, txHash string) ([]*types.Message, error) {
+	return nil, nil
+}
+
+func (ip *MockProvider) GenerateTxMessages(ctx context.Context, txHash string) ([]*types.Message, error) {
+	return nil, nil
+}
+
 func (p *MockProvider) MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error) {
 	return false, nil
 }
