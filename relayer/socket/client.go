@@ -126,8 +126,13 @@ func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, erro
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) ([]*types.Message, error) {
-	req := &ReqRelayMessage{Chain: chain, FromHeight: height, ToHeight: height}
+func (c *Client) RelayMessage(chain string, height uint64, txHash string) ([]*types.Message, error) {
+	req := &ReqRelayMessage{
+		Chain:      chain,
+		FromHeight: height,
+		ToHeight:   height,
+		TxHash:     txHash,
+	}
 	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
 	}

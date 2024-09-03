@@ -17,6 +17,7 @@ type dbState struct {
 	chain      string
 	height     uint64
 	sn         uint64
+	txHash     string
 	page       uint
 	limit      uint
 	server     *socket.Server
@@ -121,7 +122,7 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			messages, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
+			messages, err := client.RelayMessage(d.chain, d.height, d.txHash)
 			if err != nil {
 				return err
 			}
@@ -176,6 +177,10 @@ func (d *dbState) messageMsgIDFlag(cmd *cobra.Command, markRequired bool) {
 
 func (d *dbState) messageHeightFlag(cmd *cobra.Command) {
 	cmd.Flags().Uint64Var(&d.height, "height", 0, "block height")
+}
+
+func (d *dbState) messageTxHashFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&d.txHash, "tx_hash", "txh", "", "tx hash")
 }
 
 func (d *dbState) messageChainFlag(cmd *cobra.Command, markRequired bool) {

@@ -60,6 +60,7 @@ type ReqRelayMessage struct {
 	Chain      string `json:"chain"`
 	FromHeight uint64 `json:"from_height"`
 	ToHeight   uint64 `json:"to_height"`
+	TxHash     string `json:"tx_hash"`
 }
 
 type ReqMessageRemove struct {

@@ -170,22 +170,34 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err != nil {
 			return response.SetError(err)
 		}
-		if req.FromHeight > req.ToHeight {
-			return response.SetError(fmt.Errorf("fromHeight should be less than toHeight"))
-		} else if req.ToHeight-req.FromHeight > 100 {
-			return response.SetError(fmt.Errorf("height range should be less than 100"))
-		} else if req.ToHeight == 0 {
-			req.ToHeight = req.FromHeight
+
+		messages := []*types.Message{}
+		if req.TxHash != "" {
+			msgs, err := src.Provider.FetchTxMessages(ctx, req.TxHash)
+			if err != nil {
+				return response.SetError(err)
+			}
+			messages = append(messages, msgs...)
+		} else {
+			if req.FromHeight > req.ToHeight {
+				return response.SetError(fmt.Errorf("fromHeight should be less than toHeight"))
+			} else if req.ToHeight-req.FromHeight > 100 {
+				return response.SetError(fmt.Errorf("height range should be less than 100"))
+			} else if req.ToHeight == 0 {
+				req.ToHeight = req.FromHeight
+			}
+
+			msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
+			if err != nil {
+				return response.SetError(err)
+			}
+			messages = append(messages, msgs...)
 		}
 
-		msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
-		if err != nil {
-			return response.SetError(err)
-		}
-		for _, msg := range msgs {
+		for _, msg := range messages {
 			src.MessageCache.Add(types.NewRouteMessage(msg))
 		}
-		return response.SetData(msgs)
+		return response.SetData(messages)
 	case EventPruneDB:
 		req := new(ReqPruneDB)
 		if err := jsoniter.Unmarshal(data, req); err != nil {
