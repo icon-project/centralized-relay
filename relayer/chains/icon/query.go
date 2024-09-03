@@ -96,9 +96,10 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*provi
 			}
 			msg, err := p.parseMessageFromEventLog(uint64(height), &event)
 			if err != nil {
-				return nil, err
+				p.log.Warn("received invalid event", zap.Error(err))
+			} else if msg != nil {
+				messages = append(messages, msg)
 			}
-			messages = append(messages, msg)
 		}
 	}
 

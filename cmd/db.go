@@ -181,7 +181,7 @@ func (d *dbState) messageHeightFlag(cmd *cobra.Command) {
 }
 
 func (d *dbState) messageTxHashFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&d.txHash, "tx_hash", "txh", "", "tx hash")
+	cmd.Flags().StringVarP(&d.txHash, "tx_hash", "t", "", "tx hash")
 }
 
 func (d *dbState) messageChainFlag(cmd *cobra.Command, markRequired bool) {
