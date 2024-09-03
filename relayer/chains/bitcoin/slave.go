@@ -72,7 +72,7 @@ func buildAndSignTxFromDbMessage(sn *big.Int, p *Provider) ([][]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, err := p.BuildAndPartSignBitcoinMessageTx(message, strings.Split(message.Dst, ".")[0])
+	_, _, _, relayerSigns, err := p.BuildAndPartSignBitcoinMessageTx(message.Data, strings.Split(message.Dst, ".")[0])
 	if err != nil {
 		return nil, err
 	}

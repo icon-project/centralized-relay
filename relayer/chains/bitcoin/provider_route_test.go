@@ -1,8 +1,10 @@
 package bitcoin
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -53,6 +55,27 @@ func TestCreateBitcoinMultisigTx(t *testing.T) {
 
 	_, _, hexRawTx, _, err := provider.CreateBitcoinMultisigTx(dataBytes, 5000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
 	fmt.Println("err: ", err)
+	fmt.Println("hexRawTx: ", hexRawTx)
+}
+
+func TestBuildAndPartSignBitcoinMessageTx(t *testing.T) {
+	provider := &Provider{
+		logger: nil,
+		cfg:    &Config{Mode: SlaveMode},
+		db:     nil,
+	}
+
+	data := "+QEdAbkBGfkBFrMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1gh6FAbhS+FCKV2l0aGRyYXdUb4MwOjC4PnRiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1ZPhIuEYweDIuYnRjL3RiMXBneng4ODB5ZnI3cThkZ3o4ZHFodzUwc25jdTRmNGhtdzVjbjM4MDAzNTR0dXpjeTlqeDVzaHZ2N3N1"
+	// Decode base64
+	dataBytes, _ := base64.StdEncoding.DecodeString(data)
+
+	_, _, msgTx, _, err := provider.BuildAndPartSignBitcoinMessageTx(dataBytes, "0x2")
+	fmt.Println("err: ", err)
+
+	var rawTxBytes bytes.Buffer
+	msgTx.Serialize(&rawTxBytes)
+
+	hexRawTx := hex.EncodeToString(rawTxBytes.Bytes())
 	fmt.Println("hexRawTx: ", hexRawTx)
 }
 

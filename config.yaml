@@ -27,7 +27,7 @@ chains:
       protocals:
         - cx577f5e756abd89cbcba38a58508b60a12754d2f5
         # - cxf5a0b146af1572e44775a40ef06c5a39b143ed1e
-      unisat-url: https://open-api-testnet.unisat.io/v1/indexer
+      unisat-url: https://open-api-testnet.unisat.io
       unisat-key: 60b7bf52654454f19d8553e1b6427fb9fd2c722ea8dc6822bdf1dd7615b4b35d
       # start-height: 2874137
       # start-height: 2874459

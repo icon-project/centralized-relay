@@ -281,7 +281,7 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired uint64
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
-	resp, err := GetBtcUtxo(ctx, UNISAT_DEFAULT_TESTNET, p.cfg.UniSatKey, address, 0, 32)
+	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 32)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bitcoin UTXOs from unisat: %v", err)
 	}
@@ -308,7 +308,7 @@ func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
-	resp, err := GetRuneUtxo(ctx, UNISAT_DEFAULT_TESTNET, address, runeId)
+	resp, err := GetRuneUtxo(ctx, server, address, runeId)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query rune UTXOs from unisat: %v", err)
 	}
@@ -439,7 +439,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 	return inputs, msgTx, hexRawTx, txSigHashes, err
 }
 
-func (p *Provider) BuildAndPartSignBitcoinMessageTx(message *relayTypes.Message, messageDstNetwork string) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
+func (p *Provider) BuildAndPartSignBitcoinMessageTx(messageData []byte, messageDstNetwork string) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
 	// get param for mainnet/testnet
 	var chainParam *chaincfg.Params
 	if messageDstNetwork == "0x1" {
@@ -465,7 +465,7 @@ func (p *Provider) BuildAndPartSignBitcoinMessageTx(message *relayTypes.Message,
 		return nil, nil, nil, nil, err
 	}
 	// build unsigned tx
-	inputs, msgTx, _, txSigHashes, err := p.CreateBitcoinMultisigTx(message.Data, 10000, relayersMultisigWallet, chainParam, UNISAT_DEFAULT_TESTNET)
+	inputs, msgTx, _, txSigHashes, err := p.CreateBitcoinMultisigTx(messageData, 10000, relayersMultisigWallet, chainParam, p.cfg.UniSatURL)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -499,7 +499,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
-			inputs, relayersMultisigWallet, msgTx, relayerSigs, err := p.BuildAndPartSignBitcoinMessageTx(message, messageDstDetail[0])
+			inputs, relayersMultisigWallet, msgTx, relayerSigs, err := p.BuildAndPartSignBitcoinMessageTx(message.Data, messageDstDetail[0])
 			if err != nil {
 				return err
 			}
