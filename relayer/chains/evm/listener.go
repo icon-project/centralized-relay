@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 )
@@ -27,6 +26,7 @@ const (
 	BaseRetryInterval          = 3 * time.Second
 	MaxRetryInterval           = 5 * time.Minute
 	MaxRetryCount              = 5
+	ClientReconnectDelay       = 5 * time.Second
 )
 
 type BnOptions struct {
@@ -48,12 +48,13 @@ func (r *Provider) latestHeight(ctx context.Context) uint64 {
 	return height
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfoChan chan *relayertypes.BlockInfo) error {
+	lastSavedHeight := lastProcessedTx.Height
+
 	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
 	}
-
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	var (
@@ -69,12 +70,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case err := <-errChan:
 			if p.isConnectionError(err) {
 				p.log.Error("connection error", zap.Error(err))
-				client, err := p.client.Reconnect()
-				if err != nil {
-					p.log.Error("failed to reconnect", zap.Error(err))
-				} else {
-					p.log.Info("client reconnected")
-					p.client = client
+				clientReconnected := false
+				for !clientReconnected {
+					p.log.Info("reconnecting client")
+					client, err := p.client.Reconnect()
+					if err == nil {
+						clientReconnected = true
+						p.log.Info("client reconnected")
+						p.client = client
+					} else {
+						p.log.Error("failed to re-connect", zap.Error(err))
+						time.Sleep(ClientReconnectDelay)
+					}
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
@@ -158,18 +165,15 @@ func (p *Provider) isConnectionError(err error) bool {
 	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
 }
 
-func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
-	if lbn == nil && lbn.Logs == nil {
-		return nil, nil
-	}
+func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*relayertypes.Message, error) {
 	var messages []*relayertypes.Message
-	for _, log := range lbn.Logs {
+	for _, log := range logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {
 			return nil, err
 		}
 		p.log.Info("Detected eventlog",
-			zap.Uint64("height", lbn.Height.Uint64()),
+			zap.Uint64("height", log.BlockNumber),
 			zap.String("target_network", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
 			zap.String("event_type", message.EventType),

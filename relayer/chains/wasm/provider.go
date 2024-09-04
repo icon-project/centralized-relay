@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	abci "github.com/cometbft/cometbft/abci/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
@@ -18,6 +20,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/retry"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
 )
@@ -97,12 +100,14 @@ func (p *Provider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayTypes.LastProcessedTx, blockInfoChan chan *relayTypes.BlockInfo) error {
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		p.logger.Error("failed to get latest block height", zap.Error(err))
 		return err
 	}
+
+	lastSavedHeight := lastProcessedTx.Height
 
 	startHeight, err := p.getStartHeight(latestHeight, lastSavedHeight)
 	if err != nil {
@@ -150,7 +155,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
-				pollHeightTicker.Reset(time.Second * 2)
+				pollHeightTicker.Reset(time.Second * 3)
 			}
 		}
 	}
@@ -420,8 +425,9 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 	return true, nil
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	p.logger.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{Start: fromHeight, End: toHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -430,6 +436,37 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.
 		messages = append(messages, block.Messages...)
 	}
 	return messages, nil
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayTypes.Message, error) {
+	txResult, err := p.client.GetTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, err
+	}
+
+	allowedEvents := []string{
+		EventTypeWasmMessage, EventTypeWasmCallMessage, EventTypeWasmRollbackMessage,
+	}
+	contractAddresses := []string{
+		p.cfg.Contracts[relayTypes.XcallContract],
+		p.cfg.Contracts[relayTypes.ConnectionContract],
+	}
+
+	filteredEvents := []abci.Event{}
+	for _, ev := range txResult.TxResponse.Events {
+		if !slices.Contains(allowedEvents, ev.Type) {
+			continue
+		}
+		for _, attr := range ev.Attributes {
+			if attr.Key == EventAttrKeyContractAddress {
+				if slices.Contains(contractAddresses, attr.Value) {
+					filteredEvents = append(filteredEvents, ev)
+				}
+			}
+		}
+	}
+
+	return p.ParseMessageFromEvents(filteredEvents)
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
@@ -558,6 +595,8 @@ func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, hei
 	return blockInfoStream
 }
 
+// fetchBlockMessages fetches block messages from the chain
+// TODO: optimize this function
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.HeightRange) ([]*relayTypes.BlockInfo, error) {
 	perPage := 25
 	searchParam := types.TxSearchParam{
@@ -569,43 +608,111 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *types.Hei
 	var (
 		wg           sync.WaitGroup
 		messages     coreTypes.ResultTxSearch
-		messagesChan = make(chan *coreTypes.ResultTxSearch)
-		errorChan    = make(chan error)
+		messagesChan = make(chan *coreTypes.ResultTxSearch, len(p.eventList))
+		errorChan    = make(chan error, len(p.eventList))
 	)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, event := range p.eventList {
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
+		go func(wg *sync.WaitGroup, event sdkTypes.Event, searchParam types.TxSearchParam, messagesChan chan *coreTypes.ResultTxSearch, errorChan chan error) {
 			defer wg.Done()
-			searchParam.Events = append(searchParam.Events, event)
-			res, err := p.client.TxSearch(ctx, searchParam)
+
+			var (
+				localSearchParam = searchParam
+				localMessages    = new(coreTypes.ResultTxSearch)
+				zapFields        = []zap.Field{
+					zap.Uint64("start_height", localSearchParam.StartHeight),
+					zap.Uint64("end_height", localSearchParam.EndHeight),
+					zap.String("event", event.Type),
+				}
+			)
+			localSearchParam.Events = append(localSearchParam.Events, event)
+
+			err := retry.Retry(ctx, p.logger, func() error {
+				p.logger.Info("fetching block messages", zapFields...)
+				msgs, err := p.client.TxSearch(ctx, localSearchParam)
+				if err == nil {
+					p.logger.Info("fetched block messages", zapFields...)
+					localMessages = msgs
+				}
+				return err
+			}, zapFields)
 			if err != nil {
-				errorChan <- err
+				select {
+				case errorChan <- err:
+				default:
+				}
+				cancel()
 				return
 			}
-			if res.TotalCount > perPage {
-				for i := 2; i <= int(res.TotalCount/perPage)+1; i++ {
-					searchParam.Page = &i
-					resNext, err := p.client.TxSearch(ctx, searchParam)
 
+			if localMessages.TotalCount > perPage {
+				totalPages := (localMessages.TotalCount + perPage - 1) / perPage
+				for i := 2; i <= totalPages; i++ {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+					p.logger.Info("fetching block messages", append(zapFields, zap.Int("page", i))...)
+					localSearchParam.Page = &i
+					err := retry.Retry(ctx, p.logger, func() error {
+						resNext, err := p.client.TxSearch(ctx, localSearchParam)
+						if err == nil {
+							localMessages.Txs = append(localMessages.Txs, resNext.Txs...)
+						}
+						return err
+					}, append(zapFields, zap.Int("page", i)))
 					if err != nil {
-						errorChan <- err
+						select {
+						case errorChan <- err:
+						default:
+						}
+						cancel()
 						return
 					}
-					res.Txs = append(res.Txs, resNext.Txs...)
 				}
 			}
-			messagesChan <- res
-		}(&wg, searchParam, messagesChan, errorChan)
+			messagesChan <- localMessages
+		}(&wg, event, searchParam, messagesChan, errorChan)
+	}
+
+	go func() {
+		wg.Wait()
+		close(messagesChan)
+		close(errorChan)
+	}()
+
+	var errors []error
+	for {
 		select {
-		case msgs := <-messagesChan:
-			messages.Txs = append(messages.Txs, msgs.Txs...)
-			messages.TotalCount += msgs.TotalCount
-		case err := <-errorChan:
-			p.logger.Error("failed to fetch block messages", zap.Error(err))
+		case msgs, ok := <-messagesChan:
+			if !ok {
+				messagesChan = nil
+			} else {
+				messages.Txs = append(messages.Txs, msgs.Txs...)
+				messages.TotalCount += msgs.TotalCount
+			}
+		case err, ok := <-errorChan:
+			if !ok {
+				errorChan = nil
+			} else {
+				errors = append(errors, err)
+			}
+		}
+		if messagesChan == nil && errorChan == nil {
+			break
 		}
 	}
-	wg.Wait()
+
+	if len(errors) > 0 {
+		p.logger.Error("Errors occurred while fetching block messages", zap.Errors("errors", errors))
+		return nil, fmt.Errorf("errors occurred while fetching block messages: %v", errors)
+	}
+
 	return p.getMessagesFromTxList(messages.Txs)
 }
 
@@ -675,19 +782,17 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
 	for heightRange := range heightStream {
-		blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+		err := retry.Retry(ctx, p.logger, func() error {
+			blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+			if err == nil {
+				for _, block := range blockInfo {
+					blockInfoChan <- block
+				}
+			}
+			return err
+		}, []zap.Field{zap.Uint64("from_height", heightRange.Start), zap.Uint64("to_height", heightRange.End)})
 		if err != nil {
 			p.logger.Error("failed to fetch block messages", zap.Error(err))
-			continue
-		}
-		p.logger.Info("Fetched block messages", zap.Uint64("from", heightRange.Start), zap.Uint64("to", heightRange.End))
-		var messages []*relayTypes.Message
-		for _, block := range blockInfo {
-			messages = append(messages, block.Messages...)
-		}
-		blockInfoChan <- &relayTypes.BlockInfo{
-			Height:   heightRange.End,
-			Messages: messages,
 		}
 	}
 	return toHeight + 1

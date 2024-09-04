@@ -493,7 +493,7 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 		Topics:    p.blockReq.Topics,
 	}
 	p.log.Info("queryting", zap.Uint64("start", fromHeight), zap.Uint64("end", toHeight))
-	logs, _ := p.getLogsRetry(ctx, filter, 1)
+	logs, _ := p.getLogsRetry(ctx, filter)
 	for _, log := range logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {

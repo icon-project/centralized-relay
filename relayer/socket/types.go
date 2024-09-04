@@ -5,25 +5,50 @@ import (
 	"net"
 
 	"github.com/icon-project/centralized-relay/relayer"
-	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 )
 
 type Event string
 
-type Message struct {
+type Request struct {
+	ID    string `json:"id"`
 	Event Event  `json:"event"`
-	Data  []byte `json:"data"`
+	Data  any    `json:"data"`
+}
+
+type Response struct {
+	ID      string `json:"id"`
+	Event   Event  `json:"event"`
+	Success bool   `json:"success"`
+	Data    any    `json:"data,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+func (r *Response) SetError(err error) *Response {
+	r.Message = err.Error()
+	return r
+}
+
+func (r *Response) SetData(data any) *Response {
+	r.Success = true
+	r.Data = data
+	return r
 }
 
 type Server struct {
-	listener net.Listener
-	rly      *relayer.Relayer
+	listener  net.Listener
+	startedAt int64
+	rly       *relayer.Relayer
+}
+
+type Pagination struct {
+	Page  uint
+	Limit uint
 }
 
 type ReqMessageList struct {
-	Chain      string            `json:"chain"`
-	Pagination *store.Pagination `json:"pagination"`
+	Chain string `json:"chain"`
+	Limit uint   `json:"pagination"`
 }
 
 type ReqGetBlock struct {
@@ -32,20 +57,10 @@ type ReqGetBlock struct {
 }
 
 type ReqRelayMessage struct {
-	Chain  string   `json:"chain"`
-	Sn     *big.Int `json:"sn"`
-	Height uint64   `json:"height"`
-}
-
-type ReqRelayRangeMessage struct {
 	Chain      string `json:"chain"`
 	FromHeight uint64 `json:"from_height"`
 	ToHeight   uint64 `json:"to_height"`
-}
-
-type ResRelayRangeMessage struct {
-	Chain    string                `json:"chain"`
-	Messages []*types.RouteMessage `json:"messages"`
+	TxHash     string `json:"tx_hash"`
 }
 
 type ReqMessageRemove struct {
@@ -62,8 +77,8 @@ type ResMessageRemove struct {
 }
 
 type ResMessageList struct {
-	Messages []*types.RouteMessage `json:"messages"`
-	Total    int                   `json:"total"`
+	Message []*types.RouteMessage `json:"message"`
+	Total   int                   `json:"total"`
 }
 
 type ResGetBlock struct {
@@ -71,11 +86,8 @@ type ResGetBlock struct {
 	Height uint64 `json:"height"`
 }
 
-type ResRelayMessage struct {
-	*types.RouteMessage
-}
-
 type ReqPruneDB struct {
+	ID    string `json:"id"`
 	Chain string `json:"chain"`
 }
 
@@ -144,11 +156,6 @@ type ReqProcessedBlock struct {
 	Chain string `json:"chain"`
 }
 
-type ResProcessedBlock struct {
-	Chain  string `json:"chain"`
-	Height uint64 `json:"height"`
-}
-
 type ReqRangeBlockQuery struct {
 	Chain      string `json:"chain"`
 	FromHeight uint64 `json:"from_height"`
@@ -158,4 +165,63 @@ type ReqRangeBlockQuery struct {
 type ResRangeBlockQuery struct {
 	Chain string           `json:"chain"`
 	Msgs  []*types.Message `json:"messages"`
+}
+
+type ReqListChain struct {
+	Chains []string `json:"chains,omitempty"`
+}
+
+type ResChainInfo struct {
+	Name           string            `json:"name"`
+	NID            string            `json:"nid"`
+	Address        string            `json:"address"`
+	Type           string            `json:"type"`
+	Contracts      map[string]string `json:"contracts"`
+	LatestHeight   uint64            `json:"latestHeight"`
+	LastCheckPoint uint64            `json:"lastCheckPoint"`
+}
+
+type ReqGetBalance struct {
+	Chain   string `json:"chain"`
+	Address string `json:"address"`
+}
+
+type ResGetBalance struct {
+	Chain   string      `json:"chain"`
+	Address string      `json:"address"`
+	Balance *types.Coin `json:"balance"`
+}
+
+type ReqRelayInfo struct{}
+
+type ResRelayInfo struct {
+	Version string `json:"version"`
+	Uptime  int64  `json:"uptime"`
+}
+
+type ReqMessageReceived struct {
+	Chain string `json:"chain"`
+	Sn    uint64 `json:"sn"`
+}
+
+type ResMessageReceived struct {
+	Chain    string `json:"chain"`
+	Sn       uint64 `json:"sn"`
+	Received bool   `json:"received"`
+}
+
+type ReqGetBlockEvents struct {
+	Chain  string `json:"chain"`
+	Height uint64 `json:"height"`
+}
+
+type ResGetBlockEvents struct {
+	Chain   string   `json:"chain"`
+	Address string   `json:"address"`
+	Event   []string `json:"event"`
+	Height  uint64   `json:"height"`
+}
+
+type ChainProviderError struct {
+	Message string
 }
