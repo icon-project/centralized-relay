@@ -87,6 +87,17 @@ builds:
       - muslc
       - netgo
 
+dockers:
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:latest
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+
 archives:
   - id: golang-cross
     builds:
