@@ -182,7 +182,7 @@ func TestQueryTxBlocks(t *testing.T) {
 				zap.String("checkpoint", checkpoint),
 				zap.String("package-id", ev.PackageId.String()),
 				zap.String("module", ev.TransactionModule),
-				zap.String("event-type", ev.Type),
+				zap.String("event_type", ev.Type),
 				zap.String("tx-digest", ev.Id.TxDigest.String()),
 			)
 		}
