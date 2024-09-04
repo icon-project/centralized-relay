@@ -91,6 +91,7 @@ dockers:
   - image_templates:
       - iconcommunity/{{.ProjectName}}:latest
       - iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    use: buildx
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
