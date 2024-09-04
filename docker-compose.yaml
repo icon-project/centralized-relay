@@ -1,16 +1,15 @@
 services:
   relayer:
     image: icon-project/centralized-relayer:latest
-    container_name: relayer
-    command: ["centralized-relay", "start", "--config", "/config/config.yaml"]
+    container_name: centralized-relayer
+    command: ["centralized-relay", "start"]
     restart: unless-stopped
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
       - AWS_DEFAULT_REGION
     volumes:
-      - ./config:/config
-      - ./data:/data
+      - data:/home/relayer/.centralized-relay
 volumes:
   data:
-  config:
