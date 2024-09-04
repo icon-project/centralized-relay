@@ -2,7 +2,6 @@ package icon
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -17,8 +16,7 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
 		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType),
-		zap.String("data", hex.EncodeToString(message.Data)))
+		zap.String("event_type", message.EventType))
 
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {

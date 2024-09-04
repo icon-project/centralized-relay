@@ -2,7 +2,6 @@ package sui
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -79,8 +78,7 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 			zap.Any("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
 			zap.Any("req_id", msg.ReqID),
-			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
-			zap.Any("data", hex.EncodeToString(msg.Data)),
+			zap.String("tx_hash", ev.Id.TxDigest.String()),
 		)
 		checkpointMessages[ev.Checkpoint.Uint64()] = append(checkpointMessages[ev.Checkpoint.Uint64()], msg)
 	}
@@ -222,8 +220,7 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 		zap.Any("sn", msg.Sn),
 		zap.String("dst", msg.Dst),
 		zap.Any("req_id", msg.ReqID),
-		zap.String("dapp_module_cap_id", msg.DappModuleCapID),
-		zap.Any("data", hex.EncodeToString(msg.Data)),
+		zap.String("tx_hash", ev.Id.TxDigest.String()),
 	)
 
 	blockStream <- &relayertypes.BlockInfo{

@@ -27,8 +27,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
 		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType),
-		zap.String("data", hex.EncodeToString(message.Data)))
+		zap.String("event_type", message.EventType))
 
 	suiMessage, err := p.MakeSuiMessage(message)
 	if err != nil {

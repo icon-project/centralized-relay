@@ -123,11 +123,12 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						continue
 					}
 					p.log.Info("Detected eventlog",
-						zap.String("target_network", message.Dst),
+						zap.String("dst", message.Dst),
 						zap.Uint64("sn", message.Sn.Uint64()),
+						zap.Any("req_id", message.ReqID),
 						zap.String("event_type", message.EventType),
 						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
+						zap.Uint64("height", log.BlockNumber),
 					)
 					blockInfoChan <- &relayertypes.BlockInfo{
 						Height:   log.BlockNumber,
@@ -177,10 +178,12 @@ func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotificatio
 			return nil, err
 		}
 		p.log.Info("Detected eventlog",
-			zap.Uint64("height", lbn.Height.Uint64()),
-			zap.String("target_network", message.Dst),
+			zap.String("dst", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+			zap.Uint64("height", log.BlockNumber),
 		)
 		messages = append(messages, message)
 	}
@@ -256,11 +259,12 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				continue
 			}
 			p.log.Info("Detected eventlog",
-				zap.String("target_network", message.Dst),
+				zap.String("dst", message.Dst),
 				zap.Uint64("sn", message.Sn.Uint64()),
+				zap.Any("req_id", message.ReqID),
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
-				zap.Uint64("block_number", log.BlockNumber),
+				zap.Uint64("height", log.BlockNumber),
 			)
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
