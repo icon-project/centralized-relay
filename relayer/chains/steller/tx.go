@@ -125,7 +125,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	var sorobanTxnData xdr.SorobanTransactionData
 	if err := xdr.SafeUnmarshalBase64(simres.TransactionDataXDR, &sorobanTxnData); err != nil {
-		p.log.Warn("tx result marshal failed", zap.Any("code", simtxe))
+		p.log.Error("tx result unmarshal failed", zap.String("tx_envelope", simtxe), zap.String("tx_data", simres.TransactionDataXDR))
 		return nil, err
 	}
 	callOp.Ext = xdr.TransactionExt{
