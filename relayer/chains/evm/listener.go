@@ -69,20 +69,18 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			p.log.Debug("evm listener: done")
 			return ctx.Err()
 		case err := <-errChan:
-			if p.isConnectionError(err) {
-				p.log.Error("connection error", zap.Error(err))
-				clientReconnected := false
-				for !clientReconnected {
-					p.log.Info("reconnecting client")
-					client, err := p.client.Reconnect()
-					if err == nil {
-						clientReconnected = true
-						p.log.Info("client reconnected")
-						p.client = client
-					} else {
-						p.log.Error("failed to re-connect", zap.Error(err))
-						time.Sleep(ClientReconnectDelay)
-					}
+			p.log.Error("connection error", zap.Error(err))
+			clientReconnected := false
+			for !clientReconnected {
+				p.log.Info("reconnecting client")
+				client, err := p.client.Reconnect()
+				if err == nil {
+					clientReconnected = true
+					p.log.Info("client reconnected")
+					p.client = client
+				} else {
+					p.log.Error("failed to re-connect", zap.Error(err))
+					time.Sleep(ClientReconnectDelay)
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
@@ -231,7 +229,9 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
-	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
+	subContext, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	sub, err := p.client.Subscribe(subContext, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 	}, ch)
