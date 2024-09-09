@@ -71,9 +71,10 @@ type RadFiIncreaseLiquidityMsg struct {
 }
 
 type BridgeDecodedMsg struct {
-	ChainId uint8
-	Address string
 	Message *XCallMessage
+	ChainId uint8
+	Receiver string
+	Connectors []string
 }
 
 type RadFiDecodedMsg struct {
@@ -85,18 +86,77 @@ type RadFiDecodedMsg struct {
 	IncreaseLiquidityMsg	*RadFiIncreaseLiquidityMsg
 }
 
-func CreateBridgePayload(chainId uint8, address string, message *XCallMessage) ([]byte, error) {
+func AddressToPayload(address string) ([]byte, error) {
+	prefix := address[0:2]
+	var prefixType uint8 // max number of supported type is 7
+	switch prefix {
+		case "0x":
+			prefixType = 1
+		case "hx":
+			prefixType = 2
+		case "cx":
+			prefixType = 3
+		default:
+			return nil, fmt.Errorf("address type not supported")
+	}
+	addressBytes, err := hex.DecodeString(address[2:])
+	if err != nil {
+		return nil, fmt.Errorf("could decode string address - Error %v", err)
+	}
+
+	addressBytesLen := uint8(len(addressBytes))
+	if addressBytesLen > 32 {
+		return nil, fmt.Errorf("address length not supported")
+	}
+	prefixByte := byte((prefixType << 5) ^ (addressBytesLen - 1))
+
+	return append([]byte{prefixByte}, addressBytes...), nil
+}
+
+func PayloadToAddress(payload []byte) (string, []byte, error) {
+	prefixByte := payload[0]
+	prefixType := uint8(prefixByte >> 5)
+	var prefix string
+	switch prefixType {
+		case 1:
+			prefix = "0x"
+		case 2:
+			prefix = "hx"
+		case 3:
+			prefix = "cx"
+		default:
+			return "", nil, fmt.Errorf("prefix type not supported")
+	}
+	addressBytesLen := uint8((prefixByte << 3 >> 3) + 1)
+	address := prefix + hex.EncodeToString(payload[1:addressBytesLen+1])
+	remainPayload := payload[addressBytesLen+1:]
+
+	return address, remainPayload, nil
+}
+
+func CreateBridgePayload(message *XCallMessage, chainId uint8, receiver string, connectors []string) ([]byte, error) {
 	payload, err := codec.RLP.MarshalToBytes(message)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal message - Error %v", err)
 	}
 
-	bytesAddress, err := hex.DecodeString(address)
+	payload = append(payload, chainId)
+
+	receiverBytes, err := AddressToPayload(receiver)
 	if err != nil {
-		return nil, fmt.Errorf("could decode string address - Error %v", err)
+		return nil, err
+	}
+	payload = append(payload, receiverBytes...)
+
+	for _, connector := range connectors {
+		connectorBytes, err := AddressToPayload(connector)
+		if err != nil {
+			return nil, err
+		}
+		payload = append(payload, connectorBytes...)
 	}
 
-	return append(append(payload, chainId), bytesAddress...), nil
+	return payload, nil
 }
 
 func CreateBridgeMessageScripts(payload []byte, partLimit int) ([][]byte, error) {
@@ -274,11 +334,26 @@ func ReadBridgeMessage(transaction *wire.MsgTx) (*BridgeDecodedMsg, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal message - Error %v", err)
 	}
+	chainId := uint8(remainData[0])
+	receiver, remainData, err := PayloadToAddress(remainData[1:])
+	if err != nil {
+		return nil, err
+	}
+	connectors := []string{}
+	var connector string
+	for len(remainData) > 0 {
+		connector, remainData, err = PayloadToAddress(remainData)
+		if err != nil {
+			return nil, err
+		}
+		connectors = append(connectors, connector)
+	}
 
 	return &BridgeDecodedMsg {
-		ChainId: uint8(remainData[0]),
-		Address: hex.EncodeToString(remainData[1:]),
 		Message: &message,
+		ChainId: chainId,
+		Receiver: receiver,
+		Connectors: connectors,
 	}, nil
 }
 
