@@ -188,7 +188,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
 	for ev.Checkpoint == nil {
 		p.log.Warn("checkpoint not found for transaction", zap.String("tx-digest", ev.Id.TxDigest.String()))
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
 		if err != nil {
 			p.log.Error("failed to get transaction while handling event notification",
