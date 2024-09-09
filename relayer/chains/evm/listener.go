@@ -69,18 +69,20 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			p.log.Debug("evm listener: done")
 			return ctx.Err()
 		case err := <-errChan:
-			p.log.Error("connection error", zap.Error(err))
-			clientReconnected := false
-			for !clientReconnected {
-				p.log.Info("reconnecting client")
-				client, err := p.client.Reconnect()
-				if err == nil {
-					clientReconnected = true
-					p.log.Info("client reconnected")
-					p.client = client
-				} else {
-					p.log.Error("failed to re-connect", zap.Error(err))
-					time.Sleep(ClientReconnectDelay)
+			if p.isConnectionError(err) {
+				p.log.Error("connection error", zap.Error(err))
+				clientReconnected := false
+				for !clientReconnected {
+					p.log.Info("reconnecting client")
+					client, err := p.client.Reconnect()
+					if err == nil {
+						clientReconnected = true
+						p.log.Info("client reconnected")
+						p.client = client
+					} else {
+						p.log.Error("failed to re-connect", zap.Error(err))
+						time.Sleep(ClientReconnectDelay)
+					}
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
@@ -161,7 +163,9 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 }
 
 func (p *Provider) isConnectionError(err error) bool {
-	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
+	return strings.Contains(err.Error(), "tcp") ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "websocket")
 }
 
 func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
@@ -226,7 +230,7 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
-	subContext, cancel := context.WithTimeout(ctx, time.Second*10)
+	subContext, cancel := context.WithTimeout(ctx, websocketReadTimeout)
 	defer cancel()
 	sub, err := p.client.Subscribe(subContext, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
