@@ -25,10 +25,9 @@ import (
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
 	p.log.Info("starting to route message",
 		zap.Any("sn", message.Sn),
-		zap.Any("req-id", message.ReqID),
+		zap.Any("req_id", message.ReqID),
 		zap.String("src", message.Src),
-		zap.String("event-type", message.EventType),
-		zap.String("data", hex.EncodeToString(message.Data)))
+		zap.String("event_type", message.EventType))
 
 	suiMessage, err := p.MakeSuiMessage(message)
 	if err != nil {
@@ -295,7 +294,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 	txnData, err := p.client.GetTransaction(context.Background(), txRes.Digest.String())
 	if err != nil {
 		callback(messageKey, res, err)
-		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+		p.log.Error("failed to get transaction details after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
 		return
 	}
 
@@ -305,7 +304,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
 		if err != nil {
 			callback(messageKey, res, err)
-			p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+			p.log.Error("failed to get transaction details due to nil checkpoint after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
 			return
 		}
 	}
