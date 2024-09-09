@@ -34,18 +34,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
 }
 
-func (p *Provider) allowedEventTypes() []string {
-	allowedEvents := []string{}
-	for _, xcallPkgId := range p.cfg.XcallPkgIDs {
-		allowedEvents = append(allowedEvents, []string{
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleConnection, "Message"),
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "CallMessage"),
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "RollbackMessage"),
-		}...)
-	}
-	return allowedEvents
-}
-
 func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
 	// if relayer is not an executor then skip CallMessage and RollbackMessage events.
 	if len(p.cfg.Dapps) == 0 &&
