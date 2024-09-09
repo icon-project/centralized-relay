@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 	"sync"
+	"time"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -34,6 +35,8 @@ type Config struct {
 	// Should be empty if we want to query using last saved tx-digest
 	// from database.
 	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
+
+	PollInterval time.Duration `json:"poll-interval" yaml:"poll-interval"`
 }
 
 type DappModule struct {

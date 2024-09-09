@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coming-chat/go-sui/v2/lib"
 	"github.com/coming-chat/go-sui/v2/sui_types"
 	cctypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -289,9 +288,14 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 
 		cursor := afterTxDigest
 
-		limit := uint(100)
+		limit := uint(15)
 
-		ticker := time.NewTicker(3 * time.Second)
+		pollInterval := 6 * time.Second
+		if p.cfg.PollInterval != 0 {
+			pollInterval = p.cfg.PollInterval
+		}
+
+		ticker := time.NewTicker(pollInterval)
 
 		for {
 			select {
@@ -306,21 +310,16 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 
 				p.log.Debug("tx block query successful", zap.Any("cursor", cursor))
 
-				if len(res.Data) > 0 {
-					var nextCursor *lib.Base58
-					for _, blockRes := range res.Data {
-						for _, ev := range blockRes.Events {
-							eventStream <- types.EventResponse{
-								SuiEvent:   ev,
-								Checkpoint: blockRes.Checkpoint,
-							}
-							nextCursor = &ev.Id.TxDigest
+				for _, blockRes := range res.Data {
+					for _, ev := range blockRes.Events {
+						eventStream <- types.EventResponse{
+							SuiEvent:   ev,
+							Checkpoint: blockRes.Checkpoint,
 						}
 					}
-					if nextCursor != nil {
-						cursor = nextCursor
-					}
 				}
+
+				cursor = res.NextCursor
 			}
 		}
 	}()
