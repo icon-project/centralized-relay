@@ -19,37 +19,41 @@ import (
 const (
 	DefaultPollingInterval = time.Second * 30
 	MaximumPollTry         = 15
+	DefaultCreateTimeout   = time.Second * 10
 )
 
 func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
-	eth, err := ethclient.DialContext(ctx, websocketUrl)
+	createCtx, cancel := context.WithTimeout(ctx, DefaultCreateTimeout)
+	defer cancel()
+	rpc, err := ethclient.DialContext(createCtx, rpcUrl)
 	if err != nil {
 		return nil, err
 	}
-
-	connection, err := bridgeContract.NewConnection(connectionContract, eth)
+	ws, err := ethclient.DialContext(createCtx, websocketUrl)
+	if err != nil {
+		return nil, err
+	}
+	connection, err := bridgeContract.NewConnection(connectionContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
 	}
-
-	xcall, err := bridgeContract.NewXcall(XcallContract, eth)
+	xcall, err := bridgeContract.NewXcall(XcallContract, ws)
 	if err != nil {
 		return nil, fmt.Errorf("error occured when creating eth client: %v ", err)
 	}
-
 	// getting the chain id
-	evmChainId, err := eth.ChainID(ctx)
+	evmChainId, err := ws.ChainID(createCtx)
 	if err != nil {
 		return nil, err
 	}
-
 	reconnectFunc := func() (IClient, error) {
 		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
 	}
 
 	return &Client{
 		log:        l,
-		eth:        eth,
+		eth:        ws,
+		ethRpc:     rpc,
 		EVMChainID: evmChainId,
 		connection: connection,
 		xcall:      xcall,
@@ -99,7 +103,8 @@ type IClient interface {
 	ClaimFee(opts *bind.TransactOpts) (*ethTypes.Transaction, error)
 
 	// abiContract for xcall
-	ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error)
+	ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
 }
@@ -128,7 +133,7 @@ func (cl *Client) GetBalance(ctx context.Context, hexAddr string) (*big.Int, err
 }
 
 func (cl *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error) {
-	return cl.eth.FilterLogs(ctx, q)
+	return cl.ethRpc.FilterLogs(ctx, q)
 }
 
 func (cl *Client) GetBlockNumber(ctx context.Context) (uint64, error) {
@@ -191,8 +196,12 @@ func (c *Client) RevertMessage(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.
 	return c.connection.RevertMessage(opts, sn)
 }
 
-func (c *Client) ParseXcallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
+func (c *Client) ParseCallMessage(log ethTypes.Log) (*bridgeContract.XcallCallMessage, error) {
 	return c.xcall.ParseCallMessage(log)
+}
+
+func (c *Client) ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error) {
+	return c.xcall.ParseRollbackMessage(log)
 }
 
 func (c *Client) ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error) {

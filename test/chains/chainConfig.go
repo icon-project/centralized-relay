@@ -1,6 +1,9 @@
 package chains
 
-import "github.com/icon-project/centralized-relay/test/interchaintest/ibc"
+import (
+	"github.com/icon-project/centralized-relay/test/interchaintest/ibc"
+	ibcv8 "github.com/strangelove-ventures/interchaintest/v8/ibc"
+)
 
 type ChainConfig struct {
 	Type           string      `mapstructure:"type"`
@@ -45,5 +48,28 @@ func (c *ChainConfig) GetIBCChainConfig(chain *Chain) ibc.ChainConfig {
 		GasAdjustment:  c.GasAdjustment,
 		TrustingPeriod: c.TrustingPeriod,
 		NoHostMount:    c.NoHostMount,
+	}
+}
+
+func (c *ChainConfig) FromIBCChainConfig(ibc ibcv8.ChainConfig) ChainConfig {
+
+	return ChainConfig{
+		Type:    ibc.Type,
+		Name:    ibc.Name,
+		ChainID: ibc.ChainID,
+		Images: DockerImage{
+			Repository: ibc.Images[0].Repository,
+			Version:    ibc.Images[0].Version,
+			UidGid:     ibc.Images[0].UidGid,
+		},
+		Bin:            ibc.Bin,
+		Bech32Prefix:   ibc.Bech32Prefix,
+		Denom:          ibc.Denom,
+		CoinType:       ibc.CoinType,
+		SkipGenTx:      ibc.SkipGenTx,
+		GasPrices:      ibc.GasPrices,
+		GasAdjustment:  ibc.GasAdjustment,
+		TrustingPeriod: ibc.TrustingPeriod,
+		NoHostMount:    ibc.NoHostMount,
 	}
 }

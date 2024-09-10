@@ -26,7 +26,11 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	// lock here to prevent transcation replacement
 	p.routerMutex.Lock()
 
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event_type", message.EventType))
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
@@ -91,7 +95,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.ClaimFee(opts)
 	case events.SetFee:
 		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
-	case events.ExecuteRollback:
+	case events.RollbackMessage:
 		tx, err = p.client.ExecuteRollback(opts, message.Sn)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
