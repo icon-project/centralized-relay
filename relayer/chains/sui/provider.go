@@ -111,7 +111,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 		checkpoint.Transactions,
 		func(stbr *suitypes.SuiTransactionBlockResponse) bool {
 			for _, t := range stbr.ObjectChanges {
-				if t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+				if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
 					return true
 				}
 			}
