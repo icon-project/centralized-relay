@@ -80,6 +80,7 @@ type RouteMessage struct {
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
 		Message: m,
+		LastTry: time.Now(),
 	}
 }
 

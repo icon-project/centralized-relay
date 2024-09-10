@@ -88,11 +88,11 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 						}
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
-								zap.Uint64("height", msg.MessageHeight),
-								zap.String("target_network", msg.Dst),
+								zap.String("dst", msg.Dst),
 								zap.Uint64("sn", msg.Sn.Uint64()),
-								zap.String("tx_hash", v.Hash.String()),
+								zap.Any("req_id", msg.ReqID),
 								zap.String("event_type", msg.EventType),
+								zap.Uint64("height", msg.MessageHeight),
 							)
 							outgoing <- &providerTypes.BlockInfo{
 								Messages: []*providerTypes.Message{msg},

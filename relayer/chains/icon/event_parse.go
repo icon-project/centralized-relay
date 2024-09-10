@@ -85,10 +85,12 @@ func (p *Provider) parseCallMessage(e *types.EventLog, eventType string, height 
 
 // Parse Event
 func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]*providerTypes.Message, error) {
-	height, err := notifications.Height.BigInt()
+	aboveHeight, err := notifications.Height.BigInt()
 	if err != nil {
 		return nil, err
 	}
+	height := aboveHeight.Sub(aboveHeight, big.NewInt(1))
+
 	var messages []*providerTypes.Message
 	for _, event := range notifications.Logs {
 		msg, err := p.parseMessageFromEventLog(height.Uint64(), event)

@@ -122,11 +122,12 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						continue
 					}
 					p.log.Info("Detected eventlog",
-						zap.String("target_network", message.Dst),
+						zap.String("dst", message.Dst),
 						zap.Uint64("sn", message.Sn.Uint64()),
+						zap.Any("req_id", message.ReqID),
 						zap.String("event_type", message.EventType),
 						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
+						zap.Uint64("height", log.BlockNumber),
 					)
 					blockInfoChan <- &relayertypes.BlockInfo{
 						Height:   log.BlockNumber,
@@ -162,7 +163,9 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 }
 
 func (p *Provider) isConnectionError(err error) bool {
-	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
+	return strings.Contains(err.Error(), "tcp") ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "websocket")
 }
 
 func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*relayertypes.Message, error) {
@@ -173,10 +176,12 @@ func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*re
 			return nil, err
 		}
 		p.log.Info("Detected eventlog",
-			zap.Uint64("height", log.BlockNumber),
-			zap.String("target_network", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+      zap.String("target_network", message.Dst),
+			zap.Uint64("height", log.BlockNumber),
 		)
 		messages = append(messages, message)
 	}
@@ -224,7 +229,9 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
-	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
+	subContext, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+	defer cancel()
+	sub, err := p.client.Subscribe(subContext, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 	}, ch)
@@ -252,11 +259,12 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				continue
 			}
 			p.log.Info("Detected eventlog",
-				zap.String("target_network", message.Dst),
+				zap.String("dst", message.Dst),
 				zap.Uint64("sn", message.Sn.Uint64()),
+				zap.Any("req_id", message.ReqID),
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
-				zap.Uint64("block_number", log.BlockNumber),
+				zap.Uint64("height", log.BlockNumber),
 			)
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
