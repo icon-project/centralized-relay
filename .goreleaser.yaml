@@ -91,6 +91,7 @@ dockers:
   - image_templates:
       - iconcommunity/{{.ProjectName}}:latest
       - iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    dockerfile: goreleaser.dockerfile
     use: buildx
     build_flag_templates:
       - "--pull"
@@ -98,6 +99,24 @@ dockers:
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/amd64"
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:latest
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    dockerfile: goreleaser.dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    image_templates:
+      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}"
 
 archives:
   - id: golang-cross
