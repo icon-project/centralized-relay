@@ -324,7 +324,7 @@ func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...i
 			},
 		}
 		return &xdr.InvokeContractArgs{
-			ContractAddress: *scXcallAddr,
+			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("set_admin"),
 			Args: []xdr.ScVal{
 				adminAddressVal,
