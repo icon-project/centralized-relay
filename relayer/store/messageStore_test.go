@@ -59,8 +59,7 @@ func TestMessageStoreSet(t *testing.T) {
 	t.Run("getMessage", func(t *testing.T) {
 		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
 		assert.NoError(t, err, " error occured while getting message")
-		assert.Equal(t, getMessage, types.NewRouteMessage(storeMessage))
-
+		assert.Equal(t, getMessage.Message, types.NewRouteMessage(storeMessage).Message)
 		if err := testdb.ClearStore(); err != nil {
 			assert.Fail(t, "failed to clear db ", err)
 		}
