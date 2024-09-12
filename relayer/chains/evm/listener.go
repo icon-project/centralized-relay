@@ -164,7 +164,9 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 }
 
 func (p *Provider) isConnectionError(err error) bool {
-	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
+	return strings.Contains(err.Error(), "tcp") ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "websocket")
 }
 
 func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
@@ -231,7 +233,9 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
-	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
+	subContext, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+	defer cancel()
+	sub, err := p.client.Subscribe(subContext, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 	}, ch)

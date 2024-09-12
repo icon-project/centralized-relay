@@ -57,7 +57,7 @@ type SUIRelayerChainConfigValue struct {
 	RPCURL          string    `yaml:"rpc-url"`
 	WebsocketUrl    string    `yaml:"ws-url"`
 	StartHeight     int       `yaml:"start-height"`
-	XcallPkgIds     []string  `yaml:"xcall-package-ids"`
+	XcallPkgId      string    `yaml:"xcall-package-id"`
 	ConnectionId    string    `yaml:"connection-id"`
 	ConnectionCapId string    `yaml:"connection-cap-id"`
 	XcallStorageId  string    `yaml:"xcall-storage-id"`
