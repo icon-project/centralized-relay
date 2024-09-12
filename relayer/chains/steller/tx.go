@@ -222,17 +222,13 @@ func (p *Provider) handleArchivalState(simResult *sorobanclient.TxSimulationResu
 }
 
 func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeContractArgs, error) {
-	scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
-	if err != nil {
-		return nil, err
-	}
-	scConnAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
-	if err != nil {
-		return nil, err
-	}
 	stellerMsg := types.StellerMsg{Message: msg}
 	switch msg.EventType {
 	case evtypes.EmitMessage:
+		scConnAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+		if err != nil {
+			return nil, err
+		}
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("recv_message"),
@@ -243,6 +239,10 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			},
 		}, nil
 	case evtypes.CallMessage:
+		scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
+		if err != nil {
+			return nil, err
+		}
 		acc := xdr.MustAddressPtr(p.cfg.Address)
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scXcallAddr,
@@ -259,6 +259,10 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 			},
 		}, nil
 	case evtypes.RollbackMessage:
+		scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
+		if err != nil {
+			return nil, err
+		}
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scXcallAddr,
 			FunctionName:    xdr.ScSymbol("execute_rollback"),
