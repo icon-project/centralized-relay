@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
+	suitypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -126,7 +127,18 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 }
 
 func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
-	eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), []string{txHash})
+	eventResponse, err := p.client.GetEventsFromTxBlocks(
+		ctx,
+		[]string{txHash},
+		func(stbr *suitypes.SuiTransactionBlockResponse) bool {
+			for _, t := range stbr.ObjectChanges {
+				if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+					return true
+				}
+			}
+			return false
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +175,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
-		}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetFee)
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -188,7 +200,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee.Int64()))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee.Int64()))},
-		}, p.xcallPkgIDLatest(), ModuleEntry, MethodSetFee)
+		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -211,7 +223,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
-		p.xcallPkgIDLatest(), ModuleEntry, MethodClaimFee)
+		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -240,8 +252,4 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
-}
-
-func (p *Provider) xcallPkgIDLatest() string {
-	return p.cfg.XcallPkgIDs[0]
 }

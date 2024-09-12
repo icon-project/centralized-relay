@@ -186,7 +186,6 @@ func (s *Server) parseEvent(msg *Request) *Response {
 			} else if req.ToHeight == 0 {
 				req.ToHeight = req.FromHeight
 			}
-
 			msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
 			if err != nil {
 				return response.SetError(err)

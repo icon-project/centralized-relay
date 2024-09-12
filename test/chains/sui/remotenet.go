@@ -353,7 +353,7 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			NID:             an.Config().ChainID,
 			RPCURL:          an.GetRPCAddress(),
 			WebsocketUrl:    an.testconfig.WebsocketUrl,
-			XcallPkgIds:     []string{an.GetContractAddress("xcall")},
+			XcallPkgId:      an.GetContractAddress("xcall"),
 			XcallStorageId:  an.GetContractAddress(xcallStorage),
 			ConnectionId:    an.GetContractAddress("connection"),
 			ConnectionCapId: an.GetContractAddress("connectionCap"),
