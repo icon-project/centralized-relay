@@ -26,7 +26,11 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	// lock here to prevent transcation replacement
 	p.routerMutex.Lock()
 
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event_type", message.EventType))
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {

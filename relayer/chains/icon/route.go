@@ -12,7 +12,12 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event_type", message.EventType))
+
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
 		return err
