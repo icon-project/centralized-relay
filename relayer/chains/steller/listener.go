@@ -124,7 +124,8 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 			eventType = relayerevents.RollbackMessage
 		}
 	}
-	if eventType == "" {
+
+	if eventType == "" || p.shouldSkipEvent(eventType) {
 		return nil
 	}
 
@@ -177,4 +178,12 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 	}
 	p.log.Info("Detected eventlog:", zap.Any("event", *msg))
 	return msg
+}
+
+func (p *Provider) shouldSkipEvent(eventType string) bool {
+	val, ok := p.cfg.Contracts[relayertypes.XcallContract]
+	if (!ok || val == "") && (eventType == relayerevents.CallMessage || eventType == relayerevents.RollbackMessage) {
+		return true
+	}
+	return false
 }
