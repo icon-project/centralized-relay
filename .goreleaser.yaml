@@ -127,7 +127,7 @@ archives:
       - linux-arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    wrap_in_directory: false
+    wrap_in_directory: true
 
 checksum:
   name_template: SHA256SUMS-{{.Version}}.txt
