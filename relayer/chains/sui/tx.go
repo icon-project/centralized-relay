@@ -25,10 +25,9 @@ import (
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
 	p.log.Info("starting to route message",
 		zap.Any("sn", message.Sn),
-		zap.Any("req-id", message.ReqID),
+		zap.Any("req_id", message.ReqID),
 		zap.String("src", message.Src),
-		zap.String("event-type", message.EventType),
-		zap.String("data", hex.EncodeToString(message.Data)))
+		zap.String("event_type", message.EventType))
 
 	suiMessage, err := p.MakeSuiMessage(message)
 	if err != nil {
@@ -65,7 +64,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
-		return p.NewSuiMessage([]string{}, callParams, p.xcallPkgIDLatest(), ModuleEntry, MethodRecvMessage), nil
+		return p.NewSuiMessage([]string{}, callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
@@ -362,7 +361,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 				{Type: CallArgPure, Val: p.cfg.ConnectionID},
 				{Type: CallArgPure, Val: messageKey.Src},
 				{Type: CallArgPure, Val: snU128},
-			}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetReceipt)
+			}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
 		var msgReceived bool
 		wallet, err := p.Wallet()
 		if err != nil {
