@@ -64,7 +64,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
-		return p.NewSuiMessage([]string{}, callParams, p.xcallPkgIDLatest(), ModuleEntry, MethodRecvMessage), nil
+		return p.NewSuiMessage([]string{}, callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
@@ -361,7 +361,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 				{Type: CallArgPure, Val: p.cfg.ConnectionID},
 				{Type: CallArgPure, Val: messageKey.Src},
 				{Type: CallArgPure, Val: snU128},
-			}, p.xcallPkgIDLatest(), ModuleEntry, MethodGetReceipt)
+			}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
 		var msgReceived bool
 		wallet, err := p.Wallet()
 		if err != nil {

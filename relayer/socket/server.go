@@ -178,11 +178,14 @@ func (s *Server) parseEvent(msg *Message) (*Message, error) {
 			for _, msg := range msgs {
 				src.MessageCache.Add(types.NewRouteMessage(msg))
 			}
-			data, err := jsoniter.Marshal(&ResRelayMessage{types.NewRouteMessage(msgs[0])})
-			if err != nil {
-				return nil, err
+			if len(msgs) > 0 {
+				data, err := jsoniter.Marshal(&ResRelayMessage{types.NewRouteMessage(msgs[0])})
+				if err != nil {
+					return nil, err
+				}
+				return &Message{EventRelayMessage, data}, nil
 			}
-			return &Message{EventRelayMessage, data}, nil
+			return &Message{EventRelayMessage, []byte{}}, nil
 		}
 
 		store := s.rly.GetMessageStore()
