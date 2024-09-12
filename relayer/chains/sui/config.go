@@ -98,7 +98,7 @@ func (c *Config) ContractsAddress() types.ContractConfigMap {
 	dapps, _ := json.Marshal(c.Dapps)
 
 	return types.ContractConfigMap{
-		"xcall-package-id":  c.XcallPkgIDs[0],
+		"xcall-package-id":  c.XcallPkgID,
 		"xcall-storage-id":  c.XcallStorageID,
 		"connection-id":     c.ConnectionID,
 		"connection-cap-id": c.ConnectionCapID,

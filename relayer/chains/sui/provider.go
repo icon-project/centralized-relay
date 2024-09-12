@@ -106,7 +106,18 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 			return nil, err
 		}
 
-		eventResponse, err := p.client.GetEventsFromTxBlocks(ctx, p.allowedEventTypes(), checkpoint.Transactions)
+		eventResponse, err := p.client.GetEventsFromTxBlocks(
+			ctx,
+			checkpoint.Transactions,
+			func(stbr *suitypes.SuiTransactionBlockResponse) bool {
+				for _, t := range stbr.ObjectChanges {
+					if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+						return true
+					}
+				}
+				return false
+			},
+		)
 		if err != nil {
 			p.log.Error("failed to query events", zap.Error(err))
 			return nil, err
