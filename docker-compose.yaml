@@ -1,15 +1,13 @@
 services:
   relayer:
-    image: icon-project/centralized-relayer:latest
+    image: iconcommunity/centralized-relayer:latest
     container_name: centralized-relayer
-    command: ["centralized-relay", "start"]
     restart: unless-stopped
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - AWS_DEFAULT_REGION
+      - ${SOCKET_PATH}:-'/home/relayer/relayer.sock'}
     volumes:
-      - data:/home/relayer/.centralized-relay
-volumes:
-  data:
+      - ./data/relayer:/home/relayer/.centralized-relay
