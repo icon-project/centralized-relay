@@ -2,6 +2,7 @@ package relayer
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
@@ -24,12 +25,12 @@ func TestChainRuntime(t *testing.T) {
 	m1 := &types.Message{
 		Dst: "mock-2",
 		Src: "mock-1",
-		Sn:  1,
+		Sn:  big.NewInt(1),
 	}
 	m2 := &types.Message{
 		Dst: "mock-2",
 		Src: "mock-1",
-		Sn:  2,
+		Sn:  big.NewInt(2),
 	}
 	info := types.BlockInfo{
 		Height:   15,
@@ -42,8 +43,9 @@ func TestChainRuntime(t *testing.T) {
 	})
 
 	t.Run("clear messages", func(t *testing.T) {
-		runtime.clearMessageFromCache([]types.MessageKey{m1.MessageKey()})
+		runtime.clearMessageFromCache([]*types.MessageKey{m1.MessageKey()})
 		assert.Equal(t, len(runtime.MessageCache.Messages), len(info.Messages)-1)
-		assert.Equal(t, runtime.MessageCache.Messages[m2.MessageKey()], types.NewRouteMessage(m2))
+		rtMsg, _ := runtime.MessageCache.Get(m2.MessageKey())
+		assert.Equal(t, rtMsg, types.NewRouteMessage(m2))
 	})
 }

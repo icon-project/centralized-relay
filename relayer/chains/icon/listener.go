@@ -29,7 +29,7 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.LastProcessedTx, incoming chan *providerTypes.BlockInfo) error {
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
@@ -38,6 +38,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		default:
 		}
 	}
+
+	lastSavedHeight := lastProcessedTx.Height
 
 	processedheight, err := p.StartFromHeight(ctx, lastSavedHeight)
 	if err != nil {
@@ -59,7 +61,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 			go func(ctx context.Context, cancel context.CancelFunc) {
@@ -75,6 +76,9 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 							if height > 0 {
 								eventReq.Height = types.NewHexInt(height)
 							}
+							if height < processedheight {
+								p.log.Info("Synced", zap.Int64("height", height), zap.Int64("delta", processedheight-height))
+							}
 							return nil
 						}
 						msgs, err := p.parseMessageEvent(v)
@@ -84,11 +88,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 						}
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
-								zap.Uint64("height", msg.MessageHeight),
-								zap.String("target_network", msg.Dst),
+								zap.String("dst", msg.Dst),
 								zap.Uint64("sn", msg.Sn.Uint64()),
-								zap.String("tx_hash", v.Hash.String()),
+								zap.Any("req_id", msg.ReqID),
 								zap.String("event_type", msg.EventType),
+								zap.Uint64("height", msg.MessageHeight),
 							)
 							outgoing <- &providerTypes.BlockInfo{
 								Messages: []*providerTypes.Message{msg},
@@ -102,7 +106,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-					eventReq.Height = types.NewHexInt(int64(p.GetLastSavedBlockHeight()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))

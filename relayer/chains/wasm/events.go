@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	EventTypeWasmMessage     = "wasm-Message"
-	EventTypeWasmCallMessage = "wasm-CallMessage"
+	EventTypeWasmMessage         = "wasm-Message"
+	EventTypeWasmCallMessage     = "wasm-CallMessage"
+	EventTypeWasmRollbackMessage = "wasm-RollbackMessage"
 
 	// Attr keys for connection contract events
 	EventAttrKeyMsg                  = "msg"
@@ -31,21 +32,7 @@ const (
 	EventAttrKeyContractAddress string = "_contract_address"
 )
 
-type Event struct {
-	Type       string      `json:"type"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-type Attribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type EventsList struct {
-	Events []Event `json:"events"`
-}
-
-func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.Message, error) {
+func (p *Provider) ParseMessageFromEvents(eventsList []abiTypes.Event) ([]*relayerTypes.Message, error) {
 	var messages []*relayerTypes.Message
 	for _, ev := range eventsList {
 		switch ev.Type {
@@ -101,6 +88,23 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 				}
 			}
 			messages = append(messages, msg)
+		case EventTypeWasmRollbackMessage:
+			msg := &relayerTypes.Message{
+				EventType: events.RollbackMessage,
+				Src:       p.NID(),
+				Dst:       p.NID(),
+			}
+			for _, attr := range ev.Attributes {
+				switch attr.Key {
+				case EventAttrKeySn:
+					sn, ok := new(big.Int).SetString(attr.Value, 10)
+					if !ok {
+						return nil, fmt.Errorf("failed to parse connSn from event")
+					}
+					msg.Sn = sn
+				}
+			}
+			messages = append(messages, msg)
 		default:
 			p.logger.Debug("unknown event type", zap.String("type", ev.Type))
 		}
@@ -112,12 +116,13 @@ func (p *Provider) ParseMessageFromEvents(eventsList []Event) ([]*relayerTypes.M
 func (p *Config) eventMap() map[string]relayerTypes.EventMap {
 	eventMap := make(map[string]relayerTypes.EventMap, len(p.Contracts))
 	for contractName, addr := range p.Contracts {
-		event := relayerTypes.EventMap{ContractName: contractName, Address: addr}
+		event := relayerTypes.EventMap{ContractName: contractName, Address: addr, SigType: make(map[string]string)}
 		switch contractName {
 		case relayerTypes.XcallContract:
-			event.SigType = map[string]string{EventTypeWasmCallMessage: events.CallMessage}
+			event.SigType[EventTypeWasmCallMessage] = events.CallMessage
+			event.SigType[EventTypeWasmRollbackMessage] = events.RollbackMessage
 		case relayerTypes.ConnectionContract:
-			event.SigType = map[string]string{EventTypeWasmMessage: events.EmitMessage}
+			event.SigType[EventTypeWasmMessage] = events.EmitMessage
 		}
 		eventMap[addr] = event
 	}
@@ -147,6 +152,8 @@ func (p *Config) GetMonitorEventFilters(eventMap map[string]relayerTypes.EventMa
 				wasmMessggeType = EventTypeWasmMessage
 			case events.CallMessage:
 				wasmMessggeType = EventTypeWasmCallMessage
+			case events.RollbackMessage:
+				wasmMessggeType = EventTypeWasmRollbackMessage
 			}
 			eventList = append(eventList, sdkTypes.Event{
 				Type: wasmMessggeType,

@@ -151,6 +151,22 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 					ReqID:         requestID,
 				}
 				messages = append(messages, msg)
+			case RollbackMessage:
+				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) || len(el.Indexed) != 2 {
+					continue
+				}
+				sn, err := types.HexInt(el.Indexed[1]).BigInt()
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[1])
+				}
+				msg := &providerTypes.Message{
+					MessageHeight: height.Uint64(),
+					EventType:     p.GetEventName(el.Indexed[0]),
+					Dst:           p.NID(),
+					Src:           p.NID(),
+					Sn:            sn,
+				}
+				messages = append(messages, msg)
 			}
 		}
 	}

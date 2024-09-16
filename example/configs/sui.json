@@ -1,0 +1,53 @@
+{
+  "type": "sui",
+  "value": {
+    "nid": "sui-test",
+    "rpc-url": "https://rpc.ankr.com/sui_testnet",
+    "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
+    "xcall-package-id": "0x8c5242ae42c53bdb92c94123184e72429283969772ec6e12e6f086bd673960b7",
+    "xcall-storage-id": "0x60add4475c91742470074396ba29b6d62572abd1ac08c18abe228be949c21420",
+    "connection-id": "centralized-1",
+    "connection-cap-id": "0x5e633b8baf655f4986a5d4b131ec316e8a9964108fd968c507c546cd92f78c27",
+    "dapps": [
+      {
+        "package-id": "0x28ffe81f26e9011809091dfd6b8ab7f2983ea2187b2a2641bd8f58ad7526247d",
+        "constants": {
+          "clock": "0x6"
+        },
+        "modules": [
+          {
+            "name": "xcall_manager",
+            "cap-id": "0xafa02d4592affcb14285a5dfd585ef5b47ad7ad68b4bbdcb659342915f8dd982",
+            "config-id": "0x1b8071a73e61a4b60e026875061311e9f9146d89ceb1120c35519f8e4dc47b2f"
+          },
+          {
+            "name": "asset_manager",
+            "cap-id": "0x0d7e657ed9e5494dccd2abcfec849d471bc43716a03a7b48b78bdc906b55535d",
+            "config-id": "0x323451f3f9526a54469f3d1db25d384dc5d9d20b63ad0db0bb42d62e0a0bf154"
+          },
+          {
+            "name": "balanced_dollar_crosschain",
+            "cap-id": "0xb3ffbef01bb8d5067ee36f2ddafac049ae62b7d4f70c349c9bb579b9a271e942",
+            "config-id": "0x1ecad1dfd5c22849414ba2f68113cc182a93ff01d9901c4800d0168ffd6e0cf5"
+          }
+        ]
+      },
+      {
+        "package-id": "0x5c582c88929cc177e7409dcc26e2c3e41502e4eec2c900b91ce1776dd0e87960",
+        "constants": {
+          "clock": "0x6"
+        },
+        "modules": [
+          {
+            "name": "mock_dapp",
+            "cap-id": "0x8f00fd59513fbe2af9bb275caa516a04e9172a7ae0de1b82821adb6a26dfdd32",
+            "config-id": "0xc3e007c8e2bfba62a150867d8de5e9557a3a31ba675409ee437ce9f9dcd08a31"
+          }
+        ]
+      }
+    ],
+    "gas-limit": 5000000,
+    "start-tx-digest": "",
+    "poll-interval": "6s"
+  }
+}

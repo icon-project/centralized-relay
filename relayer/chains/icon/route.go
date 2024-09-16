@@ -12,7 +12,12 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	p.log.Info("starting to route message", zap.Any("message", message))
+	p.log.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event_type", message.EventType))
+
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
 		return err
@@ -41,6 +46,11 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			Data:  types.NewHexBytes(message.Data),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteCall), nil
+	case events.RollbackMessage:
+		msg := &types.ExecuteRollback{
+			Sn: types.NewHexInt(message.Sn.Int64()),
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodExecuteRollback), nil
 	case events.SetAdmin:
 		msg := &types.SetAdmin{
 			Relayer: message.Src,

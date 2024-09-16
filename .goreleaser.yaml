@@ -2,51 +2,11 @@ project_name: centralized-relay
 env:
   - CGO_ENABLED=1
 builds:
-  - id: darwin-amd64
+  - id: amd64
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
-    goos:
-      - darwin
-    goarch:
-      - amd64
-    env:
-      - CC=o64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
-  - id: darwin-arm64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -O /lib/libwasmvmstatic_darwin.a
-    goos:
-      - darwin
-    goarch:
-      - arm64
-    env:
-      - CC=oa64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
-  - id: linux-amd64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.x86_64.a -O /usr/lib/x86_64-linux-gnu/libwasmvm_muslc.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.x86_64.a -P /usr/lib/x86_64-linux-gnu
     goos:
       - linux
     goarch:
@@ -64,11 +24,11 @@ builds:
     tags:
       - muslc
       - netgo
-  - id: linux-arm64
+  - id: arm64
     main: ./main.go
     hooks:
       pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.aarch64.a -O /usr/lib/aarch64-linux-gnu/libwasmvm_muslc.a
+        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvm_muslc.aarch64.a -P /usr/lib/aarch64-linux-gnu
     goos:
       - linux
     goarch:
@@ -82,17 +42,48 @@ builds:
       - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags "-static"
+      - -extldflags '-Wl,-z,muldefs -lm'
     tags:
       - muslc
       - netgo
 
+dockers:
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64
+    dockerfile: goreleaser.dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/amd64"
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8
+    dockerfile: goreleaser.dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: iconcommunity/{{.ProjectName}}:latest
+    image_templates:
+      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64"
+      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8"
+  - name_template: iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    image_templates:
+      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64"
+      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8"
+
 archives:
   - id: golang-cross
     builds:
-      - darwin-amd64
-      - darwin-arm64
-      - linux-amd64
-      - linux-arm64
+      - amd64
+      - arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     wrap_in_directory: true
@@ -103,4 +94,4 @@ checksum:
 
 release:
   prerelease: auto
-  draft: false
+  draft: true
