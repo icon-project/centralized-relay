@@ -160,7 +160,12 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayTypes.Last
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
-	p.logger.Info("starting to route message", zap.Any("message", message))
+	p.logger.Info("starting to route message",
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("src", message.Src),
+		zap.String("event_type", message.EventType))
+
 	res, err := p.call(ctx, message)
 	if err != nil {
 		return err
@@ -693,9 +698,11 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 			msg.MessageHeight = uint64(resultTx.Height)
 			p.logger.Info("Detected eventlog",
 				zap.Uint64("height", msg.MessageHeight),
-				zap.String("target_network", msg.Dst),
+				zap.String("dst", msg.Dst),
 				zap.Uint64("sn", msg.Sn.Uint64()),
+				zap.Any("req_id", msg.ReqID),
 				zap.String("event_type", msg.EventType),
+				zap.String("tx_hash", resultTx.Hash.String()),
 			)
 		}
 		messages = append(messages, &relayTypes.BlockInfo{
@@ -814,8 +821,9 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			for _, msg := range blockInfo.Messages {
 				p.logger.Info("Detected eventlog",
 					zap.Int64("height", res.Height),
-					zap.String("target_network", msg.Dst),
+					zap.String("dst", msg.Dst),
 					zap.Uint64("sn", msg.Sn.Uint64()),
+					zap.Any("req_id", msg.ReqID),
 					zap.String("event_type", msg.EventType),
 				)
 			}
