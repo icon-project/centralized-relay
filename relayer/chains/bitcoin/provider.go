@@ -1002,7 +1002,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	from := p.cfg.NID + "/" + p.cfg.Address
 	decodeMessage, _ := codec.RLP.MarshalToBytes(messageInfo)
-	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Address, uint(tx.Height), p.cfg.Protocals)
+	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(tx.Height), p.cfg.Protocals)
 
 	return &relayTypes.Message{
 		// TODO:
