@@ -276,10 +276,6 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 }
 
 func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...interface{}) (*xdr.InvokeContractArgs, error) {
-	scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
-	if err != nil {
-		return nil, err
-	}
 	scConnAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
 	if err != nil {
 		return nil, err
@@ -300,7 +296,7 @@ func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...i
 			Vec:  &src,
 		}
 		return &xdr.InvokeContractArgs{
-			ContractAddress: *scXcallAddr,
+			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("get_fee"),
 			Args: []xdr.ScVal{
 				stellerMsg.ScvSrc(),
@@ -338,14 +334,6 @@ func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...i
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("claim_fees"),
-		}, nil
-	case evtypes.RevertMessage:
-		return &xdr.InvokeContractArgs{
-			ContractAddress: *scXcallAddr,
-			FunctionName:    xdr.ScSymbol("revert_message"),
-			Args: []xdr.ScVal{
-				stellerMsg.ScvSn(),
-			},
 		}, nil
 	default:
 		return nil, fmt.Errorf("invalid message type")
