@@ -72,11 +72,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 			}
 		case <-reconnectCh:
 			p.log.Info("Query started.", zap.Uint64("from-seq", startSeq))
-			eventFilter := types.EventFilter{
-				LedgerSeq:   startSeq + 1,
-				ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
-				Topics:      []string{"Message", "CallMessage", "RollbackMessage"},
-			}
+			eventFilter := p.getEventFilter(startSeq + 1)
 			go p.client.StreamEvents(hzStreamCtx, eventFilter, eventChannel)
 
 		}
@@ -84,11 +80,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 }
 
 func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([]*relayertypes.Message, error) {
-	eventFilter := types.EventFilter{
-		LedgerSeq:   ledgerSeq,
-		ContractIds: []string{p.cfg.Contracts[relayertypes.ConnectionContract], p.cfg.Contracts[relayertypes.XcallContract]},
-		Topics:      []string{"Message", "CallMessage", "RollbackMessage"},
-	}
+	eventFilter := p.getEventFilter(ledgerSeq)
 	events, err := p.client.FetchEvents(ctx, eventFilter)
 	if err != nil {
 		return nil, err
@@ -125,7 +117,7 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 		}
 	}
 
-	if eventType == "" || p.shouldSkipEvent(eventType) {
+	if eventType == "" {
 		return nil
 	}
 
@@ -180,10 +172,20 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 	return msg
 }
 
-func (p *Provider) shouldSkipEvent(eventType string) bool {
-	val, ok := p.cfg.Contracts[relayertypes.XcallContract]
-	if (!ok || val == "") && (eventType == relayerevents.CallMessage || eventType == relayerevents.RollbackMessage) {
-		return true
+func (p *Provider) getEventFilter(ledgerSeq uint64) types.EventFilter {
+	contractIds := []string{p.cfg.Contracts[relayertypes.ConnectionContract]}
+	topics := []string{"Message"}
+
+	addr, ok := p.cfg.Contracts[relayertypes.XcallContract]
+	isExecutor := ok && addr != ""
+	if isExecutor {
+		contractIds = append(contractIds, p.cfg.Contracts[relayertypes.XcallContract])
+		topics = append(topics, []string{"CallMessage", "RollbackMessage"}...)
 	}
-	return false
+
+	return types.EventFilter{
+		LedgerSeq:   ledgerSeq,
+		ContractIds: contractIds,
+		Topics:      topics,
+	}
 }
