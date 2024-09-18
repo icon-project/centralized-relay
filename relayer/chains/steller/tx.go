@@ -285,23 +285,17 @@ func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...i
 
 	switch msg.EventType {
 	case evtypes.GetFee:
-		rollBackVal := params[0].(bool)
-		rollbackParam := xdr.ScVal{
+		includeResponseFee := params[0].(bool)
+		includeResponseFeeScVal := xdr.ScVal{
 			Type: xdr.ScValTypeScvBool,
-			B:    &rollBackVal,
-		}
-		src := &xdr.ScVec{}
-		sources := xdr.ScVal{
-			Type: xdr.ScValTypeScvVec,
-			Vec:  &src,
+			B:    &includeResponseFee,
 		}
 		return &xdr.InvokeContractArgs{
 			ContractAddress: *scConnAddr,
 			FunctionName:    xdr.ScSymbol("get_fee"),
 			Args: []xdr.ScVal{
 				stellerMsg.ScvSrc(),
-				rollbackParam,
-				sources,
+				includeResponseFeeScVal,
 			},
 		}, nil
 	case evtypes.SetFee:
