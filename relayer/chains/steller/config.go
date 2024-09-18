@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -24,7 +23,6 @@ type Config struct {
 	NID               string                         `json:"nid" yaml:"nid"`
 	HomeDir           string                         `json:"home-dir" yaml:"home-dir"`
 	MaxInclusionFee   uint64                         `json:"max-inclusion-fee" yaml:"max-inclusion-fee"` // in stroop: the smallest unit of a lumen, one ten-millionth of a lumen (.0000001 XLM).
-	BlockInterval     time.Duration                  `json:"block-interval" yaml:"block-interval"`
 	NetworkPassphrase string                         `json:"network-passphrase" yaml:"network-passphrase"`
 	StartHeight       uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
 	Disabled          bool                           `json:"disabled" yaml:"disabled"`
