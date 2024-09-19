@@ -44,7 +44,7 @@ test-all:
 	@go test -v ./...
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.23.0
+GOLANG_CROSS_VERSION  ?= v1.23.1
 LIBWASM_VERSION 		 ?= v2.1.0
 
 SYSROOT_DIR     ?= sysroots
