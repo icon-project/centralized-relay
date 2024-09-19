@@ -8,6 +8,6 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - AWS_DEFAULT_REGION
-      - ${SOCKET_PATH:-/home/relayer/relayer.sock}
+      - SOCKET_PATH=${SOCKET_PATH:-/home/relayer/.centralized-relay/relayer.sock}
     volumes:
       - ./data/relayer:/home/relayer/.centralized-relay
