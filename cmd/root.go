@@ -11,12 +11,12 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-    "github.com/icon-project/centralized-relay/relayer"
 )
 
 const appName = "centralized-relay"
@@ -36,6 +36,7 @@ var (
 	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
+	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
