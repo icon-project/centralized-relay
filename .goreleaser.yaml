@@ -50,6 +50,7 @@ builds:
 dockers:
   - image_templates:
       - iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-amd64
     dockerfile: goreleaser.dockerfile
     use: buildx
     build_flag_templates:
@@ -60,6 +61,7 @@ dockers:
       - "--platform=linux/amd64"
   - image_templates:
       - iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-arm64v8
     dockerfile: goreleaser.dockerfile
     use: buildx
     goarch: arm64
@@ -72,12 +74,12 @@ dockers:
 docker_manifests:
   - name_template: iconcommunity/{{.ProjectName}}:latest
     image_templates:
-      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64"
-      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8"
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-arm64v8
   - name_template: iconcommunity/{{.ProjectName}}:{{ .Tag }}
     image_templates:
-      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64"
-      - "iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8"
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8
 
 archives:
   - id: golang-cross
