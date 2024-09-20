@@ -93,28 +93,27 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 
 	var messages []*providerTypes.Message
 	for _, event := range notifications.Logs {
-		switch event.Indexed[0] {
-		case EmitMessage:
-			msg, err := p.parseEmitMessageEvent(height.Uint64(), event)
-			if err != nil {
-				return nil, err
-			}
-			messages = append(messages, msg)
-		case CallMessage:
-			msg, err := p.parseCallMessageEvent(height.Uint64(), event)
-			if err != nil {
-				return nil, err
-			}
-			messages = append(messages, msg)
-		case RollbackMessage:
-			msg, err := p.parseRollbackMessageEvent(height.Uint64(), event)
-			if err != nil {
-				return nil, err
-			}
+		msg, err := p.parseMessageFromEventLog(height.Uint64(), event)
+		if err != nil {
+			p.log.Warn("received invalid event", zap.Error(err))
+		} else if msg != nil {
 			messages = append(messages, msg)
 		}
 	}
 	return messages, nil
+}
+
+func (p *Provider) parseMessageFromEventLog(height uint64, event *types.EventNotificationLog) (*providerTypes.Message, error) {
+	switch event.Indexed[0] {
+	case EmitMessage:
+		return p.parseEmitMessageEvent(height, event)
+	case CallMessage:
+		return p.parseCallMessageEvent(height, event)
+	case RollbackMessage:
+		return p.parseRollbackMessageEvent(height, event)
+	default:
+		return nil, fmt.Errorf("invalid event: %s", event.Indexed[0])
+	}
 }
 
 // parseEmitMessage parses EmitMessage event

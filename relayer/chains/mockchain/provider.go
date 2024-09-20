@@ -51,6 +51,10 @@ func (pp *MockProviderConfig) GetWallet() string {
 func (pp *MockProviderConfig) SetWallet(string) {
 }
 
+func (pp *MockProviderConfig) ContractsAddress() types.ContractConfigMap {
+	return nil
+}
+
 type MockProvider struct {
 	log    *zap.Logger
 	PCfg   *MockProviderConfig
@@ -161,7 +165,15 @@ func (p *MockProvider) QueryTransactionReceipt(ctx context.Context, txHash strin
 	return nil, nil
 }
 
-func (ip *MockProvider) GenerateMessages(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error) {
+func (ip *MockProvider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
+	return nil, nil
+}
+
+func (ip *MockProvider) FetchTxMessages(ctx context.Context, txHash string) ([]*types.Message, error) {
+	return nil, nil
+}
+
+func (ip *MockProvider) GenerateTxMessages(ctx context.Context, txHash string) ([]*types.Message, error) {
 	return nil, nil
 }
 
@@ -205,4 +217,12 @@ func (p *MockProvider) SetFee(context.Context, string, *big.Int, *big.Int) error
 
 func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
 
+}
+
+func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return 0, nil
+}
+
+func (p *MockProvider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
+	return nil, nil
 }

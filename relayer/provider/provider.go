@@ -16,6 +16,7 @@ type Config interface {
 	GetWallet() string
 	Validate() error
 	Enabled() bool
+	ContractsAddress() types.ContractConfigMap
 }
 
 type ChainQuery interface {
@@ -27,8 +28,8 @@ type ChainProvider interface {
 	ChainQuery
 	NID() string
 	Name() string
-	Init(context.Context, string, kms.KMS) error
 	Type() string
+	Init(context.Context, string, kms.KMS) error
 	Config() Config
 	Listener(ctx context.Context, lastProcessedTx types.LastProcessedTx, blockInfo chan *types.BlockInfo) error
 	Route(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
@@ -39,7 +40,8 @@ type ChainProvider interface {
 	SetAdmin(context.Context, string) error
 
 	FinalityBlock(ctx context.Context) uint64
-	GenerateMessages(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error)
+	GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error)
+	FetchTxMessages(ctx context.Context, txHash string) ([]*types.Message, error)
 	QueryBalance(ctx context.Context, addr string) (*types.Coin, error)
 
 	NewKeystore(string) (string, error)
@@ -86,4 +88,8 @@ func (pc *CommonConfig) Validate() error {
 		return fmt.Errorf("home-dir cannot be empty")
 	}
 	return nil
+}
+
+func (pc *CommonConfig) ContractsAddress() types.ContractConfigMap {
+	return pc.Contracts
 }

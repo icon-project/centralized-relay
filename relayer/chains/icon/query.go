@@ -2,9 +2,8 @@ package icon
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
+	"slices"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -66,113 +65,44 @@ func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTyp
 	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
-	p.log.Info("generating message", zap.Any("messagekey", key))
-	if key == nil {
-		return nil, errors.New("GenerateMessage: message key cannot be nil")
-	}
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
+	p.log.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	return p.QueryBlockMessages(ctx, fromHeight, toHeight)
+}
 
-	block, err := p.client.GetBlockByHeight(&types.BlockHeightParam{
-		Height: types.NewHexInt(int64(key.Height)),
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*providerTypes.Message, error) {
+	txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{
+		Hash: types.HexBytes(txHash),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("GenerateMessage:GetBlockByHeight %v", err)
+		return nil, err
 	}
 
-	var messages []*providerTypes.Message
+	connectionContract := types.Address(p.cfg.Contracts[providerTypes.ConnectionContract])
+	xcallContract := types.Address(p.cfg.Contracts[providerTypes.XcallContract])
+	allowedAddresses := []types.Address{connectionContract, xcallContract}
 
-	for _, res := range block.NormalTransactions {
-		txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{Hash: res.TxHash})
-		if err != nil {
-			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
-		}
-
-		for _, el := range txResult.EventLogs {
-			var (
-				dst       string
-				eventType = p.GetEventName(el.Indexed[0])
-			)
-			height, err := txResult.BlockHeight.BigInt()
+	messages := []*providerTypes.Message{}
+	for _, log := range txResult.EventLogs {
+		if slices.Contains(allowedAddresses, log.Addr) {
+			event := types.EventNotificationLog{
+				Address: log.Addr,
+				Indexed: log.Indexed,
+				Data:    log.Data,
+			}
+			height, err := txResult.BlockHeight.Int64()
 			if err != nil {
-				return nil, fmt.Errorf("GenerateMessage: bigIntConversion %v", err)
+				return nil, err
 			}
-			switch el.Indexed[0] {
-			case EmitMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.ConnectionContract]) || len(el.Indexed) != 3 || len(el.Data) != 1 {
-					continue
-				}
-				dst = el.Indexed[1]
-				sn, err := types.HexInt(el.Indexed[2]).BigInt()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding int value ")
-					continue
-				}
-				data := types.HexBytes(el.Data[0])
-				dataValue, err := data.Value()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
-					continue
-				}
-				msg := &providerTypes.Message{
-					MessageHeight: height.Uint64(),
-					EventType:     eventType,
-					Dst:           dst,
-					Src:           key.Src,
-					Data:          dataValue,
-					Sn:            sn,
-				}
-				messages = append(messages, msg)
-			case CallMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) || len(el.Indexed) != 4 || len(el.Data) != 2 {
-					continue
-				}
-				dst = p.NID()
-				src := strings.SplitN(string(el.Indexed[1][:]), "/", 2)
-				sn, err := types.HexInt(el.Indexed[3]).BigInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[2])
-				}
-				requestID, err := types.HexInt(el.Data[0]).BigInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse reqID: %s", el.Data[0])
-				}
-				data, err := types.HexBytes(el.Data[1]).Value()
-				if err != nil {
-					p.log.Error("GenerateMessage: error decoding data ", zap.Error(err))
-					continue
-				}
-				msg := &providerTypes.Message{
-					MessageHeight: height.Uint64(),
-					EventType:     p.GetEventName(el.Indexed[0]),
-					Dst:           dst,
-					Src:           src[0],
-					Data:          data,
-					Sn:            sn,
-					ReqID:         requestID,
-				}
-				messages = append(messages, msg)
-			case RollbackMessage:
-				if el.Addr != types.Address(p.cfg.Contracts[providerTypes.XcallContract]) || len(el.Indexed) != 2 {
-					continue
-				}
-				sn, err := types.HexInt(el.Indexed[1]).BigInt()
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse sn: %s", el.Indexed[1])
-				}
-				msg := &providerTypes.Message{
-					MessageHeight: height.Uint64(),
-					EventType:     p.GetEventName(el.Indexed[0]),
-					Dst:           p.NID(),
-					Src:           p.NID(),
-					Sn:            sn,
-				}
+			msg, err := p.parseMessageFromEventLog(uint64(height), &event)
+			if err != nil {
+				p.log.Warn("received invalid event", zap.Error(err))
+			} else if msg != nil {
 				messages = append(messages, msg)
 			}
 		}
 	}
-	if len(messages) == 0 {
-		return nil, errors.New("GenerateMessage: no messages found")
-	}
+
 	return messages, nil
 }
 

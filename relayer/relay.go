@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	Version                   = "dev"
 	DefaultFlushInterval      = 5 * time.Minute
 	listenerChannelBufferSize = 1000 * 5
 
@@ -274,7 +275,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 // & merge message to src cache
 func (r *Relayer) processBlockInfo(ctx context.Context, src *ChainRuntime, blockInfo *types.BlockInfo) {
 	src.LastBlockHeight = blockInfo.Height
-
 	for _, msg := range blockInfo.Messages {
 		msg := types.NewRouteMessage(msg)
 		src.MessageCache.Add(msg)
@@ -479,7 +479,7 @@ func (r *Relayer) CheckFinality(ctx context.Context) {
 				}
 
 				// generateMessage
-				messages, err := srcChainRuntime.Provider.GenerateMessages(ctx, txObject.MessageKeyWithMessageHeight)
+				messages, err := srcChainRuntime.Provider.GenerateMessages(ctx, txObject.TxHeight, txObject.TxHeight)
 				if err != nil {
 					r.log.Error("finality processor: generateMessage",
 						zap.Any("message key", txObject.MessageKey),
