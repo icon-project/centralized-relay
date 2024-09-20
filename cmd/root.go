@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+    "github.com/icon-project/centralized-relay/relayer"
 )
 
 const appName = "centralized-relay"
@@ -35,7 +36,6 @@ var (
 	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -99,7 +99,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		Use:     appName,
 		Short:   "This application makes data relay between chains!",
 		Long:    `Use this to relay xcall packet between chains using bridge contract.`,
-		Version: Version,
+		Version: relayer.Version,
 		Aliases: []string{"crly"},
 	}
 
