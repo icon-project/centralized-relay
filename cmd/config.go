@@ -9,6 +9,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/steller"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
@@ -257,6 +258,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.Config)
+	case "stellar":
+		iw.Value = new(steller.Config)
 	case "sui":
 		iw.Value = new(sui.Config)
 	default:
