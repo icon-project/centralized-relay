@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2024-09-20
+
+### Added
+- STELLAR chain implementation.
+
+### Changed
+- Store only the latest Xcall-Pkg-ID in SUI config.
+- Make transaction block query interval configurable from the config in SUI. Also set query page size to 15.
+
 ## [1.6.0] - 2024-08-12
 
 ### Added
