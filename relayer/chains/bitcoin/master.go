@@ -71,33 +71,10 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// func callSlaves(txId string) {
-// 	fmt.Println("Master request slave")
-// 	slavePort1 := os.Getenv("SLAVE_SERVER_1")
-// 	slavePort2 := os.Getenv("SLAVE_SERVER_2")
-// 	// Call slave to get more data
-// 	var wg sync.WaitGroup
-// 	responses := make(chan string, 2)
-
-// 	wg.Add(2)
-// 	go requestPartialSign(slavePort1, txId, responses, &wg)
-// 	go requestPartialSign(slavePort2, txId, responses, &wg)
-
-// 	go func() {
-// 		wg.Wait()
-// 		close(responses)
-// 	}()
-
-// 	for res := range responses {
-// 		fmt.Println("Received response from slave: ", res)
-// 	}
-// }
-
-func requestPartialSign(url string, slaveRequestData []byte, responses chan<- [][]byte, wg *sync.WaitGroup) {
+func requestPartialSign(apiKey string, url string, slaveRequestData []byte, responses chan<- [][]byte, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	client := &http.Client{}
-	apiKeyHeader := os.Getenv("API_KEY")
 	payload := bytes.NewBuffer(slaveRequestData)
 	req, err := http.NewRequest("POST", url, payload)
 
@@ -105,7 +82,7 @@ func requestPartialSign(url string, slaveRequestData []byte, responses chan<- []
 		log.Fatalf("Failed to create request: %v", err)
 	}
 
-	req.Header.Add("x-api-key", apiKeyHeader)
+	req.Header.Add("x-api-key", apiKey)
 
 	resp, err := client.Do(req)
 

@@ -9,16 +9,15 @@ import (
 	"log"
 	"math/big"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 
 	"path/filepath"
 
@@ -29,7 +28,7 @@ import (
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/multisig"
 	"github.com/icon-project/goloop/common/codec"
-	jsoniter "github.com/json-iterator/go"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"
 )
@@ -37,11 +36,14 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 var (
-	BTCToken      = "0:0"
-	MethodDeposit = "Deposit"
-	MasterMode    = "master"
-	SlaveMode     = "slave"
-	BtcSlaveDB    = "btc_slave.db"
+	BTCToken         = "0:0"
+	MethodDeposit    = "Deposit"
+	MethodWithdrawTo = "WithdrawTo"
+	MasterMode       = "master"
+	SlaveMode        = "slave"
+	BtcDB            = "btc.db"
+	MinSatsRequired  = 1000
+	WitnessSize      = 385
 )
 
 var chainIdToName = map[uint8]string{
@@ -62,6 +64,18 @@ type MessageDecoded struct {
 type slaveRequestParams struct {
 	MsgSn *big.Int `json:"msgSn"`
 }
+type StoredMessageData struct {
+	OriginalMessage  *relayTypes.Message
+	TxHash           string
+	OutputIndex      uint32
+	Amount           uint64
+	RecipientAddress string
+	SenderAddress    string
+	RuneId           string
+	RuneAmount       uint64
+	ActionMethod     string
+	TokenAddress     string
+}
 
 type Provider struct {
 	logger               *zap.Logger
@@ -74,27 +88,28 @@ type Provider struct {
 	bearToken            string
 	httpServer           chan struct{}
 	db                   *leveldb.DB
+	chainParam           *chaincfg.Params
 }
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
-	OpCode                int      `json:"op-code" yaml:"op-code"`
-	UniSatURL             string   `json:"unisat-url" yaml:"unisat-url"`
-	UniSatKey             string   `json:"unisat-key" yaml:"unisat-key"`
-	Type                  string   `json:"type" yaml:"type"`
-	User                  string   `json:"rpc-user" yaml:"rpc-user"`
-	Password              string   `json:"rpc-password" yaml:"rpc-password"`
-	Protocals             []string `yaml:"protocals"`
-	Mode                  string   `json:"mode" yaml:"mode"`
-	SlaveServer1          string   `json:"slave-server-1" yaml:"slave-server-1"`
-	SlaveServer2          string   `json:"slave-server-2" yaml:"slave-server-2"`
-	Port                  string   `json:"port" yaml:"port"`
-	ApiKey                string   `json:"api-key" yaml:"api-key"`
-	MasterPubKey          string   `json:"masterPubKey" yaml:"masterPubKey"`
-	Slave1PubKey          string   `json:"slave1PubKey" yaml:"slave1PubKey"`
-	Slave2PubKey          string   `json:"slave2PubKey" yaml:"slave2PubKey"`
-	RelayerPrivKey        string   `json:"relayerPrivKey" yaml:"relayerPrivKey"`
-	RecoveryLockTime      int      `json:"recoveryLockTime" yaml:"recoveryLockTime"`
+	OpCode                int    `json:"op-code" yaml:"op-code"`
+	UniSatURL             string `json:"unisat-url" yaml:"unisat-url"`
+	UniSatKey             string `json:"unisat-key" yaml:"unisat-key"`
+	MempoolURL            string `json:"mempool-url" yaml:"mempool-url"`
+	Type                  string `json:"type" yaml:"type"`
+	User                  string `json:"rpc-user" yaml:"rpc-user"`
+	Password              string `json:"rpc-password" yaml:"rpc-password"`
+	Mode                  string `json:"mode" yaml:"mode"`
+	SlaveServer1          string `json:"slave-server-1" yaml:"slave-server-1"`
+	SlaveServer2          string `json:"slave-server-2" yaml:"slave-server-2"`
+	Port                  string `json:"port" yaml:"port"`
+	ApiKey                string `json:"api-key" yaml:"api-key"`
+	MasterPubKey          string `json:"masterPubKey" yaml:"masterPubKey"`
+	Slave1PubKey          string `json:"slave1PubKey" yaml:"slave1PubKey"`
+	Slave2PubKey          string `json:"slave2PubKey" yaml:"slave2PubKey"`
+	RelayerPrivKey        string `json:"relayerPrivKey" yaml:"relayerPrivKey"`
+	RecoveryLockTime      int    `json:"recoveryLockTime" yaml:"recoveryLockTime"`
 }
 
 // NewProvider returns new Icon provider
@@ -107,7 +122,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}
 
 	// Create the database file path
-	dbPath := filepath.Join(homepath+"/data", BtcSlaveDB)
+	dbPath := filepath.Join(homepath+"/data", BtcDB)
 
 	// Open the database, creating it if it doesn't exist
 	db, err := leveldb.OpenFile(dbPath, nil)
@@ -120,8 +135,11 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		db.Close() // Close the database if client creation fails
 		return nil, fmt.Errorf("failed to create new client: %v", err)
 	}
-
-	c.ChainName = chainName
+	chainParam := &chaincfg.TestNet3Params
+	if c.NID == "0x1.btc" {
+		chainParam = &chaincfg.MainNetParams
+	}
+	c.HomeDir = homepath
 	c.HomeDir = homepath
 
 	p := &Provider{
@@ -131,6 +149,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		LastSerialNumFunc: func() *big.Int { return big.NewInt(0) },
 		httpServer:        make(chan struct{}),
 		db:                db, // Add the database to the Provider
+		chainParam:        chainParam,
 	}
 	// Run an http server to help btc interact each others
 	go func() {
@@ -152,8 +171,8 @@ func (p *Provider) CallSlaves(slaveRequestData []byte) [][][]byte {
 		var wg sync.WaitGroup
 		wg.Add(2)
 
-		go requestPartialSign(p.cfg.SlaveServer1, slaveRequestData, responses, &wg)
-		go requestPartialSign(p.cfg.SlaveServer2, slaveRequestData, responses, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer1, slaveRequestData, responses, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer2, slaveRequestData, responses, &wg)
 
 		go func() {
 			wg.Wait()
@@ -287,7 +306,14 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired uint64
 	}
 	outputs := []*multisig.UTXO{}
 	var totalAmount uint64
-	for _, utxo := range resp.Data.Utxo {
+
+	utxos := resp.Data.Utxo
+	// sort utxos by amount in descending order
+	sort.Slice(utxos, func(i, j int) bool {
+		return utxos[i].Satoshi.Cmp(utxos[j].Satoshi) == 1
+	})
+
+	for _, utxo := range utxos {
 		if totalAmount >= amountRequired {
 			break
 		}
@@ -312,9 +338,16 @@ func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query rune UTXOs from unisat: %v", err)
 	}
+
+	utxos := resp.Data.Utxo
+	// sort utxos by amount in descending order
+	sort.Slice(utxos, func(i, j int) bool {
+		return utxos[i].Satoshi.Cmp(utxos[j].Satoshi) == 1
+	})
+
 	outputs := []*multisig.UTXO{}
 	var totalAmount uint64
-	for _, utxo := range resp.Data.Utxo {
+	for _, utxo := range utxos {
 		if totalAmount >= amountRequired {
 			break
 		}
@@ -336,77 +369,151 @@ func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout
 
 func (p *Provider) CreateBitcoinMultisigTx(
 	messageData []byte,
-	feePerOutput uint64,
-	relayersMultisigWallet *multisig.MultisigWallet,
-	chainParam *chaincfg.Params,
-	server string,
+	feeRate uint64,
+	decodedData *MessageDecoded,
+	msWallet *multisig.MultisigWallet,
 ) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
 	// ----- BUILD OUTPUTS -----
 	outputs := []*multisig.OutputTx{}
-	var bitcoinAmountRequired, runeAmountRequired uint64
+	var bitcoinAmountRequired uint64 = uint64(MinSatsRequired)
+	var runeAmountRequired uint64
 	var runeRequired multisig.Rune
-	decodedData, opreturnData, err := decodeWithdrawToMessage(messageData)
-	// add bridge message to output
-	scripts, _ := multisig.CreateBridgeMessageScripts(opreturnData, 76)
-	for _, script := range scripts {
-		outputs = append(outputs, &multisig.OutputTx{
-			OpReturnScript: script,
-		})
-	}
+
 	// add withdraw output
-	if err == nil {
-		amount := new(big.Int).SetBytes(decodedData.Amount).Uint64()
-		if decodedData.Action == "WithdrawTo" {
-			if decodedData.TokenAddress == "0:0" {
-				// transfer btc
-				outputs = append(outputs, &multisig.OutputTx{
-					ReceiverAddress: decodedData.To,
-					Amount:          amount,
-				})
 
-				bitcoinAmountRequired = amount
-			} else {
-				// transfer rune
-				runeAddress := strings.Split(decodedData.TokenAddress, ":")
-				blockNumber, _ := strconv.ParseUint(runeAddress[0], 10, 64)
-				txIndex, _ := strconv.ParseUint(runeAddress[0], 10, 32)
-				runeRequired = multisig.Rune{
-					BlockNumber: blockNumber,
-					TxIndex:     uint32(txIndex),
-				}
-				runeScript, _ := multisig.CreateRuneTransferScript(
-					runeRequired,
-					new(big.Int).SetUint64(amount),
-					uint64(len(outputs)+2),
-				)
-				outputs = append(outputs, &multisig.OutputTx{
-					OpReturnScript: runeScript,
-				})
-				outputs = append(outputs, &multisig.OutputTx{
-					ReceiverAddress: decodedData.To,
-					Amount:          1000,
-				})
+	amount := new(big.Int).SetBytes(decodedData.Amount).Uint64()
+	if decodedData.Action == MethodWithdrawTo || decodedData.Action == MethodDeposit {
+		if decodedData.TokenAddress == BTCToken {
+			// transfer btc
+			outputs = append(outputs, &multisig.OutputTx{
+				ReceiverAddress: decodedData.To,
+				Amount:          amount,
+			})
 
-				bitcoinAmountRequired = 1000
-				runeAmountRequired = amount
+			bitcoinAmountRequired = amount
+		} else {
+			// transfer rune
+			runeAddress := strings.Split(decodedData.TokenAddress, ":")
+			blockNumber, _ := strconv.ParseUint(runeAddress[0], 10, 64)
+			txIndex, _ := strconv.ParseUint(runeAddress[0], 10, 32)
+			runeRequired = multisig.Rune{
+				BlockNumber: blockNumber,
+				TxIndex:     uint32(txIndex),
 			}
+			runeScript, _ := multisig.CreateRuneTransferScript(
+				runeRequired,
+				new(big.Int).SetUint64(amount),
+				uint64(len(outputs)+2),
+			)
+			outputs = append(outputs, &multisig.OutputTx{
+				OpReturnScript: runeScript,
+			})
+			outputs = append(outputs, &multisig.OutputTx{
+				ReceiverAddress: decodedData.To,
+				Amount:          uint64(MinSatsRequired),
+			})
+			runeAmountRequired = amount
 		}
 	}
 
 	// ----- BUILD INPUTS -----
-	relayersMultisigAddress, err := multisig.AddressOnChain(chainParam, relayersMultisigWallet)
+	rlMsAddress, err := multisig.AddressOnChain(p.chainParam, msWallet)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
-	relayersMultisigAddressStr := relayersMultisigAddress.String()
+	msAddressStr := rlMsAddress.String()
+
+	inputs, estFee, err := p.computeTx(feeRate, bitcoinAmountRequired, runeAmountRequired, decodedData.TokenAddress, msAddressStr, runeRequired, outputs, msWallet)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	// create raw tx
+	msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, nil, p.chainParam, msAddressStr, 0)
+
+	return inputs, msgTx, hexRawTx, txSigHashes, err
+}
+
+// calculateTxSize calculates the size of a transaction given the inputs, outputs, estimated fee, change address, chain parameters, and multisig wallet.
+// It returns the size of the transaction in bytes and an error if any occurs during the process.
+func (p *Provider) calculateTxSize(inputs []*multisig.UTXO, outputs []*multisig.OutputTx, estFee uint64, changeAddress string, msWallet *multisig.MultisigWallet) (int, error) {
+	msgTx, _, _, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, msWallet, p.chainParam, changeAddress, 0)
+	if err != nil {
+		return 0, err
+	}
+	var rawTxBytes bytes.Buffer
+	err = msgTx.Serialize(&rawTxBytes)
+	if err != nil {
+		return 0, err
+	}
+	txSize := len(rawTxBytes.Bytes()) + WitnessSize
+	return txSize, nil
+}
+
+func (p *Provider) computeTx(feeRate, satsToSend, runeToSend uint64, runeId, changeAddress string, runeRequired multisig.Rune, outputs []*multisig.OutputTx, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, uint64, error) {
+
+	outputsCopy := make([]*multisig.OutputTx, len(outputs))
+	copy(outputsCopy, outputs)
+
+	inputs, err := p.selectUnspentOutputs(satsToSend, runeToSend, runeId, runeRequired, outputsCopy, changeAddress)
+	sumSelectedOutputs := multisig.SumInputsSat(inputs)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	txSize, err := p.calculateTxSize(inputs, outputsCopy, 0, changeAddress, msWallet)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	estFee := uint64(txSize) * feeRate
+	count := 0
+	loopEntered := false
+	var iterationOutputs []*multisig.OutputTx
+
+	for sumSelectedOutputs < satsToSend+estFee {
+		loopEntered = true
+		// Create a fresh copy of outputs for each iteration
+		iterationOutputs := make([]*multisig.OutputTx, len(outputs))
+		copy(iterationOutputs, outputs)
+
+		newSatsToSend := satsToSend + estFee
+		var err error
+		selectedUnspentOutputs, err := p.selectUnspentOutputs(newSatsToSend, runeToSend, runeId, runeRequired, iterationOutputs, changeAddress)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		sumSelectedOutputs = multisig.SumInputsSat(selectedUnspentOutputs)
+
+		txSize, err := p.calculateTxSize(selectedUnspentOutputs, iterationOutputs, estFee, changeAddress, msWallet)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		estFee = feeRate * uint64(txSize)
+
+		count += 1
+		if count > 500 {
+			return nil, 0, fmt.Errorf("Not enough sats for fee")
+		}
+	}
+	// Need to do that cause avoid the same outputs being used for multiple transactions
+	outputs = outputsCopy
+	if loopEntered {
+		outputs = iterationOutputs
+	}
+
+	return inputs, estFee, nil
+}
+
+func (p *Provider) selectUnspentOutputs(satToSend uint64, runeToSend uint64, runeId string, runeRequired multisig.Rune, outputs []*multisig.OutputTx, changeAddress string) ([]*multisig.UTXO, error) {
 	// add tx fee the the required bitcoin amount
 	inputs := []*multisig.UTXO{}
-	var inputsSatNeeded uint64
-	if runeAmountRequired != 0 {
+	if runeToSend != 0 {
 		// query rune UTXOs from unisat
-		runeInputs, runeChangeAmount, err := GetRuneUTXOs(server, relayersMultisigAddressStr, decodedData.TokenAddress, runeAmountRequired, 3)
+		runeInputs, runeChangeAmount, err := GetRuneUTXOs(p.cfg.UniSatURL, changeAddress, runeId, runeToSend, 3)
 		if err != nil {
-			return nil, nil, "", nil, err
+			return nil, err
 		}
 		inputs = append(inputs, runeInputs...)
 		// add rune change to outputs
@@ -419,67 +526,75 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			OpReturnScript: runeScript,
 		})
 		outputs = append(outputs, &multisig.OutputTx{
-			ReceiverAddress: relayersMultisigAddressStr,
-			Amount:          1000,
+			ReceiverAddress: changeAddress,
+			Amount:          uint64(MinSatsRequired),
 		})
-		inputsSatNeeded = 1000
 	}
-	txFee := uint64(len(outputs)) * feePerOutput
-	inputsSatNeeded += bitcoinAmountRequired + txFee
-	// todo: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
+
+	// TODO: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
 	// query bitcoin UTXOs from unisat
-	bitcoinInputs, err := p.GetBitcoinUTXOs(server, relayersMultisigAddressStr, inputsSatNeeded, 3)
+	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, changeAddress, satToSend, 3)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, err
 	}
 	inputs = append(inputs, bitcoinInputs...)
-	// create raw tx
-	msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, txFee, relayersMultisigWallet, nil, chainParam, relayersMultisigAddressStr, 0)
 
-	return inputs, msgTx, hexRawTx, txSigHashes, err
+	return inputs, nil
 }
 
-func (p *Provider) BuildAndPartSignBitcoinMessageTx(messageData []byte, messageDstNetwork string) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
-	// get param for mainnet/testnet
-	var chainParam *chaincfg.Params
-	if messageDstNetwork == "0x1" {
-		chainParam = &chaincfg.MainNetParams
-	} else if messageDstNetwork == "0x2" {
-		chainParam = &chaincfg.TestNet3Params
-	} else {
-		return nil, nil, nil, nil, fmt.Errorf("invalid message dst network: %v", messageDstNetwork)
-	}
-	// build Multisig Wallet from config
+// add tx fee the the required bitcoin amount
+
+func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	masterPubKey, _ := hex.DecodeString(p.cfg.MasterPubKey)
 	slave1PubKey, _ := hex.DecodeString(p.cfg.Slave1PubKey)
 	slave2PubKey, _ := hex.DecodeString(p.cfg.Slave2PubKey)
 	relayersMultisigInfo := multisig.MultisigInfo{
-		PubKeys:				[][]byte{masterPubKey, slave1PubKey, slave2PubKey},
-		EcPubKeys:				nil,
-		NumberRequiredSigs:		3,
-		RecoveryPubKey:			masterPubKey,
-		RecoveryLockTime:		uint64(p.cfg.RecoveryLockTime),
+		PubKeys:            [][]byte{masterPubKey, slave1PubKey, slave2PubKey},
+		EcPubKeys:          nil,
+		NumberRequiredSigs: 3,
+		RecoveryPubKey:     masterPubKey,
+		RecoveryLockTime:   uint64(p.cfg.RecoveryLockTime),
 	}
-	relayersMultisigWallet, err := multisig.BuildMultisigWallet(&relayersMultisigInfo)
+	msWallet, err := multisig.BuildMultisigWallet(&relayersMultisigInfo)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		p.logger.Error("failed to build multisig wallet: %v", zap.Error(err))
+		return nil, err
 	}
-	// build unsigned tx
-	inputs, msgTx, _, txSigHashes, err := p.CreateBitcoinMultisigTx(messageData, 10000, relayersMultisigWallet, chainParam, p.cfg.UniSatURL)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+
+	return msWallet, nil
+}
+
+func (p *Provider) partSignTx(msgTx *wire.MsgTx, inputs []*multisig.UTXO, msWallet *multisig.MultisigWallet, txSigHashes *txscript.TxSigHashes) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
 	tapSigParams := multisig.TapSigParams{
 		TxSigHashes:      txSigHashes,
-		RelayersPKScript: relayersMultisigWallet.PKScript,
-		RelayersTapLeaf:  relayersMultisigWallet.TapLeaves[0],
+		RelayersPKScript: msWallet.PKScript,
+		RelayersTapLeaf:  msWallet.TapLeaves[0],
 		UserPKScript:     []byte{},
 		UserTapLeaf:      txscript.TapLeaf{},
 	}
 	// relayer sign tx
-	relayerSigs, err := multisig.PartSignOnRawExternalTx(p.cfg.RelayerPrivKey, msgTx, inputs, tapSigParams, chainParam, false)
+	relayerSigs, err := multisig.PartSignOnRawExternalTx(p.cfg.RelayerPrivKey, msgTx, inputs, tapSigParams, p.chainParam, false)
 
-	return inputs, relayersMultisigWallet, msgTx, relayerSigs, err
+	return inputs, msWallet, msgTx, relayerSigs, err
+}
+
+func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
+	msWallet, err := p.buildMultisigWallet()
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	feeRate, err := p.client.GetFeeFromMempool(p.cfg.MempoolURL + "/fees/recommended")
+	if err != nil {
+		p.logger.Error("failed to get recommended fee from mempool", zap.Error(err))
+		feeRate = 0
+	}
+	inputs, msgTx, _, txSigHashes, err := p.buildTxMessage(message, feeRate, msWallet)
+	if err != nil {
+		p.logger.Error("failed to build tx message: %v", zap.Error(err))
+		return nil, nil, nil, nil, err
+	}
+	inputs, msWallet, msgTx, relayerSigs, err := p.partSignTx(msgTx, inputs, msWallet, txSigHashes)
+	return inputs, msWallet, msgTx, relayerSigs, err
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
@@ -487,20 +602,23 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 
 	messageDstDetail := strings.Split(message.Dst, ".")
 	if strings.Split(message.Src, ".")[1] == "icon" && messageDstDetail[1] == "btc" {
+
 		if p.cfg.Mode == SlaveMode {
 			// store the message in LevelDB
 			key := []byte(message.Sn.String())
 			value, _ := json.Marshal(message)
 			err := p.db.Put(key, value, nil)
 			if err != nil {
-				return fmt.Errorf("failed to store message in LevelDB: %v", err)
+				p.logger.Error("failed to store message in LevelDB: %v", zap.Error(err))
+				return err
 			}
-
 			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
-			inputs, relayersMultisigWallet, msgTx, relayerSigs, err := p.BuildAndPartSignBitcoinMessageTx(message.Data, messageDstDetail[0])
+
+			inputs, msWallet, msgTx, relayerSigs, err := p.HandleBitcoinMessageTx(message)
 			if err != nil {
+				p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
 				return err
 			}
 			totalSigs := [][][]byte{relayerSigs}
@@ -510,14 +628,36 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			}
 			slaveRequestData, _ := json.Marshal(rsi)
 			slaveSigs := p.CallSlaves(slaveRequestData)
+			p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
 			totalSigs = append(totalSigs, slaveSigs...)
 			// combine sigs
-			signedMsgTx, err := multisig.CombineMultisigSigs(msgTx, inputs, relayersMultisigWallet, 0, relayersMultisigWallet, 0, totalSigs)
+			signedMsgTx, err := multisig.CombineMultisigSigs(msgTx, inputs, msWallet, 0, msWallet, 0, totalSigs)
+
 			if err != nil {
-				fmt.Println("err combine tx: ", err)
+				p.logger.Error("err combine tx: ", zap.Error(err))
 			}
-			// TODO: Broadcast transaction to bitcoin network
-			fmt.Println("signedMsgTx:", signedMsgTx)
+			p.logger.Info("signedMsgTx", zap.Any("transaction", signedMsgTx))
+			var buf bytes.Buffer
+			err = signedMsgTx.Serialize(&buf)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			txSize := len(buf.Bytes())
+			p.logger.Info("--------------------txSize--------------------", zap.Int("size", txSize))
+			signedMsgTxHex := hex.EncodeToString(buf.Bytes())
+			p.logger.Info("signedMsgTxHex", zap.String("transaction_hex", signedMsgTxHex))
+
+			// Broadcast transaction to bitcoin network
+			txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
+
+			if err != nil {
+				p.logger.Error("failed to send raw transaction", zap.Error(err))
+				return err
+			}
+
+			p.logger.Info("txHash", zap.String("transaction_hash", txHash))
 			// TODO: After successful broadcast, request slaves to remove the message from LevelDB if it exists
 		}
 	}
@@ -528,47 +668,57 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	return nil
 }
 
+func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
+	outputs := []*multisig.OutputTx{}
+	decodedData := &MessageDecoded{}
+	switch message.EventType {
+	case events.EmitMessage:
+		data, opreturnData, err := decodeWithdrawToMessage(message.Data)
+		decodedData = data
+		if err != nil {
+			p.logger.Error("failed to decode message: %v", zap.Error(err))
+			return nil, nil, "", nil, err
+		}
+		scripts, _ := multisig.CreateBridgeMessageScripts(opreturnData, 76)
+		for _, script := range scripts {
+			outputs = append(outputs, &multisig.OutputTx{
+				OpReturnScript: script,
+			})
+		}
+	case events.RollbackMessage:
+		data, err := p.db.Get([]byte(message.Sn.String()), nil)
+		if err != nil {
+			return nil, nil, "", nil, fmt.Errorf("failed to retrieve stored data: %v", err)
+		}
+		var storedData StoredMessageData
+		err = json.Unmarshal(data, &storedData)
+		if err != nil {
+			return nil, nil, "", nil, fmt.Errorf("failed to unmarshal stored data: %v", err)
+		}
+		decodedData.Action = storedData.ActionMethod
+		decodedData.To = storedData.SenderAddress
+		decodedData.TokenAddress = storedData.TokenAddress
+		decodedData.Amount = []byte(fmt.Sprintf("%d", storedData.Amount))
+		if storedData.RuneId != "" {
+			decodedData.Amount = []byte(fmt.Sprintf("%d", storedData.RuneAmount))
+		}
+		return nil, nil, "", nil, nil
+	default:
+		return nil, nil, "", nil, fmt.Errorf("unknown event type: %s", message.EventType)
+	}
+
+	inputs, msgTx, hexRawTx, txSigHashes, err := p.CreateBitcoinMultisigTx(message.Data, feeRate, decodedData, msWallet)
+	return inputs, msgTx, hexRawTx, txSigHashes, err
+}
+
 // call the smart contract to send the message
 func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (string, error) {
-	// rawMsg, err := p.getRawContractMessage(message)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
-	// var contract string
-
-	// switch message.EventType {
-	// case events.EmitMessage, events.RevertMessage, events.SetAdmin, events.ClaimFee, events.SetFee:
-	// 	//contract = p.cfg.Contracts[relayTypes.ConnectionContract]
-	// case events.CallMessage, events.RollbackMessage:
-	// 	//contract = p.cfg.Contracts[relayTypes.XcallContract]
-	// default:
-	// 	return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
-	// }
-
-	// msg := &wasmTypes.MsgExecuteContract{
-	// 	Sender:   p.Wallet().String(),
-	// 	Contract: contract,
-	// 	Msg:      rawMsg,
-	// }
-
-	// msgs := []sdkTypes.Msg{msg}
-
-	// res, err := p.sendMessage(ctx, msgs...)
-	// if err != nil {
-	// 	if strings.Contains(err.Error(), errors.ErrWrongSequence.Error()) {
-	// 		if mmErr := p.handleSequence(ctx); mmErr != nil {
-	// 			return res, fmt.Errorf("failed to handle sequence mismatch error: %v || %v", mmErr, err)
-	// 		}
-	// 		return p.sendMessage(ctx, msgs...)
-	// 	}
-	// }
 	return "", nil
 }
 
-func (p *Provider) sendMessage(ctx context.Context, msgs ...sdkTypes.Msg) (string, error) {
+func (p *Provider) sendTx(ctx context.Context, signedMsg *wire.MsgTx) (string, error) {
 
-	// return p.prepareAndPushTxToMemPool(ctx, p.wallet.GetAccountNumber(), p.wallet.GetSequence(), msgs...)
 	return "", nil
 }
 
@@ -587,166 +737,34 @@ func (p *Provider) logTxFailed(err error, txHash string, code uint8) {
 func (p *Provider) logTxSuccess(height uint64, txHash string) {
 	p.logger.Info("successful transaction",
 		zap.Uint64("block_height", height),
-		//zap.String("chain_id", p.cfg.ChainID),
+		zap.String("chain_id", p.cfg.NID),
 		zap.String("tx_hash", txHash),
 	)
 }
 
-func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint64, msgs ...sdkTypes.Msg) (*sdkTypes.TxResponse, error) {
-
-	return nil, nil
-}
-
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
-	//for txWaitRes := range p.subscribeTxResultStream(ctx, txHash, p.cfg.TxConfirmationInterval) {
-	//	if txWaitRes.Error != nil && txWaitRes.Error != context.DeadlineExceeded {
-	//		p.logTxFailed(txWaitRes.Error, txHash, uint8(txWaitRes.TxResult.Code))
-	//		callback(mk, txWaitRes.TxResult, txWaitRes.Error)
-	//		return
-	//	}
-	//	p.logTxSuccess(uint64(txWaitRes.TxResult.Height), txHash)
-	//	callback(mk, txWaitRes.TxResult, nil)
-	//}
+
 }
 
 func (p *Provider) pollTxResultStream(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResult {
 	txResChan := make(chan *types.TxResult)
-	//startTime := time.Now()
-	//go func(txChan chan *types.TxResult) {
-	//	defer close(txChan)
-	//	for range time.NewTicker(p.cfg.TxConfirmationInterval).C {
-	//		res, err := p.client.GetTransactionReceipt(ctx, txHash)
-	//		if err == nil {
-	//			txChan <- &types.TxResult{
-	//				TxResult: &relayTypes.TxResponse{
-	//					Height:    res.TxResponse.Height,
-	//					TxHash:    res.TxResponse.TxHash,
-	//					Codespace: res.TxResponse.Codespace,
-	//					Code:      relayTypes.ResponseCode(res.TxResponse.Code),
-	//					Data:      res.TxResponse.Data,
-	//				},
-	//			}
-	//			return
-	//		} else if time.Since(startTime) > maxWaitInterval {
-	//			txChan <- &types.TxResult{
-	//				Error: err,
-	//			}
-	//			return
-	//		}
-	//	}
-	//}(txResChan)
+
 	return txResChan
 }
 
 func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResult {
 	txResChan := make(chan *types.TxResult)
-	//go func(txRes chan *types.TxResult) {
-	//	defer close(txRes)
-	//
-	//	newCtx, cancel := context.WithTimeout(ctx, maxWaitInterval)
-	//	defer cancel()
-	//
-	//	query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txHash)
-	//	resultEventChan, err := p.client.Subscribe(newCtx, "tx-result-waiter", query)
-	//	if err != nil {
-	//		txRes <- &types.TxResult{
-	//			TxResult: &relayTypes.TxResponse{
-	//				TxHash: txHash,
-	//			},
-	//			Error: err,
-	//		}
-	//		return
-	//	}
-	//	defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
-	//
-	//	for {
-	//		select {
-	//		case <-ctx.Done():
-	//			return
-	//		case e := <-resultEventChan:
-	//			eventDataJSON, err := jsoniter.Marshal(e.Data)
-	//			if err != nil {
-	//				txRes <- &types.TxResult{
-	//					TxResult: &relayTypes.TxResponse{
-	//						TxHash: txHash,
-	//					}, Error: err,
-	//				}
-	//				return
-	//			}
-	//
-	//			txWaitRes := new(types.TxResultWaitResponse)
-	//			if err := jsoniter.Unmarshal(eventDataJSON, txWaitRes); err != nil {
-	//				txRes <- &types.TxResult{
-	//					TxResult: &relayTypes.TxResponse{
-	//						TxHash: txHash,
-	//					}, Error: err,
-	//				}
-	//				return
-	//			}
-	//			if uint32(txWaitRes.Result.Code) != types.CodeTypeOK {
-	//				txRes <- &types.TxResult{
-	//					Error: fmt.Errorf(txWaitRes.Result.Log),
-	//					TxResult: &relayTypes.TxResponse{
-	//						Height:    txWaitRes.Height,
-	//						TxHash:    txHash,
-	//						Codespace: txWaitRes.Result.Codespace,
-	//						Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-	//						Data:      string(txWaitRes.Result.Data),
-	//					},
-	//				}
-	//				return
-	//			}
-	//
-	//			txRes <- &types.TxResult{
-	//				TxResult: &relayTypes.TxResponse{
-	//					Height:    txWaitRes.Height,
-	//					TxHash:    txHash,
-	//					Codespace: txWaitRes.Result.Codespace,
-	//					Code:      relayTypes.ResponseCode(txWaitRes.Result.Code),
-	//					Data:      string(txWaitRes.Result.Data),
-	//				},
-	//			}
-	//			return
-	//		}
-	//	}
-	//}(txResChan)
+
 	return txResChan
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-	//queryMsg := &types.QueryReceiptMsg{
-	//	GetReceipt: &types.GetReceiptMsg{
-	//		SrcNetwork: key.Src,
-	//		ConnSn:     strconv.FormatUint(key.Sn, 10),
-	//	},
-	//}
-	//rawQueryMsg, err := jsoniter.Marshal(queryMsg)
-	//if err != nil {
-	//	return false, err
-	//}
-	//
-	//res, err := p.client.QuerySmartContract(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], rawQueryMsg)
-	//if err != nil {
-	//	p.logger.Error("failed to check if message is received: ", zap.Error(err))
-	//	return false, err
-	//}
-	//
-	//receiptMsgRes := types.QueryReceiptMsgResponse{}
-	//return receiptMsgRes.Status, jsoniter.Unmarshal(res.Data, &receiptMsgRes.Status)
 
 	return false, nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
-	//coin, err := p.client.GetBalance(ctx, addr, p.cfg.Denomination)
-	//if err != nil {
-	//	p.logger.Error("failed to query balance: ", zap.Error(err))
-	//	return nil, err
-	//}
-	//return &relayTypes.Coin{
-	//	Denom:  coin.Denom,
-	//	Amount: coin.Amount.BigInt().Uint64(),
-	//}, nil
+
 	return nil, nil
 }
 
@@ -832,7 +850,6 @@ func (p *Provider) ExecuteRollback(ctx context.Context, sn *big.Int) error {
 	return nil
 }
 
-// todo:
 func (p *Provider) getStartHeight(latestHeight, lastSavedHeight uint64) (uint64, error) {
 	startHeight := lastSavedHeight
 	if p.cfg.StartHeight > 0 && p.cfg.StartHeight < latestHeight {
@@ -925,6 +942,10 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 }
 
 func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
+	receiverAddresses := []string{}
+	runeId := ""
+	runeAmount := big.NewInt(0)
+	actionMethod := ""
 	// handle for bitcoin bridge
 	// decode message from OP_RETURN
 	p.logger.Info("parseMessageFromTx",
@@ -936,7 +957,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 	messageInfo := bridgeMessage.Message
 
-	if messageInfo.Action == MethodDeposit && messageInfo.To == p.assetManagerAddrIcon {
+	if messageInfo.Action == MethodDeposit {
+		actionMethod = MethodDeposit
 		// maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
@@ -945,14 +967,17 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		amount.SetBytes(messageInfo.Amount)
 		destContract := messageInfo.To
 
-		fmt.Println(tokenId)
-		fmt.Println(amount.String())
-		fmt.Println(destContract)
+		p.logger.Info("tokenId", zap.String("tokenId", tokenId))
+		p.logger.Info("amount", zap.String("amount", amount.String()))
+		p.logger.Info("destContract", zap.String("destContract", destContract))
 
 		// call api to verify the data
 		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
 		verified := false
+
 		for i, out := range tx.Tx.TxOut {
+			receiverAddresses = append(receiverAddresses, p.getAddressesFromTx(out, p.chainParam)...)
+			// TODO: question: why need to compare multisigAddrScript?
 			if bytes.Compare(out.PkScript, p.multisigAddrScript) != 0 {
 				continue
 			}
@@ -980,6 +1005,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 					}
 
 					if amount.Cmp(runeTokenBal) == 0 && runeOut.RuneId == messageInfo.TokenAddress {
+						runeId = runeOut.RuneId
+						runeAmount = runeTokenBal
 						verified = true
 						break
 					}
@@ -999,22 +1026,56 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	// todo: handle for rad fi
 
 	// TODO: call xcallformat and then replace to data
+	sn := new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex)
 
 	from := p.cfg.NID + "/" + p.cfg.Address
 	decodeMessage, _ := codec.RLP.MarshalToBytes(messageInfo)
-	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(tx.Height), p.cfg.Protocals)
+	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors)
 
-	return &relayTypes.Message{
-		// TODO:
+	relayMessage := &relayTypes.Message{
 		Dst: "0x2.icon",
-		// Dst: chainIdToName[bridgeMessage.ChainId],
-		Src: p.NID(),
-		// Sn:            p.LastSerialNumFunc(),
-		Sn:            new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex),
+		// TODO:
+		// Dst:           chainIdToName[bridgeMessage.ChainId],
+		Src:           p.NID(),
+		Sn:            sn,
 		Data:          data,
 		MessageHeight: tx.Height,
 		EventType:     events.EmitMessage,
-	}, nil
+	}
+
+	var senderAddress string
+	// Find sender address to store in db
+	for _, address := range receiverAddresses {
+		if address != p.cfg.Address {
+			senderAddress = address
+			break
+		}
+	}
+
+	// When storing the message
+	storedData := StoredMessageData{
+		OriginalMessage:  relayMessage,
+		TxHash:           tx.Tx.TxHash().String(),
+		OutputIndex:      uint32(tx.TxIndex),
+		Amount:           big.NewInt(0).SetBytes(messageInfo.Amount).Uint64(),
+		RecipientAddress: p.cfg.Address,
+		SenderAddress:    senderAddress,
+		RuneId:           runeId,
+		RuneAmount:       runeAmount.Uint64(),
+		ActionMethod:     actionMethod,
+		TokenAddress:     messageInfo.TokenAddress,
+	}
+
+	data, err = json.Marshal(storedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal stored data: %v", err)
+	}
+
+	err = p.db.Put([]byte(sn.String()), data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to store message data: %v", err)
+	}
+	return relayMessage, nil
 }
 
 func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayTypes.BlockInfo, error) {
@@ -1038,34 +1099,6 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayT
 		})
 	}
 	return messages, nil
-}
-
-func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
-	switch message.EventType {
-	case events.EmitMessage:
-		rcvMsg := types.NewExecRecvMsg(message)
-		return jsoniter.Marshal(rcvMsg)
-	case events.CallMessage:
-		execMsg := types.NewExecExecMsg(message)
-		return jsoniter.Marshal(execMsg)
-	case events.RevertMessage:
-		revertMsg := types.NewExecRevertMsg(message)
-		return jsoniter.Marshal(revertMsg)
-	case events.SetAdmin:
-		setAdmin := types.NewExecSetAdmin(message.Dst)
-		return jsoniter.Marshal(setAdmin)
-	case events.ClaimFee:
-		claimFee := types.NewExecClaimFee()
-		return jsoniter.Marshal(claimFee)
-	case events.SetFee:
-		setFee := types.NewExecSetFee(message.Src, message.Sn, message.ReqID)
-		return jsoniter.Marshal(setFee)
-	case events.RollbackMessage:
-		executeRollback := types.NewExecExecuteRollback(message.Sn)
-		return jsoniter.Marshal(executeRollback)
-	default:
-		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
-	}
 }
 
 func (p *Provider) getNumOfPipelines(diff int) int {
@@ -1108,6 +1141,23 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	}
 	wg.Wait()
 	return toHeight + 1
+}
+
+func (p *Provider) getAddressesFromTx(txOut *wire.TxOut, chainParams *chaincfg.Params) []string {
+	receiverAddresses := []string{}
+
+	scriptClass, addresses, _, err := txscript.ExtractPkScriptAddrs(txOut.PkScript, chainParams)
+	if err != nil {
+		fmt.Printf("  Script: Unable to parse (possibly OP_RETURN)\n")
+	} else {
+		fmt.Printf("  Script Class: %s\n", scriptClass)
+		if len(addresses) > 0 {
+			fmt.Printf("  Receiver Address: %s\n", addresses[0].String())
+			receiverAddresses = append(receiverAddresses, addresses[0].String())
+		}
+	}
+
+	return receiverAddresses
 }
 
 // SubscribeMessageEvents subscribes to the message events

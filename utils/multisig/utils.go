@@ -2,6 +2,7 @@ package multisig
 
 import (
 	"crypto/sha256"
+
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -45,12 +46,20 @@ func randomKeys(n int, chainParam *chaincfg.Params, seeds []int) ([]string, [][]
 func RandomMultisigInfo(n int, k int, chainParam *chaincfg.Params, seeds []int, recoveryKeyIdx int, recoveryLockTime uint64) ([]string, *MultisigInfo) {
 	privKeys, pubKeys, EcPubKeys := randomKeys(n, chainParam, seeds)
 	vaultInfo := MultisigInfo{
-		PubKeys:				pubKeys,
-		EcPubKeys:				EcPubKeys,
-		NumberRequiredSigs:		k,
-		RecoveryPubKey:			pubKeys[recoveryKeyIdx],
-		RecoveryLockTime:		recoveryLockTime,
+		PubKeys:            pubKeys,
+		EcPubKeys:          EcPubKeys,
+		NumberRequiredSigs: k,
+		RecoveryPubKey:     pubKeys[recoveryKeyIdx],
+		RecoveryLockTime:   recoveryLockTime,
 	}
 
 	return privKeys, &vaultInfo
+}
+
+func SumInputsSat(inputs []*UTXO) uint64 {
+	total := uint64(0)
+	for _, in := range inputs {
+		total += in.OutputAmount
+	}
+	return total
 }

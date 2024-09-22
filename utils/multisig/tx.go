@@ -48,7 +48,7 @@ func CreateMultisigTx(
 		totalInputAmount += in.OutputAmount
 
 		var pkScript []byte
-		if (in.IsRelayersMultisig) {
+		if in.IsRelayersMultisig {
 			pkScript = relayersMultisigWallet.PKScript
 		} else {
 			pkScript = userMultisigWallet.PKScript
@@ -147,7 +147,7 @@ func PartSignOnRawExternalTx(
 
 	sigs := [][]byte{}
 	for i := range msgTx.TxIn {
-		if (inputs[i].IsRelayersMultisig) {
+		if inputs[i].IsRelayersMultisig {
 			sig, err := txscript.RawTxInTapscriptSignature(
 				msgTx, tapSigParams.TxSigHashes, i, int64(inputs[i].OutputAmount), tapSigParams.RelayersPKScript, tapSigParams.RelayersTapLeaf, txscript.SigHashDefault, wif.PrivKey)
 			if err != nil {
@@ -155,7 +155,7 @@ func PartSignOnRawExternalTx(
 			}
 
 			sigs = append(sigs, sig)
-		} else if (isMasterRelayer) {
+		} else if isMasterRelayer {
 			sig, err := txscript.RawTxInTapscriptSignature(
 				msgTx, tapSigParams.TxSigHashes, i, int64(inputs[i].OutputAmount), tapSigParams.UserPKScript, tapSigParams.UserTapLeaf, txscript.SigHashDefault, wif.PrivKey)
 			if err != nil {
@@ -212,13 +212,13 @@ func CombineMultisigSigs(
 	for idxInput, v := range transposedSigs {
 		reverseV := [][]byte{}
 		for i := len(v) - 1; i >= 0; i-- {
-			if (len(v[i]) != 0) {
+			if len(v[i]) != 0 {
 				reverseV = append(reverseV, v[i])
 			}
 		}
 
 		witness := append([][]byte{}, reverseV...)
-		if (inputs[idxInput].IsRelayersMultisig) {
+		if inputs[idxInput].IsRelayersMultisig {
 			witness = append(witness, relayersMultisigTapLeafScript, relayersMultisigControlBlockBytes)
 		} else {
 			witness = append(witness, userMultisigTapLeafScript, userMultisigControlBlockBytes)
@@ -267,36 +267,36 @@ func GetRelayerReceivedUTXO(
 	var sequenceNumberUTXO *UTXO
 	bitcoinUTXOs := []*UTXO{}
 	runeUTXOs := []*RuneUTXO{}
-	Exit:
-		for idx, output := range msgTx.TxOut {
-			// Skip non-relayer received UTXO
-			if !bytes.Equal(output.PkScript, relayerScriptAddress) {
-				continue
-			}
-			currentUTXO := &UTXO{
-				IsRelayersMultisig: true,
-				TxHash:        msgTx.TxHash().String(),
-				OutputIdx:     uint32(idx),
-				OutputAmount:  uint64(output.Value),
-			}
-			// check if is sequenceNumber UTXO
-			if idx == sequenceNumberIdx {
-				sequenceNumberUTXO = currentUTXO
-				continue
-			}
-			// check if is rune UTXO
-			for edictIdx, edictOutput := range edictOutputs {
-				if idx == int(edictOutput) {
-					runeUTXOs = append(runeUTXOs, &RuneUTXO{
-						edict:		artifact.Runestone.Edicts[edictIdx],
-						edictUTXO:	currentUTXO,
-					})
-					continue Exit
-				}
-			}
-			// or else it will be bitcoin UTXO
-			bitcoinUTXOs = append(bitcoinUTXOs, currentUTXO)
+Exit:
+	for idx, output := range msgTx.TxOut {
+		// Skip non-relayer received UTXO
+		if !bytes.Equal(output.PkScript, relayerScriptAddress) {
+			continue
 		}
+		currentUTXO := &UTXO{
+			IsRelayersMultisig: true,
+			TxHash:             msgTx.TxHash().String(),
+			OutputIdx:          uint32(idx),
+			OutputAmount:       uint64(output.Value),
+		}
+		// check if is sequenceNumber UTXO
+		if idx == sequenceNumberIdx {
+			sequenceNumberUTXO = currentUTXO
+			continue
+		}
+		// check if is rune UTXO
+		for edictIdx, edictOutput := range edictOutputs {
+			if idx == int(edictOutput) {
+				runeUTXOs = append(runeUTXOs, &RuneUTXO{
+					edict:     artifact.Runestone.Edicts[edictIdx],
+					edictUTXO: currentUTXO,
+				})
+				continue Exit
+			}
+		}
+		// or else it will be bitcoin UTXO
+		bitcoinUTXOs = append(bitcoinUTXOs, currentUTXO)
+	}
 
 	return sequenceNumberUTXO, bitcoinUTXOs, runeUTXOs, nil
 }

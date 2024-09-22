@@ -3,13 +3,11 @@ package bitcoin
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"math/big"
 	"net/http"
-	"os"
-	"strings"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"go.uber.org/zap"
 )
 
 func startSlave(c *Config, p *Provider) {
@@ -22,24 +20,28 @@ func startSlave(c *Config, p *Provider) {
 		Handler: nil,
 	}
 
-	log.Printf("Slave starting on port %s", port)
-	log.Fatal(server.ListenAndServe())
+	p.logger.Info("Slave starting on port", zap.String("port", port))
+	p.logger.Fatal("Failed to start slave", zap.Error(server.ListenAndServe()))
 }
 
 func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
+	p.logger.Info("Slave starting on port", zap.String("port", p.cfg.Port))
 	if r.Method == http.MethodPost {
 		apiKey := r.Header.Get("x-api-key")
 		if apiKey == "" {
+			p.logger.Error("Missing API Key")
 			http.Error(w, "Missing API Key", http.StatusUnauthorized)
 			return
 		}
-		apiKeyHeader := os.Getenv("API_KEY")
+		apiKeyHeader := p.cfg.ApiKey
 		if apiKey != apiKeyHeader {
+			p.logger.Error("Invalid API Key", zap.String("apiKey", apiKey))
 			http.Error(w, "Invalid API Key", http.StatusForbidden)
 			return
 		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			p.logger.Error("Error reading request body", zap.Error(err))
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 			return
 		}
@@ -47,6 +49,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 		var rsi slaveRequestParams
 		err = json.Unmarshal(body, &rsi)
 		if err != nil {
+			p.logger.Error("Error decoding request body", zap.Error(err))
 			http.Error(w, "Error decoding request body", http.StatusInternalServerError)
 			return
 		}
@@ -55,6 +58,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 		returnData, _ := json.Marshal(sigs)
 		w.Write(returnData)
 	} else {
+		p.logger.Error("Method not allowed", zap.String("method", r.Method))
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
@@ -72,7 +76,7 @@ func buildAndSignTxFromDbMessage(sn *big.Int, p *Provider) ([][]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, err := p.BuildAndPartSignBitcoinMessageTx(message.Data, strings.Split(message.Dst, ".")[0])
+	_, _, _, relayerSigns, err := p.HandleBitcoinMessageTx(message)
 	if err != nil {
 		return nil, err
 	}

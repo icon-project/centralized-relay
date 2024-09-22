@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
-	"github.com/icon-project/centralized-relay/relayer/transmission"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -86,10 +85,6 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 		txResult, err := p.client.GetTransactionResult(&types.TransactionHashParam{Hash: res.TxHash})
 		if err != nil {
 			return nil, fmt.Errorf("GenerateMessage:GetTransactionResult %v", err)
-		}
-		// TODO: Bitcoin
-		if err == nil {
-			transmission.CallBitcoinRelay(string(txResult.BlockHeight))
 		}
 		for _, el := range txResult.EventLogs {
 			var (

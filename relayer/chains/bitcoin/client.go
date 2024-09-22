@@ -3,7 +3,10 @@ package bitcoin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
@@ -16,6 +19,14 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
+type FeeResponse struct {
+	FastestFee  uint64 `json:"fastestFee"`
+	HalfHourFee uint64 `json:"halfHourFee"`
+	HourFee     uint64 `json:"hourFee"`
+	EconomyFee  uint64 `json:"economyFee"`
+	MinimumFee  uint64 `json:"minimumFee"`
+}
+
 type IClient interface {
 	// IsConnected() bool
 	// Reconnect() error
@@ -26,8 +37,10 @@ type IClient interface {
 	Subscribe(ctx context.Context, _, query string) error
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context) (uint64, error)
+	GetFeeFromMempool(mempoolURL string) (uint64, error)
 	DecodeAddress(btcAddr string) ([]byte, error)
 	TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error)
+	SendRawTransaction(ctx context.Context, url string, rawMsg []json.RawMessage) (string, error)
 }
 
 // grouped rpc api clients
@@ -64,13 +77,12 @@ func newClient(ctx context.Context, rpcUrl string, user string, password string,
 // query block height
 func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
 	// Get the current block height
-	// blockCount, err := c.client.GetBlockCount()
-	// if err != nil {
-	// 	return 0, err
-	// }
+	blockCount, err := c.client.GetBlockCount()
+	if err != nil {
+		return 0, err
+	}
 
-	// return uint64(blockCount), nil
-	return 2874461, nil
+	return uint64(blockCount), nil
 }
 
 // get transaction reciept
@@ -176,4 +188,56 @@ func (c *Client) DecodeAddress(btcAddr string) ([]byte, error) {
 	}
 
 	return destinationAddrByte, nil
+}
+
+func (c *Client) SendRawTransaction(ctx context.Context, url string, rawMsg []json.RawMessage) (string, error) {
+
+	if len(rawMsg) == 0 {
+		return "", fmt.Errorf("empty raw message")
+	}
+
+	resp, err := http.Post(url, "text/plain", bytes.NewReader(rawMsg[0]))
+	if err != nil {
+		c.log.Error("failed to send transaction", zap.Error(err))
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.log.Error("failed to broadcast transaction", zap.Int("status", resp.StatusCode), zap.String("response", string(body)))
+		return "", fmt.Errorf("broadcast failed: %v", err)
+	}
+
+	return string(body), nil
+}
+
+func (c *Client) GetFeeFromMempool(mempoolURL string) (uint64, error) {
+
+	client := &http.Client{}
+
+	req, err := http.NewRequest("GET", mempoolURL, nil)
+
+	if err != nil {
+		c.log.Error("Failed to create request: %v", zap.Error(err))
+	}
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		c.log.Error("Failed to send request: %v", zap.Error(err))
+	}
+
+	defer resp.Body.Close()
+
+	if err != nil {
+		c.log.Error("Error reading response: %v", zap.Error(err))
+	}
+
+	var feeResponse FeeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&feeResponse); err != nil {
+		return 0, err
+	}
+
+	return feeResponse.FastestFee, nil
 }
