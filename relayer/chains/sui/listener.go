@@ -104,10 +104,10 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 	}
 
 	eventParts := strings.Split(ev.Type, "::")
-	eventSuffix := strings.Join(eventParts[1:], "::")
+	eventType := eventParts[len(eventParts)-1]
 
-	switch eventSuffix {
-	case fmt.Sprintf("%s::%s", ModuleConnection, "Message"):
+	switch eventType {
+	case "Message":
 		msg.EventType = relayerEvents.EmitMessage
 		var emitEvent types.EmitEvent
 		if err := json.Unmarshal(eventBytes, &emitEvent); err != nil {
@@ -125,7 +125,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.Src = p.cfg.NID
 		msg.Dst = emitEvent.To
 
-	case fmt.Sprintf("%s::%s", ModuleMain, "CallMessage"):
+	case "CallMessage":
 		msg.EventType = relayerEvents.CallMessage
 		var callMsgEvent types.CallMsgEvent
 		if err := json.Unmarshal(eventBytes, &callMsgEvent); err != nil {
@@ -149,7 +149,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 		msg.DappModuleCapID = callMsgEvent.DappModuleCapId
 		msg.Dst = p.cfg.NID
 
-	case fmt.Sprintf("%s::%s", ModuleMain, "RollbackMessage"):
+	case "RollbackMessage":
 		msg.EventType = relayerEvents.RollbackMessage
 		var rollbackMsgEvent types.RollbackMsgEvent
 		if err := json.Unmarshal(eventBytes, &rollbackMsgEvent); err != nil {

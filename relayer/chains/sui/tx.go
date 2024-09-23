@@ -66,7 +66,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
 		}
 
-		typeArgs, _, err := p.getRecvParams(context.Background(), message, p.cfg.XcallPkgID, ModuleMain)
+		typeArgs, _, err := p.getRecvParams(context.Background(), message, p.cfg.XcallPkgID, p.cfg.ConnectionModule)
 		if err == nil {
 			callParams = []SuiCallArg{
 				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
@@ -78,7 +78,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			typeArgs = []string{}
 		}
 
-		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, ModuleEntry, MethodRecvMessage), nil
+		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodRecvMessage), nil
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
@@ -375,7 +375,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 				{Type: CallArgPure, Val: p.cfg.ConnectionID},
 				{Type: CallArgPure, Val: messageKey.Src},
 				{Type: CallArgPure, Val: snU128},
-			}, p.cfg.XcallPkgID, ModuleEntry, MethodGetReceipt)
+			}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodGetReceipt)
 		var msgReceived bool
 		wallet, err := p.Wallet()
 		if err != nil {
