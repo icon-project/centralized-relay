@@ -1,6 +1,6 @@
 services:
   relayer:
-    image: iconcommunity/centralized-relayer:latest
+    image: iconcommunity/centralized-relay:latest
     container_name: centralized-relayer
     restart: unless-stopped
     environment:
