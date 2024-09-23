@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	SocketPath = path.Join(os.TempDir(), "relayer.sock")
+	SocketPath = getEnvOrFallback("SOCKET_PATH", path.Join(os.TempDir(), "relayer.sock"))
 	network    = "unix"
 )
 
@@ -380,4 +380,11 @@ func (s *Server) Close() error {
 
 func (s *Server) IsClosed() bool {
 	return s.listener == nil
+}
+
+func getEnvOrFallback(key string, fallback string) string {
+	if val, exists := os.LookupEnv(key); exists {
+		return val
+	}
+	return fallback
 }

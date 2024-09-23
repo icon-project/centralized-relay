@@ -2,47 +2,7 @@ project_name: centralized-relay
 env:
   - CGO_ENABLED=1
 builds:
-  - id: darwin-amd64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
-    goos:
-      - darwin
-    goarch:
-      - amd64
-    env:
-      - CC=o64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
-  - id: darwin-arm64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
-    goos:
-      - darwin
-    goarch:
-      - arm64
-    env:
-      - CC=oa64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
-  - id: linux-amd64
+  - id: amd64
     main: ./main.go
     hooks:
       pre:
@@ -64,7 +24,7 @@ builds:
     tags:
       - muslc
       - netgo
-  - id: linux-arm64
+  - id: arm64
     main: ./main.go
     hooks:
       pre:
@@ -87,16 +47,48 @@ builds:
       - muslc
       - netgo
 
+dockers:
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-amd64
+    dockerfile: goreleaser.dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/amd64"
+  - image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-arm64v8
+    dockerfile: goreleaser.dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: iconcommunity/{{.ProjectName}}:latest
+    image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-latest-arm64v8
+  - name_template: iconcommunity/{{.ProjectName}}:{{ .Tag }}
+    image_templates:
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-amd64
+      - iconcommunity/{{.ProjectName}}:{{ .Tag }}-arm64v8
+
 archives:
   - id: golang-cross
     builds:
-      - darwin-amd64
-      - darwin-arm64
-      - linux-amd64
-      - linux-arm64
+      - amd64
+      - arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    wrap_in_directory: false
+    wrap_in_directory: true
 
 checksum:
   name_template: SHA256SUMS-{{.Version}}.txt
@@ -104,4 +96,4 @@ checksum:
 
 release:
   prerelease: auto
-  draft: false
+  draft: true
