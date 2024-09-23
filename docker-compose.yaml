@@ -3,6 +3,7 @@ services:
     image: iconcommunity/centralized-relay:latest
     container_name: centralized-relayer
     restart: unless-stopped
+    command: start
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
