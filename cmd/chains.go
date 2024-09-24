@@ -11,6 +11,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer"
+	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -162,6 +163,7 @@ func addChainFromFile(a *appState, chainName string, file string) error {
 	if err != nil {
 		return fmt.Errorf("failed to build ChainProvider for %s: %w", file, err)
 	}
+	prov.Config().(provider.ClusterConfig).SetClusterMode(a.config.Global.ClusterMode)
 
 	c := relayer.NewChain(a.log, prov, a.debug)
 	if err = a.config.AddChain(c); err != nil {
