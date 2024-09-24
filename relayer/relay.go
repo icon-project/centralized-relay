@@ -613,10 +613,8 @@ func (r *Relayer) processClusterMessages(ctx context.Context) {
 			case events.TransmitreadyMessage:
 				if dst.Provider.Config().Enabled() {
 					if message.ConnAddress == dst.Provider.Config().GetConnContract() {
-						message.Dst = dst.Provider.NID()
 						iconChain := getIconChain(r.chains)
-						signatures := r.FetchSignatures(ctx, message, iconChain)
-						message.Signatures = signatures
+						message.Signatures = r.FetchSignatures(ctx, message, iconChain)
 						go r.RouteMessage(ctx, message, dst, src)
 					}
 				}
