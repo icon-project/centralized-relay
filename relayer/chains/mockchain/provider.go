@@ -206,3 +206,11 @@ func (p *MockProvider) SetFee(context.Context, string, *big.Int, *big.Int) error
 func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
 
 }
+
+func (p *MockProviderConfig) GetConncontract() string {
+	return ""
+}
+
+func (ip *MockProvider) SignMessage(message []byte) ([]byte, error) {
+	return message, nil
+}

@@ -12,6 +12,7 @@ import (
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/sha3"
 )
 
 type Config struct {
@@ -275,4 +276,21 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Config) GetConncontract() string {
+	return p.Contracts[providerTypes.ConnectionContract]
+}
+
+func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+	wallet, err := p.Wallet()
+	if err != nil {
+		p.log.Error("error getting wallets", zap.Error(err))
+		return nil, err
+	}
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write(message)
+	msgHash := hash.Sum(nil)
+	signedMsg, err := wallet.Sign(msgHash)
+	return signedMsg, err
 }

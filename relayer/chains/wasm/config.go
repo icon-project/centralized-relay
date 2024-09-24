@@ -15,6 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -150,4 +151,8 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 		GRPCClient:        grpcClient,
 		InterfaceRegistry: codec.InterfaceRegistry,
 	}, cometRPCClient.Start()
+}
+
+func (p *Config) GetConncontract() string {
+	return p.Contracts[relayTypes.ConnectionContract]
 }

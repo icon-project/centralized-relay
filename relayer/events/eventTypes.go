@@ -11,4 +11,7 @@ const (
 	GetFee        = "getFee"
 	SetFee        = "setFee"
 	ClaimFee      = "claimFee"
+
+	// Cluster event types
+	AcknowledgeMessage = "acknowledgeMessage"
 )

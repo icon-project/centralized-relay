@@ -178,9 +178,6 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	// build providers for each chain
 	chains := make(relayer.Chains)
 	for chainName, pcfg := range c.ProviderConfigs {
-		if !pcfg.Value.(provider.Config).Enabled() {
-			continue
-		}
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
 			a.homePath, a.debug, chainName,

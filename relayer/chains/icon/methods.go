@@ -14,4 +14,8 @@ var (
 	// XCALL Methods
 	MethodExecuteCall     = "executeCall"
 	MethodExecuteRollback = "executeRollback"
+
+	// Cluster Methods
+	MethodRegisterPacket    = "registerPacket"
+	MethodAcknowledgePacket = "acknowledgePacket"
 )

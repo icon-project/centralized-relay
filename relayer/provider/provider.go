@@ -16,6 +16,7 @@ type Config interface {
 	GetWallet() string
 	Validate() error
 	Enabled() bool
+	GetConncontract() string
 }
 
 type ClusterConfig interface {
@@ -26,6 +27,15 @@ type ClusterConfig interface {
 type ChainQuery interface {
 	QueryLatestHeight(ctx context.Context) (uint64, error)
 	QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
+}
+
+type ClusterChainProvider interface {
+	RegisterClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
+	AcknowledgeClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
+}
+
+type ClusterChainVerifier interface {
+	VerifyMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error)
 }
 
 type ChainProvider interface {
@@ -54,6 +64,8 @@ type ChainProvider interface {
 	GetFee(context.Context, string, bool) (uint64, error)
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
+
+	SignMessage([]byte) ([]byte, error)
 }
 
 // CommonConfig is the common configuration for all chain providers

@@ -182,3 +182,11 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 	p.LastSavedHeightFunc = f
 }
+
+func (p *Config) GetConncontract() string {
+	return p.Contracts[relayertypes.ConnectionContract]
+}
+
+func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+	return p.wallet.Sign(message)
+}

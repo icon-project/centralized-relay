@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -478,4 +479,19 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Config) GetConncontract() string {
+	return p.Contracts[providerTypes.ConnectionContract]
+}
+
+func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write([]byte("\x19Ethereum Signed Message:\n" + fmt.Sprint(len(message)) + string(message)))
+	messageHash := hash.Sum(nil)
+	wallet, err := p.Wallet()
+	if err != nil {
+		return nil, err
+	}
+	return crypto.Sign(messageHash, wallet.PrivateKey)
 }
