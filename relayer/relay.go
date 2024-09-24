@@ -194,11 +194,7 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			go r.flushMessages(ctx)
 		case <-routeTimer.C:
 			// processMessage starting working on all the runtime Messages
-			if r.clusterMode {
-				r.processClusterMessages(ctx)
-			} else {
-				r.processMessages(ctx)
-			}
+			r.processMessages(ctx)
 		case <-heightTimer.C:
 			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
@@ -261,11 +257,12 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.log.Debug("processing", zap.Any("message", message))
 				continue
 			}
-
 			message.ToggleProcessing()
+			if r.processClusterEvents(ctx, message, dst, src) {
+				continue
+			}
 
 			// if message reached delete the message
-
 			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 			if err != nil {
 				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
@@ -282,6 +279,40 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			go r.RouteMessage(ctx, message, dst, src)
 		}
 	}
+}
+
+func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
+	dst *ChainRuntime, src *ChainRuntime) bool {
+	if !r.clusterMode {
+		return false
+	}
+	switch message.EventType {
+	case events.EmitMessage:
+		message.Message.ConnAddress = dst.Provider.Config().GetConnContract()
+		iconChain := getIconChain(r.chains)
+		go r.RegisterClusterMessage(ctx, message, iconChain)
+		return true
+	case events.AcknowledgeMessage:
+		srcChainProvider, err := r.FindChainRuntime(message.Src)
+		if err != nil {
+			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
+			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+		}
+		iconChain := getIconChain(r.chains)
+		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain)
+		return true
+	case events.TransmitreadyMessage:
+		if dst.Provider.Config().Enabled() {
+			if message.ConnAddress == dst.Provider.Config().GetConnContract() {
+				iconChain := getIconChain(r.chains)
+				message.Signatures = r.FetchSignatures(ctx, message, iconChain)
+				go r.RouteMessage(ctx, message, dst, src)
+			}
+		}
+		return true
+	}
+	return false
+
 }
 
 // processBlockInfo->
@@ -579,64 +610,6 @@ func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
 		}
 	}
 	return nil
-}
-
-func (r *Relayer) processClusterMessages(ctx context.Context) {
-	for _, src := range r.chains {
-		for _, message := range src.MessageCache.Messages {
-			dst, err := r.FindChainRuntime(message.Dst)
-			if err != nil {
-				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
-				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-				continue
-			}
-
-			if ok := dst.shouldSendMessage(ctx, message, src); !ok {
-				r.log.Debug("processing", zap.Any("message", message))
-				continue
-			}
-			message.ToggleProcessing()
-			switch message.EventType {
-			case events.EmitMessage:
-				message.Message.ConnAddress = dst.Provider.Config().GetConnContract()
-				iconChain := getIconChain(r.chains)
-				go r.RegisterClusterMessage(ctx, message, iconChain)
-			case events.AcknowledgeMessage:
-				srcChainProvider, err := r.FindChainRuntime(message.Src)
-				if err != nil {
-					r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-					continue
-				}
-				iconChain := getIconChain(r.chains)
-				go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain)
-			case events.TransmitreadyMessage:
-				if dst.Provider.Config().Enabled() {
-					if message.ConnAddress == dst.Provider.Config().GetConnContract() {
-						iconChain := getIconChain(r.chains)
-						message.Signatures = r.FetchSignatures(ctx, message, iconChain)
-						go r.RouteMessage(ctx, message, dst, src)
-					}
-				}
-			default:
-				// if message reached delete the message
-				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
-				if err != nil {
-					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
-					message.ToggleProcessing()
-					continue
-				}
-
-				// if message is received we can remove the message from db
-				if messageReceived {
-					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
-					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-					continue
-				}
-				go r.RouteMessage(ctx, message, dst, src)
-			}
-		}
-	}
 }
 
 func (r *Relayer) RegisterClusterMessage(ctx context.Context, m *types.RouteMessage, iconChain *ChainRuntime) {
