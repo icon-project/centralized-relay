@@ -8,10 +8,11 @@ import (
 
 // All the events
 const (
-	EmitMessage        = "Message(str,int,bytes)"
-	CallMessage        = "CallMessage(str,str,int,int,bytes)"
-	RollbackMessage    = "RollbackMessage(int)"
-	AcknowledgeMessage = "PacketAcknowledged(int,str,int,bytes,str)"
+	EmitMessage          = "Message(str,int,bytes)"
+	CallMessage          = "CallMessage(str,str,int,int,bytes)"
+	RollbackMessage      = "RollbackMessage(int)"
+	AcknowledgeMessage   = "PacketAcknowledged(int,str,int,bytes,str)"
+	TransmitreadyMessage = "TransactionReadyToExecute(str,int,bytes,str,str)"
 )
 
 // EventSigToEventType converts event signature to event type
@@ -29,7 +30,8 @@ func (p *Config) eventMap() map[string]providerTypes.EventMap {
 			event.SigType = map[string]string{EmitMessage: events.EmitMessage}
 		case providerTypes.AggregationContract:
 			event.SigType = map[string]string{
-				AcknowledgeMessage: events.AcknowledgeMessage,
+				AcknowledgeMessage:   events.AcknowledgeMessage,
+				TransmitreadyMessage: events.TransmitreadyMessage,
 			}
 		}
 		eventMap[addr] = event

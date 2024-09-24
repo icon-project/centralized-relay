@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -88,6 +89,18 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			ResFee:    types.NewHexInt(message.ReqID.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
+	case events.TransmitreadyMessage:
+		var sigs []types.HexBytes
+		for _, sig := range message.Signatures {
+			sigs = append(sigs, types.NewHexBytes(sig))
+		}
+		msg := &types.RecvMessageWithSignature{
+			SrcNID:     message.Src,
+			ConnSn:     types.NewHexInt(message.Sn.Int64()),
+			Msg:        types.NewHexBytes(message.Data),
+			Signatures: sigs,
+		}
+		return p.NewIconMessage(p.GetAddressByEventType(events.EmitMessage), msg, MethodRecvMessageWithSignature), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
@@ -322,4 +335,25 @@ func (p *Provider) VerifyMessage(ctx context.Context, key *providerTypes.Message
 		return nil, errors.New("GenerateMessage: no messages found")
 	}
 	return messages, nil
+}
+
+func (p *Provider) FetchSignatures(ctx context.Context, message *providerTypes.Message) ([][]byte, error) {
+	callParam := p.prepareCallParams(MethodGetSignatures, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
+		"source": message.Src,
+		"SN":     types.NewHexInt(message.Sn.Int64()),
+	})
+	var hexSignatures []string
+	var signatures [][]byte
+	err := p.client.Call(callParam, &hexSignatures)
+	if err != nil {
+		p.log.Error("error occurred while getting signatures", zap.Error(err))
+	}
+	for _, hs := range hexSignatures {
+		sig, err := hex.DecodeString(hs[2:])
+		if err != nil {
+			p.log.Error("error occurred while getting signatures", zap.Error(err))
+		}
+		signatures = append(signatures, sig)
+	}
+	return signatures, nil
 }

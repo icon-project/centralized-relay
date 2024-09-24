@@ -118,6 +118,12 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 				return nil, err
 			}
 			messages = append(messages, msg)
+		case TransmitreadyMessage:
+			msg, err := p.parseTransmitReadyEvent(height.Uint64(), event)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, msg)
 		}
 	}
 	return messages, nil
@@ -226,5 +232,32 @@ func (p *Provider) parseAcknowledgeMessageEvent(height uint64, e *types.EventNot
 		Sn:                  sn,
 		WrappedSourceHeight: wrappedHt,
 		Data:                data,
+	}, nil
+}
+
+func (p *Provider) parseTransmitReadyEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 1 {
+		return nil, fmt.Errorf("expected indexed: 1, got: %d indexed", indexdedLen)
+	}
+	sn, err := types.HexInt(e.Data[1]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
+	}
+	wrappedDestination := e.Data[0]
+	wrappedSource := e.Data[3]
+	data, err := types.HexBytes(e.Data[2]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[0])
+	}
+	connAddress := e.Data[4]
+
+	return &providerTypes.Message{
+		MessageHeight: height,
+		EventType:     p.GetEventName(e.Indexed[0]),
+		Dst:           wrappedDestination,
+		Src:           wrappedSource,
+		Sn:            sn,
+		Data:          data,
+		ConnAddress:   connAddress,
 	}, nil
 }

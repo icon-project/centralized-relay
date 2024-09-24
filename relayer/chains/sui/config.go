@@ -93,6 +93,6 @@ func (c *Config) Enabled() bool {
 	return !c.Disabled
 }
 
-func (pc *Config) GetConncontract() string {
+func (pc *Config) GetConnContract() string {
 	return pc.ConnectionID
 }
