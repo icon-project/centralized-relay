@@ -385,3 +385,18 @@ type SetFee struct {
 type ExecuteRollback struct {
 	Sn HexInt `json:"_sn"`
 }
+
+type RegisterPacket struct {
+	Data        HexBytes `json:"data"`
+	Sn          HexInt   `json:"SN"`
+	Height      HexInt   `json:"height"`
+	Source      string   `json:"source"`
+	Destination string   `json:"destination"`
+	ConnAddress string   `json:"connAddr"`
+}
+
+type AcknowledgePacket struct {
+	Source      string   `json:"source"`
+	Sn          HexInt   `json:"SN"`
+	SignedBytes HexBytes `json:"signedBytes"`
+}

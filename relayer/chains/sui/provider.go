@@ -233,3 +233,7 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
 }
+
+func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+	return p.wallet.Sign(message), nil
+}

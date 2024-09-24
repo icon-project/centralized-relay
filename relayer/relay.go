@@ -3,8 +3,11 @@ package relayer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/events"
+	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -128,6 +131,9 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
+		if !chainRuntime.Provider.Config().Enabled() {
+			continue
+		}
 		eg.Go(func() error {
 			lastProcessedTxInfo, err := r.lastProcessedTxStore.Get(chainRuntime.Provider.NID())
 			if err != nil {
@@ -149,6 +155,9 @@ func (r *Relayer) StartBlockProcessors(ctx context.Context, errorChan chan error
 	var eg errgroup.Group
 
 	for _, chainRuntime := range r.chains {
+		if !chainRuntime.Provider.Config().Enabled() {
+			continue
+		}
 		eg.Go(func() error {
 			for {
 				select {
@@ -185,7 +194,11 @@ func (r *Relayer) StartRouter(ctx context.Context, flushInterval time.Duration) 
 			go r.flushMessages(ctx)
 		case <-routeTimer.C:
 			// processMessage starting working on all the runtime Messages
-			r.processMessages(ctx)
+			if r.clusterMode {
+				r.processClusterMessages(ctx)
+			} else {
+				r.processMessages(ctx)
+			}
 		case <-heightTimer.C:
 			go r.SaveChainsBlockHeight(ctx)
 		case <-cleanMessageTimer.C:
@@ -317,7 +330,23 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
 	return func(key *types.MessageKey, response *types.TxResponse, err error) {
 		routeMessage, ok := src.MessageCache.Get(key)
+		originaldst := key.Dst
 		if !ok {
+			if !r.clusterMode {
+				r.log.Error("key not found in messageCache", zap.Any("key", &key))
+				return
+			}
+			// fix for emitMessage as src/dst would be different
+			// for the actual processing in cluster mode
+			if key.EventType == events.EmitMessage {
+				routeMessage = &types.RouteMessage{
+					Message: &types.Message{
+						MessageHeight: 0,
+					},
+				}
+			}
+		}
+		if routeMessage == nil {
 			r.log.Error("key not found in messageCache", zap.Any("key", &key))
 			return
 		}
@@ -325,20 +354,26 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 			dst.log.Info("message relayed successfully",
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
-				zap.String("event_type", routeMessage.EventType),
+				zap.String("event_type", key.EventType),
 				zap.Any("sn", key.Sn),
 				zap.String("tx_hash", response.TxHash),
 			)
+			if r.clusterMode && key.EventType == events.EmitMessage {
+				key.Dst = key.Src
+			}
 
 			// cannot clear incase of finality block
 			if dst.Provider.FinalityBlock(ctx) > 0 {
-				txObj := types.NewTransactionObject(types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight), response.TxHash, uint64(response.Height))
+				txObj := types.NewTransactionObject(
+					types.NewMessagekeyWithMessageHeight(key, routeMessage.MessageHeight),
+					response.TxHash, uint64(response.Height))
 				r.log.Info("storing txhash to check finality later", zap.Any("txObj", txObj))
 				if err := r.finalityStore.StoreTxObject(txObj); err != nil {
 					r.log.Error("error occured: while storing transaction object in db", zap.Error(err))
 					return
 				}
 			}
+			key.Dst = originaldst
 			// if success remove message from everywhere
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
@@ -408,6 +443,9 @@ func (r *Relayer) StartFinalityProcessor(ctx context.Context) {
 
 func (r *Relayer) CheckFinality(ctx context.Context) {
 	for nid, c := range r.chains {
+		if !c.Provider.Config().Enabled() {
+			continue
+		}
 		// check for the finality only if finalityblock is provided by the chain
 		finalityBlock := c.Provider.FinalityBlock(ctx)
 		latestHeight := c.LastBlockHeight
@@ -532,4 +570,119 @@ func (r *Relayer) cleanExpiredMessages(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
+	for _, v := range chains {
+		if v.Provider.Type() == "icon" && strings.Contains(v.Provider.NID(), "icon") {
+			return v
+		}
+	}
+	return nil
+}
+
+func (r *Relayer) processClusterMessages(ctx context.Context) {
+	for _, src := range r.chains {
+		for _, message := range src.MessageCache.Messages {
+			dst, err := r.FindChainRuntime(message.Dst)
+			if err != nil {
+				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+				continue
+			}
+
+			if ok := dst.shouldSendMessage(ctx, message, src); !ok {
+				r.log.Debug("processing", zap.Any("message", message))
+				continue
+			}
+			message.ToggleProcessing()
+			switch message.EventType {
+			case events.EmitMessage:
+				message.Message.ConnAddress = dst.Provider.Config().GetConncontract()
+				iconChain := getIconChain(r.chains)
+				go r.RegisterClusterMessage(ctx, message, iconChain)
+			case events.AcknowledgeMessage:
+				srcChainProvider, err := r.FindChainRuntime(message.Src)
+				if err != nil {
+					r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					continue
+				}
+				iconChain := getIconChain(r.chains)
+				go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain)
+			default:
+				// if message reached delete the message
+				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
+				if err != nil {
+					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
+					message.ToggleProcessing()
+					continue
+				}
+
+				// if message is received we can remove the message from db
+				if messageReceived {
+					dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					continue
+				}
+				go r.RouteMessage(ctx, message, dst, src)
+			}
+		}
+	}
+}
+
+func (r *Relayer) RegisterClusterMessage(ctx context.Context, m *types.RouteMessage, iconChain *ChainRuntime) {
+	m.IncrementRetry()
+	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
+		if err := clusterProvider.RegisterClusterMessage(ctx, m.Message,
+			r.callback(ctx, iconChain, iconChain, m.MessageKey())); err != nil {
+			iconChain.log.Error("message register failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
+			r.HandleMessageFailed(m, iconChain, iconChain)
+		}
+		return
+	}
+	r.log.Warn("no provider found for registering cluster message")
+}
+
+func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.RouteMessage, src, dst, iconChain *ChainRuntime) {
+	var messages []*types.Message
+	var err error
+	if clusterProvider, ok := src.Provider.(provider.ClusterChainVerifier); ok {
+		messages, err = clusterProvider.VerifyMessage(ctx, &types.MessageKeyWithMessageHeight{
+			Height: message.WrappedSourceHeight.Uint64(),
+		})
+	} else {
+		messages, err = src.Provider.GenerateMessages(ctx, &types.MessageKeyWithMessageHeight{
+			Height: message.WrappedSourceHeight.Uint64(),
+		})
+	}
+	if err != nil {
+		r.log.Error("required message not found", zap.String("nid", message.Dst),
+			zap.Uint64("nid", message.MessageHeight))
+		message.IncrementRetry()
+		message.ToggleProcessing()
+		return
+	}
+	message.Data, err = dst.Provider.SignMessage(message.Data)
+	if err != nil {
+		r.log.Error("Error signing message", zap.Error(err))
+		return
+	}
+	for _, msg := range messages {
+		if msg.Sn.Cmp(message.Sn) == 0 {
+			r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
+		}
+	}
+}
+
+func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteMessage, src, iconChain *ChainRuntime) {
+	m.IncrementRetry()
+	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
+		if err := clusterProvider.AcknowledgeClusterMessage(ctx, m.Message, r.callback(ctx, iconChain, iconChain, m.MessageKey())); err != nil {
+			iconChain.log.Error("message acknowledgement failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
+			r.HandleMessageFailed(m, iconChain, iconChain)
+		}
+		return
+	}
+	r.log.Warn("no provider found for acknowledging cluster message")
 }

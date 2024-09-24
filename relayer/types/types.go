@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 5
-	StaleMarkCount           = MaxTxRetry * 3
-	RouteDuration            = 3 * time.Second
-	XcallContract            = "xcall"
-	ConnectionContract       = "connection"
-	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 3*time.Second + RouteDuration
+	MaxTxRetry          uint8 = 5
+	StaleMarkCount            = MaxTxRetry * 3
+	RouteDuration             = 3 * time.Second
+	XcallContract             = "xcall"
+	ConnectionContract        = "connection"
+	AggregationContract       = "aggregation"
+	SupportedContracts        = []string{XcallContract, ConnectionContract}
+	RetryInterval             = 3*time.Second + RouteDuration
 )
 
 type BlockInfo struct {
@@ -25,14 +26,16 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst             string   `json:"dst"`
-	Src             string   `json:"src"`
-	Sn              *big.Int `json:"sn"`
-	Data            []byte   `json:"data"`
-	MessageHeight   uint64   `json:"messageHeight"`
-	EventType       string   `json:"eventType"`
-	ReqID           *big.Int `json:"reqID,omitempty"`
-	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
+	Dst                 string   `json:"dst"`
+	Src                 string   `json:"src"`
+	Sn                  *big.Int `json:"sn"`
+	Data                []byte   `json:"data"`
+	MessageHeight       uint64   `json:"messageHeight"`
+	EventType           string   `json:"eventType"`
+	ReqID               *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID     string   `json:"dappModuleCapID,omitempty"`
+	WrappedSourceHeight *big.Int `json:"height"`
+	ConnAddress         string   `json:"conn-addr"`
 
 	TxInfo []byte `json:"-"`
 }
