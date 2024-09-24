@@ -598,7 +598,7 @@ func (r *Relayer) processClusterMessages(ctx context.Context) {
 			message.ToggleProcessing()
 			switch message.EventType {
 			case events.EmitMessage:
-				message.Message.ConnAddress = dst.Provider.Config().GetConncontract()
+				message.Message.ConnAddress = dst.Provider.Config().GetConnContract()
 				iconChain := getIconChain(r.chains)
 				go r.RegisterClusterMessage(ctx, message, iconChain)
 			case events.AcknowledgeMessage:
@@ -610,6 +610,14 @@ func (r *Relayer) processClusterMessages(ctx context.Context) {
 				}
 				iconChain := getIconChain(r.chains)
 				go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain)
+			case events.TransmitreadyMessage:
+				if dst.Provider.Config().Enabled() {
+					if message.ConnAddress == dst.Provider.Config().GetConnContract() {
+						iconChain := getIconChain(r.chains)
+						message.Signatures = r.FetchSignatures(ctx, message, iconChain)
+						go r.RouteMessage(ctx, message, dst, src)
+					}
+				}
 			default:
 				// if message reached delete the message
 				messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
@@ -685,4 +693,19 @@ func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteM
 		return
 	}
 	r.log.Warn("no provider found for acknowledging cluster message")
+}
+
+func (r *Relayer) FetchSignatures(ctx context.Context, m *types.RouteMessage,
+	iconChain *ChainRuntime) [][]byte {
+	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
+		signatures, err := clusterProvider.FetchSignatures(ctx, m.Message)
+		if err != nil {
+			iconChain.log.Error("fetching signatures failed", zap.String("src", m.Src),
+				zap.String("event_type", m.EventType), zap.Error(err))
+			return nil
+		}
+		return signatures
+	}
+	r.log.Warn("no provider found for fetching signatures")
+	return nil
 }

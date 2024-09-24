@@ -36,6 +36,7 @@ type Message struct {
 	DappModuleCapID     string   `json:"dappModuleCapID,omitempty"`
 	WrappedSourceHeight *big.Int `json:"height"`
 	ConnAddress         string   `json:"conn-addr"`
+	Signatures          [][]byte `json:"signatures"`
 
 	TxInfo []byte `json:"-"`
 }

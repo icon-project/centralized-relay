@@ -207,7 +207,7 @@ func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
 
 }
 
-func (p *MockProviderConfig) GetConncontract() string {
+func (p *MockProviderConfig) GetConnContract() string {
 	return ""
 }
 

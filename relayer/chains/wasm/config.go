@@ -153,6 +153,6 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 	}, cometRPCClient.Start()
 }
 
-func (p *Config) GetConncontract() string {
+func (p *Config) GetConnContract() string {
 	return p.Contracts[relayTypes.ConnectionContract]
 }

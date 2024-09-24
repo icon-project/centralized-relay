@@ -400,3 +400,10 @@ type AcknowledgePacket struct {
 	Sn          HexInt   `json:"SN"`
 	SignedBytes HexBytes `json:"signedBytes"`
 }
+
+type RecvMessageWithSignature struct {
+	SrcNID     string     `json:"srcNetwork"`
+	ConnSn     HexInt     `json:"_connSn"`
+	Msg        HexBytes   `json:"msg"`
+	Signatures []HexBytes `json:"signatures"`
+}

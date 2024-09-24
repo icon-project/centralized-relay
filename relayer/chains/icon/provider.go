@@ -278,7 +278,7 @@ func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
 }
 
-func (p *Config) GetConncontract() string {
+func (p *Config) GetConnContract() string {
 	return p.Contracts[providerTypes.ConnectionContract]
 }
 

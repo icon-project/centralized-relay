@@ -183,7 +183,7 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 	p.LastSavedHeightFunc = f
 }
 
-func (p *Config) GetConncontract() string {
+func (p *Config) GetConnContract() string {
 	return p.Contracts[relayertypes.ConnectionContract]
 }
 
