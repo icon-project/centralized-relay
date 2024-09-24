@@ -129,8 +129,9 @@ $ %s cfg i`, appName, a.homePath, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	Timeout  string `yaml:"timeout" json:"timeout"`
-	KMSKeyID string `yaml:"kms-key-id" json:"kms-key-id"`
+	Timeout     string `yaml:"timeout" json:"timeout"`
+	KMSKeyID    string `yaml:"kms-key-id" json:"kms-key-id"`
+	ClusterMode bool   `yaml:"cluster-mode" json:"cluster-mode"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
@@ -187,6 +188,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
+		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.ClusterMode)
 		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID)
 		if err != nil {
 			return nil, err

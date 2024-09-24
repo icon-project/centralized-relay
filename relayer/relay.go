@@ -61,9 +61,10 @@ type Relayer struct {
 	blockStore           *store.BlockStore
 	finalityStore        *store.FinalityStore
 	lastProcessedTxStore *store.LastProcessedTxStore
+	clusterMode          bool
 }
 
-func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool) (*Relayer, error) {
+func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh, clusterMode bool) (*Relayer, error) {
 	// if fresh clearing db
 	if fresh {
 		if err := db.ClearStore(); err != nil {
@@ -109,6 +110,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 		blockStore:           blockStore,
 		finalityStore:        finalityStore,
 		lastProcessedTxStore: lastProcessedTxStore,
+		clusterMode:          clusterMode,
 	}, nil
 }
 

@@ -18,6 +18,11 @@ type Config interface {
 	Enabled() bool
 }
 
+type ClusterConfig interface {
+	SetClusterMode(bool)
+	GetClusterMode() bool
+}
+
 type ChainQuery interface {
 	QueryLatestHeight(ctx context.Context) (uint64, error)
 	QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
@@ -62,6 +67,7 @@ type CommonConfig struct {
 	NID           string                  `json:"nid" yaml:"nid"`
 	HomeDir       string                  `json:"-" yaml:"-"`
 	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+	ClusterMode   bool                    `yaml:"cluster-mode" json:"cluster-mode"`
 }
 
 // Enabled returns true if the provider is enabled
@@ -86,4 +92,12 @@ func (pc *CommonConfig) Validate() error {
 		return fmt.Errorf("home-dir cannot be empty")
 	}
 	return nil
+}
+
+func (c *CommonConfig) SetClusterMode(mode bool) {
+	c.ClusterMode = mode
+}
+
+func (c *CommonConfig) GetClusterMode() bool {
+	return c.ClusterMode
 }
