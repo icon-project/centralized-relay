@@ -638,7 +638,7 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		})
 	}
 	if err != nil {
-		r.log.Error("required message not found", zap.String("nid", message.Dst),
+		r.log.Error("required message not found", zap.String("src", message.Src),
 			zap.Uint64("nid", message.MessageHeight))
 		message.IncrementRetry()
 		message.ToggleProcessing()
