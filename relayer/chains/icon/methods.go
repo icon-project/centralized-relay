@@ -19,5 +19,5 @@ var (
 	MethodRegisterPacket           = "registerPacket"
 	MethodAcknowledgePacket        = "acknowledgePacket"
 	MethodGetSignatures            = "getSignature"
-	MethodRecvMessageWithSignature = "recvMessageWithSignature"
+	MethodRecvMessageWithSignature = "recvMessageWithSignatures"
 )
