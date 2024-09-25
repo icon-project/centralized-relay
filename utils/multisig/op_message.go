@@ -25,12 +25,13 @@ const (
 )
 
 type XCallMessage struct {
-	Action       string
-	TokenAddress string
-	From         string
-	To           string
-	Amount       []byte
-	Data         []byte
+	MessageType		uint8
+	Action			string
+	TokenAddress	string
+	From			string
+	To				string
+	Amount			[]byte
+	Data			[]byte
 }
 
 type RadFiProvideLiquidityDetail struct {

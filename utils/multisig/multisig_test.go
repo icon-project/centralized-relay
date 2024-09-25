@@ -401,6 +401,7 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	// Add Bridge Message
 	payload, _ := CreateBridgePayload(
 		&XCallMessage{
+			MessageType:  123,
 			Action:       "Deposit",
 			TokenAddress: "0:0",                                                            // bitcoin address
 			To:           "0x2.icon/hx39eddef484f6bb08072c59cc0a206e6713fc6d7d",            //(receiver)
@@ -461,6 +462,7 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	decodedMessage, err := ReadBridgeMessage(signedMsgTx)
 	fmt.Println("err decode: ", err)
 	fmt.Println("-----------decodedMessage---------- ")
+	fmt.Println("Message.MessageType: ", decodedMessage.Message.MessageType)
 	fmt.Println("Message.Action: ", decodedMessage.Message.Action)
 	fmt.Println("Message.TokenAddress: ", decodedMessage.Message.TokenAddress)
 	fmt.Println("Message.From: ", decodedMessage.Message.From)
