@@ -368,14 +368,19 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 		if err != nil {
 			return false, err
 		}
+
+		callArgs := []SuiCallArg{{Type: CallArgObject, Val: p.cfg.XcallStorageID}}
+		if p.cfg.ConnectionID != "" {
+			callArgs = append(callArgs, SuiCallArg{Type: CallArgPure, Val: p.cfg.ConnectionID})
+		}
+		callArgs = append(callArgs, []SuiCallArg{
+			{Type: CallArgPure, Val: messageKey.Src},
+			{Type: CallArgPure, Val: snU128},
+		}...)
+
 		suiMessage := p.NewSuiMessage(
 			[]string{},
-			[]SuiCallArg{
-				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
-				{Type: CallArgPure, Val: p.cfg.ConnectionID},
-				{Type: CallArgPure, Val: messageKey.Src},
-				{Type: CallArgPure, Val: snU128},
-			}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodGetReceipt)
+			callArgs, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodGetReceipt)
 		var msgReceived bool
 		wallet, err := p.Wallet()
 		if err != nil {
