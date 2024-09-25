@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,7 +37,7 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 var (
-	BTCToken         = "0:0"
+	BTCToken         = "0:1"
 	MethodDeposit    = "Deposit"
 	MethodWithdrawTo = "WithdrawTo"
 	MasterMode       = "master"
@@ -78,38 +79,38 @@ type StoredMessageData struct {
 }
 
 type Provider struct {
-	logger               *zap.Logger
-	cfg                  *Config
-	client               IClient
-	LastSavedHeightFunc  func() uint64
-	LastSerialNumFunc    func() *big.Int
-	multisigAddrScript   []byte
-	assetManagerAddrIcon string
-	bearToken            string
-	httpServer           chan struct{}
-	db                   *leveldb.DB
-	chainParam           *chaincfg.Params
+	logger              *zap.Logger
+	cfg                 *Config
+	client              IClient
+	LastSavedHeightFunc func() uint64
+	LastSerialNumFunc   func() *big.Int
+	multisigAddrScript  []byte
+	bearToken           string
+	httpServer          chan struct{}
+	db                  *leveldb.DB
+	chainParam          *chaincfg.Params
 }
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
-	OpCode                int    `json:"op-code" yaml:"op-code"`
-	UniSatURL             string `json:"unisat-url" yaml:"unisat-url"`
-	UniSatKey             string `json:"unisat-key" yaml:"unisat-key"`
-	MempoolURL            string `json:"mempool-url" yaml:"mempool-url"`
-	Type                  string `json:"type" yaml:"type"`
-	User                  string `json:"rpc-user" yaml:"rpc-user"`
-	Password              string `json:"rpc-password" yaml:"rpc-password"`
-	Mode                  string `json:"mode" yaml:"mode"`
-	SlaveServer1          string `json:"slave-server-1" yaml:"slave-server-1"`
-	SlaveServer2          string `json:"slave-server-2" yaml:"slave-server-2"`
-	Port                  string `json:"port" yaml:"port"`
-	ApiKey                string `json:"api-key" yaml:"api-key"`
-	MasterPubKey          string `json:"masterPubKey" yaml:"masterPubKey"`
-	Slave1PubKey          string `json:"slave1PubKey" yaml:"slave1PubKey"`
-	Slave2PubKey          string `json:"slave2PubKey" yaml:"slave2PubKey"`
-	RelayerPrivKey        string `json:"relayerPrivKey" yaml:"relayerPrivKey"`
-	RecoveryLockTime      int    `json:"recoveryLockTime" yaml:"recoveryLockTime"`
+	OpCode                int      `json:"op-code" yaml:"op-code"`
+	UniSatURL             string   `json:"unisat-url" yaml:"unisat-url"`
+	UniSatKey             string   `json:"unisat-key" yaml:"unisat-key"`
+	MempoolURL            string   `json:"mempool-url" yaml:"mempool-url"`
+	Type                  string   `json:"type" yaml:"type"`
+	User                  string   `json:"rpc-user" yaml:"rpc-user"`
+	Password              string   `json:"rpc-password" yaml:"rpc-password"`
+	Mode                  string   `json:"mode" yaml:"mode"`
+	SlaveServer1          string   `json:"slave-server-1" yaml:"slave-server-1"`
+	SlaveServer2          string   `json:"slave-server-2" yaml:"slave-server-2"`
+	Port                  string   `json:"port" yaml:"port"`
+	ApiKey                string   `json:"api-key" yaml:"api-key"`
+	MasterPubKey          string   `json:"masterPubKey" yaml:"masterPubKey"`
+	Slave1PubKey          string   `json:"slave1PubKey" yaml:"slave1PubKey"`
+	Slave2PubKey          string   `json:"slave2PubKey" yaml:"slave2PubKey"`
+	RelayerPrivKey        string   `json:"relayerPrivKey" yaml:"relayerPrivKey"`
+	RecoveryLockTime      int      `json:"recoveryLockTime" yaml:"recoveryLockTime"`
+	Connections           []string `json:"connections" yaml:"connections"`
 }
 
 // NewProvider returns new Icon provider
@@ -142,14 +143,20 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	c.HomeDir = homepath
 	c.HomeDir = homepath
 
+	msPubkey, err := client.DecodeAddress(c.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Provider{
-		logger:            log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
-		cfg:               c,
-		client:            client,
-		LastSerialNumFunc: func() *big.Int { return big.NewInt(0) },
-		httpServer:        make(chan struct{}),
-		db:                db, // Add the database to the Provider
-		chainParam:        chainParam,
+		logger:             log.With(zap.Stringp("nid", &c.NID), zap.Stringp("name", &c.ChainName)),
+		cfg:                c,
+		client:             client,
+		LastSerialNumFunc:  func() *big.Int { return big.NewInt(0) },
+		httpServer:         make(chan struct{}),
+		db:                 db, // Add the database to the Provider
+		chainParam:         chainParam,
+		multisigAddrScript: msPubkey,
 	}
 	// Run an http server to help btc interact each others
 	go func() {
@@ -223,8 +230,8 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 }
 
 // Wallet returns the wallet of the provider
-func (p *Provider) Wallet() error {
-	return nil
+func (p *Provider) Wallet() (*multisig.MultisigWallet, error) {
+	return p.buildMultisigWallet()
 }
 
 func (p *Provider) Type() string {
@@ -232,7 +239,7 @@ func (p *Provider) Type() string {
 }
 
 func (p *Provider) Config() provider.Config {
-	return nil
+	return p.cfg
 }
 
 func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayTypes.BlockInfo) error {
@@ -940,6 +947,13 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 
 	return p.getMessagesFromTxList(messages)
 }
+func (p *Provider) extractOutputReceiver(tx *wire.MsgTx) []string {
+	receiverAddresses := []string{}
+	for _, out := range tx.TxOut {
+		receiverAddresses = append(receiverAddresses, p.getAddressesFromTx(out, p.chainParam)...)
+	}
+	return receiverAddresses
+}
 
 func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, error) {
 	receiverAddresses := []string{}
@@ -957,7 +971,15 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 	messageInfo := bridgeMessage.Message
 
-	if messageInfo.Action == MethodDeposit {
+	isValidConnector := false
+	for _, connector := range bridgeMessage.Connectors {
+		if slices.Contains(p.cfg.Connections, connector) {
+			isValidConnector = true
+			break
+		}
+	}
+
+	if messageInfo.Action == MethodDeposit && isValidConnector {
 		actionMethod = MethodDeposit
 		// maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
@@ -974,10 +996,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		// call api to verify the data
 		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
 		verified := false
-
+		receiverAddresses = p.extractOutputReceiver(tx.Tx)
 		for i, out := range tx.Tx.TxOut {
-			receiverAddresses = append(receiverAddresses, p.getAddressesFromTx(out, p.chainParam)...)
-			// TODO: question: why need to compare multisigAddrScript?
 			if bytes.Compare(out.PkScript, p.multisigAddrScript) != 0 {
 				continue
 			}
