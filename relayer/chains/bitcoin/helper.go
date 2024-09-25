@@ -108,9 +108,9 @@ func ToXCallMessage(data interface{}, from, to string, sn uint, protocols []stri
 		}
 
 		//from := "0x3.BTC/bc1qvqkshkdj67uwvlwschyq8wja6df4juhewkg5fg"
-
+		// todo: s, extract message type from OP_RETURN DATA
 		// encode to xcall format
-		res, err = XcallFormat(provideLiquidity, from, to, sn, protocols)
+		res, err = XcallFormat(provideLiquidity, from, to, sn, protocols, uint8(CALL_MESSAGE_TYPE))
 		if err != nil {
 			return nil, err
 		}
@@ -123,13 +123,13 @@ func ToXCallMessage(data interface{}, from, to string, sn uint, protocols []stri
 	return res, nil
 }
 
-func XcallFormat(callData []byte, from, to string, sn uint, protocols []string) ([]byte, error) {
+func XcallFormat(callData []byte, from, to string, sn uint, protocols []string, messType uint8) ([]byte, error) {
 	//
 	csV2 := CSMessageRequestV2{
 		From:        from,
 		To:          to,
 		Sn:          big.NewInt(int64(sn)).Bytes(),
-		MessageType: uint8(CALL_MESSAGE_TYPE),
+		MessageType: messType,
 		Data:        callData,
 		Protocols:   protocols,
 	}

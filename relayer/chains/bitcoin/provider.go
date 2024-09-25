@@ -1050,7 +1050,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	from := p.cfg.NID + "/" + p.cfg.Address
 	decodeMessage, _ := codec.RLP.MarshalToBytes(messageInfo)
-	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors)
+	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors, uint8(CALL_MESSAGE_ROLLBACK_TYPE))
 
 	relayMessage := &relayTypes.Message{
 		Dst: "0x2.icon",
