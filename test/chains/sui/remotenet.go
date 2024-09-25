@@ -172,8 +172,8 @@ func (an *SuiRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 		params = []SuiCallArg{
 			{Type: CallArgObject, Val: an.IBCAddresses[dappKey+StateSuffix]},
 			{Type: CallArgPure, Val: connection.Nid},
-			{Type: CallArgPure, Val: connectionName},
-			{Type: CallArgPure, Val: connection.Destination},
+			{Type: CallArgPure, Val: []string{connectionName}},
+			{Type: CallArgPure, Val: []string{connection.Destination}},
 		}
 
 		msg = an.NewSuiMessage(params, an.IBCAddresses[dappKey], MockAppModule, "add_connection")
@@ -344,8 +344,8 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	dappModule := centralized.SuiDappModule{
 		Name:     MockAppModule,
-		CapId:    an.GetContractAddress(dappKey + IdCapSuffix)[2:],
-		ConfigId: an.GetContractAddress(dappKey + StateSuffix),
+		CapID:    an.GetContractAddress(dappKey + IdCapSuffix)[2:],
+		ConfigID: an.GetContractAddress(dappKey + StateSuffix),
 	}
 	config := &centralized.SUIRelayerChainConfig{
 		Type: "sui",
@@ -353,13 +353,17 @@ func (an *SuiRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 			NID:             an.Config().ChainID,
 			RPCURL:          an.GetRPCAddress(),
 			WebsocketUrl:    an.testconfig.WebsocketUrl,
-			XcallPkgIds:     []string{an.GetContractAddress("xcall")},
+			XcallPkgId:      an.GetContractAddress("xcall"),
 			XcallStorageId:  an.GetContractAddress(xcallStorage),
 			ConnectionId:    an.GetContractAddress("connection"),
 			ConnectionCapId: an.GetContractAddress("connectionCap"),
-			DappPkgId:       an.GetContractAddress(dappKey),
-			DappModules: []centralized.SuiDappModule{
-				dappModule,
+			Dapps: []centralized.SuiDapp{
+				{
+					PkgID: an.GetContractAddress(dappKey),
+					Modules: []centralized.SuiDappModule{
+						dappModule,
+					},
+				},
 			},
 			StartHeight:   0,
 			BlockInterval: "0s",
@@ -543,11 +547,10 @@ func (an *SuiRemotenet) SetupXCall(ctx context.Context) error {
 	params = []SuiCallArg{
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallStorage]},
 		{Type: CallArgObject, Val: an.IBCAddresses[xcallAdmin]},
-		{Type: CallArgPure, Val: "sui"},
 		{Type: CallArgPure, Val: connectionName},
 		{Type: CallArgPure, Val: an.testconfig.RelayWalletAddress},
 	}
-	msg = an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection")
+	msg = an.NewSuiMessage(params, an.IBCAddresses["xcall"], "main", "register_connection_admin")
 	resp, err := an.callContract(ctx, msg)
 	if err != nil {
 		return err

@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 	"sync"
+	"time"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -17,15 +18,13 @@ type Config struct {
 	Address   string `yaml:"address" json:"address"`
 	NID       string `yaml:"nid" json:"nid"`
 
-	// list of xcall package ids in order of latest to oldest in descending order
-	XcallPkgIDs    []string `yaml:"xcall-package-ids" json:"xcall-package-ids"`
-	XcallStorageID string   `yaml:"xcall-storage-id" json:"xcall-storage-id"`
+	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
+	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
 	ConnectionID    string `yaml:"connection-id" json:"connection-id"`
 	ConnectionCapID string `yaml:"connection-cap-id" json:"connection-cap-id"`
 
-	DappPkgID   string       `yaml:"dapp-package-id" json:"dapp-package-id"`
-	DappModules []DappModule `yaml:"dapp-modules" json:"dapp-modules"`
+	Dapps []Dapp `yaml:"dapps" json:"dapps"`
 
 	HomeDir  string `yaml:"home-dir" json:"home-dir"`
 	GasLimit uint64 `yaml:"gas-limit" json:"gas-limit"`
@@ -35,12 +34,23 @@ type Config struct {
 	// Should be empty if we want to query using last saved tx-digest
 	// from database.
 	StartTxDigest string `json:"start-tx-digest" yaml:"start-tx-digest"`
+
+	PollInterval time.Duration `json:"poll-interval" yaml:"poll-interval"`
 }
 
 type DappModule struct {
 	Name     string `yaml:"name" json:"name"`
 	CapID    string `yaml:"cap-id" json:"cap-id"`
 	ConfigID string `yaml:"config-id" json:"config-id"`
+}
+
+type Dapp struct {
+	PkgID string `json:"package-id" yaml:"package-id"`
+
+	// DappConstant is a map of name of sui constant to object id.
+	Constants map[string]string `json:"constants" yaml:"constants"`
+
+	Modules []DappModule `json:"modules" yaml:"modules"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {

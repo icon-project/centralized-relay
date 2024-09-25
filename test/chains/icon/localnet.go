@@ -351,7 +351,7 @@ func (in *IconRemotenet) FindEvent(ctx context.Context, startHeight uint64, cont
 		Indexed:   index,
 	}
 	// Create a context with a timeout of 16 seconds.
-	_ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	_ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	// Create an event request with the given filter and start height.
