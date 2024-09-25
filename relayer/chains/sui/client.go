@@ -3,7 +3,6 @@ package sui
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"github.com/coming-chat/go-sui/v2/account"
@@ -37,7 +36,6 @@ type IClient interface {
 	QueryContract(ctx context.Context, senderAddr string, txBytes lib.Base64Data, resPtr interface{}) error
 
 	GetCheckpoint(ctx context.Context, checkpoint uint64) (*suitypes.CheckpointResponse, error)
-	GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error)
 
 	GetObject(ctx context.Context, objID sui_types.ObjectID, options *types.SuiObjectDataOptions) (*types.SuiObjectResponse, error)
 
@@ -71,6 +69,12 @@ type IClient interface {
 		ctx context.Context,
 		digests []string,
 	) ([]*types.SuiTransactionBlockResponse, error)
+
+	GetEventsFromTxBlocks(
+		ctx context.Context,
+		digests []string,
+		txFilter func(*types.SuiTransactionBlockResponse) bool,
+	) ([]suitypes.EventResponse, error)
 }
 
 type Client struct {
@@ -223,7 +227,7 @@ func (c *Client) GetCheckpoint(ctx context.Context, checkpoint uint64) (*suitype
 	return &checkpointRes, nil
 }
 
-func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []string, digests []string) ([]suitypes.EventResponse, error) {
+func (c *Client) GetEventsFromTxBlocks(ctx context.Context, digests []string, txFilter func(*types.SuiTransactionBlockResponse) bool) ([]suitypes.EventResponse, error) {
 	txnBlockResponses := []*types.SuiTransactionBlockResponse{}
 
 	if err := c.rpc.CallContext(
@@ -231,15 +235,18 @@ func (c *Client) GetEventsFromTxBlocks(ctx context.Context, allowedEventTypes []
 		&txnBlockResponses,
 		suitypes.SuiMethod("sui_multiGetTransactionBlocks"),
 		digests,
-		types.SuiTransactionBlockResponseOptions{ShowEvents: true},
+		types.SuiTransactionBlockResponseOptions{
+			ShowEvents:        true,
+			ShowObjectChanges: true,
+		},
 	); err != nil {
 		return nil, err
 	}
 
 	var events []suitypes.EventResponse
 	for _, txRes := range txnBlockResponses {
-		for _, ev := range txRes.Events {
-			if slices.Contains(allowedEventTypes, ev.Type) {
+		if txFilter(txRes) {
+			for _, ev := range txRes.Events {
 				events = append(events, suitypes.EventResponse{
 					SuiEvent:   ev,
 					Checkpoint: txRes.Checkpoint,

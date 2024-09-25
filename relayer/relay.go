@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -259,7 +260,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 
 			// if message is received we can remove the message from db
-			if messageReceived {
+			if message.EventType == events.EmitMessage && messageReceived {
 				dst.log.Info("message already received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()))
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
@@ -321,10 +322,10 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 		}
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
+				zap.Any("sn", key.Sn),
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
-				zap.String("event_type", routeMessage.EventType),
-				zap.Any("sn", key.Sn),
+				zap.String("event_type", key.EventType),
 				zap.String("tx_hash", response.TxHash),
 			)
 
