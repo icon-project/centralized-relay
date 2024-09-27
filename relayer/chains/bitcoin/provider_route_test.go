@@ -15,12 +15,14 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/bxelab/runestone"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/multisig"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"
+	"lukechampine.com/uint128"
 )
 
 func TestDecodeWithdrawToMessage(t *testing.T) {
@@ -546,4 +548,122 @@ func TestDecodeBitcoinTransaction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(addresses))
 	assert.Equal(t, "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c", addresses[0].String())
+}
+
+func TestDepositRuneToIcon(t *testing.T) {
+	chainParam := &chaincfg.TestNet3Params
+
+	inputs := []*multisig.UTXO{
+		// user rune UTXOs to spend
+		{
+			IsRelayersMultisig: false,
+			TxHash:             "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:          0,
+			OutputAmount:       1000,
+		},
+		// user bitcoin UTXOs to pay tx fee
+		{
+			IsRelayersMultisig: false,
+			TxHash:             "4933e04e3d9320df6e9f046ff83cfc3e9f884d8811df0539af7aaca0218189aa",
+			OutputIdx:          0,
+			OutputAmount:       4000000,
+		},
+	}
+
+	outputs := []*multisig.OutputTx{}
+
+	// Add Bridge Message
+	payload, _ := multisig.CreateBridgePayload(
+		&multisig.XCallMessage{
+			Action:       "Deposit",
+			TokenAddress: "840000:3",
+			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
+			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
+			Amount:       new(big.Int).SetUint64(1000000).Bytes(),
+			Data:         []byte(""),
+		},
+		1,
+		"cx8b52dfea0aa1e548288102df15ad7159f7266106",
+		[]string{
+			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
+		},
+	)
+	scripts, _ := multisig.CreateBridgeMessageScripts(payload, 76)
+	for i, script := range scripts {
+		fmt.Println("OP_RETURN ", i, " script ", script)
+		outputs = append(outputs, &multisig.OutputTx{
+			OpReturnScript: script,
+		})
+	}
+
+	// Add transfering rune to relayer multisig
+	runeId, _ := runestone.NewRuneId(840000, 3)
+	changeReceiver := uint32(len(outputs)+2)
+	runeStone := &runestone.Runestone{
+		Edicts: []runestone.Edict{
+			{
+				ID: *runeId,
+				Amount: uint128.From64(1000000000),
+				Output: uint32(len(outputs)+1),
+			},
+		},
+		Pointer: &changeReceiver,
+	}
+	runeScript, _ := runeStone.Encipher()
+	// Runestone OP_RETURN
+	outputs = append(outputs, &multisig.OutputTx{
+		OpReturnScript: runeScript,
+	})
+	// Rune UTXO send to relayer multisig
+	outputs = append(outputs, &multisig.OutputTx{
+		ReceiverAddress: "tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk",
+		Amount:          1000,
+	})
+	// Rune change UTXO send back to user
+	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	outputs = append(outputs, &multisig.OutputTx{
+		ReceiverAddress: changeReceiverAddress,
+		Amount:          1000,
+	})
+
+	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
+	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
+
+	msgTx, _, txSigHashes, _ := multisig.CreateMultisigTx(inputs, outputs, 1000, &multisig.MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+
+	tapSigParams := multisig.TapSigParams{
+		TxSigHashes:      txSigHashes,
+		RelayersPKScript: []byte{},
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
+	}
+
+	totalSigs := [][][]byte{}
+
+	// USER SIGN TX
+	userSigs, _ := multisig.PartSignOnRawExternalTx(userPrivKeys[1], msgTx, inputs, tapSigParams, chainParam, true)
+	totalSigs = append(totalSigs, userSigs)
+	// COMBINE SIGNS
+	signedMsgTx, err := multisig.CombineMultisigSigs(msgTx, inputs, userMultisigWallet, 0, userMultisigWallet, 1, totalSigs)
+
+	var signedTx bytes.Buffer
+	signedMsgTx.Serialize(&signedTx)
+	hexSignedTx := hex.EncodeToString(signedTx.Bytes())
+	signedMsgTxID := signedMsgTx.TxHash().String()
+
+	fmt.Println("hexSignedTx: ", hexSignedTx)
+	fmt.Println("signedMsgTxID: ", signedMsgTxID)
+	fmt.Println("err sign: ", err)
+
+	// Decipher runestone
+	r := &runestone.Runestone{}
+	artifact, err := r.Decipher(signedMsgTx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	a, _ := json.Marshal(artifact)
+	fmt.Printf("Artifact: %s\n", string(a))
+	// TODO: test the signedMsgTx
 }
