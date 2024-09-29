@@ -589,23 +589,23 @@ func (p *Provider) partSignTx(msgTx *wire.MsgTx, inputs []*multisig.UTXO, msWall
 	return inputs, msWallet, msgTx, relayerSigs, err
 }
 
-func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, bool, *big.Int, error) {
+func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
 	msWallet, err := p.buildMultisigWallet()
 	if err != nil {
-		return nil, nil, nil, nil, false, nil, err
+		return nil, nil, nil, nil, err
 	}
 	feeRate, err := p.client.GetFeeFromMempool(p.cfg.MempoolURL + "/fees/recommended")
 	if err != nil {
 		p.logger.Error("failed to get recommended fee from mempool", zap.Error(err))
 		feeRate = 0
 	}
-	inputs, msgTx, _, txSigHashes, isRollbackMessage, rollbackSn, err := p.buildTxMessage(message, feeRate, msWallet)
+	inputs, msgTx, _, txSigHashes, err := p.buildTxMessage(message, feeRate, msWallet)
 	if err != nil {
 		p.logger.Error("failed to build tx message: %v", zap.Error(err))
-		return nil, nil, nil, nil, false, nil, err
+		return nil, nil, nil, nil, err
 	}
 	inputs, msWallet, msgTx, relayerSigs, err := p.partSignTx(msgTx, inputs, msWallet, txSigHashes)
-	return inputs, msWallet, msgTx, relayerSigs, isRollbackMessage, rollbackSn, err
+	return inputs, msWallet, msgTx, relayerSigs, err
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
@@ -627,7 +627,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			return nil
 		} else if p.cfg.Mode == MasterMode {
 
-			inputs, msWallet, msgTx, relayerSigs, isRollbackMessage, rollbackSn, err := p.HandleBitcoinMessageTx(message)
+			inputs, msWallet, msgTx, relayerSigs, err := p.HandleBitcoinMessageTx(message)
 			if err != nil {
 				p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
 				return err
@@ -636,9 +636,6 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			// send unsigned raw tx and message sn to 2 slave relayers to get sign
 			rsi := slaveRequestParams{
 				MsgSn: message.Sn.String(),
-			}
-			if isRollbackMessage {
-				rsi.MsgSn = "RB" + rollbackSn.String()
 			}
 
 			slaveRequestData, _ := json.Marshal(rsi)
@@ -702,11 +699,10 @@ func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, 
 	return messageDecoded, nil
 }
 
-func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, bool, *big.Int, error) {
+func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
 	outputs := []*multisig.OutputTx{}
 	decodedData := &MessageDecoded{}
-	isRollbackMessage := false
-	rollbackSn := new(big.Int)
+
 	switch message.EventType {
 	case events.EmitMessage:
 		messageDecoded, err := p.decodeMessage(message)
@@ -715,17 +711,16 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, m
 		}
 		// 0 is need to rollback
 		if messageDecoded.Code == 0 {
-			isRollbackMessage = true
-			rollbackSn = new(big.Int).SetBytes(messageDecoded.Sn.Bytes())
+			p.logger.Info("Detected rollback message", zap.String("sn", messageDecoded.Sn.String()))
 			// Process RollbackMessage
 			data, err := p.db.Get([]byte("RB"+messageDecoded.Sn.String()), nil)
 			if err != nil {
-				return nil, nil, "", nil, isRollbackMessage, nil, fmt.Errorf("failed to retrieve stored data: %v", err)
+				return nil, nil, "", nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
 			}
 			var storedData StoredMessageData
 			err = json.Unmarshal(data, &storedData)
 			if err != nil {
-				return nil, nil, "", nil, isRollbackMessage, nil, fmt.Errorf("failed to unmarshal stored data: %v", err)
+				return nil, nil, "", nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
 			}
 			decodedData = &MessageDecoded{
 				Action:       storedData.ActionMethod,
@@ -742,7 +737,7 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, m
 			decodedData = data
 			if err != nil {
 				p.logger.Error("failed to decode message: %v", zap.Error(err))
-				return nil, nil, "", nil, isRollbackMessage, nil, err
+				return nil, nil, "", nil, err
 			}
 			scripts, _ := multisig.CreateBridgeMessageScripts(opreturnData, 76)
 			for _, script := range scripts {
@@ -752,11 +747,11 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, m
 			}
 		}
 	default:
-		return nil, nil, "", nil, isRollbackMessage, nil, fmt.Errorf("unknown event type: %s", message.EventType)
+		return nil, nil, "", nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 
 	inputs, msgTx, hexRawTx, txSigHashes, err := p.CreateBitcoinMultisigTx(outputs, feeRate, decodedData, msWallet)
-	return inputs, msgTx, hexRawTx, txSigHashes, isRollbackMessage, rollbackSn, err
+	return inputs, msgTx, hexRawTx, txSigHashes, err
 }
 
 // call the smart contract to send the message
@@ -1127,14 +1122,15 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		TokenAddress:     messageInfo.TokenAddress,
 	}
 
+	p.logger.Info("Stored message for rollback case", zap.Any("storedData", storedData))
 	data, err = json.Marshal(storedData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal stored data: %v", err)
+		return nil, fmt.Errorf("failed to marshal stored rollback message data: %v", err)
 	}
 
 	err = p.db.Put([]byte("RB"+sn.String()), data, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store message data: %v", err)
+		return nil, fmt.Errorf("failed to store rollback message data: %v", err)
 	}
 	return relayMessage, nil
 }

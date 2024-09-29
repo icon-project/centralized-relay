@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -70,13 +71,18 @@ func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
 		return nil, err
 	}
 
+	if strings.Contains(sn, "RB") {
+		p.logger.Info("Rollback message", zap.String("sn", sn))
+		return nil, nil
+	}
+
 	var message *relayTypes.Message
 	err = json.Unmarshal(data, &message)
 	if err != nil {
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, _, _, err := p.HandleBitcoinMessageTx(message)
+	_, _, _, relayerSigns, err := p.HandleBitcoinMessageTx(message)
 	if err != nil {
 		return nil, err
 	}
