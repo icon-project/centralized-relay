@@ -681,23 +681,13 @@ func (p *Provider) queryRecvMessageAccounts(
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send tx: %w", err)
-	}
-
-	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
-	if err != nil {
-		return nil, err
-	}
-
-	txnres, err := p.client.GetTransaction(context.Background(), txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
 
 	acRes := types.QueryAccountsResponse{}
-	if err := parseReturnValueFromLogs(p.connIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+	if err := parseReturnValueFromLogs(p.connIdl.GetProgramID().String(), simres.Logs, &acRes); err != nil {
 		return nil, fmt.Errorf("failed to parse return value: %w", err)
 	}
 
@@ -864,23 +854,13 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send tx: %w", err)
-	}
-
-	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
-	if err != nil {
-		return nil, err
-	}
-
-	txnres, err := p.client.GetTransaction(context.Background(), txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
 
 	acRes := types.QueryAccountsResponse{}
-	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), simres.Logs, &acRes); err != nil {
 		return nil, fmt.Errorf("failed to parse return value: %w", err)
 	}
 
@@ -1011,23 +991,13 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send tx: %w", err)
-	}
-
-	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
-	if err != nil {
-		return nil, err
-	}
-
-	txnres, err := p.client.GetTransaction(context.Background(), txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
 
 	acRes := types.QueryAccountsResponse{}
-	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), simres.Logs, &acRes); err != nil {
 		return nil, fmt.Errorf("failed to parse return value: %w", err)
 	}
 
@@ -1104,39 +1074,17 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	simres, err := p.client.SimulateTx(ctx, tx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	if _, err := p.waitForTxConfirmation(defaultTxConfirmationTime, txSign); err != nil {
-		return nil, fmt.Errorf("failed to confirm tx %s: %w", txSign.String(), err)
+	csMsg := types.CsMessage{}
+	if err := parseReturnValueFromLogs(p.cfg.XcallProgram, simres.Logs, &csMsg); err != nil {
+		return nil, fmt.Errorf("fail to parse return value from logs: %w", err)
 	}
 
-	txnres, err := p.client.GetTransaction(ctx, txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
-	}
-
-	for _, log := range txnres.Meta.LogMessages {
-		xcallReturnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, p.cfg.XcallProgram)
-		if strings.HasPrefix(log, xcallReturnPrefix) {
-			returnLog := strings.Replace(log, xcallReturnPrefix, "", 1)
-			returnLogBytes, err := base64.StdEncoding.DecodeString(returnLog)
-			if err != nil {
-				return nil, err
-			}
-
-			csMsg := types.CsMessage{}
-			if err := borsh.Deserialize(&csMsg, returnLogBytes); err != nil {
-				return nil, err
-			}
-
-			return &csMsg, nil
-		}
-	}
-
-	return nil, fmt.Errorf("failed to return value")
+	return &csMsg, nil
 }
 
 func (p *Provider) getDappConfigPrefix(dappProgID string) string {
@@ -1150,9 +1098,9 @@ func (p *Provider) getDappConfigPrefix(dappProgID string) string {
 
 func parseReturnValueFromLogs(progID string, logs []string, dest interface{}) error {
 	for _, log := range logs {
-		xcallReturnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, progID)
-		if strings.HasPrefix(log, xcallReturnPrefix) {
-			returnLog := strings.Replace(log, xcallReturnPrefix, "", 1)
+		returnPrefix := fmt.Sprintf("%s%s ", types.ProgramReturnPrefix, progID)
+		if strings.HasPrefix(log, returnPrefix) {
+			returnLog := strings.Replace(log, returnPrefix, "", 1)
 			returnLogBytes, err := base64.StdEncoding.DecodeString(returnLog)
 			if err != nil {
 				return err

@@ -515,23 +515,13 @@ func (p *Provider) queryRevertMessageAccounts(
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send tx: %w", err)
-	}
-
-	_, err = p.waitForTxConfirmation(defaultTxConfirmationTime, txSign)
-	if err != nil {
-		return nil, err
-	}
-
-	txnres, err := p.client.GetTransaction(context.Background(), txSign, &solrpc.GetTransactionOpts{Commitment: solrpc.CommitmentConfirmed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txn %s: %w", txSign.String(), err)
+		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
 
 	acRes := types.QueryAccountsResponse{}
-	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), txnres.Meta.LogMessages, &acRes); err != nil {
+	if err := parseReturnValueFromLogs(p.xcallIdl.GetProgramID().String(), simres.Logs, &acRes); err != nil {
 		return nil, fmt.Errorf("failed to parse return value: %w", err)
 	}
 
