@@ -63,6 +63,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 }
 
 func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
+	p.logger.Info("Slave start to build and sign tx from db message", zap.String("sn", sn))
 	key := sn
 	data, err := p.db.Get([]byte(key), nil)
 	if err != nil {

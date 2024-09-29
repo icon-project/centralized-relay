@@ -637,7 +637,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			rsi := slaveRequestParams{
 				MsgSn: message.Sn.String(),
 			}
-			if !isRollbackMessage {
+			if isRollbackMessage {
 				rsi.MsgSn = "RB" + rollbackSn.String()
 			}
 
