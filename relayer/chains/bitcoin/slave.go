@@ -3,7 +3,6 @@ package bitcoin
 import (
 	"encoding/json"
 	"io"
-	"math/big"
 	"net/http"
 
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
@@ -63,8 +62,8 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 	}
 }
 
-func buildAndSignTxFromDbMessage(sn *big.Int, p *Provider) ([][]byte, error) {
-	key := sn.String()
+func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
+	key := sn
 	data, err := p.db.Get([]byte(key), nil)
 	if err != nil {
 		return nil, err
@@ -76,7 +75,7 @@ func buildAndSignTxFromDbMessage(sn *big.Int, p *Provider) ([][]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, err := p.HandleBitcoinMessageTx(message)
+	_, _, _, relayerSigns, _, _, err := p.HandleBitcoinMessageTx(message)
 	if err != nil {
 		return nil, err
 	}

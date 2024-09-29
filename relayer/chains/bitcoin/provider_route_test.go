@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -104,9 +106,9 @@ func TestDepositBitcoinToIcon(t *testing.T) {
 	inputs := []*multisig.UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:             "4933e04e3d9320df6e9f046ff83cfc3e9f884d8811df0539af7aaca0218189aa",
-			OutputIdx:          0,
-			OutputAmount:       4000000,
+			TxHash:             "e57c10e27f75dbf0856163ca5f825b5af7ffbb3874f606b31330464ddd9df9a1",
+			OutputIdx:          4,
+			OutputAmount:       2974000,
 		},
 	}
 
@@ -115,15 +117,16 @@ func TestDepositBitcoinToIcon(t *testing.T) {
 	// Add Bridge Message
 	payload, _ := multisig.CreateBridgePayload(
 		&multisig.XCallMessage{
+			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "0:1",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
 			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
-			Amount:       new(big.Int).SetUint64(1000000).Bytes(),
+			Amount:       new(big.Int).SetUint64(100000).Bytes(),
 			Data:         []byte(""),
 		},
 		1,
-		"cx8b52dfea0aa1e548288102df15ad7159f7266106",
+		"cxfc86ee7687e1bf681b5548b2667844485c0e7192",
 		[]string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
 		},
@@ -139,14 +142,18 @@ func TestDepositBitcoinToIcon(t *testing.T) {
 	// Add transfering bitcoin to relayer multisig
 	outputs = append(outputs, &multisig.OutputTx{
 		ReceiverAddress: "tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk",
-		Amount:          1000000,
+		Amount:          100000,
 	})
 
 	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
+	rlMsAddress, _ := multisig.AddressOnChain(chainParam, userMultisigWallet)
+
+	msAddressStr := rlMsAddress.String()
+	fmt.Printf(msAddressStr)
 
 	changeReceiverAddress := "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
-	msgTx, _, txSigHashes, _ := multisig.CreateMultisigTx(inputs, outputs, 1000, &multisig.MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
+	msgTx, _, txSigHashes, _ := multisig.CreateMultisigTx(inputs, outputs, 100000, &multisig.MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
 	tapSigParams := multisig.TapSigParams{
 		TxSigHashes:      txSigHashes,
@@ -598,13 +605,13 @@ func TestDepositRuneToIcon(t *testing.T) {
 
 	// Add transfering rune to relayer multisig
 	runeId, _ := runestone.NewRuneId(840000, 3)
-	changeReceiver := uint32(len(outputs)+2)
+	changeReceiver := uint32(len(outputs) + 2)
 	runeStone := &runestone.Runestone{
 		Edicts: []runestone.Edict{
 			{
-				ID: *runeId,
+				ID:     *runeId,
 				Amount: uint128.From64(1000000000),
-				Output: uint32(len(outputs)+1),
+				Output: uint32(len(outputs) + 1),
 			},
 		},
 		Pointer: &changeReceiver,
@@ -666,4 +673,98 @@ func TestDepositRuneToIcon(t *testing.T) {
 	a, _ := json.Marshal(artifact)
 	fmt.Printf("Artifact: %s\n", string(a))
 	// TODO: test the signedMsgTx
+}
+
+func TestCreateAndSignBitcoinTransaction(t *testing.T) {
+	// Set up the network parameters (use TestNet3 for testing)
+	chainParam := &chaincfg.TestNet3Params
+	wif, _ := btcutil.DecodeWIF("your_private_key")
+	// Get the private key from WIF
+	privateKey := wif.PrivKey
+	// Create a Taproot address
+	internalKey := privateKey.PubKey()
+	taprootKey := txscript.ComputeTaprootOutputKey(internalKey, nil)
+	taprootAddress, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(taprootKey), chainParam)
+	assert.NoError(t, err)
+
+	// Create the output script (witness program)
+	pkScript, err := txscript.PayToAddrScript(taprootAddress)
+	assert.NoError(t, err)
+
+	prevOutputAmount := uint64(99800000)
+	sendingAmount := uint64(100000)
+	fees := uint64(200000)
+
+	inputs := []*multisig.UTXO{
+		{
+			IsRelayersMultisig: false,
+			TxHash:             "9dbd6f6f976f9f31895214c6c3034c80c567a38e1e816b8eb6bed972df0fdad9",
+			OutputIdx:          4,
+			OutputAmount:       prevOutputAmount,
+		},
+	}
+
+	outputs := []*multisig.OutputTx{}
+
+	// Add Bridge Message
+	payload, _ := multisig.CreateBridgePayload(
+		&multisig.XCallMessage{MessageType: 1,
+			Action:       "Deposit",
+			TokenAddress: "0:1",
+			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
+			From:         "tb1peg65qks0qum848kq8udf3n3psvkpkaxsr7wq60ukr7w2symtt83qwd7cmx",
+			Amount:       new(big.Int).SetUint64(sendingAmount).Bytes(),
+			Data:         []byte(""),
+		},
+		1,
+		"cx8b52dfea0aa1e548288102df15ad7159f7266106",
+		[]string{
+			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
+		},
+	)
+	scripts, _ := multisig.CreateBridgeMessageScripts(payload, 76)
+	for i, script := range scripts {
+		fmt.Println("OP_RETURN ", i, " script ", script)
+		outputs = append(outputs, &multisig.OutputTx{
+			OpReturnScript: script,
+		})
+	}
+	// Add transfering bitcoin to relayer multisig
+	outputs = append(outputs, &multisig.OutputTx{
+		ReceiverAddress: "tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk",
+		Amount:          sendingAmount,
+	})
+
+	changeReceiverAddress := "tb1peg65qks0qum848kq8udf3n3psvkpkaxsr7wq60ukr7w2symtt83qwd7cmx"
+	msgTx, _, _, _ := multisig.CreateMultisigTx(inputs, outputs, fees, &multisig.MultisigWallet{}, &multisig.MultisigWallet{}, chainParam, changeReceiverAddress, 1)
+
+	// Sign the transaction using Taproot
+	for i, txIn := range msgTx.TxIn {
+		// Create the signing hash
+		prevOutputFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, int64(prevOutputAmount))
+		sigHashes := txscript.NewTxSigHashes(msgTx, prevOutputFetcher)
+
+		// Create the Taproot signature
+		witness, err := txscript.TaprootWitnessSignature(
+			msgTx,
+			sigHashes,
+			i,
+			int64(prevOutputAmount),
+			pkScript,
+			txscript.SigHashDefault,
+			privateKey,
+		)
+		assert.NoError(t, err)
+
+		// Set the witness data
+		txIn.Witness = witness
+	}
+
+	// Serialize the transaction
+	var signedTx bytes.Buffer
+	err = msgTx.Serialize(&signedTx)
+	assert.NoError(t, err)
+
+	// Print the hex-encoded transaction
+	fmt.Printf("Signed Taproot transaction: %x\n", signedTx.Bytes())
 }

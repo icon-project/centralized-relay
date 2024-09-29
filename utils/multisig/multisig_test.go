@@ -17,10 +17,10 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const(
-	TX_FEE = 10000
+const (
+	TX_FEE                   = 10000
 	RELAYER_MULTISIG_ADDRESS = "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u"
-	USER_MULTISIG_ADDRESS = "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	USER_MULTISIG_ADDRESS    = "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
 )
 
 func TestGenerateKeys(t *testing.T) {
@@ -29,7 +29,7 @@ func TestGenerateKeys(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		privKey := GeneratePrivateKeyFromSeed([]byte{byte(i)}, chainParam)
 		wif, _ := btcutil.NewWIF(privKey, chainParam, true)
-		pubKey := wif.SerializePubKey();
+		pubKey := wif.SerializePubKey()
 		witnessProg := btcutil.Hash160(pubKey)
 		p2wpkh, _ := btcutil.NewAddressWitnessPubKeyHash(witnessProg, chainParam)
 
@@ -41,7 +41,7 @@ func TestLoadWalletFromPrivateKey(t *testing.T) {
 	chainParam := &chaincfg.TestNet3Params
 
 	wif, _ := btcutil.DecodeWIF("cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy")
-	pubKey := wif.SerializePubKey();
+	pubKey := wif.SerializePubKey()
 	witnessProg := btcutil.Hash160(pubKey)
 	p2wpkh, _ := btcutil.NewAddressWitnessPubKeyHash(witnessProg, chainParam)
 
@@ -79,9 +79,9 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "9ed822adb7c3623fcc6776bc93dadb030bf3b887e36975521d540c2a49510e27",
-			OutputIdx:     1,
-			OutputAmount:  3901,
+			TxHash:             "9ed822adb7c3623fcc6776bc93dadb030bf3b887e36975521d540c2a49510e27",
+			OutputIdx:          1,
+			OutputAmount:       3901,
 		},
 	}
 
@@ -97,12 +97,12 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
 	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, relayersMultisigWallet, &MultisigWallet{}, chainParam, changeReceiverAddress, 0)
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: relayersMultisigWallet.PKScript,
-		RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
-		UserPKScript: []byte{},
-		UserTapLeaf: txscript.TapLeaf{},
+		RelayersTapLeaf:  relayersMultisigWallet.TapLeaves[0],
+		UserPKScript:     []byte{},
+		UserTapLeaf:      txscript.TapLeaf{},
 	}
 
 	totalSigs := [][][]byte{}
@@ -116,9 +116,9 @@ func TestMultisigUserClaimLiquidity(t *testing.T) {
 	router := SetUpRouter()
 	// create post body using an instance of the requestSignInput struct
 	rsi := requestSignInput{
-		MsgTx:	hexRawTx,
-		UTXOs:	inputs,
-		TapSigInfo:	tapSigParams,
+		MsgTx:      hexRawTx,
+		UTXOs:      inputs,
+		TapSigInfo: tapSigParams,
 	}
 	requestJson, _ := json.Marshal(rsi)
 
@@ -151,15 +151,15 @@ func TestMultisigUserSwap(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
-			OutputIdx:     0,
-			OutputAmount:  1501,
+			TxHash:             "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
+			OutputIdx:          0,
+			OutputAmount:       1501,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
-			OutputIdx:     1,
-			OutputAmount:  4234,
+			TxHash:             "374702601b446e0a5c247d15bc6ea049a1266c29ef119ab03801d490ad223bd2",
+			OutputIdx:          1,
+			OutputAmount:       4234,
 		},
 	}
 
@@ -177,12 +177,12 @@ func TestMultisigUserSwap(t *testing.T) {
 
 	changeReceiverAddress := "tb1py04eh93ae0e6dpps2ufxt58wjnvesj0ffzddcckmru3tyrhzsslsxyhwtd"
 	msgTx, hexRawTx, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, relayersMultisigWallet, userMultisigWallet, chainParam, changeReceiverAddress, 0)
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: relayersMultisigWallet.PKScript,
-		RelayersTapLeaf: relayersMultisigWallet.TapLeaves[0],
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[0],
+		RelayersTapLeaf:  relayersMultisigWallet.TapLeaves[0],
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[0],
 	}
 
 	totalSigs := [][][]byte{}
@@ -196,9 +196,9 @@ func TestMultisigUserSwap(t *testing.T) {
 	router := SetUpRouter()
 	// create post body using an instance of the requestSignInput struct
 	rsi := requestSignInput{
-		MsgTx:	hexRawTx,
-		UTXOs:	inputs,
-		TapSigInfo:	tapSigParams,
+		MsgTx:      hexRawTx,
+		UTXOs:      inputs,
+		TapSigInfo: tapSigParams,
 	}
 	requestJson, _ := json.Marshal(rsi)
 
@@ -217,7 +217,7 @@ func TestMultisigUserSwap(t *testing.T) {
 
 	// add user sign to total sigs
 	for i := range msgTx.TxIn {
-		if (!inputs[i].IsRelayersMultisig) {
+		if !inputs[i].IsRelayersMultisig {
 			totalSigs[1][i] = userSigs[i]
 		}
 	}
@@ -268,9 +268,9 @@ func TestUserRecoveryTimeLock(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
-			OutputIdx:     4,
-			OutputAmount:  1929000,
+			TxHash:             "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:          4,
+			OutputAmount:       1929000,
 		},
 	}
 
@@ -286,12 +286,12 @@ func TestUserRecoveryTimeLock(t *testing.T) {
 
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 
 	totalSigs := [][][]byte{}
@@ -319,9 +319,9 @@ func TestTransferRune(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
-			OutputIdx:     1,
-			OutputAmount:  3808,
+			TxHash:             "ae9f43a77d861d5076ebdb1af0d76af033843b784766a1d07a78a68fe845c012",
+			OutputIdx:          1,
+			OutputAmount:       3808,
 		},
 	}
 
@@ -342,12 +342,12 @@ func TestTransferRune(t *testing.T) {
 	script1, _ := CreateRuneTransferScript(Rune{BlockNumber: 840000, TxIndex: 3}, big.NewInt(1000000000), 0)
 	msgTx.AddTxOut(wire.NewTxOut(0, script1))
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 
 	totalSigs := [][][]byte{}
@@ -385,9 +385,9 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "88cce50b4c9ff0d1c3f58f769fdb8b2e2bfbd3a637664c78b1a38c0f1e492b8f",
-			OutputIdx:     0,
-			OutputAmount:  2000000,
+			TxHash:             "88cce50b4c9ff0d1c3f58f769fdb8b2e2bfbd3a637664c78b1a38c0f1e492b8f",
+			OutputIdx:          0,
+			OutputAmount:       2000000,
 		},
 	}
 
@@ -401,11 +401,11 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	// Add Bridge Message
 	payload, _ := CreateBridgePayload(
 		&XCallMessage{
-			MessageType:  123,
+			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "0:0",                                                            // bitcoin address
-			To:           "0x2.icon/hx39eddef484f6bb08072c59cc0a206e6713fc6d7d",            //(receiver)
-			From:         USER_MULTISIG_ADDRESS, //user
+			TokenAddress: "0:0",                                                 // bitcoin address
+			To:           "0x2.icon/hx39eddef484f6bb08072c59cc0a206e6713fc6d7d", //(receiver)
+			From:         USER_MULTISIG_ADDRESS,                                 //user
 			Amount:       new(big.Int).SetUint64(1000).Bytes(),
 			Data:         []byte(""),
 		},
@@ -431,13 +431,12 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 
 	totalSigs := [][][]byte{}
@@ -480,22 +479,22 @@ func TestRadFiInitPool(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
-			OutputIdx:     4,
-			OutputAmount:  1929000,
+			TxHash:             "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:          4,
+			OutputAmount:       1929000,
 		},
 	}
 
 	// OP_RETURN RadFi Init pool Message
-	radfiMsg := RadFiProvideLiquidityMsg {
+	radfiMsg := RadFiProvideLiquidityMsg{
 		Detail: &RadFiProvideLiquidityDetail{
-			Fee:		30,
-			UpperTick:	12345,
-			LowerTick: 	-12345,
-			Min0:		0,
-			Min1:		10000,
+			Fee:       30,
+			UpperTick: 12345,
+			LowerTick: -12345,
+			Min0:      0,
+			Min1:      10000,
 		},
-		InitPrice:  uint256.MustFromDecimal("123456789"),
+		InitPrice: uint256.MustFromDecimal("123456789"),
 	}
 	script, _ := CreateProvideLiquidityScript(&radfiMsg)
 
@@ -515,12 +514,12 @@ func TestRadFiInitPool(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
@@ -558,32 +557,32 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
-			OutputIdx:     2,
-			OutputAmount:  1918000,
+			TxHash:             "647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
+			OutputIdx:          2,
+			OutputAmount:       1918000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "96f43d22e98f9abf78422b27bd31412912b7c5e3a2b3f706d61148fc8d0f6550",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "96f43d22e98f9abf78422b27bd31412912b7c5e3a2b3f706d61148fc8d0f6550",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 	}
 
 	// OP_RETURN RadFi Provive Liquidity Message
-	radfiMsg := RadFiProvideLiquidityMsg {
+	radfiMsg := RadFiProvideLiquidityMsg{
 		Detail: &RadFiProvideLiquidityDetail{
-			Fee:		30,
-			UpperTick:	12345,
-			LowerTick: 	-12345,
-			Min0:		0,
-			Min1:		10000,
+			Fee:       30,
+			UpperTick: 12345,
+			LowerTick: -12345,
+			Min0:      0,
+			Min1:      10000,
 		},
 	}
 	script1, _ := CreateProvideLiquidityScript(&radfiMsg)
@@ -618,12 +617,12 @@ func TestRadFiProvideLiquidity(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
@@ -677,27 +676,27 @@ func TestRadFiSwap(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
-			OutputIdx:     5,
-			OutputAmount:  1888000,
+			TxHash:             "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
+			OutputIdx:          5,
+			OutputAmount:       1888000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
-			OutputIdx:     4,
-			OutputAmount:  1000,
+			TxHash:             "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
+			OutputIdx:          4,
+			OutputAmount:       1000,
 		},
 	}
 
 	// OP_RETURN RadFi Swap Message
-	radfiMsg := RadFiSwapMsg {
-		IsExactInOut: true,
+	radfiMsg := RadFiSwapMsg{
+		IsExactInOut:  true,
 		TokenOutIndex: 2,
 	}
 	script1, _ := CreateSwapScript(&radfiMsg)
@@ -741,12 +740,12 @@ func TestRadFiSwap(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
@@ -781,35 +780,35 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
-			OutputIdx:     4,
-			OutputAmount:  10000,
+			TxHash:             "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
+			OutputIdx:          4,
+			OutputAmount:       10000,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
-			OutputIdx:     6,
-			OutputAmount:  1000,
+			TxHash:             "3aa9c4b9a71fe19560c467cdddce932eae8a10e28123a09acb27701123f2a8f7",
+			OutputIdx:          6,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
-			OutputIdx:     5,
-			OutputAmount:  1867000,
+			TxHash:             "4e2b225d732b4123443e8d737e292921ea4a891ddf3a5c9842a4409f2c82805d",
+			OutputIdx:          5,
+			OutputAmount:       1867000,
 		},
 	}
 
 	// OP_RETURN RadFi Withdraw Liquidity Message
-	radfiMsg := RadFiWithdrawLiquidityMsg {
-		RecipientIndex:	2,
+	radfiMsg := RadFiWithdrawLiquidityMsg{
+		RecipientIndex: 2,
 		LiquidityValue: uint256.MustFromDecimal("123456"),
-		NftId:			uint256.MustFromDecimal("123456789"),
+		NftId:          uint256.MustFromDecimal("123456789"),
 	}
 	script1, _ := CreateWithdrawLiquidityScript(&radfiMsg)
 	// OP_RETURN Rune transfering
@@ -855,12 +854,12 @@ func TestRadFiWithdrawLiquidity(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
@@ -896,34 +895,34 @@ func TestRadFiCollectFees(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
-			OutputIdx:     5,
-			OutputAmount:  5000,
+			TxHash:             "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
+			OutputIdx:          5,
+			OutputAmount:       5000,
 		},
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
-			OutputIdx:     7,
-			OutputAmount:  1000,
+			TxHash:             "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
+			OutputIdx:          7,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
-			OutputIdx:     8,
-			OutputAmount:  1856000,
+			TxHash:             "b508b193dd9712406c8d712af00e6d3e34b8d2ad52809b72c63f6463c1555703",
+			OutputIdx:          8,
+			OutputAmount:       1856000,
 		},
 	}
 
 	// OP_RETURN RadFi Collect Fees
-	radfiMsg := RadFiCollectFeesMsg {
-		RecipientIndex:	2,
-		NftId:			uint256.MustFromDecimal("123456789"),
+	radfiMsg := RadFiCollectFeesMsg{
+		RecipientIndex: 2,
+		NftId:          uint256.MustFromDecimal("123456789"),
 	}
 	script1, _ := CreateCollectFeesScript(&radfiMsg)
 	// OP_RETURN Rune transfering
@@ -970,12 +969,12 @@ func TestRadFiCollectFees(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
@@ -1010,29 +1009,29 @@ func TestRadFiIncreaseLiquidity(t *testing.T) {
 	inputs := []*UTXO{
 		{
 			IsRelayersMultisig: true,
-			TxHash:        "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
-			OutputIdx:     8,
-			OutputAmount:  1845000,
+			TxHash:             "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
+			OutputIdx:          8,
+			OutputAmount:       1845000,
 		},
 		{
 			IsRelayersMultisig: false,
-			TxHash:        "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
-			OutputIdx:     0,
-			OutputAmount:  1000,
+			TxHash:             "546fd5aa7336a82ec31dda54de0ec0e81c9285e42f75768f5de058b390126e51",
+			OutputIdx:          0,
+			OutputAmount:       1000,
 		},
 	}
 
 	// OP_RETURN RadFi Increase Liquidity Message
-	radfiMsg := RadFiIncreaseLiquidityMsg {
-		Min0:	0,
-		Min1:	10000,
-		NftId:	uint256.MustFromDecimal("123456789"),
+	radfiMsg := RadFiIncreaseLiquidityMsg{
+		Min0:  0,
+		Min1:  10000,
+		NftId: uint256.MustFromDecimal("123456789"),
 	}
 	script1, _ := CreateIncreaseLiquidityScript(&radfiMsg)
 	// OP_RETURN Rune transfering
@@ -1066,12 +1065,12 @@ func TestRadFiIncreaseLiquidity(t *testing.T) {
 	changeReceiverAddress := USER_MULTISIG_ADDRESS
 	msgTx, _, txSigHashes, _ := CreateMultisigTx(inputs, outputs, TX_FEE, &MultisigWallet{}, userMultisigWallet, chainParam, changeReceiverAddress, 1)
 
-	tapSigParams := TapSigParams {
-		TxSigHashes: txSigHashes,
+	tapSigParams := TapSigParams{
+		TxSigHashes:      txSigHashes,
 		RelayersPKScript: []byte{},
-		RelayersTapLeaf: txscript.TapLeaf{},
-		UserPKScript: userMultisigWallet.PKScript,
-		UserTapLeaf: userMultisigWallet.TapLeaves[1],
+		RelayersTapLeaf:  txscript.TapLeaf{},
+		UserPKScript:     userMultisigWallet.PKScript,
+		UserTapLeaf:      userMultisigWallet.TapLeaves[1],
 	}
 	totalSigs := [][][]byte{}
 
