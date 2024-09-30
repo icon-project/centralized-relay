@@ -643,13 +643,13 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		message.ToggleProcessing()
 		return
 	}
-	message.Data, err = dst.Provider.SignMessage(message.Data)
-	if err != nil {
-		r.log.Error("Error signing message", zap.Error(err))
-		return
-	}
 	for _, msg := range messages {
 		if msg.Sn.Cmp(message.Sn) == 0 {
+			message.Data, err = dst.Provider.SignMessage(msg.Data)
+			if err != nil {
+				r.log.Error("Error signing message", zap.Error(err))
+				return
+			}
 			r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
 		}
 	}
