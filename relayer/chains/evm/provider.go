@@ -468,7 +468,7 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
-	case events.TransmitreadyMessage:
+	case events.PacketAcknowledged:
 		abi, err := bridgeContract.ClusterConnectionMetaData.GetAbi()
 		if err != nil {
 			return 0, err

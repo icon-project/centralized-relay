@@ -292,7 +292,7 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 		iconChain := getIconChain(r.chains)
 		go r.RegisterClusterMessage(ctx, message, iconChain)
 		return true
-	case events.AcknowledgeMessage:
+	case events.PacketRegistered:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
 		if err != nil {
 			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
@@ -301,11 +301,9 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 		iconChain := getIconChain(r.chains)
 		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain)
 		return true
-	case events.TransmitreadyMessage:
+	case events.PacketAcknowledged:
 		if dst.Provider.Config().Enabled() {
 			if message.ConnAddress == dst.Provider.Config().GetConnContract() {
-				iconChain := getIconChain(r.chains)
-				message.Signatures = r.FetchSignatures(ctx, message, iconChain)
 				go r.RouteMessage(ctx, message, dst, src)
 			}
 		}
@@ -416,7 +414,8 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
 	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
-		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
+		dst.log.Error("message routing failed", zap.String("src", m.Src),
+			zap.Uint64("sn", m.Sn.Uint64()), zap.String("event_type", m.EventType), zap.Error(err))
 		r.HandleMessageFailed(m, dst, src)
 	}
 }
@@ -666,19 +665,4 @@ func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteM
 		return
 	}
 	r.log.Warn("no provider found for acknowledging cluster message")
-}
-
-func (r *Relayer) FetchSignatures(ctx context.Context, m *types.RouteMessage,
-	iconChain *ChainRuntime) [][]byte {
-	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
-		signatures, err := clusterProvider.FetchSignatures(ctx, m.Message)
-		if err != nil {
-			iconChain.log.Error("fetching signatures failed", zap.String("src", m.Src),
-				zap.String("event_type", m.EventType), zap.Error(err))
-			return nil
-		}
-		return signatures
-	}
-	r.log.Warn("no provider found for fetching signatures")
-	return nil
 }

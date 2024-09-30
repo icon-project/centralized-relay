@@ -43,7 +43,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 				Destination: message.Dst,
 				ConnAddress: message.ConnAddress,
 			}
-			return p.NewIconMessage(p.GetAddressByEventType(events.AcknowledgeMessage), msg, MethodRegisterPacket), nil
+			return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodRegisterPacket), nil
 		}
 		msg := &types.RecvMessage{
 			SrcNID: message.Src,
@@ -81,14 +81,15 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			ResFee:    types.NewHexInt(message.ReqID.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
-	case events.AcknowledgeMessage:
+	case events.PacketRegistered:
 		msg := &types.AcknowledgePacket{
 			Source:      message.Src,
 			Sn:          types.NewHexInt(message.Sn.Int64()),
 			SignedBytes: types.NewHexBytes(message.Data),
+			ConnAddress: message.ConnAddress,
 		}
-		return p.NewIconMessage(p.GetAddressByEventType(events.AcknowledgeMessage), msg, MethodAcknowledgePacket), nil
-	case events.TransmitreadyMessage:
+		return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodAcknowledgePacket), nil
+	case events.PacketAcknowledged:
 		var sigs []types.HexBytes
 		for _, sig := range message.Signatures {
 			sigs = append(sigs, types.NewHexBytes(sig))

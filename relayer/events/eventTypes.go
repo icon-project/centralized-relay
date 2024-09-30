@@ -13,6 +13,6 @@ const (
 	ClaimFee      = "claimFee"
 
 	// Cluster event types
-	AcknowledgeMessage   = "acknowledgeMessage"
-	TransmitreadyMessage = "transmitReadyMessage"
+	PacketRegistered   = "packetRegistered"
+	PacketAcknowledged = "packetAcknowledged"
 )

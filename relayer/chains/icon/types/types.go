@@ -388,17 +388,18 @@ type ExecuteRollback struct {
 
 type RegisterPacket struct {
 	Data        HexBytes `json:"data"`
-	Sn          HexInt   `json:"SN"`
-	Height      HexInt   `json:"height"`
-	Source      string   `json:"source"`
-	Destination string   `json:"destination"`
-	ConnAddress string   `json:"connAddr"`
+	Sn          HexInt   `json:"srcSn"`
+	Height      HexInt   `json:"srcHeight"`
+	Source      string   `json:"srcNetwork"`
+	Destination string   `json:"dstNetwork"`
+	ConnAddress string   `json:"contractAddress"`
 }
 
 type AcknowledgePacket struct {
-	Source      string   `json:"source"`
-	Sn          HexInt   `json:"SN"`
-	SignedBytes HexBytes `json:"signedBytes"`
+	Source      string   `json:"srcNetwork"`
+	Sn          HexInt   `json:"srcSn"`
+	ConnAddress string   `json:"contractAddress"`
+	SignedBytes HexBytes `json:"signature"`
 }
 
 type RecvMessageWithSignature struct {

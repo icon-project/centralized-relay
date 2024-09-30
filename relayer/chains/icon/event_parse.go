@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -112,14 +113,14 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 				return nil, err
 			}
 			messages = append(messages, msg)
-		case AcknowledgeMessage:
-			msg, err := p.parseAcknowledgeMessageEvent(height.Uint64(), event)
+		case PacketRegistered:
+			msg, err := p.parsePacketRegisteredEvent(height.Uint64(), event)
 			if err != nil {
 				return nil, err
 			}
 			messages = append(messages, msg)
-		case TransmitreadyMessage:
-			msg, err := p.parseTransmitReadyEvent(height.Uint64(), event)
+		case PacketAcknowledged:
+			msg, err := p.parsePacketAcknowledgedEvent(height.Uint64(), event)
 			if err != nil {
 				return nil, err
 			}
@@ -204,25 +205,27 @@ func (p *Provider) parseRollbackMessageEvent(height uint64, e *types.EventNotifi
 	}, nil
 }
 
-func (p *Provider) parseAcknowledgeMessageEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
-	if indexdedLen := len(e.Indexed); indexdedLen != 1 {
-		return nil, fmt.Errorf("expected indexed: 1 got: %d indexed", indexdedLen)
+func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
+		return nil, fmt.Errorf("expected indexed: 3 got: %d indexed", indexdedLen)
 	}
+	wrappedSource := e.Indexed[1]
+	connAddress := e.Indexed[2]
 	sn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
 	}
-	wrappedSource := e.Data[1]
-	wrappedHt, err := types.HexInt(e.Data[2]).BigInt()
+
+	wrappedHt, err := types.HexInt(e.Data[1]).BigInt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
 	}
 
+	wrappedDestination := e.Data[2]
 	data, err := types.HexBytes(e.Data[3]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[1])
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
 	}
-	wrappedDestination := e.Data[4]
 
 	return &providerTypes.Message{
 		MessageHeight:       height,
@@ -232,25 +235,34 @@ func (p *Provider) parseAcknowledgeMessageEvent(height uint64, e *types.EventNot
 		Sn:                  sn,
 		WrappedSourceHeight: wrappedHt,
 		Data:                data,
+		ConnAddress:         connAddress,
 	}, nil
 }
 
-func (p *Provider) parseTransmitReadyEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
-	if indexdedLen := len(e.Indexed); indexdedLen != 1 {
-		return nil, fmt.Errorf("expected indexed: 1, got: %d indexed", indexdedLen)
+func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
+		return nil, fmt.Errorf("expected indexed: 3, got: %d indexed", indexdedLen)
 	}
-	sn, err := types.HexInt(e.Data[1]).BigInt()
+	wrappedSource := e.Indexed[1]
+	connAddress := e.Indexed[2]
+	sn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
 	}
-	wrappedDestination := e.Data[0]
-	wrappedSource := e.Data[3]
-	data, err := types.HexBytes(e.Data[2]).Value()
+	wrappedDestination := e.Data[2]
+	data, err := types.HexBytes(e.Data[3]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[0])
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[3])
 	}
-	connAddress := e.Data[4]
-
+	signaturesRlp, err := types.HexBytes(e.Data[4]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse signatures: %s", e.Data[4])
+	}
+	var signatures [][]byte
+	if err := rlp.DecodeBytes(signaturesRlp, &signatures); err != nil {
+		fmt.Println(err)
+		return nil, fmt.Errorf("failed to parse rlp signatures: %s", e.Data[4])
+	}
 	return &providerTypes.Message{
 		MessageHeight: height,
 		EventType:     p.GetEventName(e.Indexed[0]),
@@ -259,5 +271,6 @@ func (p *Provider) parseTransmitReadyEvent(height uint64, e *types.EventNotifica
 		Sn:            sn,
 		Data:          data,
 		ConnAddress:   connAddress,
+		Signatures:    signatures,
 	}, nil
 }

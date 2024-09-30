@@ -32,7 +32,6 @@ type ChainQuery interface {
 type ClusterChainProvider interface {
 	RegisterClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
 	AcknowledgeClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
-	FetchSignatures(ctx context.Context, message *types.Message) ([][]byte, error)
 }
 
 type ClusterChainVerifier interface {
