@@ -182,21 +182,24 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 func (p *Provider) CallSlaves(slaveRequestData []byte) [][][]byte {
 	resultChan := make(chan [][][]byte)
 	go func() {
-		responses := make(chan [][]byte, 2)
+		responses := make(chan struct {
+			order int
+			sigs  [][]byte
+		}, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
 
-		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer1, slaveRequestData, responses, &wg)
-		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer2, slaveRequestData, responses, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer1, slaveRequestData, responses, 1, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer2, slaveRequestData, responses, 2, &wg)
 
 		go func() {
 			wg.Wait()
 			close(responses)
 		}()
 
-		var results [][][]byte
+		results := make([][][]byte, 2)
 		for res := range responses {
-			results = append(results, res)
+			results[res.order-1] = res.sigs
 		}
 		resultChan <- results
 	}()

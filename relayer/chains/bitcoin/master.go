@@ -71,7 +71,10 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func requestPartialSign(apiKey string, url string, slaveRequestData []byte, responses chan<- [][]byte, wg *sync.WaitGroup) {
+func requestPartialSign(apiKey string, url string, slaveRequestData []byte, responses chan<- struct {
+	order int
+	sigs  [][]byte
+}, order int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	client := &http.Client{}
@@ -101,5 +104,8 @@ func requestPartialSign(apiKey string, url string, slaveRequestData []byte, resp
 		fmt.Println("err Unmarshal: ", err)
 	}
 
-	responses <- sigs
+	responses <- struct {
+		order int
+		sigs  [][]byte
+	}{order: order, sigs: sigs}
 }
