@@ -1,0 +1,54 @@
+---
+- name: Create IAM role for KMS
+  amazon.aws.iam_role:
+    name: "{{ kms_iam_role }}"
+    assume_role_policy_document: "{{ lookup('file','trust_policy.json') }}"
+    description: This is a role for centralized-relay
+    aws_access_key: "{{ ec2_access_key }}"
+    aws_secret_key: "{{ ec2_secret_key }}"
+    tags:
+      env: dev
+
+- name: Attach IAM policy to IAM role
+  amazon.aws.iam_policy:
+    iam_type: role
+    iam_name: "{{ kms_iam_role }}"
+    policy_name: "{{ kms_policy_name }}"
+    policy_json: "{{ lookup('file', 'kms_policy.json') }}"
+    state: present
+    aws_access_key: "{{ ec2_access_key }}"
+    aws_secret_key: "{{ ec2_secret_key }}"
+
+- name: Create IAM Instance Profile
+  amazon.aws.iam_instance_profile:
+    name: "{{ instance_profile_name }}"
+    role: "{{ kms_iam_role }}"
+    path: "/"
+    state: present
+    region: "{{ region }}"
+    aws_access_key: "{{ ec2_access_key }}"
+    aws_secret_key: "{{ ec2_secret_key }}"
+  register: iam_profile_result
+
+- name: Inspect IAM Profile Result
+  debug:
+    var: iam_profile_result
+
+- name: Print Instance Profile Path
+  debug:
+    msg: "Instance Profile Path: {{ iam_profile_result.iam_instance_profile.path }}"
+
+
+- name: Create AWS KMS Key
+  amazon.aws.kms_key:
+    alias: "{{ centralized_relay_kms_key_id }}"
+    description: "Key for Centralized Relay"
+    key_usage: "ENCRYPT_DECRYPT"
+    region: "{{ region }}"
+    aws_access_key: "{{ ec2_access_key }}"
+    aws_secret_key: "{{ ec2_secret_key }}"
+  register: kms_key
+  
+- name: Print KMS Key ID
+  debug:
+    msg: "The KMS Key ID is {{ kms_key.key_id }}"

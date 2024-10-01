@@ -1,0 +1,38 @@
+---
+centralized_relay_version: "1.5.1"
+centralized_relay_url: "https://github.com/icon-project/centralized-relay/releases/download/v1.5.1/centralized-relay_1.5.1_linux_amd64.tar.gz"
+install_path: "/usr/local/bin"
+kms_policy:
+  Version: "2012-10-17"
+  Statement:
+    - Sid: "VisualEditor0"
+      Effect: "Allow"
+      Action:
+        - "kms:GetPublicKey"
+        - "kms:Decrypt"
+        - "kms:ListKeyPolicies"
+        - "kms:GetKeyPolicy"
+        - "kms:ListResourceTags"
+        - "kms:CreateCustomKeyStore"
+        - "kms:ReEncrypt*"
+        - "kms:TagResource"
+        - "kms:Encrypt"
+        - "kms:GetKeyRotationStatus"
+        - "kms:CreateAlias"
+        - "kms:DescribeKey"
+        - "kms:CreateKey"
+        - "kms:ConnectCustomKeyStore"
+      Resource: "*"
+centralized_relay_kms_key_id: "centralized-relay"
+key_name: my_aws_key
+image: ami-03a4942b8fcc1f29d
+instance_type: t3.medium
+sec_group: "test-security-group"
+kms_policy_name: "centralized-relay-kms-policy"
+kms_policy_attachment_name: "centralized-relay-kms-policy-attachment"
+kms_iam_role: "centralized-relay-kms"
+instance_profile_name: "centralized-relay-kms-instance-profile"
+region: "us-east-1"
+api_listen_addr: 5183
+timeout: 10s
+
