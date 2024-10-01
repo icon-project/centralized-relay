@@ -3,7 +3,6 @@ package icon
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
@@ -27,9 +26,6 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	txhash, err := p.SendTransaction(ctx, iconMessage)
 	if err != nil {
-		if strings.Contains(err.Error(), "InvalidRequestId") {
-			return fmt.Errorf("invalid request id")
-		}
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
 	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
