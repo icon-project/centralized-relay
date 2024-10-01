@@ -1023,21 +1023,29 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))
-	if err != nil {
-		return false, err
-	}
-
-	receipt := struct{}{}
-
-	if err := p.client.GetAccountInfo(ctx, receiptAc, &receipt); err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return false, nil
-		} else {
+	switch key.EventType {
+	default:
+		return true, fmt.Errorf("unknown event type")
+	case relayerevents.CallMessage, relayerevents.RollbackMessage:
+		return false, nil
+	case relayerevents.EmitMessage:
+		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))
+		if err != nil {
 			return false, err
 		}
+
+		receipt := struct{}{}
+
+		if err := p.client.GetAccountInfo(ctx, receiptAc, &receipt); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return false, nil
+			} else {
+				return false, err
+			}
+		}
+		return true, nil
 	}
-	return true, nil
+
 }
 
 func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMessage, error) {
