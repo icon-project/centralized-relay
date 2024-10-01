@@ -321,10 +321,10 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 		}
 		if response.Code == types.Success {
 			dst.log.Info("message relayed successfully",
+				zap.Any("sn", key.Sn),
 				zap.String("src", src.Provider.NID()),
 				zap.String("dst", dst.Provider.NID()),
-				zap.String("event_type", routeMessage.EventType),
-				zap.Any("sn", key.Sn),
+				zap.String("event_type", key.EventType),
 				zap.String("tx_hash", response.TxHash),
 			)
 
