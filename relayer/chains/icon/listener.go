@@ -68,16 +68,13 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 					if !errors.Is(ctx.Err(), context.Canceled) {
 						p.log.Debug("event notification received", zap.Any("event", v))
 						if v.Progress != "" {
-							height, err := v.Progress.Value()
+							height, err := v.Progress.Uint64()
 							if err != nil {
 								p.log.Error("failed to get progress height", zap.Error(err))
 								return err
 							}
 							if height > 0 {
-								eventReq.Height = types.NewHexInt(height)
-							}
-							if height < processedheight {
-								p.log.Info("Synced", zap.Int64("height", height), zap.Int64("delta", processedheight-height))
+								p.SetLastProcessedHeight(height)
 							}
 							return nil
 						}
@@ -106,6 +103,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 					if errors.Is(err, context.Canceled) {
 						return
 					}
+					eventReq.Height = types.NewHexInt(int64(p.GetCheckpoint()))
 					time.Sleep(time.Second * 3)
 					reconnect()
 					p.log.Warn("error occured during monitor event", zap.Error(err))

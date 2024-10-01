@@ -85,7 +85,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 					}
 				}
 			}
-			startHeight = p.GetLastSavedBlockHeight()
+			startHeight = p.GetCheckpoint()
 			subscribeStart.Reset(time.Second * 1)
 		case <-subscribeStart.C:
 			subscribeStart.Stop()
@@ -135,6 +135,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						Messages: []*relayertypes.Message{message},
 					}
 				}
+				p.SetLastProcessedHeight(br.end)
 			}
 		}
 	}
