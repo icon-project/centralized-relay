@@ -47,7 +47,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 	eventFilter := p.getEventFilter(0)
 	ledger, err := p.client.LedgerDetail(uint32(startSeq))
 	if err != nil {
-		p.log.Warn("error getting ledger details", zap.Error(err))
+		p.log.Error("error getting ledger details", zap.Error(err))
 		return err
 	}
 	ledgerCursor := ledger.PagingToken()
