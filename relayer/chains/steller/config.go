@@ -14,6 +14,7 @@ import (
 )
 
 type Config struct {
+	provider.CommonConfig
 	ChainID           string                         `json:"chain-id" yaml:"chain-id"`
 	ChainName         string                         `json:"-t" yaml:"-"`
 	HorizonUrl        string                         `json:"horizon-url" yaml:"horizon-url"`
