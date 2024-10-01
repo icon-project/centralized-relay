@@ -144,6 +144,34 @@ chains:
       connection: "$BASE_PATH/artifacts/archway/cw_centralized_connection.wasm"
       dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
 
+  - name: solana
+    version: "3"
+    environment: remote
+    rpc_uri: https://solana-rpc.venture23.xyz
+    relay_wallet : 2V6UQFu9BZL6eKj2EFjtbCvtS1poXJNyJoWogk6gbGsS
+    keystore_file: id.json
+    contracts_path: "$BASE_PATH/artifacts/solana/xcall/contracts/solana"
+    config_path: "$BASE_PATH/test/chains/solana/data/"
+    chain_config:
+      type: solana
+      name: solana
+      chain_id: solana.local
+      image:
+        repository: backpackapp/build
+        version: v0.30.1
+        uid_gid: ""
+      bin: anchor
+      bech32_prefix: 0x
+      denom: sol
+      coin_type: 118
+      gas_prices: 0.001sol
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/programs/xcall"      
+      sui_rlp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/centralized-connection" 
+      dapp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/mock-dapp-multi"
 relayer:
     image: centralized-relay
     tag: stellar-dev-amd
