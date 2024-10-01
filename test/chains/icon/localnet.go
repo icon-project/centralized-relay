@@ -193,9 +193,9 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
 	if in.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		in.IBCAddresses["xcall"] = "cx4df1d24b5c5d6cae7e9f885d941a9c123005c598"
-		in.IBCAddresses["connection"] = "cx5bc2fae446d43d458902e9b922b9cc66633c40eb"
-		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx6f86fc01ce8dffcf8c54f22cd07236050e3ca8a3"
+		in.IBCAddresses["xcall"] = "cx07c425640148e54b07cd92ad0835d83b64ad25a8"
+		in.IBCAddresses["connection"] = "cx97b13c438086271a61f611f396e3834b381cbb91"
+		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cxf18fc12e7fc1d34deb9e85f318640d433ddbc01f"
 		return nil
 	}
 	nid := in.cfg.ChainID
