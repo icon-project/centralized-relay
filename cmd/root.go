@@ -36,7 +36,6 @@ var (
 	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
