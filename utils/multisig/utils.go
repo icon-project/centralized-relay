@@ -56,8 +56,8 @@ func RandomMultisigInfo(n int, k int, chainParam *chaincfg.Params, seeds []int, 
 	return privKeys, &vaultInfo
 }
 
-func SumInputsSat(inputs []*UTXO) uint64 {
-	total := uint64(0)
+func SumInputsSat(inputs []*Input) int64 {
+	total := int64(0)
 	for _, in := range inputs {
 		total += in.OutputAmount
 	}

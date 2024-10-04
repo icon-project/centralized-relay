@@ -12,10 +12,10 @@ require (
 	github.com/cosmos/cosmos-sdk v0.50.8
 	github.com/cosmos/relayer/v2 v2.5.2
 	github.com/ethereum/go-ethereum v1.14.7
-	github.com/gin-gonic/gin v1.8.1
 	github.com/gofrs/flock v0.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/icon-project/goloop v1.3.11
+	github.com/icon-project/icon-bridge v0.0.11
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -27,6 +27,7 @@ require (
 	golang.org/x/sync v0.7.0
 	google.golang.org/grpc v1.64.0
 	gopkg.in/yaml.v3 v3.0.1
+	lukechampine.com/uint128 v1.3.0
 
 )
 
@@ -50,7 +51,6 @@ require (
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd // indirect
 	github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792 // indirect
-	github.com/cespare/cp v1.1.1 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
 	github.com/cosmos/ibc-go/v8 v8.3.2 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c // indirect
@@ -60,15 +60,12 @@ require (
 	github.com/evalphobia/logrus_fluent v0.5.4 // indirect
 	github.com/fluent/fluent-logger-golang v1.9.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
-	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.11.1 // indirect
-	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -95,7 +92,6 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/tinylib/msgp v1.1.9 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
-	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
@@ -115,7 +111,6 @@ require (
 	gopkg.in/go-playground/validator.v9 v9.31.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	lukechampine.com/uint128 v1.3.0 // indirect
 )
 
 require (

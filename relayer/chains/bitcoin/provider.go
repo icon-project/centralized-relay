@@ -11,11 +11,11 @@ import (
 	"runtime"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -45,7 +45,7 @@ var (
 	MasterMode              = "master"
 	SlaveMode               = "slave"
 	BtcDB                   = "btc.db"
-	MinSatsRequired  uint64 = 1000
+	MinSatsRequired   int64 = 1000
 	WitnessSize             = 385
 )
 
@@ -314,7 +314,7 @@ func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
 	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
 }
 
-func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired uint64, timeout uint) ([]*multisig.UTXO, error) {
+func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
@@ -322,8 +322,8 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired uint64
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bitcoin UTXOs from unisat: %v", err)
 	}
-	outputs := []*multisig.UTXO{}
-	var totalAmount uint64
+	inputs := []*multisig.Input{}
+	var totalAmount int64
 
 	utxos := resp.Data.Utxo
 	// sort utxos by amount in descending order
@@ -335,20 +335,20 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired uint64
 		if totalAmount >= amountRequired {
 			break
 		}
-		outputAmount := utxo.Satoshi.Uint64()
-		outputs = append(outputs, &multisig.UTXO{
-			IsRelayersMultisig: true,
+		outputAmount := utxo.Satoshi.Int64()
+		inputs = append(inputs, &multisig.Input{
 			TxHash:             utxo.TxId,
 			OutputIdx:          uint32(utxo.Vout),
 			OutputAmount:       outputAmount,
+			PkScript:			addressPkScript,
 		})
 		totalAmount += outputAmount
 	}
 
-	return outputs, nil
+	return inputs, nil
 }
 
-func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout uint) ([]*multisig.UTXO, error) {
+func GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
@@ -363,107 +363,129 @@ func GetRuneUTXOs(server, address, runeId string, amountRequired uint64, timeout
 		return utxos[i].Satoshi.Cmp(utxos[j].Satoshi) == 1
 	})
 
-	inputs := []*multisig.UTXO{}
-	var totalAmount uint64
+	inputs := []*multisig.Input{}
+	var totalAmount uint128.Uint128
 	for _, utxo := range utxos {
-		if totalAmount >= amountRequired {
+		if totalAmount.Cmp(amountRequired) >= 0 {
 			break
 		}
-		inputs = append(inputs, &multisig.UTXO{
-			IsRelayersMultisig: true,
+		inputs = append(inputs, &multisig.Input{
 			TxHash:             utxo.TxId,
 			OutputIdx:          uint32(utxo.Vout),
-			OutputAmount:       utxo.Satoshi.Uint64(),
+			OutputAmount:       utxo.Satoshi.Int64(),
+			PkScript:			addressPkScript,
 		})
 		if len(utxo.Runes) != 1 {
 			return nil, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
 		}
-		runeAmount, _ := strconv.ParseUint(utxo.Runes[0].Amount, 10, 64)
-		totalAmount += runeAmount
+		runeAmount, _ := uint128.FromString(utxo.Runes[0].Amount)
+		totalAmount = totalAmount.Add(runeAmount)
 	}
 
 	return inputs, nil
 }
 
 func (p *Provider) CreateBitcoinMultisigTx(
-	outputData []*multisig.OutputTx,
-
-	feeRate uint64,
+	outputData []*wire.TxOut,
+	feeRate int64,
 	decodedData *MessageDecoded,
 	msWallet *multisig.MultisigWallet,
-) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
+) ([]*multisig.Input, *wire.MsgTx, error) {
+	// build receiver Pk Script
+	receiverAddr, err := btcutil.DecodeAddress(decodedData.To, p.chainParam)
+	if err != nil {
+		return nil, nil, err
+	}
+	receiverPkScript, err := txscript.PayToAddrScript(receiverAddr)
+	if err != nil {
+		return nil, nil, err
+	}
 	// ----- BUILD OUTPUTS -----
-	outputs := []*multisig.OutputTx{}
-	outputs = append(outputs, outputData...)
-	var bitcoinAmountRequired uint64
-	var runeAmountRequired uint64
+	var outputs []*wire.TxOut
+	var bitcoinAmountRequired int64
+	var runeAmountRequired uint128.Uint128
 
 	rlMsAddress, err := multisig.AddressOnChain(p.chainParam, msWallet)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, err
 	}
 	msAddressStr := rlMsAddress.String()
 
 	// add withdraw output
-	amount, _ := strconv.ParseUint(string(decodedData.Amount), 10, 64)
+	amount := new(big.Int).SetBytes(decodedData.Amount)
 	if decodedData.Action == MethodWithdrawTo || decodedData.Action == MethodDeposit {
 		if decodedData.TokenAddress == BTCToken {
 			// transfer btc
-			outputs = append(outputs, &multisig.OutputTx{
-				ReceiverAddress: decodedData.To,
-				Amount:          amount,
-			})
-
-			bitcoinAmountRequired = amount
+			bitcoinAmountRequired = amount.Int64()
+			outputs = []*wire.TxOut{
+				// bitcoin send to receiver
+				{
+					Value: bitcoinAmountRequired,
+					PkScript: receiverPkScript,
+				},
+			}
 		} else {
 			// transfer rune
-			runeRequired, _ := runestone.RuneIdFromString(decodedData.TokenAddress)
-			changeOutputId := uint32(len(outputs) + 2)
+			runeAmountRequired = uint128.FromBig(amount)
+			runeRequired, err := runestone.RuneIdFromString(decodedData.TokenAddress)
+			if err != nil {
+				return nil, nil, err
+			}
+			changeOutputId := uint32(1)
 			runeOutput := &runestone.Runestone{
 				Edicts: []runestone.Edict{
 					{
 						ID:     *runeRequired,
-						Amount: uint128.FromBytes(decodedData.Amount),
-						Output: uint32(len(outputs) + 1),
+						Amount: uint128.FromBig(amount),
+						Output: 0,
 					},
 				},
 				Pointer: &changeOutputId,
 			}
-			runeScript, _ := runeOutput.Encipher()
-			// add runestone OP_RETURN
-			outputs = append(outputs, &multisig.OutputTx{
-				OpReturnScript: runeScript,
-			})
-			// add receiver output
-			outputs = append(outputs, &multisig.OutputTx{
-				ReceiverAddress: decodedData.To,
-				Amount:          MinSatsRequired,
-			})
-			// add change output
-			outputs = append(outputs, &multisig.OutputTx{
-				ReceiverAddress: msAddressStr,
-				Amount:          MinSatsRequired,
-			})
-			runeAmountRequired = amount
+			runeScript, err := runeOutput.Encipher()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			outputs = []*wire.TxOut{
+				// rune send to receiver
+				{
+					Value: MinSatsRequired,
+					PkScript: receiverPkScript,
+				},
+				// rune change output
+				{
+					Value: MinSatsRequired,
+					PkScript: msWallet.PKScript,
+				},
+				// rune OP_RETURN
+				{
+					Value: 0,
+					PkScript: runeScript,
+				},
+			}
+
 			bitcoinAmountRequired = MinSatsRequired * 2
 		}
 	}
 
+	outputs = append(outputs, outputData...)
 	// ----- BUILD INPUTS -----
 	inputs, estFee, err := p.computeTx(feeRate, bitcoinAmountRequired, runeAmountRequired, decodedData.TokenAddress, msAddressStr, outputs, msWallet)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, err
 	}
 	// create raw tx
-	msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, nil, p.chainParam, msAddressStr, 0)
+	msgTx, err := multisig.CreateTx(inputs, outputs, msWallet.PKScript, estFee, 0)
+	// msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, nil, p.chainParam, msAddressStr, 0)
 
-	return inputs, msgTx, hexRawTx, txSigHashes, err
+	return inputs, msgTx, err
 }
 
 // calculateTxSize calculates the size of a transaction given the inputs, outputs, estimated fee, change address, chain parameters, and multisig wallet.
 // It returns the size of the transaction in bytes and an error if any occurs during the process.
-func (p *Provider) calculateTxSize(inputs []*multisig.UTXO, outputs []*multisig.OutputTx, estFee uint64, changeAddress string, msWallet *multisig.MultisigWallet) (int, error) {
-	msgTx, _, _, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, msWallet, p.chainParam, changeAddress, 0)
+func (p *Provider) calculateTxSize(inputs []*multisig.Input, outputs []*wire.TxOut, estFee int64, msWallet *multisig.MultisigWallet) (int, error) {
+	msgTx, err := multisig.CreateTx(inputs, outputs, msWallet.PKScript, estFee, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -472,52 +494,52 @@ func (p *Provider) calculateTxSize(inputs []*multisig.UTXO, outputs []*multisig.
 	if err != nil {
 		return 0, err
 	}
-	txSize := len(rawTxBytes.Bytes()) + WitnessSize
+	txSize := len(rawTxBytes.Bytes()) + len(inputs)*WitnessSize
 	return txSize, nil
 }
 
-func (p *Provider) computeTx(feeRate, satsToSend, runeToSend uint64, runeId, changeAddress string, outputs []*multisig.OutputTx, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, uint64, error) {
+func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128.Uint128, runeId, address string, outputs []*wire.TxOut, msWallet *multisig.MultisigWallet) ([]*multisig.Input, int64, error) {
 
-	outputsCopy := make([]*multisig.OutputTx, len(outputs))
+	outputsCopy := make([]*wire.TxOut, len(outputs))
 	copy(outputsCopy, outputs)
 
-	inputs, err := p.selectUnspentUTXOs(satsToSend, runeToSend, runeId, outputsCopy, changeAddress)
-	sumSelectedOutputs := multisig.SumInputsSat(inputs)
+	inputs, err := p.selectUnspentUTXOs(satsToSend, runeToSend, runeId, address, msWallet.PKScript)
+	sumSelectedInputs := multisig.SumInputsSat(inputs)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	txSize, err := p.calculateTxSize(inputs, outputsCopy, 0, changeAddress, msWallet)
+	txSize, err := p.calculateTxSize(inputs, outputsCopy, 0, msWallet)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	estFee := uint64(txSize) * feeRate
+	estFee := int64(txSize) * feeRate
 	count := 0
 	loopEntered := false
-	var iterationOutputs []*multisig.OutputTx
+	var iterationOutputs []*wire.TxOut
 
-	for sumSelectedOutputs < satsToSend+estFee {
+	for sumSelectedInputs < satsToSend+estFee {
 		loopEntered = true
 		// Create a fresh copy of outputs for each iteration
-		iterationOutputs := make([]*multisig.OutputTx, len(outputs))
+		iterationOutputs := make([]*wire.TxOut, len(outputs))
 		copy(iterationOutputs, outputs)
 
 		newSatsToSend := satsToSend + estFee
 		var err error
-		selectedUnspentOutputs, err := p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, iterationOutputs, changeAddress)
+		selectedUnspentInputs, err := p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, address, msWallet.PKScript)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		sumSelectedOutputs = multisig.SumInputsSat(selectedUnspentOutputs)
+		sumSelectedInputs = multisig.SumInputsSat(selectedUnspentInputs)
 
-		txSize, err := p.calculateTxSize(selectedUnspentOutputs, iterationOutputs, estFee, changeAddress, msWallet)
+		txSize, err := p.calculateTxSize(selectedUnspentInputs, iterationOutputs, estFee, msWallet)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		estFee = feeRate * uint64(txSize)
+		estFee = feeRate * int64(txSize)
 
 		count += 1
 		if count > 500 {
@@ -533,12 +555,12 @@ func (p *Provider) computeTx(feeRate, satsToSend, runeToSend uint64, runeId, cha
 	return inputs, estFee, nil
 }
 
-func (p *Provider) selectUnspentUTXOs(satToSend uint64, runeToSend uint64, runeId string, outputs []*multisig.OutputTx, changeAddress string) ([]*multisig.UTXO, error) {
+func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint128, runeId string, address string, addressPkScript []byte) ([]*multisig.Input, error) {
 	// add tx fee the the required bitcoin amount
-	inputs := []*multisig.UTXO{}
-	if runeToSend != 0 {
+	inputs := []*multisig.Input{}
+	if !runeToSend.IsZero() {
 		// query rune UTXOs from unisat
-		runeInputs, err := GetRuneUTXOs(p.cfg.UniSatURL, changeAddress, runeId, runeToSend, 3)
+		runeInputs, err := GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, 3, addressPkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -547,7 +569,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend uint64, runeToSend uint64, runeI
 
 	// TODO: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
 	// query bitcoin UTXOs from unisat
-	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, changeAddress, satToSend, 3)
+	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, 3, addressPkScript)
 	if err != nil {
 		return nil, err
 	}
@@ -578,21 +600,7 @@ func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	return msWallet, nil
 }
 
-func (p *Provider) partSignTx(msgTx *wire.MsgTx, inputs []*multisig.UTXO, msWallet *multisig.MultisigWallet, txSigHashes *txscript.TxSigHashes) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
-	tapSigParams := multisig.TapSigParams{
-		TxSigHashes:      txSigHashes,
-		RelayersPKScript: msWallet.PKScript,
-		RelayersTapLeaf:  msWallet.TapLeaves[0],
-		UserPKScript:     []byte{},
-		UserTapLeaf:      txscript.TapLeaf{},
-	}
-	// relayer sign tx
-	relayerSigs, err := multisig.PartSignOnRawExternalTx(p.cfg.RelayerPrivKey, msgTx, inputs, tapSigParams, p.chainParam, false)
-
-	return inputs, msWallet, msgTx, relayerSigs, err
-}
-
-func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.UTXO, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
+func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.Input, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
 	msWallet, err := p.buildMultisigWallet()
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -602,12 +610,16 @@ func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multi
 		p.logger.Error("failed to get recommended fee from mempool", zap.Error(err))
 		feeRate = 0
 	}
-	inputs, msgTx, _, txSigHashes, err := p.buildTxMessage(message, feeRate, msWallet)
+	inputs, msgTx, err := p.buildTxMessage(message, int64(feeRate), msWallet)
 	if err != nil {
 		p.logger.Error("failed to build tx message: %v", zap.Error(err))
 		return nil, nil, nil, nil, err
 	}
-	inputs, msWallet, msgTx, relayerSigs, err := p.partSignTx(msgTx, inputs, msWallet, txSigHashes)
+	relayerSigs, err := multisig.SignTapMultisig(p.cfg.RelayerPrivKey, msgTx, inputs, msWallet, 0)
+	if err != nil {
+		p.logger.Error("failed to sign tx message: %v", zap.Error(err))
+		return nil, nil, nil, nil, err
+	}
 	return inputs, msWallet, msgTx, relayerSigs, err
 }
 
@@ -646,7 +658,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
 			totalSigs = append(totalSigs, slaveSigs...)
 			// combine sigs
-			signedMsgTx, err := multisig.CombineMultisigSigs(msgTx, inputs, msWallet, 0, msWallet, 0, totalSigs)
+			signedMsgTx, err := multisig.CombineTapMultisig(totalSigs, msgTx, inputs, msWallet, 0)
 
 			if err != nil {
 				p.logger.Error("err combine tx: ", zap.Error(err))
@@ -702,8 +714,8 @@ func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, 
 	return messageDecoded, nil
 }
 
-func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, msWallet *multisig.MultisigWallet) ([]*multisig.UTXO, *wire.MsgTx, string, *txscript.TxSigHashes, error) {
-	outputs := []*multisig.OutputTx{}
+func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, msWallet *multisig.MultisigWallet) ([]*multisig.Input, *wire.MsgTx, error) {
+	outputs := []*wire.TxOut{}
 	decodedData := &MessageDecoded{}
 
 	switch message.EventType {
@@ -718,12 +730,12 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, m
 			// Process RollbackMessage
 			data, err := p.db.Get([]byte("RB"+messageDecoded.Sn.String()), nil)
 			if err != nil {
-				return nil, nil, "", nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
+				return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
 			}
 			var storedData StoredMessageData
 			err = json.Unmarshal(data, &storedData)
 			if err != nil {
-				return nil, nil, "", nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
+				return nil, nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
 			}
 			decodedData = &MessageDecoded{
 				Action:       storedData.ActionMethod,
@@ -740,21 +752,22 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate uint64, m
 			decodedData = data
 			if err != nil {
 				p.logger.Error("failed to decode message: %v", zap.Error(err))
-				return nil, nil, "", nil, err
+				return nil, nil, err
 			}
-			scripts, _ := multisig.CreateBridgeMessageScripts(opreturnData, 76)
+			scripts, _ := multisig.EncodePayloadToScripts(opreturnData)
 			for _, script := range scripts {
-				outputs = append(outputs, &multisig.OutputTx{
-					OpReturnScript: script,
+				outputs = append(outputs, &wire.TxOut{
+					Value: 0,
+					PkScript: script,
 				})
 			}
 		}
 	default:
-		return nil, nil, "", nil, fmt.Errorf("unknown event type: %s", message.EventType)
+		return nil, nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 
-	inputs, msgTx, hexRawTx, txSigHashes, err := p.CreateBitcoinMultisigTx(outputs, feeRate, decodedData, msWallet)
-	return inputs, msgTx, hexRawTx, txSigHashes, err
+	inputs, msgTx, err := p.CreateBitcoinMultisigTx(outputs, feeRate, decodedData, msWallet)
+	return inputs, msgTx, err
 }
 
 // call the smart contract to send the message
