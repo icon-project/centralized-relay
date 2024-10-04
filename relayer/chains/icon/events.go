@@ -11,8 +11,8 @@ const (
 	EmitMessage        = "Message(str,int,bytes)"
 	CallMessage        = "CallMessage(str,str,int,int,bytes)"
 	RollbackMessage    = "RollbackMessage(int)"
-	PacketRegistered   = "PacketRegistered(str,str,int,int,str,bytes)"
-	PacketAcknowledged = "PacketAcknowledged(str,str,int,int,str,bytes,bytes)"
+	PacketRegistered   = "PacketRegistered(str,str,int,int,str,str,bytes)"
+	PacketAcknowledged = "PacketAcknowledged(str,str,int,int,str,str,bytes,bytes)"
 )
 
 // EventSigToEventType converts event signature to event type

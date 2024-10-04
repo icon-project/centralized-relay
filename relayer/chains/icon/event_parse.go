@@ -210,7 +210,7 @@ func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotif
 		return nil, fmt.Errorf("expected indexed: 3 got: %d indexed", indexdedLen)
 	}
 	wrappedSource := e.Indexed[1]
-	connAddress := e.Indexed[2]
+	srcConnAddress := e.Indexed[2]
 	sn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
@@ -226,6 +226,7 @@ func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotif
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
 	}
+	dstConnAddress := e.Data[4]
 
 	return &providerTypes.Message{
 		MessageHeight:       height,
@@ -235,7 +236,8 @@ func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotif
 		Sn:                  sn,
 		WrappedSourceHeight: wrappedHt,
 		Data:                data,
-		ConnAddress:         connAddress,
+		SrcConnAddress:      srcConnAddress,
+		DstConnAddress:      dstConnAddress,
 	}, nil
 }
 
@@ -244,33 +246,35 @@ func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNot
 		return nil, fmt.Errorf("expected indexed: 3, got: %d indexed", indexdedLen)
 	}
 	wrappedSource := e.Indexed[1]
-	connAddress := e.Indexed[2]
+	srcConnAddress := e.Indexed[2]
 	sn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
 	}
 	wrappedDestination := e.Data[2]
-	data, err := types.HexBytes(e.Data[3]).Value()
+	data, err := types.HexBytes(e.Data[4]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[3])
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
 	}
-	signaturesRlp, err := types.HexBytes(e.Data[4]).Value()
+	signaturesRlp, err := types.HexBytes(e.Data[5]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse signatures: %s", e.Data[4])
+		return nil, fmt.Errorf("failed to parse signatures: %s", e.Data[5])
 	}
 	var signatures [][]byte
 	if err := rlp.DecodeBytes(signaturesRlp, &signatures); err != nil {
 		fmt.Println(err)
-		return nil, fmt.Errorf("failed to parse rlp signatures: %s", e.Data[4])
+		return nil, fmt.Errorf("failed to parse rlp signatures: %s", e.Data[5])
 	}
+	dstConnAddress := e.Data[3]
 	return &providerTypes.Message{
-		MessageHeight: height,
-		EventType:     p.GetEventName(e.Indexed[0]),
-		Dst:           wrappedDestination,
-		Src:           wrappedSource,
-		Sn:            sn,
-		Data:          data,
-		ConnAddress:   connAddress,
-		Signatures:    signatures,
+		MessageHeight:  height,
+		EventType:      p.GetEventName(e.Indexed[0]),
+		Dst:            wrappedDestination,
+		Src:            wrappedSource,
+		Sn:             sn,
+		Data:           data,
+		SrcConnAddress: srcConnAddress,
+		DstConnAddress: dstConnAddress,
+		Signatures:     signatures,
 	}, nil
 }

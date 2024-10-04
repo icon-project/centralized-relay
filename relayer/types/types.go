@@ -35,7 +35,9 @@ type Message struct {
 	ReqID               *big.Int `json:"reqID,omitempty"`
 	DappModuleCapID     string   `json:"dappModuleCapID,omitempty"`
 	WrappedSourceHeight *big.Int `json:"height"`
-	ConnAddress         string   `json:"conn-addr"`
+	SrcConnAddress      string   `json:"src-conn-addr"`
+	DstConnAddress      string   `json:"conn-addr"`
+	SignedData          []byte   `json:"signedData"`
 	Signatures          [][]byte `json:"signatures"`
 
 	TxInfo []byte `json:"-"`

@@ -35,15 +35,17 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 	switch message.EventType {
 	case events.EmitMessage:
 		if p.cfg.ClusterMode {
-			msg := &types.RegisterPacket{
-				Data:        types.NewHexBytes(message.Data),
-				Sn:          types.NewHexInt(message.Sn.Int64()),
-				Height:      types.NewHexInt(int64(message.MessageHeight)),
-				Source:      message.Src,
-				Destination: message.Dst,
-				ConnAddress: message.ConnAddress,
+			msg := &types.SubmitPacket{
+				Data:           types.NewHexBytes(message.Data),
+				Sn:             types.NewHexInt(message.Sn.Int64()),
+				Height:         types.NewHexInt(int64(message.MessageHeight)),
+				Source:         message.Src,
+				Destination:    message.Dst,
+				DstConnAddress: message.DstConnAddress,
+				SrcConnAddress: message.SrcConnAddress,
+				SignedBytes:    types.NewHexBytes(message.SignedData),
 			}
-			return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodRegisterPacket), nil
+			return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodSubmitPacket), nil
 		}
 		msg := &types.RecvMessage{
 			SrcNID: message.Src,
@@ -82,13 +84,17 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
 	case events.PacketRegistered:
-		msg := &types.AcknowledgePacket{
-			Source:      message.Src,
-			Sn:          types.NewHexInt(message.Sn.Int64()),
-			SignedBytes: types.NewHexBytes(message.Data),
-			ConnAddress: message.ConnAddress,
+		msg := &types.SubmitPacket{
+			Data:           types.NewHexBytes(message.Data),
+			Sn:             types.NewHexInt(message.Sn.Int64()),
+			Height:         types.NewHexInt(int64(message.MessageHeight)),
+			Source:         message.Src,
+			Destination:    message.Dst,
+			SrcConnAddress: message.SrcConnAddress,
+			DstConnAddress: message.DstConnAddress,
+			SignedBytes:    types.NewHexBytes(message.SignedData),
 		}
-		return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodAcknowledgePacket), nil
+		return p.NewIconMessage(p.GetAddressByEventType(events.PacketRegistered), msg, MethodSubmitPacket), nil
 	case events.PacketAcknowledged:
 		var sigs []types.HexBytes
 		for _, sig := range message.Signatures {

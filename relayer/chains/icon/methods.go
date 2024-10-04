@@ -16,8 +16,7 @@ var (
 	MethodExecuteRollback = "executeRollback"
 
 	// Cluster Methods
-	MethodRegisterPacket           = "registerPacket"
-	MethodAcknowledgePacket        = "acknowledgePacket"
-	MethodGetSignatures            = "getSignature"
+	MethodSubmitPacket             = "submitPacket"
+	MethodClusterMsgReceived       = "packetSubmitted"
 	MethodRecvMessageWithSignature = "recvMessageWithSignatures"
 )

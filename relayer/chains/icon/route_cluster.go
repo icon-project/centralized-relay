@@ -10,25 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Provider) RegisterClusterMessage(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	p.log.Info("starting to register message",
-		zap.Any("sn", message.Sn),
-		zap.Any("req_id", message.ReqID),
-		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
-	iconMessage, err := p.MakeIconMessage(message)
-	if err != nil {
-		return err
-	}
-	messageKey := message.MessageKey()
-	txhash, err := p.SendTransaction(ctx, iconMessage)
-	if err != nil {
-		return errors.Wrapf(err, "error occured while sending transaction")
-	}
-	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
-}
-
-func (p *Provider) AcknowledgeClusterMessage(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
+func (p *Provider) SubmitClusterMessage(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to acknowledge message",
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
