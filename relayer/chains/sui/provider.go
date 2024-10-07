@@ -38,6 +38,8 @@ var (
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
+
+	QUERY_MAX_RESULT_LIMIT = 50
 )
 
 type Provider struct {
@@ -104,31 +106,38 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 		return nil, err
 	}
 
-	var messages []*relayertypes.Message
+	txDigestsBatches := BatchStringSlice(checkpoint.Transactions, QUERY_MAX_RESULT_LIMIT)
 
-	eventResponse, err := p.client.GetEventsFromTxBlocks(
-		ctx,
-		checkpoint.Transactions,
-		func(stbr *suitypes.SuiTransactionBlockResponse) bool {
-			for _, t := range stbr.ObjectChanges {
-				if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
-					return true
+	var eventResponses []types.EventResponse
+
+	for _, txDigests := range txDigestsBatches {
+		responses, err := p.client.GetEventsFromTxBlocks(
+			ctx,
+			txDigests,
+			func(stbr *suitypes.SuiTransactionBlockResponse) bool {
+				for _, t := range stbr.ObjectChanges {
+					if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+						return true
+					}
 				}
-			}
-			return false
-		},
-	)
-	if err != nil {
-		p.log.Error("failed to query events", zap.Error(err))
-		return nil, err
+				return false
+			},
+		)
+		if err != nil {
+			p.log.Error("failed to query events", zap.Error(err))
+			return nil, err
+		}
+
+		eventResponses = append(eventResponses, responses...)
 	}
 
-	blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+	blockInfoList, err := p.parseMessagesFromEvents(eventResponses)
 	if err != nil {
 		p.log.Error("failed to parse messages from events", zap.Error(err))
 		return nil, err
 	}
 
+	var messages []*relayertypes.Message
 	for _, bi := range blockInfoList {
 		messages = append(messages, bi.Messages...)
 	}
@@ -232,4 +241,19 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
+}
+
+func BatchStringSlice(slice []string, batchSize int) [][]string {
+	if batchSize <= 0 {
+		batchSize = 50
+	}
+
+	batches := make([][]string, 0, (len(slice)+batchSize-1)/batchSize)
+
+	for batchSize < len(slice) {
+		slice, batches = slice[batchSize:], append(batches, slice[0:batchSize:batchSize])
+	}
+	batches = append(batches, slice)
+
+	return batches
 }
