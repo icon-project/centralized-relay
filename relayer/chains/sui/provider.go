@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
+	"github.com/coming-chat/go-sui/v2/sui_types"
 	suitypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
@@ -235,5 +236,9 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 }
 
 func (p *Provider) SignMessage(message []byte) ([]byte, error) {
-	return p.wallet.Sign(message), nil
+	msg, err := p.wallet.SignSecureWithoutEncode(message, sui_types.DefaultIntent())
+	if err != nil {
+		return nil, err
+	}
+	return msg.Ed25519SuiSignature.Signature[:], nil
 }
