@@ -190,3 +190,70 @@ func TestQueryTxBlocks(t *testing.T) {
 
 	fmt.Println("Total Events: ", count)
 }
+
+func TestBatchStringSlice(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []string
+		batchSize int
+		expected  [][]string
+	}{
+		{
+			name:      "Empty slice",
+			input:     []string{},
+			batchSize: 50,
+			expected:  [][]string{{}},
+		},
+		{
+			name:      "Slice smaller than batch size",
+			input:     []string{"a", "b", "c"},
+			batchSize: 50,
+			expected:  [][]string{{"a", "b", "c"}},
+		},
+		{
+			name:      "Slice equal to batch size",
+			input:     []string{"1", "2", "3", "4", "5"},
+			batchSize: 5,
+			expected:  [][]string{{"1", "2", "3", "4", "5"}},
+		},
+		{
+			name:      "Slice larger than batch size",
+			input:     []string{"a", "b", "c", "d", "e", "f", "g"},
+			batchSize: 3,
+			expected:  [][]string{{"a", "b", "c"}, {"d", "e", "f"}, {"g"}},
+		},
+		{
+			name:      "Large slice with default batch size",
+			input:     make([]string, 120),
+			batchSize: 0, // Should default to 50
+			expected:  [][]string{make([]string, 50), make([]string, 50), make([]string, 20)},
+		},
+		{
+			name:      "Negative batch size",
+			input:     []string{"1", "2", "3", "4", "5", "6"},
+			batchSize: -1, // Should default to 50
+			expected:  [][]string{{"1", "2", "3", "4", "5", "6"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := BatchStringSlice(tt.input, tt.batchSize)
+			assert.Equal(t, tt.expected, result, "Batches do not match expected output")
+
+			// Additional checks
+			if len(tt.input) > 0 {
+				totalItems := 0
+				for _, batch := range result {
+					totalItems += len(batch)
+					if tt.batchSize > 0 {
+						assert.LessOrEqual(t, len(batch), tt.batchSize, "Batch size exceeds maximum")
+					} else {
+						assert.LessOrEqual(t, len(batch), 50, "Batch size exceeds default maximum")
+					}
+				}
+				assert.Equal(t, len(tt.input), totalItems, "Total number of items in batches doesn't match input")
+			}
+		})
+	}
+}
