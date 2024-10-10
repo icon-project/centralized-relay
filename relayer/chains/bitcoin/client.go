@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/icon-project/centralized-relay/utils/multisig"
 	"go.uber.org/zap"
 
 	// "github.com/btcsuite/btcd/wire"
@@ -122,8 +123,6 @@ func (c *Client) GetFee(ctx context.Context) (uint64, error) {
 func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error) {
 	//
 	res := []*TxSearchRes{}
-	meetRequirement1 := 0
-	meetRequirement2 := 0
 
 	for i := param.StartHeight; i <= param.EndHeight; i++ {
 
@@ -138,38 +137,16 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 
 		block, err := c.client.GetBlock(blockHash)
 		if err != nil {
+			c.log.Error("Failed to get block", zap.Error(err))
 			return nil, err
 		}
 		// loop thru transactions
 		for j, tx := range block.Transactions {
-			// loop thru tx output
-			for _, txOutput := range tx.TxOut {
-				if len(txOutput.PkScript) > 2 {
-
-					// check OP_RETURN
-					if txOutput.PkScript[0] == txscript.OP_RETURN && txOutput.PkScript[1] == byte(param.OPReturnPrefix) {
-						c.log.Info("TxSearch txhash",
-							zap.String("txhash", tx.TxHash().String()),
-						)
-						meetRequirement1++
-					}
-
-					// check EQUAL to multisig script
-					if bytes.Equal(param.BitcoinScript, txOutput.PkScript) {
-						meetRequirement2++
-					}
-
-					if meetRequirement2*meetRequirement1 != 0 {
-						c.log.Info("TxSearch found op_return",
-							zap.Uint64("height", i),
-						)
-						res = append(res, &TxSearchRes{Height: i, Tx: tx, TxIndex: uint64(j)})
-						break
-					}
-				}
+			bridgeMessage, err := multisig.ReadBridgeMessage(tx)
+			if err != nil {
+				continue
 			}
-			meetRequirement2 = 0
-			meetRequirement1 = 0
+			res = append(res, &TxSearchRes{Height: i, Tx: tx, TxIndex: uint64(j), BridgeMessage: bridgeMessage})
 		}
 	}
 

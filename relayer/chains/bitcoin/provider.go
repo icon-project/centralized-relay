@@ -39,14 +39,14 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 var (
-	BTCToken                = "0:1"
-	MethodDeposit           = "Deposit"
-	MethodWithdrawTo        = "WithdrawTo"
-	MasterMode              = "master"
-	SlaveMode               = "slave"
-	BtcDB                   = "btc.db"
-	MinSatsRequired   int64 = 1000
-	WitnessSize             = 385
+	BTCToken               = "0:1"
+	MethodDeposit          = "Deposit"
+	MethodWithdrawTo       = "WithdrawTo"
+	MasterMode             = "master"
+	SlaveMode              = "slave"
+	BtcDB                  = "btc.db"
+	MinSatsRequired  int64 = 1000
+	WitnessSize            = 125
 )
 
 var chainIdToName = map[uint8]string{
@@ -266,6 +266,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.logger.Error("failed to determine start height", zap.Error(err))
 		return err
 	}
+	// startHeight := uint64(3082427)
 
 	pollHeightTicker := time.NewTicker(time.Second * 60) // do scan each 2 mins
 	pollHeightTicker.Stop()
@@ -337,10 +338,10 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 		}
 		outputAmount := utxo.Satoshi.Int64()
 		inputs = append(inputs, &multisig.Input{
-			TxHash:             utxo.TxId,
-			OutputIdx:          uint32(utxo.Vout),
-			OutputAmount:       outputAmount,
-			PkScript:			addressPkScript,
+			TxHash:       utxo.TxId,
+			OutputIdx:    uint32(utxo.Vout),
+			OutputAmount: outputAmount,
+			PkScript:     addressPkScript,
 		})
 		totalAmount += outputAmount
 	}
@@ -370,10 +371,10 @@ func GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128
 			break
 		}
 		inputs = append(inputs, &multisig.Input{
-			TxHash:             utxo.TxId,
-			OutputIdx:          uint32(utxo.Vout),
-			OutputAmount:       utxo.Satoshi.Int64(),
-			PkScript:			addressPkScript,
+			TxHash:       utxo.TxId,
+			OutputIdx:    uint32(utxo.Vout),
+			OutputAmount: utxo.Satoshi.Int64(),
+			PkScript:     addressPkScript,
 		})
 		if len(utxo.Runes) != 1 {
 			return nil, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
@@ -420,7 +421,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			outputs = []*wire.TxOut{
 				// bitcoin send to receiver
 				{
-					Value: bitcoinAmountRequired,
+					Value:    bitcoinAmountRequired,
 					PkScript: receiverPkScript,
 				},
 			}
@@ -450,17 +451,17 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			outputs = []*wire.TxOut{
 				// rune send to receiver
 				{
-					Value: MinSatsRequired,
+					Value:    MinSatsRequired,
 					PkScript: receiverPkScript,
 				},
 				// rune change output
 				{
-					Value: MinSatsRequired,
+					Value:    MinSatsRequired,
 					PkScript: msWallet.PKScript,
 				},
 				// rune OP_RETURN
 				{
-					Value: 0,
+					Value:    0,
 					PkScript: runeScript,
 				},
 			}
@@ -757,7 +758,7 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 			scripts, _ := multisig.EncodePayloadToScripts(opreturnData)
 			for _, script := range scripts {
 				outputs = append(outputs, &wire.TxOut{
-					Value: 0,
+					Value:    0,
 					PkScript: script,
 				})
 			}
@@ -1017,10 +1018,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	p.logger.Info("parseMessageFromTx",
 		zap.Uint64("height", tx.Height))
 
-	bridgeMessage, err := multisig.ReadBridgeMessage(tx.Tx)
-	if err != nil {
-		return nil, err
-	}
+	bridgeMessage := tx.BridgeMessage
 	messageInfo := bridgeMessage.Message
 
 	isValidConnector := false
@@ -1139,7 +1137,8 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 
 	p.logger.Info("Stored message for rollback case", zap.Any("storedData", storedData))
-	data, err = json.Marshal(storedData)
+
+	data, err := json.Marshal(storedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal stored rollback message data: %v", err)
 	}
