@@ -341,6 +341,15 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 			if err := r.ClearMessages(ctx, []*types.MessageKey{key}, src); err != nil {
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
+		} else {
+			dst.log.Error("message relay failed",
+				zap.Any("sn", key.Sn),
+				zap.String("src", src.Provider.NID()),
+				zap.String("dst", dst.Provider.NID()),
+				zap.String("event_type", key.EventType),
+				zap.String("tx_hash", response.TxHash),
+				zap.Error(err),
+			)
 		}
 	}
 }
