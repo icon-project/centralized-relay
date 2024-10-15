@@ -38,7 +38,8 @@
       "alt-address": "9zdvWRLFU19dMr6ScTDGwRuUcZBUyZgVPKvoRCgZzrqf",
       "nid": "solana-test",
       "home-dir": "/home/relayer/.centralized-relay",
-      "start-tx-sign": ""
+      "start-tx-sign": "",
+      "tx-confirmation-time": "15s"
     }
   }
   

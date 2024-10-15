@@ -119,7 +119,11 @@ func (p *Provider) executeRouteCallback(
 	msg *relayertypes.Message,
 	callback relayertypes.TxResponseFunc,
 ) {
-	txResult, err := p.waitForTxConfirmation(defaultTxConfirmationTime, sign)
+	txConfirmationTime := defaultTxConfirmationTime
+	if p.cfg.TxConfirmationTime != 0 {
+		txConfirmationTime = p.cfg.TxConfirmationTime
+	}
+	txResult, err := p.waitForTxConfirmation(txConfirmationTime, sign)
 	if err != nil {
 		callback(
 			msg.MessageKey(),

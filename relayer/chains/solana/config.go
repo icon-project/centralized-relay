@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
@@ -32,6 +33,8 @@ type Config struct {
 	NID         string `yaml:"nid" json:"nid"`
 	HomeDir     string `yaml:"home-dir" json:"home-dir"`
 	StartTxSign string `yaml:"start-tx-sign" json:"start-tx-sign"`
+
+	TxConfirmationTime time.Duration `yaml:"tx-confirmation-time" json:"tx-confirmation-time"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
