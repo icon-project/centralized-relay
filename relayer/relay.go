@@ -312,7 +312,7 @@ func (r *Relayer) GetAllChainsRuntime() []*ChainRuntime {
 }
 
 // callback function
-func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *types.MessageKey) types.TxResponseFunc {
+func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime) types.TxResponseFunc {
 	return func(key *types.MessageKey, response *types.TxResponse, err error) {
 		routeMessage, ok := src.MessageCache.Get(key)
 		if !ok {
@@ -342,27 +342,28 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 				r.log.Error("error occured when clearing successful message", zap.Error(err))
 			}
 		} else {
-			dst.log.Error("message relay failed",
-				zap.Any("sn", key.Sn),
-				zap.String("src", src.Provider.NID()),
-				zap.String("dst", dst.Provider.NID()),
-				zap.String("event_type", key.EventType),
-				zap.String("tx_hash", response.TxHash),
-				zap.Error(err),
-			)
+			r.HandleMessageFailed(routeMessage, dst, src, response.TxHash, err)
 		}
 	}
 }
 
 func (r *Relayer) RouteMessage(ctx context.Context, m *types.RouteMessage, dst, src *ChainRuntime) {
 	m.IncrementRetry()
-	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst, m.MessageKey())); err != nil {
-		dst.log.Error("message routing failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
-		r.HandleMessageFailed(m, dst, src)
+	if err := dst.Provider.Route(ctx, m.Message, r.callback(ctx, src, dst)); err != nil {
+		r.HandleMessageFailed(m, dst, src, "", err)
 	}
 }
 
-func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime) {
+func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src *ChainRuntime, txHash string, err error) {
+	dst.log.Error("message routing failed",
+		zap.Any("sn", routeMessage.Sn),
+		zap.String("src", routeMessage.Src),
+		zap.String("dst", routeMessage.Dst),
+		zap.String("event_type", routeMessage.EventType),
+		zap.String("tx_hash", txHash),
+		zap.Uint8("count", routeMessage.Retry),
+		zap.Error(err),
+	)
 	routeMessage.ToggleProcessing()
 	if routeMessage.Retry >= types.MaxTxRetry {
 		if err := r.messageStore.StoreMessage(routeMessage); err != nil {
@@ -370,18 +371,8 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 			return
 		}
 
-		// removed message from messageCache
 		src.MessageCache.Remove(routeMessage.MessageKey())
-
-		dst.log.Error("message relay failed",
-			zap.String("src", routeMessage.Src),
-			zap.String("dst", routeMessage.Dst),
-			zap.Uint64("sn", routeMessage.Sn.Uint64()),
-			zap.String("event_type", routeMessage.EventType),
-			zap.Uint8("count", routeMessage.Retry),
-		)
 	}
-	return
 }
 
 // PruneDB removes all the messages from db
