@@ -202,7 +202,8 @@ func (cl Client) SimulateTx(
 	tx *solana.Transaction,
 ) (*solrpc.SimulateTransactionResult, error) {
 	res, err := cl.rpc.SimulateTransactionWithOpts(ctx, tx, &solrpc.SimulateTransactionOpts{
-		Commitment: solrpc.CommitmentConfirmed,
+		Commitment:             solrpc.CommitmentConfirmed,
+		ReplaceRecentBlockhash: true,
 	})
 	if err != nil {
 		return nil, err
