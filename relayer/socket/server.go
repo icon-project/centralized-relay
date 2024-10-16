@@ -340,10 +340,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		}
 		var events []*ResGetBlockEvents
 		for _, chain := range s.rly.GetAllChainsRuntime() {
-			msgs, err := chain.Provider.FetchTxMessages(ctx, req.TxHash)
-			if err != nil {
-				return response.SetError(err)
-			}
+			msgs, _ := chain.Provider.FetchTxMessages(ctx, req.TxHash)
 			for _, msg := range msgs {
 				msgKey := types.NewMessageKey(msg.Sn, msg.Src, msg.Dst, msg.EventType)
 				received, err := chain.Provider.MessageReceived(ctx, msgKey)
