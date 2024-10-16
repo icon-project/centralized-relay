@@ -528,14 +528,14 @@ func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128
 
 		newSatsToSend := satsToSend + estFee
 		var err error
-		selectedUnspentInputs, err := p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, address, msWallet.PKScript)
+		inputs, err = p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, address, msWallet.PKScript)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		sumSelectedInputs = multisig.SumInputsSat(selectedUnspentInputs)
+		sumSelectedInputs = multisig.SumInputsSat(inputs)
 
-		txSize, err := p.calculateTxSize(selectedUnspentInputs, iterationOutputs, estFee, msWallet)
+		txSize, err := p.calculateTxSize(inputs, iterationOutputs, estFee, msWallet)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -1099,9 +1099,19 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	sn := new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex)
 
 	from := p.cfg.NID + "/" + p.cfg.Address
-	decodeMessage, _ := codec.RLP.MarshalToBytes(messageInfo)
-	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors, uint8(CALL_MESSAGE_ROLLBACK_TYPE))
+	// Remove messageType from messageInfo before calling MarshalToBytes
 
+	xCallMessage := XCallMessage{
+		Action:       messageInfo.Action,
+		TokenAddress: messageInfo.TokenAddress,
+		From:         messageInfo.From,
+		To:           messageInfo.To,
+		Amount:       messageInfo.Amount,
+		Data:         messageInfo.Data,
+	}
+	decodeMessage, _ := codec.RLP.MarshalToBytes(xCallMessage)
+
+	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors, uint8(messageInfo.MessageType))
 	relayMessage := &relayTypes.Message{
 		Dst: "0x2.icon",
 		// TODO:
