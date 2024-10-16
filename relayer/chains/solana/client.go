@@ -219,7 +219,7 @@ func (cl Client) SendTx(
 	ctx context.Context,
 	tx *solana.Transaction,
 ) (solana.Signature, error) {
-	return cl.rpc.SendTransaction(ctx, tx)
+	return cl.rpc.SendTransactionWithOpts(ctx, tx, solrpc.TransactionOpts{PreflightCommitment: solrpc.CommitmentConfirmed})
 }
 
 func (cl Client) GetSignatureStatus(

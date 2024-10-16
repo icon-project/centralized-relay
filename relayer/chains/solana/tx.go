@@ -55,7 +55,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	go p.executeRouteCallback(txSign, message, callback)
+	p.executeRouteCallback(txSign, message, callback)
 
 	return nil
 }
