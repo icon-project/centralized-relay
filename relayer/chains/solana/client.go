@@ -58,6 +58,11 @@ type IClient interface {
 		signature solana.Signature,
 		opts *solrpc.GetTransactionOpts,
 	) (*solrpc.GetTransactionResult, error)
+
+	GetRecentPriorityFee(
+		ctx context.Context,
+		accounts solana.PublicKeySlice,
+	) (uint64, error)
 }
 
 type Client struct {
@@ -259,4 +264,23 @@ func (cl Client) GetTransaction(
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
 	return cl.rpc.GetTransaction(ctx, signature, opts)
+}
+
+func (cl Client) GetRecentPriorityFee(
+	ctx context.Context,
+	accounts solana.PublicKeySlice,
+) (uint64, error) {
+	results, err := cl.rpc.GetRecentPrioritizationFees(ctx, accounts)
+	if err != nil {
+		return 0, err
+	}
+
+	max := uint64(0)
+	for _, item := range results {
+		if item.PrioritizationFee > max {
+			max = item.PrioritizationFee
+		}
+	}
+
+	return max, nil
 }

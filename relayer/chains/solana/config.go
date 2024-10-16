@@ -35,6 +35,8 @@ type Config struct {
 	StartTxSign string `yaml:"start-tx-sign" json:"start-tx-sign"`
 
 	TxConfirmationTime time.Duration `yaml:"tx-confirmation-time" json:"tx-confirmation-time"`
+
+	ComputeUnitLimit uint64 `yaml:"compute-unit-limit" json:"compute-unit-limit"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {

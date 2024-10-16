@@ -40,6 +40,31 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
+	var accounts solana.PublicKeySlice
+	for _, ins := range instructions {
+		for _, ac := range ins.Accounts() {
+			accounts = append(accounts, ac.PublicKey)
+		}
+	}
+
+	priorityFee, err := p.client.GetRecentPriorityFee(ctx, accounts)
+	if err != nil {
+		p.log.Warn("failed to get recent priority fee", zap.Error(err))
+	}
+
+	if priorityFee > 0 {
+		computeUnitLimit := 200000
+		if p.cfg.ComputeUnitLimit > 0 {
+			computeUnitLimit = int(p.cfg.ComputeUnitLimit)
+		}
+		instructions = append(instructions,
+			[]solana.Instruction{
+				compute_budget.NewSetComputeUnitLimitInstruction(uint32(computeUnitLimit)).Build(),
+				compute_budget.NewSetComputeUnitPriceInstruction(priorityFee).Build(),
+			}...,
+		)
+	}
+
 	opts := []solana.TransactionOption{
 		solana.TransactionPayer(p.wallet.PublicKey()),
 		solana.TransactionAddressTables(p.staticAlts),
@@ -492,8 +517,6 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 	accounts = append(accounts, executeCallAccounts...)
 
 	instructions := []solana.Instruction{
-		compute_budget.NewSetComputeUnitLimitInstruction(200000).Build(),
-		compute_budget.NewSetComputeUnitPriceInstruction(0).Build(),
 		&solana.GenericInstruction{
 			ProgID:        p.xcallIdl.GetProgramID(),
 			AccountValues: accounts,
