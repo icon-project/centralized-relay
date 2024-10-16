@@ -338,7 +338,6 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err := jsoniter.Unmarshal(data, req); err != nil {
 			return response.SetError(err)
 		}
-		fmt.Println("req.TxHash", req.TxHash)
 		var events []*ResGetBlockEvents
 		for _, chain := range s.rly.GetAllChainsRuntime() {
 			msgs, err := chain.Provider.FetchTxMessages(ctx, req.TxHash)
