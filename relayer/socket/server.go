@@ -178,21 +178,13 @@ func (s *Server) parseEvent(msg *Request) *Response {
 				return response.SetError(err)
 			}
 			messages = append(messages, msgs...)
-		} else {
-			if req.FromHeight > req.ToHeight {
-				return response.SetError(fmt.Errorf("fromHeight should be less than toHeight"))
-			} else if req.ToHeight-req.FromHeight > 100 {
-				return response.SetError(fmt.Errorf("height range should be less than 100"))
-			} else if req.ToHeight == 0 {
-				req.ToHeight = req.FromHeight
-			}
-			msgs, err := src.Provider.GenerateMessages(ctx, req.FromHeight, req.ToHeight)
+		} else if req.Height != 0 {
+			msgs, err := src.Provider.GenerateMessages(ctx, req.Height, req.Height)
 			if err != nil {
 				return response.SetError(err)
 			}
 			messages = append(messages, msgs...)
 		}
-
 		for _, msg := range messages {
 			src.MessageCache.Add(types.NewRouteMessage(msg))
 		}
@@ -346,15 +338,40 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err := jsoniter.Unmarshal(data, req); err != nil {
 			return response.SetError(err)
 		}
-		chain, err := s.rly.FindChainRuntime(req.Chain)
-		if err != nil {
-			return response.SetError(err)
+		fmt.Println("req.TxHash", req.TxHash)
+		var events []*ResGetBlockEvents
+		for _, chain := range s.rly.GetAllChainsRuntime() {
+			msgs, err := chain.Provider.FetchTxMessages(ctx, req.TxHash)
+			if err != nil {
+				return response.SetError(err)
+			}
+			for _, msg := range msgs {
+				msgKey := types.NewMessageKey(msg.Sn, msg.Src, msg.Dst, msg.EventType)
+				received, err := chain.Provider.MessageReceived(ctx, msgKey)
+				if err != nil {
+					return response.SetError(err)
+				}
+				data := &ResGetBlockEvents{
+					Event:    msg.EventType,
+					Height:   msg.MessageHeight,
+					Executed: received,
+					TxHash:   req.TxHash,
+					ChainInfo: struct {
+						NID       string                  `json:"nid"`
+						Name      string                  `json:"name"`
+						Type      string                  `json:"type"`
+						Contracts types.ContractConfigMap `json:"contracts"`
+					}{
+						NID:       chain.Provider.NID(),
+						Name:      chain.Provider.Name(),
+						Type:      chain.Provider.Type(),
+						Contracts: chain.Provider.Config().ContractsAddress(),
+					},
+				}
+				events = append(events, data)
+			}
 		}
-		msgs, err := chain.Provider.GenerateMessages(ctx, req.Height, req.Height)
-		if err != nil {
-			return response.SetError(err)
-		}
-		return response.SetData(msgs)
+		return response.SetData(events)
 	case EventGetBlockRange:
 		req := new(ReqRangeBlockQuery)
 		if err := jsoniter.Unmarshal(data, req); err != nil {

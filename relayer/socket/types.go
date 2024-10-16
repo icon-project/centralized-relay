@@ -57,10 +57,9 @@ type ReqGetBlock struct {
 }
 
 type ReqRelayMessage struct {
-	Chain      string `json:"chain"`
-	FromHeight uint64 `json:"from_height"`
-	ToHeight   uint64 `json:"to_height"`
-	TxHash     string `json:"tx_hash"`
+	Chain  string `json:"chain"`
+	Height uint64 `json:"to_height"`
+	TxHash string `json:"tx_hash"`
 }
 
 type ReqMessageRemove struct {
@@ -211,15 +210,21 @@ type ResMessageReceived struct {
 }
 
 type ReqGetBlockEvents struct {
-	Chain  string `json:"chain"`
-	Height uint64 `json:"height"`
+	Height uint64 `json:"height,omitempty"`
+	TxHash string `json:"txHash,omitempty"`
 }
 
 type ResGetBlockEvents struct {
-	Chain   string   `json:"chain"`
-	Address string   `json:"address"`
-	Event   []string `json:"event"`
-	Height  uint64   `json:"height"`
+	Event     string `json:"event"`
+	Height    uint64 `json:"height"`
+	Executed  bool   `json:"executed"`
+	TxHash    string `json:"txHash"`
+	ChainInfo struct {
+		NID       string                  `json:"nid"`
+		Name      string                  `json:"name"`
+		Type      string                  `json:"type"`
+		Contracts types.ContractConfigMap `json:"contracts"`
+	}
 }
 
 type ChainProviderError struct {
