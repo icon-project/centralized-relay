@@ -123,6 +123,9 @@ func (p *Provider) waitForTxConfirmation(timeout time.Duration, sign solana.Sign
 	for range time.NewTicker(500 * time.Millisecond).C {
 		txStatus, err := p.client.GetSignatureStatus(context.TODO(), false, sign)
 		if err == nil && txStatus != nil && (txStatus.ConfirmationStatus == solrpc.ConfirmationStatusConfirmed || txStatus.ConfirmationStatus == solrpc.ConfirmationStatusFinalized) {
+			if txStatus.Err != nil {
+				return nil, fmt.Errorf("txn failed [sign: %s]: %v", sign, txStatus.Err)
+			}
 			return txStatus, nil
 		} else if time.Since(startTime) > timeout {
 			var cbErr error
