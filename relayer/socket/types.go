@@ -224,7 +224,7 @@ type ResGetBlockEvents struct {
 		Name      string                  `json:"name"`
 		Type      string                  `json:"type"`
 		Contracts types.ContractConfigMap `json:"contracts"`
-	}
+	} `json:"chainInfo"`
 }
 
 type ChainProviderError struct {
