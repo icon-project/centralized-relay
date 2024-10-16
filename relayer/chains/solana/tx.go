@@ -50,7 +50,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -174,7 +174,7 @@ func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.Public
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -208,7 +208,7 @@ func (p *Provider) extendLookupTableAccount(ctx context.Context, acTableAddr sol
 		return err
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -685,7 +685,7 @@ func (p *Provider) queryRecvMessageAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -858,7 +858,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -995,7 +995,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -1086,7 +1086,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	simres, err := p.client.SimulateTx(ctx, tx, nil)
+	simres, err := p.client.SimulateTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}

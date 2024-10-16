@@ -40,13 +40,11 @@ type IClient interface {
 	SimulateTx(
 		ctx context.Context,
 		tx *solana.Transaction,
-		opts *solrpc.SimulateTransactionOpts,
 	) (*solrpc.SimulateTransactionResult, error)
 
 	SendTx(
 		ctx context.Context,
 		tx *solana.Transaction,
-		opts *solrpc.TransactionOpts,
 	) (solana.Signature, error)
 
 	GetSignaturesForAddress(
@@ -192,7 +190,7 @@ func (cl Client) GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockRes
 }
 
 func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {
-	hashRes, err := cl.rpc.GetLatestBlockhash(ctx, solrpc.CommitmentFinalized)
+	hashRes, err := cl.rpc.GetLatestBlockhash(ctx, solrpc.CommitmentConfirmed)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +200,10 @@ func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {
 func (cl Client) SimulateTx(
 	ctx context.Context,
 	tx *solana.Transaction,
-	opts *solrpc.SimulateTransactionOpts,
 ) (*solrpc.SimulateTransactionResult, error) {
-	res, err := cl.rpc.SimulateTransactionWithOpts(ctx, tx, opts)
+	res, err := cl.rpc.SimulateTransactionWithOpts(ctx, tx, &solrpc.SimulateTransactionOpts{
+		Commitment: solrpc.CommitmentConfirmed,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -219,11 +218,7 @@ func (cl Client) SimulateTx(
 func (cl Client) SendTx(
 	ctx context.Context,
 	tx *solana.Transaction,
-	opts *solrpc.TransactionOpts,
 ) (solana.Signature, error) {
-	if opts != nil {
-		return cl.rpc.SendTransactionWithOpts(ctx, tx, *opts)
-	}
 	return cl.rpc.SendTransaction(ctx, tx)
 }
 
