@@ -2,17 +2,24 @@ package steller
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"net/url"
+	"slices"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/stellar/go/clients/horizonclient"
+	"github.com/stellar/go/protocols/horizon"
+	"github.com/stellar/go/strkey"
+	"github.com/stellar/go/xdr"
 	"go.uber.org/zap"
 )
 
 var (
-	hzContextTimeout = 2 * time.Minute
+	limit = 100
 )
 
 func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx,
@@ -36,45 +43,103 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 	if p.cfg.StartHeight != 0 && p.cfg.StartHeight < startSeq {
 		startSeq = p.cfg.StartHeight
 	}
-
-	reconnectCh := make(chan struct{}, 1) // reconnect channel
-
-	reconnect := func() {
-		select {
-		case reconnectCh <- struct{}{}:
-		default:
-		}
-	}
 	p.log.Info("start querying from ledger seq", zap.Uint64("start-seq", startSeq))
-	eventChannel := make(chan types.Event, 10)
-	reconnect()
-	hzStreamCtx, cancel := context.WithTimeout(ctx, hzContextTimeout)
-	defer cancel()
+	eventFilter := p.getEventFilter(0)
+	ledger, err := p.client.LedgerDetail(uint32(startSeq))
+	if err != nil {
+		p.log.Error("error getting ledger details", zap.Error(err))
+		return err
+	}
+	ledgerCursor := ledger.PagingToken()
+	pollInterval := 6 * time.Second
+	if p.cfg.PollInterval != 0 {
+		pollInterval = p.cfg.PollInterval
+	}
+	ticker := time.NewTicker(pollInterval)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-hzStreamCtx.Done():
-			hzStreamCtx, cancel = context.WithTimeout(ctx, hzContextTimeout)
-			defer cancel()
-			reconnect()
-		case ev, ok := <-eventChannel:
-			if ok {
-				if ev.ContractEvent != nil {
-					messages := p.parseMessagesFromEvent(ev)
-					if messages != nil {
-						blockInfo <- &relayertypes.BlockInfo{
-							Height: messages.MessageHeight, Messages: []*relayertypes.Message{messages},
+		case <-ticker.C:
+			hasNext := true
+			for hasNext {
+				p.log.Debug("Querying for ledger ", zap.Any("cursor", ledgerCursor))
+				trRequest := horizonclient.TransactionRequest{
+					Cursor:        ledgerCursor,
+					Limit:         uint(limit),
+					IncludeFailed: false,
+					Order:         horizonclient.OrderAsc,
+				}
+				txns, err := p.client.Transactions(trRequest)
+				if err != nil {
+					p.log.Warn("error occurred while fetching transactions", zap.Error(err))
+					break
+				}
+				p.log.Debug("got ledger result", zap.Any("size", len(txns.Embedded.Records)))
+				p.processTxns(txns, eventFilter, blockInfo)
+				newledgerCursor := ""
+				if txns.Links.Next.Href != "" {
+					parsedURL, err := url.Parse(txns.Links.Next.Href)
+					if err != nil {
+						p.log.Warn("error occurred while parsing cursor url", zap.Error(err))
+						break
+					}
+					queryParams := parsedURL.Query()
+					cursor := queryParams.Get("cursor")
+					newledgerCursor = cursor
+				}
+				if newledgerCursor == ledgerCursor || len(txns.Embedded.Records) < limit {
+					hasNext = false
+				}
+				if newledgerCursor != "" {
+					ledgerCursor = newledgerCursor
+				}
+			}
+		}
+	}
+}
+
+func (p *Provider) processTxns(txns horizon.TransactionsPage, eventFilter types.EventFilter,
+	blockInfo chan *relayertypes.BlockInfo) {
+	for _, txn := range txns.Embedded.Records {
+		if !txn.Successful {
+			continue
+		}
+		var txnMeta xdr.TransactionMeta
+		if err := xdr.SafeUnmarshalBase64(txn.ResultMetaXdr, &txnMeta); err != nil {
+			continue
+		}
+		if txnMeta.V3 == nil || txnMeta.V3.SorobanMeta == nil {
+			continue
+		}
+		if len(txnMeta.V3.SorobanMeta.Events) == 0 {
+			continue
+		}
+		for _, ev := range txnMeta.V3.SorobanMeta.Events {
+			hexBytes, err := hex.DecodeString(ev.ContractId.HexString())
+			if err != nil {
+				continue
+			}
+			contractID, err := strkey.Encode(strkey.VersionByteContract, hexBytes)
+			if err != nil {
+				continue
+			}
+			if slices.Contains(eventFilter.ContractIds, contractID) {
+				for _, topic := range ev.Body.V0.Topics {
+					if slices.Contains(eventFilter.Topics, topic.String()) {
+						event := types.Event{
+							ContractEvent: &ev,
+							LedgerSeq:     uint64(txn.Ledger),
+						}
+						messages := p.parseMessagesFromEvent(event)
+						if messages != nil {
+							blockInfo <- &relayertypes.BlockInfo{
+								Height: messages.MessageHeight, Messages: []*relayertypes.Message{messages},
+							}
 						}
 					}
 				}
-				startSeq = ev.LedgerSeq
 			}
-		case <-reconnectCh:
-			p.log.Info("Query started.", zap.Uint64("from-seq", startSeq))
-			eventFilter := p.getEventFilter(startSeq + 1)
-			go p.client.StreamEvents(hzStreamCtx, eventFilter, eventChannel)
-
 		}
 	}
 }
@@ -183,6 +248,12 @@ func (p *Provider) getEventFilter(ledgerSeq uint64) types.EventFilter {
 		topics = append(topics, []string{"CallMessage", "RollbackMessage"}...)
 	}
 
+	if ledgerSeq <= 0 {
+		return types.EventFilter{
+			ContractIds: contractIds,
+			Topics:      topics,
+		}
+	}
 	return types.EventFilter{
 		LedgerSeq:   ledgerSeq,
 		ContractIds: contractIds,

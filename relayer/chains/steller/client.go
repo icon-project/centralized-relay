@@ -26,9 +26,9 @@ type IClient interface {
 
 	FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error)
 
-	StreamEvents(ctx context.Context, eventFilter types.EventFilter, eventChannel chan<- types.Event)
-
 	ParseTxnEvents(txn *horizon.Transaction, fl types.EventFilter) ([]types.Event, error)
+	LedgerDetail(sequence uint32) (ledger horizon.Ledger, err error)
+	Transactions(request horizonclient.TransactionRequest) (txs horizon.TransactionsPage, err error)
 }
 
 type Client struct {
@@ -60,66 +60,12 @@ func (cl *Client) GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLed
 	return cl.soroban.GetLatestLedger(ctx)
 }
 
-func (cl *Client) StreamEvents(ctx context.Context, eventFilter types.EventFilter, eventChannel chan<- types.Event) {
-	ledger, err := cl.horizon.LedgerDetail(uint32(eventFilter.LedgerSeq))
-	if err != nil {
-		ctx.Done()
-		return
-	}
-	ledgerCursor := ledger.PagingToken()
-	trRequest := horizonclient.TransactionRequest{
-		Cursor:        ledgerCursor,
-		Order:         horizonclient.OrderAsc,
-		IncludeFailed: false,
-	}
-	txnHandler := func(txn horizon.Transaction) {
-		var txnMeta xdr.TransactionMeta
-		if err := xdr.SafeUnmarshalBase64(txn.ResultMetaXdr, &txnMeta); err != nil {
-			return
-		}
-		if txnMeta.V3 == nil || txnMeta.V3.SorobanMeta == nil {
-			//update the processed height
-			eventChannel <- types.Event{
-				LedgerSeq: uint64(txn.Ledger),
-			}
-			return
-		}
-		if len(txnMeta.V3.SorobanMeta.Events) == 0 {
-			eventChannel <- types.Event{
-				LedgerSeq: uint64(txn.Ledger),
-			}
-		}
-		for _, ev := range txnMeta.V3.SorobanMeta.Events {
-			hexBytes, err := hex.DecodeString(ev.ContractId.HexString())
-			if err != nil {
-				break
-			}
-			contractID, err := strkey.Encode(strkey.VersionByteContract, hexBytes)
-			if err != nil {
-				return
-			}
-			if slices.Contains(eventFilter.ContractIds, contractID) {
-				for _, topic := range ev.Body.V0.Topics {
-					if slices.Contains(eventFilter.Topics, topic.String()) {
-						eventChannel <- types.Event{
-							ContractEvent: &ev,
-							LedgerSeq:     uint64(txn.Ledger),
-						}
-						break
-					}
-				}
-			} else {
-				eventChannel <- types.Event{
-					LedgerSeq: uint64(txn.Ledger),
-				}
-			}
-		}
-	}
-	err = cl.horizon.StreamTransactions(ctx, trRequest, txnHandler)
-	if err != nil {
-		ctx.Done()
-		return
-	}
+func (cl *Client) LedgerDetail(sequence uint32) (ledger horizon.Ledger, err error) {
+	return cl.horizon.LedgerDetail(sequence)
+}
+
+func (cl *Client) Transactions(request horizonclient.TransactionRequest) (txs horizon.TransactionsPage, err error) {
+	return cl.horizon.Transactions(request)
 }
 
 func (cl *Client) FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error) {
