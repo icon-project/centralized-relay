@@ -9,6 +9,7 @@ import (
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
@@ -91,4 +92,16 @@ func (pc *Config) Validate() error {
 
 func (pc *Config) Enabled() bool {
 	return !pc.Disabled
+}
+
+func (pc *Config) ContractsAddress() relayertypes.ContractConfigMap {
+	addresses := relayertypes.ContractConfigMap{
+		relayertypes.ConnectionContract: pc.ConnectionProgram,
+		relayertypes.XcallContract:      pc.XcallProgram,
+	}
+	for _, dapp := range pc.Dapps {
+		addresses[dapp.Name] = dapp.ProgramID
+	}
+
+	return addresses
 }
