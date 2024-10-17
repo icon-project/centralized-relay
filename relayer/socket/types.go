@@ -58,8 +58,8 @@ type ReqGetBlock struct {
 
 type ReqRelayMessage struct {
 	Chain  string `json:"chain"`
-	Height uint64 `json:"to_height"`
-	TxHash string `json:"tx_hash"`
+	Height uint64 `json:"height"`
+	TxHash string `json:"txHash"`
 }
 
 type ReqMessageRemove struct {
