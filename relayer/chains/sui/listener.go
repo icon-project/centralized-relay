@@ -2,14 +2,12 @@ package sui
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	"github.com/coming-chat/go-sui/v2/lib"
 	"github.com/coming-chat/go-sui/v2/sui_types"
 	cctypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
@@ -34,18 +32,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 	}
 
 	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
-}
-
-func (p *Provider) allowedEventTypes() []string {
-	allowedEvents := []string{}
-	for _, xcallPkgId := range p.cfg.XcallPkgIDs {
-		allowedEvents = append(allowedEvents, []string{
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleConnection, "Message"),
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "CallMessage"),
-			fmt.Sprintf("%s::%s::%s", xcallPkgId, ModuleMain, "RollbackMessage"),
-		}...)
-	}
-	return allowedEvents
 }
 
 func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
@@ -75,12 +61,11 @@ func (p *Provider) parseMessagesFromEvents(events []types.EventResponse) ([]rela
 
 		p.log.Info("Detected event log: ",
 			zap.Uint64("checkpoint", msg.MessageHeight),
-			zap.String("event-type", msg.EventType),
+			zap.String("event_type", msg.EventType),
 			zap.Any("sn", msg.Sn),
 			zap.String("dst", msg.Dst),
-			zap.Any("req-id", msg.ReqID),
-			zap.String("dapp-module-cap-id", msg.DappModuleCapID),
-			zap.Any("data", hex.EncodeToString(msg.Data)),
+			zap.Any("req_id", msg.ReqID),
+			zap.String("tx_hash", ev.Id.TxDigest.String()),
 		)
 		checkpointMessages[ev.Checkpoint.Uint64()] = append(checkpointMessages[ev.Checkpoint.Uint64()], msg)
 	}
@@ -191,7 +176,7 @@ func (p *Provider) parseMessageFromEvent(ev types.EventResponse) (*relayertypes.
 func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventResponse, blockStream chan *relayertypes.BlockInfo) {
 	for ev.Checkpoint == nil {
 		p.log.Warn("checkpoint not found for transaction", zap.String("tx-digest", ev.Id.TxDigest.String()))
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		txRes, err := p.client.GetTransaction(ctx, ev.Id.TxDigest.String())
 		if err != nil {
 			p.log.Error("failed to get transaction while handling event notification",
@@ -218,12 +203,11 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 
 	p.log.Info("Detected event log: ",
 		zap.Uint64("checkpoint", msg.MessageHeight),
-		zap.String("event-type", msg.EventType),
+		zap.String("event_type", msg.EventType),
 		zap.Any("sn", msg.Sn),
 		zap.String("dst", msg.Dst),
-		zap.Any("req-id", msg.ReqID),
-		zap.String("dapp-module-cap-id", msg.DappModuleCapID),
-		zap.Any("data", hex.EncodeToString(msg.Data)),
+		zap.Any("req_id", msg.ReqID),
+		zap.String("tx_hash", ev.Id.TxDigest.String()),
 	)
 
 	blockStream <- &relayertypes.BlockInfo{
@@ -292,9 +276,14 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 
 		cursor := afterTxDigest
 
-		limit := uint(100)
+		limit := uint(15)
 
-		ticker := time.NewTicker(3 * time.Second)
+		pollInterval := 6 * time.Second
+		if p.cfg.PollInterval != 0 {
+			pollInterval = p.cfg.PollInterval
+		}
+
+		ticker := time.NewTicker(pollInterval)
 
 		for {
 			select {
@@ -309,21 +298,16 @@ func (p *Provider) getObjectEventStream(done chan interface{}, objectID string, 
 
 				p.log.Debug("tx block query successful", zap.Any("cursor", cursor))
 
-				if len(res.Data) > 0 {
-					var nextCursor *lib.Base58
-					for _, blockRes := range res.Data {
-						for _, ev := range blockRes.Events {
-							eventStream <- types.EventResponse{
-								SuiEvent:   ev,
-								Checkpoint: blockRes.Checkpoint,
-							}
-							nextCursor = &ev.Id.TxDigest
+				for _, blockRes := range res.Data {
+					for _, ev := range blockRes.Events {
+						eventStream <- types.EventResponse{
+							SuiEvent:   ev,
+							Checkpoint: blockRes.Checkpoint,
 						}
 					}
-					if nextCursor != nil {
-						cursor = nextCursor
-					}
 				}
+
+				cursor = res.NextCursor
 			}
 		}
 	}()

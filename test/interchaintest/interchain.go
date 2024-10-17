@@ -220,14 +220,6 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 			chainConfig := make(map[string]interface{})
 			_ = yaml.Unmarshal(content, &chainConfig)
 			config.Chains[chainName] = chainConfig
-			// key, err := r.GetKeystore(c.Config().Type, wallet)
-			// if err != nil {
-			// 	return fmt.Errorf("failed to get keystore %s for chain %s: %w", ic.relayers[r], chainName, err)
-			// }
-
-			// if err := r.RestoreKeystore(ctx, key, c.Config().ChainID, wallet.KeyName()); err != nil {
-			// 	return fmt.Errorf("failed to restore key to relayer %s for chain %s: %w", ic.relayers[r], chainName, err)
-			// }
 
 		}
 	}
