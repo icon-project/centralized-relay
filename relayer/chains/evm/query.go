@@ -77,3 +77,14 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 
 	return finalizedReceipt, nil
 }
+
+// GetCheckpoint returns the last processed height
+// Get the last processed height if polling is processing
+// get latest height if polling is not processing
+func (p *Provider) GetCheckpoint() uint64 {
+	lastSavedHeight := p.GetLastSavedBlockHeight()
+	if p.LastProcessedHeight > lastSavedHeight {
+		return p.LastProcessedHeight
+	}
+	return lastSavedHeight
+}

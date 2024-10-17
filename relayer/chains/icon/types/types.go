@@ -239,6 +239,12 @@ func (i HexInt) BigInt() (*big.Int, error) {
 	}
 }
 
+func (i HexInt) Uint64() (uint64, error) {
+	s := strings.TrimPrefix(string(i), "0x")
+	v, err := strconv.ParseUint(s, 16, 64)
+	return v, err
+}
+
 func decodeHexNumber(s string) (bool, []byte, error) {
 	negative := false
 	if len(s) > 0 && s[0] == '-' {
