@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	abci "github.com/cometbft/cometbft/abci/types"
 	coreTypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/errors"
@@ -428,8 +430,9 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 	return true, nil
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{messageKey.Height, messageKey.Height})
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	p.logger.Info("generating message", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	blocks, err := p.fetchBlockMessages(ctx, &types.HeightRange{Start: fromHeight, End: toHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -438,6 +441,37 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.
 		messages = append(messages, block.Messages...)
 	}
 	return messages, nil
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayTypes.Message, error) {
+	txResult, err := p.client.GetTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, err
+	}
+
+	allowedEvents := []string{
+		EventTypeWasmMessage, EventTypeWasmCallMessage, EventTypeWasmRollbackMessage,
+	}
+	contractAddresses := []string{
+		p.cfg.Contracts[relayTypes.XcallContract],
+		p.cfg.Contracts[relayTypes.ConnectionContract],
+	}
+
+	filteredEvents := []abci.Event{}
+	for _, ev := range txResult.TxResponse.Events {
+		if !slices.Contains(allowedEvents, ev.Type) {
+			continue
+		}
+		for _, attr := range ev.Attributes {
+			if attr.Key == EventAttrKeyContractAddress {
+				if slices.Contains(contractAddresses, attr.Value) {
+					filteredEvents = append(filteredEvents, ev)
+				}
+			}
+		}
+	}
+
+	return p.ParseMessageFromEvents(filteredEvents)
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
@@ -851,4 +885,25 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedHeight returns the last saved height
 func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return p.GetLastSavedHeight(), nil
+}
+
+func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	heightRange := &types.HeightRange{
+		Start: fromHeight,
+		End:   toHeight,
+	}
+	blockInfo, err := p.fetchBlockMessages(ctx, heightRange)
+	if err != nil {
+		p.logger.Error("failed to fetch block messages", zap.Error(err))
+		return nil, err
+	}
+	var messages []*relayTypes.Message
+	for _, block := range blockInfo {
+		messages = append(messages, block.Messages...)
+	}
+	return messages, nil
 }

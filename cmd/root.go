@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -35,7 +36,6 @@ var (
 	}()
 	defaultDBName = "data"
 	defaultConfig = "config.yaml"
-	Version       = "dev"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -99,7 +99,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		Use:     appName,
 		Short:   "This application makes data relay between chains!",
 		Long:    `Use this to relay xcall packet between chains using bridge contract.`,
-		Version: Version,
+		Version: relayer.Version,
 		Aliases: []string{"crly"},
 	}
 
@@ -159,6 +159,7 @@ func NewRootCmd(log *zap.Logger) *cobra.Command {
 		dbCmd(a),
 		keystoreCmd(a),
 		contractCMD(a),
+		debugCmd(a),
 	)
 	return rootCmd
 }

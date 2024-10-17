@@ -46,9 +46,6 @@ e2e-test:
 test-all:
 	@go test -v ./...
 
-test-all:
-	@go test -v ./...
-
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
 GOLANG_CROSS_VERSION  ?= v1.22.4
 LIBWASM_VERSION 		 ?= v2.1.0
