@@ -40,13 +40,11 @@ type IClient interface {
 	SimulateTx(
 		ctx context.Context,
 		tx *solana.Transaction,
-		opts *solrpc.SimulateTransactionOpts,
 	) (*solrpc.SimulateTransactionResult, error)
 
 	SendTx(
 		ctx context.Context,
 		tx *solana.Transaction,
-		opts *solrpc.TransactionOpts,
 	) (solana.Signature, error)
 
 	GetSignaturesForAddress(
@@ -60,6 +58,11 @@ type IClient interface {
 		signature solana.Signature,
 		opts *solrpc.GetTransactionOpts,
 	) (*solrpc.GetTransactionResult, error)
+
+	GetRecentPriorityFee(
+		ctx context.Context,
+		accounts solana.PublicKeySlice,
+	) (uint64, error)
 }
 
 type Client struct {
@@ -192,7 +195,7 @@ func (cl Client) GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockRes
 }
 
 func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {
-	hashRes, err := cl.rpc.GetLatestBlockhash(ctx, solrpc.CommitmentFinalized)
+	hashRes, err := cl.rpc.GetLatestBlockhash(ctx, solrpc.CommitmentConfirmed)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +205,11 @@ func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {
 func (cl Client) SimulateTx(
 	ctx context.Context,
 	tx *solana.Transaction,
-	opts *solrpc.SimulateTransactionOpts,
 ) (*solrpc.SimulateTransactionResult, error) {
-	res, err := cl.rpc.SimulateTransactionWithOpts(ctx, tx, opts)
+	res, err := cl.rpc.SimulateTransactionWithOpts(ctx, tx, &solrpc.SimulateTransactionOpts{
+		Commitment:             solrpc.CommitmentConfirmed,
+		ReplaceRecentBlockhash: true,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -219,12 +224,8 @@ func (cl Client) SimulateTx(
 func (cl Client) SendTx(
 	ctx context.Context,
 	tx *solana.Transaction,
-	opts *solrpc.TransactionOpts,
 ) (solana.Signature, error) {
-	if opts != nil {
-		return cl.rpc.SendTransactionWithOpts(ctx, tx, *opts)
-	}
-	return cl.rpc.SendTransaction(ctx, tx)
+	return cl.rpc.SendTransactionWithOpts(ctx, tx, solrpc.TransactionOpts{PreflightCommitment: solrpc.CommitmentConfirmed})
 }
 
 func (cl Client) GetSignatureStatus(
@@ -263,4 +264,23 @@ func (cl Client) GetTransaction(
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
 	return cl.rpc.GetTransaction(ctx, signature, opts)
+}
+
+func (cl Client) GetRecentPriorityFee(
+	ctx context.Context,
+	accounts solana.PublicKeySlice,
+) (uint64, error) {
+	results, err := cl.rpc.GetRecentPrioritizationFees(ctx, accounts)
+	if err != nil {
+		return 0, err
+	}
+
+	max := uint64(0)
+	for _, item := range results {
+		if item.PrioritizationFee > max {
+			max = item.PrioritizationFee
+		}
+	}
+
+	return max, nil
 }

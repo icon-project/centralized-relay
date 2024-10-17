@@ -165,7 +165,7 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -224,7 +224,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -328,7 +328,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -389,7 +389,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -515,7 +515,7 @@ func (p *Provider) queryRevertMessageAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}

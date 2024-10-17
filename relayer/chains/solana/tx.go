@@ -40,6 +40,31 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to create call instructions: %w", err)
 	}
 
+	var accounts solana.PublicKeySlice
+	for _, ins := range instructions {
+		for _, ac := range ins.Accounts() {
+			accounts = append(accounts, ac.PublicKey)
+		}
+	}
+
+	priorityFee, err := p.client.GetRecentPriorityFee(ctx, accounts)
+	if err != nil {
+		p.log.Warn("failed to get recent priority fee", zap.Error(err))
+	}
+
+	if priorityFee > 0 {
+		computeUnitLimit := 200000
+		if p.cfg.ComputeUnitLimit > 0 {
+			computeUnitLimit = int(p.cfg.ComputeUnitLimit)
+		}
+		instructions = append(instructions,
+			[]solana.Instruction{
+				compute_budget.NewSetComputeUnitLimitInstruction(uint32(computeUnitLimit)).Build(),
+				compute_budget.NewSetComputeUnitPriceInstruction(priorityFee).Build(),
+			}...,
+		)
+	}
+
 	opts := []solana.TransactionOption{
 		solana.TransactionPayer(p.wallet.PublicKey()),
 		solana.TransactionAddressTables(p.staticAlts),
@@ -50,12 +75,12 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
-	go p.executeRouteCallback(txSign, message, callback)
+	p.executeRouteCallback(txSign, message, callback)
 
 	return nil
 }
@@ -98,6 +123,9 @@ func (p *Provider) waitForTxConfirmation(timeout time.Duration, sign solana.Sign
 	for range time.NewTicker(500 * time.Millisecond).C {
 		txStatus, err := p.client.GetSignatureStatus(context.TODO(), false, sign)
 		if err == nil && txStatus != nil && (txStatus.ConfirmationStatus == solrpc.ConfirmationStatusConfirmed || txStatus.ConfirmationStatus == solrpc.ConfirmationStatusFinalized) {
+			if txStatus.Err != nil {
+				return nil, fmt.Errorf("txn failed [sign: %s]: %v", sign, txStatus.Err)
+			}
 			return txStatus, nil
 		} else if time.Since(startTime) > timeout {
 			var cbErr error
@@ -174,7 +202,7 @@ func (p *Provider) createLookupTableAccount(ctx context.Context) (*solana.Public
 		return nil, err
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -208,7 +236,7 @@ func (p *Provider) extendLookupTableAccount(ctx context.Context, acTableAddr sol
 		return err
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -492,8 +520,6 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 	accounts = append(accounts, executeCallAccounts...)
 
 	instructions := []solana.Instruction{
-		compute_budget.NewSetComputeUnitLimitInstruction(200000).Build(),
-		compute_budget.NewSetComputeUnitPriceInstruction(0).Build(),
 		&solana.GenericInstruction{
 			ProgID:        p.xcallIdl.GetProgramID(),
 			AccountValues: accounts,
@@ -685,7 +711,7 @@ func (p *Provider) queryRecvMessageAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -858,7 +884,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -995,7 +1021,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}
@@ -1086,7 +1112,7 @@ func (p *Provider) decodeCsMessage(ctx context.Context, msg []byte) (*types.CsMe
 		return nil, fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	simres, err := p.client.SimulateTx(ctx, tx, nil)
+	simres, err := p.client.SimulateTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
