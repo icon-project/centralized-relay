@@ -227,7 +227,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			}
 			printLabels("NID", "Height")
 			for _, block := range blocks {
-				printValues(block.Chain, block.Height)
+				printValues(block.Chain, block.CheckPointHeight)
 			}
 			return nil
 		},

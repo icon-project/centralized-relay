@@ -53,7 +53,6 @@ type ReqMessageList struct {
 
 type ReqGetBlock struct {
 	Chain string `json:"chain"`
-	All   bool   `json:"all"`
 }
 
 type ReqRelayMessage struct {
@@ -81,8 +80,9 @@ type ResMessageList struct {
 }
 
 type ResGetBlock struct {
-	Chain  string `json:"chain"`
-	Height uint64 `json:"height"`
+	Chain            string `json:"chain"`
+	CheckPointHeight uint64 `json:"checkPointHeight"`
+	LatestHeight     uint64 `json:"latestHeight"`
 }
 
 type ReqPruneDB struct {

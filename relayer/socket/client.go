@@ -89,7 +89,7 @@ func (c *Client) Close() error {
 
 // GetBlock sends GetBlock event to socket
 func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
-	req := &ReqGetBlock{Chain: chain, All: chain == ""}
+	req := &ReqGetBlock{Chain: chain}
 	if err := c.send(&Request{Event: EventGetBlock, Data: req}); err != nil {
 		return nil, err
 	}

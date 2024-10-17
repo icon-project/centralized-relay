@@ -128,7 +128,7 @@ func (c *DebugState) getLatestProcessedBlock(app *appState) *cobra.Command {
 			}
 			printLabels("Chain", "Last Processed Block")
 			for _, block := range res {
-				printValues(block.Chain, block.Height)
+				printValues(block.Chain, block.CheckPointHeight)
 			}
 			return nil
 		},
