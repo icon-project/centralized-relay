@@ -9,6 +9,7 @@ import (
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stellar/go/clients/horizonclient"
 	"go.uber.org/zap"
@@ -76,4 +77,8 @@ func (pc *Config) Validate() error {
 // Enabled returns true if the chain is enabled
 func (pc *Config) Enabled() bool {
 	return !pc.Disabled
+}
+
+func (pc *Config) ContractsAddress() types.ContractConfigMap {
+	return pc.Contracts
 }

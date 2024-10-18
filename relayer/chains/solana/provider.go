@@ -81,38 +81,58 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	blockRes, err := p.client.GetBlock(ctx, messageKey.Height)
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
+	signature := solana.MustSignatureFromBase58(txHash)
+	txVersion := uint64(0)
+	txn, err := p.client.GetTransaction(ctx, signature, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get txn with sign %s: %w", signature, err)
 	}
 
-	messages := []*relayertypes.Message{}
+	event := types.SolEvent{
+		Slot:      txn.Slot,
+		Signature: signature,
+		Logs:      txn.Meta.LogMessages,
+	}
 
-	for _, txn := range blockRes.Transactions {
-		event := types.SolEvent{
-			Slot:      txn.Slot,
-			Signature: txn.MustGetTransaction().Signatures[0],
-			Logs:      txn.Meta.LogMessages,
-		}
+	return p.parseMessagesFromEvent(event)
+}
 
-		messages, err := p.parseMessagesFromEvent(event)
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayertypes.Message, error) {
+	var messages []*relayertypes.Message
+
+	for h := fromHeight; h <= toHeight; h++ {
+		blockRes, err := p.client.GetBlock(ctx, h)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+			return nil, err
 		}
-		for _, msg := range messages {
-			p.log.Info("Detected event log: ",
-				zap.Uint64("height", msg.MessageHeight),
-				zap.String("event-type", msg.EventType),
-				zap.Any("sn", msg.Sn),
-				zap.Any("req-id", msg.ReqID),
-				zap.String("src", msg.Src),
-				zap.String("dst", msg.Dst),
-				zap.Any("data", hex.EncodeToString(msg.Data)),
-			)
-			messages = append(messages, msg)
+
+		for _, txn := range blockRes.Transactions {
+			event := types.SolEvent{
+				Slot:      txn.Slot,
+				Signature: txn.MustGetTransaction().Signatures[0],
+				Logs:      txn.Meta.LogMessages,
+			}
+
+			msgs, err := p.parseMessagesFromEvent(event)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+			}
+			for _, msg := range msgs {
+				p.log.Info("Detected event log: ",
+					zap.Uint64("height", msg.MessageHeight),
+					zap.String("event-type", msg.EventType),
+					zap.Any("sn", msg.Sn),
+					zap.Any("req-id", msg.ReqID),
+					zap.String("src", msg.Src),
+					zap.String("dst", msg.Dst),
+					zap.Any("data", hex.EncodeToString(msg.Data)),
+				)
+				messages = append(messages, msgs...)
+			}
 		}
 	}
+
 	return messages, nil
 }
 
@@ -165,7 +185,7 @@ func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -224,7 +244,7 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -328,7 +348,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -389,7 +409,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 		return fmt.Errorf("failed to prepare and simulate tx: %w", err)
 	}
 
-	txSign, err := p.client.SendTx(ctx, tx, nil)
+	txSign, err := p.client.SendTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -515,7 +535,7 @@ func (p *Provider) queryRevertMessageAccounts(
 		return nil, err
 	}
 
-	simres, err := p.client.SimulateTx(context.Background(), tx, nil)
+	simres, err := p.client.SimulateTx(context.Background(), tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate tx: %w", err)
 	}

@@ -2,11 +2,13 @@ package sui
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 )
@@ -90,4 +92,16 @@ func (pc *Config) Validate() error {
 // Enabled returns true if the chain is enabled
 func (c *Config) Enabled() bool {
 	return !c.Disabled
+}
+
+func (c *Config) ContractsAddress() types.ContractConfigMap {
+	dapps, _ := json.Marshal(c.Dapps)
+
+	return types.ContractConfigMap{
+		"xcall-package-id":  c.XcallPkgID,
+		"xcall-storage-id":  c.XcallStorageID,
+		"connection-id":     c.ConnectionID,
+		"connection-cap-id": c.ConnectionCapID,
+		"dapps":             string(dapps),
+	}
 }

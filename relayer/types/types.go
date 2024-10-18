@@ -72,9 +72,9 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry      uint8
-	Processing bool
-	LastTry    time.Time
+	Retry      uint8     `json:"retry"`
+	Processing bool      `json:"processing"`
+	LastTry    time.Time `json:"lastTry"`
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
@@ -208,8 +208,8 @@ func (m *MessageCache) HasCacheKey(cacheKey string) bool {
 }
 
 type Coin struct {
-	Denom  string
-	Amount uint64
+	Denom  string `json:"denom"`
+	Amount uint64 `json:"amount"`
 }
 
 func NewCoin(denom string, amount uint64) *Coin {
@@ -243,6 +243,10 @@ type Receipt struct {
 	Status bool
 }
 
+type EventLog struct {
+	Height uint64
+	Events []string
+}
 type LastProcessedTx struct {
 	Height uint64
 	Info   []byte
