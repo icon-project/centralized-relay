@@ -63,7 +63,7 @@ func TestIDLAddress(t *testing.T) {
 }
 
 func TestEventLogParse(t *testing.T) {
-	eventData := "HDQnaQjSWwkIAAAAMHgzLmljb24BAAAAAAAAAA=="
+	eventData := "fWThb0jJunszAAAAMHgyLmljb24vY3g4N2Y3ZjhjZWFhMDU0ZDQ2YmE3MzQzYTJlY2QyMTIwOGUxMjkxM2M2LAAAAEFoczljQzZQTUdoYXNCNXpVYm9VVk5CSnhBU3RtWDFhZUVORGlXTHoyQVhI6C0AAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAACGAAAA+ISOeENyb3NzVHJhbnNmZXKzMHgyLmljb24vaHhlYTM2MzVmNzQ5NTY1M2Q4NTk2YTdmMjNhNzg1MTRiNmFkMTQ3MGU4uDhzb2xhbmEtdGVzdC85Rzk0SDNmYk5lVVVyZ0RZa3NicGk4SzNZRWpUdTh4S1JodHFXSDdISnpKaYUCVAvkAID237SBcyKtv1NpOLhakI9pELfsH15KMoYBJx2exUH/vjYBAAAAAAAAAAAAAAAAAAA="
 
 	// Decode the Base64 encoded string
 	eventBytes, err := base64.StdEncoding.DecodeString(eventData)
@@ -81,10 +81,7 @@ func TestEventLogParse(t *testing.T) {
 	// Remaining bytes are the serialized event
 	remainingBytes := eventBytes[8:]
 
-	ev := struct {
-		To string
-		Sn uint64
-	}{}
+	ev := types.CallMessageEvent{}
 
 	// Deserialize the remaining bytes into the TestEvent struct
 	err = borsh.Deserialize(&ev, remainingBytes)

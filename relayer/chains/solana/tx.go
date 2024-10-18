@@ -491,19 +491,32 @@ func (p *Provider) getExecuteCallInstruction(msg *relayertypes.Message) ([]solan
 		return nil, nil, err
 	}
 
-	dataBytes, err := borsh.Serialize(msg.Data)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	srcNIDBytes, err := borsh.Serialize(msg.Src)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	connSnBytes, err := borsh.Serialize(*msg.Sn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connProgPubKey := solana.MustPublicKeyFromBase58(msg.DstConnAddress)
+	connProgBytes, err := borsh.Serialize(connProgPubKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dataBytes, err := borsh.Serialize(msg.Data)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	instructionData := append(discriminator, reqIdBytes...)
-	instructionData = append(instructionData, dataBytes...)
 	instructionData = append(instructionData, srcNIDBytes...)
+	instructionData = append(instructionData, connSnBytes...)
+	instructionData = append(instructionData, connProgBytes...)
+	instructionData = append(instructionData, dataBytes...)
 
 	accounts := solana.AccountMetaSlice{
 		&solana.AccountMeta{
@@ -536,7 +549,7 @@ func (p *Provider) getExecuteRollbackInstruction(msg *relayertypes.Message) ([]s
 		return nil, nil, err
 	}
 
-	snBytes, err := borsh.Serialize(*msg.Sn)
+	snBytes, err := borsh.Serialize(*msg.XcallSn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -767,6 +780,22 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
+	srcNIDBytes, err := borsh.Serialize(msg.Src)
+	if err != nil {
+		return nil, err
+	}
+
+	connSnBytes, err := borsh.Serialize(*msg.Sn)
+	if err != nil {
+		return nil, err
+	}
+
+	connProgPubKey := solana.MustPublicKeyFromBase58(msg.DstConnAddress)
+	connProgBytes, err := borsh.Serialize(connProgPubKey)
+	if err != nil {
+		return nil, err
+	}
+
 	dataBytes, err := borsh.Serialize(msg.Data)
 	if err != nil {
 		return nil, err
@@ -784,6 +813,9 @@ func (p *Provider) queryExecuteCallAccounts(
 
 	instructionData := discriminator
 	instructionData = append(instructionData, reqIdBytes...)
+	instructionData = append(instructionData, srcNIDBytes...)
+	instructionData = append(instructionData, connSnBytes...)
+	instructionData = append(instructionData, connProgBytes...)
 	instructionData = append(instructionData, dataBytes...)
 	instructionData = append(instructionData, pageBytes...)
 	instructionData = append(instructionData, limitBytes...)
@@ -793,7 +825,7 @@ func (p *Provider) queryExecuteCallAccounts(
 		return nil, err
 	}
 
-	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress(msg.ReqID.FillBytes(make([]byte, 16)))
+	xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress([]byte(msg.Src), msg.Sn.FillBytes(make([]byte, 16)), connProgPubKey[:])
 	if err != nil {
 		return nil, err
 	}
@@ -935,7 +967,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	snBytes, err := borsh.Serialize(*msg.Sn)
+	snBytes, err := borsh.Serialize(*msg.XcallSn)
 	if err != nil {
 		return nil, err
 	}
@@ -960,7 +992,7 @@ func (p *Provider) queryExecuteRollbackAccounts(
 		return nil, err
 	}
 
-	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(msg.Sn.FillBytes(make([]byte, 16)))
+	xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(msg.XcallSn.FillBytes(make([]byte, 16)))
 	if err != nil {
 		return nil, err
 	}
