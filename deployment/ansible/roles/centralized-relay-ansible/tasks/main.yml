@@ -1,0 +1,16 @@
+# ---
+# - include_tasks: configure_kms.yml
+# - include_tasks: create_ec2_block.yml
+# - include_tasks: install_centralized_relay.yml
+
+---
+- name: Include KMS configuration
+  include_tasks: configure_kms.yml
+
+- name: Create EC2 instance and update inventory
+  include_tasks: create_ec2_block.yml
+
+- name: Install Centralized Relay on new EC2 instance
+  include_tasks: install_centralized_relay.yml
+  vars:
+    ansible_inventory_path: inventory.txt
