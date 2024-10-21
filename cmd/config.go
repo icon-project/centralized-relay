@@ -129,9 +129,15 @@ $ %s cfg i`, appName, a.homePath, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	Timeout     string `yaml:"timeout" json:"timeout"`
-	KMSKeyID    string `yaml:"kms-key-id" json:"kms-key-id"`
-	ClusterMode bool   `yaml:"cluster-mode" json:"cluster-mode"`
+	Timeout     string        `yaml:"timeout" json:"timeout"`
+	KMSKeyID    string        `yaml:"kms-key-id" json:"kms-key-id"`
+	ClusterMode ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
+}
+
+// SetClusterMode sets the cluster mode for the global config
+type ClusterConfig struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+	Key     string `yaml:"key" json:"key"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
@@ -177,6 +183,10 @@ type ConfigInputWrapper struct {
 func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*Config, error) {
 	// build providers for each chain
 	chains := make(relayer.Chains)
+	kmsProvider, err := kms.NewKMSConfig(ctx, &c.Global.KMSKeyID)
+	if err != nil {
+		return nil, err
+	}
 	for chainName, pcfg := range c.ProviderConfigs {
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
@@ -185,11 +195,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
 		}
-		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.ClusterMode)
-		kmsProvider, err := kms.NewKMSConfig(context.Background(), &c.Global.KMSKeyID)
-		if err != nil {
-			return nil, err
-		}
+		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.ClusterMode.Enabled)
 		a.kms = kmsProvider
 		if err := prov.Init(ctx, a.homePath, kmsProvider); err != nil {
 			return nil, fmt.Errorf("failed to initialize provider: %w", err)

@@ -22,6 +22,10 @@ type Config interface {
 type ClusterConfig interface {
 	SetClusterMode(bool)
 	GetClusterMode() bool
+	SetPrivateKey(string)
+	GetPrivateKey() string
+	EncryptPrivateKey(string) (string, error)
+	DecryptPrivateKey() (string, error)
 }
 
 type ChainQuery interface {

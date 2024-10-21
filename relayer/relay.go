@@ -56,6 +56,10 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 	return errorChan, nil
 }
 
+type ClusterMode interface {
+	SignMessage([]byte) ([]byte, error)
+}
+
 type Relayer struct {
 	log                  *zap.Logger
 	db                   store.Store
@@ -64,7 +68,7 @@ type Relayer struct {
 	blockStore           *store.BlockStore
 	finalityStore        *store.FinalityStore
 	lastProcessedTxStore *store.LastProcessedTxStore
-	clusterMode          bool
+	clusterMode          ClusterMode
 }
 
 func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh, clusterMode bool) (*Relayer, error) {
@@ -84,7 +88,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 	// finality store
 	finalityStore := store.NewFinalityStore(db, prefixFinalityStore)
 
-	//last processed tx store
+	// last processed tx store
 	lastProcessedTxStore := store.NewLastProcessedTxStore(db, prefixLastProcessedTx)
 
 	chainRuntimes := make(map[string]*ChainRuntime, len(chains))
@@ -282,14 +286,15 @@ func (r *Relayer) processMessages(ctx context.Context) {
 }
 
 func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
-	dst *ChainRuntime, src *ChainRuntime) bool {
+	dst *ChainRuntime, src *ChainRuntime,
+) bool {
 	if !r.clusterMode {
 		return false
 	}
 	switch message.EventType {
 	case events.EmitMessage:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
-		message.Message.DstConnAddress = dst.Provider.Config().GetConnContract()
+		message.DstConnAddress = dst.Provider.Config().GetConnContract()
 		message.Message.SrcConnAddress = srcChainProvider.Provider.Config().GetConnContract()
 		iconChain := getIconChain(r.chains)
 		if err != nil {
@@ -316,7 +321,6 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 		return true
 	}
 	return false
-
 }
 
 // processBlockInfo->
@@ -618,7 +622,8 @@ func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
 }
 
 func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.RouteMessage,
-	src, dst, iconChain *ChainRuntime, emitEvent bool) {
+	src, dst, iconChain *ChainRuntime, emitEvent bool,
+) {
 	var messages []*types.Message
 	var err error
 	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
