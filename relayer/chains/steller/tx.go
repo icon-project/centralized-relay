@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -20,6 +21,15 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
+	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
+
 	callArgs, err := p.newContractCallArgs(*message)
 	if err != nil {
 		return err
