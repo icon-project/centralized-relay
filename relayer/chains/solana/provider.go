@@ -449,7 +449,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 }
 
 func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
-	//TODO
+	// TODO
 }
 
 func (p *Provider) queryRevertMessageAccounts(
