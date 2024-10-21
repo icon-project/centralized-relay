@@ -326,6 +326,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime) types.Tx
 				zap.String("dst", dst.Provider.NID()),
 				zap.String("event_type", key.EventType),
 				zap.String("tx_hash", response.TxHash),
+				zap.Uint8("count", routeMessage.Retry),
 			)
 
 			// cannot clear incase of finality block
