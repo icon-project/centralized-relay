@@ -30,8 +30,8 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("src", message.Src),
 		zap.String("dst", message.Dst),
 		zap.Any("sn", message.Sn),
-		zap.Any("req-id", message.ReqID),
-		zap.String("event-type", message.EventType),
+		zap.Any("req_id", message.ReqID),
+		zap.String("event_type", message.EventType),
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
