@@ -184,16 +184,21 @@ type RuneDetail struct {
 }
 
 type RuneUTXO struct {
-	Address      string        `json:"address"`
-	Satoshi      *big.Int      `json:"satoshi"`
-	ScriptPk     string        `json:"scriptPk"`
-	TxId         string        `json:"txid"`
-	Vout         int           `json:"vout"`
-	Runes 		[]RuneDetail   `json:"runes"`
+	Height        int64         `json:"height"`
+	Confirmations int64         `json:"confirmations"`
+	Address       string        `json:"address"`
+	Satoshi       *big.Int      `json:"satoshi"`
+	ScriptPk      string        `json:"scriptPk"`
+	TxId          string        `json:"txid"`
+	Vout          int           `json:"vout"`
+	Runes 		  []RuneDetail  `json:"runes"`
 }
 
 type DataRuneUtxoList struct {
-	Utxo                  []RuneUTXO `json:"utxo"`
+	Height int64     `json:"height"`
+	Start int        `json:"start"`
+	Total int        `json:"total"`
+	Utxo  []RuneUTXO `json:"utxo"`
 }
 
 type ResponseRuneUtxo struct {
@@ -207,9 +212,10 @@ func BtcUtxoUrl(server, address string, offset, limit int64) string {
 	return fmt.Sprintf("%s/v1/indexer/address/%s/utxo-data?cursor=%d&size=%d", server, address, offset, limit)
 }
 
-func RuneUtxoUrl(server, address, runeId string) string {
-	return fmt.Sprintf("%s/v1/indexer/address/%s/runes/%s/utxo", server, address, runeId)
+func RuneUtxoUrl(server, address, runeId string, offset, limit int64) string {
+	return fmt.Sprintf("%s/v1/indexer/address/%s/runes/%s/utxo?start=%d&limit=%d", server, address, runeId, offset, limit)
 }
+
 
 func GetWithHeader(ctx context.Context, url string, header map[string]string, response interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -247,9 +253,10 @@ func GetBtcUtxo(ctx context.Context, server, bear, address string, offset, limit
 	return resp, err
 }
 
-func GetRuneUtxo(ctx context.Context, server, address, runeId string) (ResponseRuneUtxo, error) {
+func GetRuneUtxo(ctx context.Context, server, bear, address, runeId string, offset, limit int64) (ResponseRuneUtxo, error) {
 	var resp ResponseRuneUtxo
-	url := RuneUtxoUrl(server, address, runeId)
-	err := GetWithHeader(ctx, url, make(map[string]string), &resp)
+	url := RuneUtxoUrl(server, address, runeId, offset, limit)
+	err := GetWithBear(ctx, url, bear, &resp)
+
 	return resp, err
 }

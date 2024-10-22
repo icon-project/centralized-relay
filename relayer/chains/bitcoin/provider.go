@@ -319,7 +319,7 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
-	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 32)
+	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bitcoin UTXOs from unisat: %v", err)
 	}
@@ -349,11 +349,11 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 	return inputs, nil
 }
 
-func GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
+func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
-	resp, err := GetRuneUtxo(ctx, server, address, runeId)
+	resp, err := GetRuneUtxo(ctx, server, p.cfg.UniSatKey, address, runeId, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query rune UTXOs from unisat: %v", err)
 	}
@@ -561,7 +561,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 	inputs := []*multisig.Input{}
 	if !runeToSend.IsZero() {
 		// query rune UTXOs from unisat
-		runeInputs, err := GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, 3, addressPkScript)
+		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, 3, addressPkScript)
 		if err != nil {
 			return nil, err
 		}
