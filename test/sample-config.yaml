@@ -1,4 +1,86 @@
 chains:
+  
+  - name: stellar
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io/stellar-rpc/rpc
+    websocket_uri: https://tt.net.solidwallet.io/stellar-rpc
+    relay_wallet : GCX3TODZ2KEHYGD6HOQDRZVOUWNSQWP6OLYBIQ3XNPFKQ47G42H7WCGA
+    keystore_password: "Standalone Network ; February 2017"
+    keystore_file: SDFOICJI3PHUWHFARICCQS2A3W6BNGQVWQ6JDNYPH62VW6GWDBHDH7GE
+    contracts_path: "$BASE_PATH/artifacts/stellar"
+    chain_config:
+      type: stellar
+      name: stellar
+      chain_id: stellar.local
+      image:
+        repository: esteblock/soroban-preview
+        version: 21.0.1
+        uid_gid: ""
+      bin: soroban
+      bech32_prefix: 0x
+      denom: xlm
+      coin_type: 118
+      gas_prices: 0.001xlm
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/stellar/xcall.wasm"
+      connection: "$BASE_PATH/artifacts/stellar/centralized_connection.wasm"
+      dapp: "$BASE_PATH/artifacts/stellar/mock_dapp_multi.wasm"
+  - name: icon
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/ 
+    keystore_file: godwallet.json
+    keystore_password: gochain
+    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
+    contracts_path: "$BASE_PATH/artifacts/icon"
+    config_path: "$BASE_PATH/test/chains/icon/data"
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/home/centralized-relay/rootCA/
+    chain_config:
+      type: icon
+      name: icon
+      chain_id: icon.local
+      bech32_prefix: hx
+      bin: "/goloop/bin/goloop"
+      image:
+        repository: iconloop/goloop-icon
+        version: latest
+        uid_gid: ""
+    contracts:
+      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
+      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
+      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
+  - name: foundry
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
+    websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
+    relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    chain_config:
+      type: evm
+      name: foundry
+      chain_id: emv.local
+      image:
+        repository: ghcr.io/foundry-rs/foundry
+        version: latest
+        uid_gid: ""
+      bin: cast
+      bech32_prefix: 0x
+      denom: gwei
+      coin_type: 118
+      gas_prices: 0.001gwei
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/evm/CallService"
+      connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
+      dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
   - name: sui
     version: "3"
     environment: remote
@@ -28,31 +110,7 @@ chains:
       xcall: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/xcall"      
       sui_rlp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/libs/sui_rlp" 
       dapp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/mock_dapp"
-  - name: icon
-    version: "3"
-    environment: remote
-    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/ 
-    keystore_file: godwallet.json
-    keystore_password: gochain
-    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
-    contracts_path: "$BASE_PATH/artifacts/icon"
-    config_path: "$BASE_PATH/test/chains/icon/data"
-    # for testing with local chains with self signed certs
-    # cert_path: /Users/home/centralized-relay/rootCA/
-    chain_config:
-      type: icon
-      name: icon
-      chain_id: icon.local
-      bech32_prefix: hx
-      bin: "/goloop/bin/goloop"
-      image:
-        repository: iconloop/goloop-icon
-        version: latest
-        uid_gid: ""
-    contracts:
-      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
-      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
-      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
+  
   - name: archway
     version: "3"
     environment: remote
@@ -86,36 +144,37 @@ chains:
       connection: "$BASE_PATH/artifacts/archway/cw_centralized_connection.wasm"
       dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
 
-  - name: foundry
+  - name: solana
     version: "3"
     environment: remote
-    rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
-    websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
-    relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-    keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    rpc_uri: https://solana-rpc.venture23.xyz
+    relay_wallet : 2V6UQFu9BZL6eKj2EFjtbCvtS1poXJNyJoWogk6gbGsS
+    keystore_file: id.json
+    contracts_path: "$BASE_PATH/artifacts/solana/xcall/contracts/solana"
+    config_path: "$BASE_PATH/test/chains/solana/data/"
     chain_config:
-      type: evm
-      name: foundry
-      chain_id: emv.local
+      type: solana
+      name: solana
+      chain_id: solana.local
       image:
-        repository: ghcr.io/foundry-rs/foundry
-        version: latest
+        repository: backpackapp/build
+        version: v0.30.1
         uid_gid: ""
-      bin: cast
+      bin: anchor
       bech32_prefix: 0x
-      denom: gwei
+      denom: sol
       coin_type: 118
-      gas_prices: 0.001gwei
+      gas_prices: 0.001sol
       gas_adjustment: 1.3
       trusting_period: 508h
       no_host_mount: false
     contracts:
-      xcall: "$BASE_PATH/artifacts/evm/CallService"
-      connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
-      dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
+      xcall: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/programs/xcall"      
+      sui_rlp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/centralized-connection" 
+      dapp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/mock-dapp-multi"
 relayer:
     image: centralized-relay
-    tag: latest
+    tag: stellar-dev-amd
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088

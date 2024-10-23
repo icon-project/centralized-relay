@@ -24,10 +24,13 @@ import (
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
 	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
-		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
 	suiMessage, err := p.MakeSuiMessage(message)
 	if err != nil {
@@ -43,10 +46,12 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	}
 
 	txRes, err := p.SendTransaction(ctx, txBytes)
-	go p.executeRouteCallBack(txRes, message.MessageKey(), suiMessage.Method, callback, err)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction in sui")
 	}
+
+	p.executeRouteCallBack(txRes, message.MessageKey(), suiMessage.Method, callback, err)
+
 	return nil
 }
 
@@ -297,7 +302,6 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 			err = fmt.Errorf("txn execution failed; received empty tx digest")
 		}
 		callback(messageKey, &relayertypes.TxResponse{}, err)
-		p.log.Error("failed to execute transaction", zap.Error(err), zap.String("method", method))
 		return
 	}
 
@@ -307,8 +311,7 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 
 	txnData, err := p.client.GetTransaction(context.Background(), txRes.Digest.String())
 	if err != nil {
-		callback(messageKey, res, err)
-		p.log.Error("failed to get transaction details after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+		callback(messageKey, res, fmt.Errorf("failed to get transaction after execution: %w", err))
 		return
 	}
 
@@ -317,35 +320,22 @@ func (p *Provider) executeRouteCallBack(txRes *types.SuiTransactionBlockResponse
 		time.Sleep(3 * time.Second) //time to wait until tx is included in some checkpoint
 		txnData, err = p.client.GetTransaction(context.Background(), txRes.Digest.String())
 		if err != nil {
-			callback(messageKey, res, err)
-			p.log.Error("failed to get transaction details due to nil checkpoint after execution", zap.Error(err), zap.String("method", method), zap.String("tx_hash", txRes.Digest.String()))
+			callback(messageKey, res, fmt.Errorf("failed to get transaction after execution due to nil checkpoint: %w", err))
 			return
 		}
 	}
 
-	// assign tx successful height
 	res.Height = txnData.Checkpoint.Int64()
 	success := txRes.Effects.Data.IsSuccess()
 	if !success {
+		res.Code = relayertypes.Failed
 		err = fmt.Errorf("error: %s", txRes.Effects.Data.V1.Status.Error)
 		callback(messageKey, res, err)
-		p.log.Info("failed transaction",
-			zap.Any("message-key", messageKey),
-			zap.String("method", method),
-			zap.String("tx_hash", txRes.Digest.String()),
-			zap.Int64("height", txnData.Checkpoint.Int64()),
-			zap.Error(err),
-		)
 		return
 	}
+
 	res.Code = relayertypes.Success
 	callback(messageKey, res, nil)
-	p.log.Info("successful transaction",
-		zap.Any("message-key", messageKey),
-		zap.String("method", method),
-		zap.String("tx_hash", txRes.Digest.String()),
-		zap.Int64("height", txnData.Checkpoint.Int64()),
-	)
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string) (*relayertypes.Receipt, error) {
