@@ -310,7 +310,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 			if err != nil {
 				return response.SetError(err)
 			}
-			res = append(res, &ResGetBalance{Chain: req.Chain, Address: req.Address, Balance: balance})
+			res = append(res, &ResGetBalance{Chain: req.Chain, Address: req.Address, Balance: balance, Value: balance.Calculate()})
 		}
 		return response.SetData(res)
 	case EventMessageReceived:

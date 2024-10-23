@@ -46,7 +46,7 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*types.Coin, 
 	if err != nil {
 		return nil, err
 	}
-	return &types.Coin{Amount: balance.Uint64(), Denom: "eth"}, nil
+	return &types.Coin{Amount: balance.Uint64(), Denom: "eth", Decimals: p.cfg.Decimals}, nil
 }
 
 // TODO: may not be need anytime soon so its ok to implement later on

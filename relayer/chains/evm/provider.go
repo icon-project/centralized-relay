@@ -122,6 +122,9 @@ func (p *Config) sanitize() error {
 	if p.BlockBatchSize == 0 {
 		p.BlockBatchSize = maxBlockRange
 	}
+	if p.Decimals == 0 {
+		p.Decimals = providerTypes.DefaultCoinDecimals
+	}
 	return nil
 }
 

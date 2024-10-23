@@ -62,7 +62,7 @@ func (ip *Provider) QueryBalance(ctx context.Context, addr string) (*providerTyp
 	if err != nil {
 		return nil, err
 	}
-	return providerTypes.NewCoin("ICX", balance.Uint64()), nil
+	return providerTypes.NewCoin("ICX", balance.Uint64(), ip.cfg.Decimals), nil
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
