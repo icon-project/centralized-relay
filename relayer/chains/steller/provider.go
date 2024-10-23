@@ -150,7 +150,6 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-
 	message := &relayertypes.Message{
 		EventType: evtypes.ClaimFee,
 	}

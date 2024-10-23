@@ -18,7 +18,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm
@@ -38,7 +38,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm

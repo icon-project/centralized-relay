@@ -62,6 +62,7 @@ type CommonConfig struct {
 	Contracts     types.ContractConfigMap `json:"contracts" yaml:"contracts"`
 	FinalityBlock uint64                  `json:"finality-block" yaml:"finality-block"`
 	NID           string                  `json:"nid" yaml:"nid"`
+	Decimals      int                     `json:"decimals" yaml:"decimals"`
 	HomeDir       string                  `json:"-" yaml:"-"`
 	Disabled      bool                    `json:"disabled" yaml:"disabled"`
 }

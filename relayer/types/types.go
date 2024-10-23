@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 5
-	StaleMarkCount           = MaxTxRetry * 3
-	RouteDuration            = 3 * time.Second
-	XcallContract            = "xcall"
-	ConnectionContract       = "connection"
-	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 3*time.Second + RouteDuration
+	MaxTxRetry          uint8 = 5
+	StaleMarkCount            = MaxTxRetry * 3
+	RouteDuration             = 3 * time.Second
+	XcallContract             = "xcall"
+	ConnectionContract        = "connection"
+	SupportedContracts        = []string{XcallContract, ConnectionContract}
+	RetryInterval             = 3*time.Second + RouteDuration
+	DefaultCoinDecimals       = 18
 )
 
 type BlockInfo struct {
@@ -210,12 +211,13 @@ func (m *MessageCache) HasCacheKey(cacheKey string) bool {
 }
 
 type Coin struct {
-	Denom  string `json:"denom"`
-	Amount uint64 `json:"amount"`
+	Denom    string `json:"denom"`
+	Amount   uint64 `json:"amount"`
+	Decimals int    `json:"decimals"`
 }
 
-func NewCoin(denom string, amount uint64) *Coin {
-	return &Coin{strings.ToLower(denom), amount}
+func NewCoin(denom string, amount uint64, decimals int) *Coin {
+	return &Coin{strings.ToLower(denom), amount, decimals}
 }
 
 func (c *Coin) String() string {
@@ -223,10 +225,9 @@ func (c *Coin) String() string {
 }
 
 func (c *Coin) Calculate() string {
-	balance := new(big.Float).SetUint64(c.Amount)
-	amount := balance.Quo(balance, big.NewFloat(1e18))
-	value, _ := amount.Float64()
-	return fmt.Sprintf("%.18f %s", value, c.Denom)
+	factor := math.Pow10(c.Decimals)
+	val := new(big.Float).Quo(new(big.Float).SetUint64(c.Amount), big.NewFloat(factor))
+	return val.String()
 }
 
 type TransactionObject struct {

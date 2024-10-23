@@ -71,6 +71,9 @@ func (c *Config) sanitize() error {
 	if c.StepAdjustment == 0 {
 		c.StepAdjustment = 50
 	}
+	if c.Decimals == 0 {
+		c.Decimals = providerTypes.DefaultCoinDecimals
+	}
 	return nil
 }
 

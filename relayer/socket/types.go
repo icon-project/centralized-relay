@@ -189,6 +189,7 @@ type ResGetBalance struct {
 	Chain   string      `json:"chain"`
 	Address string      `json:"address"`
 	Balance *types.Coin `json:"balance"`
+	Value   string      `json:"value"`
 }
 
 type ReqRelayInfo struct{}

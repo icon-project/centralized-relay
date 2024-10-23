@@ -436,8 +436,9 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.C
 		return nil, err
 	}
 	return &relayTypes.Coin{
-		Denom:  coin.Denom,
-		Amount: coin.Amount.BigInt().Uint64(),
+		Denom:    coin.Denom,
+		Amount:   coin.Amount.BigInt().Uint64(),
+		Decimals: p.cfg.Decimals,
 	}, nil
 }
 
