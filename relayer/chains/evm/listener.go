@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/centralized-relay/utils/hexstr"
 	"github.com/pkg/errors"
 )
 
@@ -129,7 +128,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						zap.String("event_type", message.EventType),
 						zap.String("tx_hash", log.TxHash.String()),
 						zap.Uint64("height", log.BlockNumber),
-						zap.String("data", string(hexstr.NewFromByte(message.Data))),
 					)
 					blockInfoChan <- &relayertypes.BlockInfo{
 						Height:   log.BlockNumber,
@@ -182,9 +180,8 @@ func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*re
 			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
 			zap.String("tx_hash", log.TxHash.String()),
-      zap.String("target_network", message.Dst),
+			zap.String("target_network", message.Dst),
 			zap.Uint64("height", log.BlockNumber),
-			zap.String("data", string(hexstr.NewFromByte(message.Data))),
 		)
 		messages = append(messages, message)
 	}
@@ -268,7 +265,6 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
 				zap.Uint64("height", log.BlockNumber),
-				zap.String("data", string(hexstr.NewFromByte(message.Data))),
 			)
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
