@@ -29,11 +29,13 @@ type Message struct {
 	Dst             string   `json:"dst"`
 	Src             string   `json:"src"`
 	Sn              *big.Int `json:"sn"`
+	XcallSn         *big.Int `json:"xcallSN,omitempty"`
 	Data            []byte   `json:"data"`
 	MessageHeight   uint64   `json:"messageHeight"`
 	EventType       string   `json:"eventType"`
 	ReqID           *big.Int `json:"reqID,omitempty"`
 	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
+	DstConnAddress  string   `json:"dstConnAddress,omitempty"`
 
 	TxInfo []byte `json:"-"`
 }
