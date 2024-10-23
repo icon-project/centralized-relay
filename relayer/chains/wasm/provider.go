@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -163,10 +164,13 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayTypes.Last
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
-		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
 	res, err := p.call(ctx, message)
 	if err != nil {
@@ -176,7 +180,9 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	if err := p.wallet.SetSequence(seq); err != nil {
 		p.logger.Error("failed to set sequence", zap.Error(err))
 	}
-	return p.waitForTxResult(ctx, message.MessageKey(), res, callback)
+
+	p.waitForTxResult(ctx, message.MessageKey(), res, callback)
+	return nil
 }
 
 // call the smart contract to send the message
@@ -290,16 +296,13 @@ func (p *Provider) prepareAndPushTxToMemPool(ctx context.Context, acc, seq uint6
 	return res, nil
 }
 
-func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, tx *sdkTypes.TxResponse, callback relayTypes.TxResponseFunc) error {
+func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, tx *sdkTypes.TxResponse, callback relayTypes.TxResponseFunc) {
 	res, err := p.subscribeTxResult(ctx, tx, p.cfg.TxConfirmationInterval)
 	if err != nil {
 		callback(mk, res.TxResult, err)
-		p.logTxFailed(err, tx)
-		return err
+		return
 	}
 	callback(mk, res.TxResult, nil)
-	p.logTxSuccess(res)
-	return nil
 }
 
 func (p *Provider) pollTxResultStream(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResult {
@@ -342,36 +345,52 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 			Error: err,
 			TxResult: &relayTypes.TxResponse{
 				TxHash: tx.TxHash,
+				Code:   relayTypes.Failed,
 			},
-		}, err
+		}, fmt.Errorf("failed to subscribe to tx result: %w", err)
 	}
 	defer p.client.Unsubscribe(newCtx, "tx-result-waiter", query)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, ctx.Err()
+			return &types.TxResult{
+				TxResult: &relayTypes.TxResponse{
+					TxHash: tx.TxHash,
+					Code:   relayTypes.Failed,
+				},
+			}, ctx.Err()
 		case e := <-resultEventChan:
 			eventDataJSON, err := jsoniter.Marshal(e.Data)
 			if err != nil {
-				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
+				return &types.TxResult{
+					TxResult: &relayTypes.TxResponse{
+						TxHash: tx.TxHash,
+						Code:   relayTypes.Failed,
+					},
+				}, err
 			}
 
 			txRes := new(types.TxResultResponse)
 			if err := jsoniter.Unmarshal(eventDataJSON, txRes); err != nil {
-				return &types.TxResult{TxResult: &relayTypes.TxResponse{TxHash: tx.TxHash}}, err
+				return &types.TxResult{
+					TxResult: &relayTypes.TxResponse{
+						TxHash: tx.TxHash,
+						Code:   relayTypes.Failed,
+					},
+				}, err
 			}
 
 			res := &types.TxResult{
 				TxResult: &relayTypes.TxResponse{
-					Height:    txRes.Height,
-					TxHash:    tx.TxHash,
-					Codespace: txRes.Result.Codespace,
-					Data:      string(txRes.Result.Data),
+					Height: txRes.Height,
+					TxHash: tx.TxHash,
+					Data:   string(txRes.Result.Data),
 				},
 			}
 			if uint32(txRes.Result.Code) != types.CodeTypeOK {
-				return res, fmt.Errorf("transaction failed with error: %v", txRes.Result.Log)
+				res.TxResult.Code = relayTypes.Failed
+				return res, fmt.Errorf("transaction failed with error: %+v", txRes.Result.Log)
 			}
 			res.TxResult.Code = relayTypes.Success
 			return res, nil

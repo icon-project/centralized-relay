@@ -191,7 +191,10 @@ func (cl Client) GetLatestSlot(ctx context.Context, ctype solrpc.CommitmentType)
 }
 
 func (cl Client) GetBlock(ctx context.Context, slot uint64) (*solrpc.GetBlockResult, error) {
-	return cl.rpc.GetBlock(ctx, slot)
+	txnVersion := uint64(0)
+	return cl.rpc.GetBlockWithOpts(ctx, slot, &solrpc.GetBlockOpts{
+		MaxSupportedTransactionVersion: &txnVersion,
+	})
 }
 
 func (cl Client) GetLatestBlockHash(ctx context.Context) (*solana.Hash, error) {

@@ -56,6 +56,8 @@ type CallMessageEvent struct {
 	Sn                 big.Int
 	ReqId              big.Int
 	Data               []byte
+	ConnProgram        solana.PublicKey
+	ConnSn             big.Int
 }
 
 type RollbackMessageEvent struct {

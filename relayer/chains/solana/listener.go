@@ -171,16 +171,21 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 							return nil, fmt.Errorf("failed to decode call message event: %w", err)
 						}
 						fromNID := strings.Split(cmEvent.FromNetworkAddress, "/")[0]
-						messages = append(messages, &relayertypes.Message{
-							EventType:     relayerevents.CallMessage,
-							Sn:            &cmEvent.Sn,
-							ReqID:         &cmEvent.ReqId,
-							Src:           fromNID,
-							Dst:           p.NID(),
-							Data:          cmEvent.Data,
-							MessageHeight: solEvent.Slot,
-							TxInfo:        txInfoBytes,
-						})
+						connProgram := solana.PublicKeyFromBytes(cmEvent.ConnProgram[:]).String()
+						if connProgram != "" {
+							messages = append(messages, &relayertypes.Message{
+								EventType:      relayerevents.CallMessage,
+								Sn:             &cmEvent.ConnSn,
+								XcallSn:        &cmEvent.Sn,
+								ReqID:          &cmEvent.ReqId,
+								Src:            fromNID,
+								Dst:            p.NID(),
+								Data:           cmEvent.Data,
+								MessageHeight:  solEvent.Slot,
+								TxInfo:         txInfoBytes,
+								DstConnAddress: connProgram,
+							})
+						}
 
 					case types.EventRollbackMessage:
 						rmEvent := types.RollbackMessageEvent{}
