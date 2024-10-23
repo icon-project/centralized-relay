@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 5
-	StaleMarkCount           = MaxTxRetry * 3
-	RouteDuration            = 3 * time.Second
-	XcallContract            = "xcall"
-	ConnectionContract       = "connection"
-	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 3*time.Second + RouteDuration
+	MaxTxRetry          uint8 = 5
+	StaleMarkCount            = MaxTxRetry * 3
+	RouteDuration             = 3 * time.Second
+	XcallContract             = "xcall"
+	ConnectionContract        = "connection"
+	SupportedContracts        = []string{XcallContract, ConnectionContract}
+	RetryInterval             = 3*time.Second + RouteDuration
+	DefaultCoinDecimals       = 18
 )
 
 type BlockInfo struct {

@@ -123,7 +123,7 @@ func (p *Config) sanitize() error {
 		p.BlockBatchSize = maxBlockRange
 	}
 	if p.Decimals == 0 {
-		p.Decimals = 18
+		p.Decimals = providerTypes.DefaultCoinDecimals
 	}
 	return nil
 }

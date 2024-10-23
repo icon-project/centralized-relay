@@ -72,7 +72,7 @@ func (c *Config) sanitize() error {
 		c.StepAdjustment = 50
 	}
 	if c.Decimals == 0 {
-		c.Decimals = 18
+		c.Decimals = providerTypes.DefaultCoinDecimals
 	}
 	return nil
 }

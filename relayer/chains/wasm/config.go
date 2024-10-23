@@ -15,6 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -100,7 +101,7 @@ func (pc *Config) sanitize() (*Config, error) {
 		pc.BlockBatchSize = 50
 	}
 	if pc.Decimals == 0 {
-		pc.Decimals = 18
+		pc.Decimals = providerTypes.DefaultCoinDecimals
 	}
 	return pc, nil
 }
