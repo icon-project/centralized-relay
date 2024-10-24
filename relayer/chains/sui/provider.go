@@ -31,11 +31,6 @@ var (
 	MethodGetExecuteCallParams     = "get_execute_params"
 	MethodGetExecuteRollbackParams = "get_rollback_params"
 
-	ModuleConnection = "centralized_connection"
-	ModuleEntry      = "centralized_entry"
-	ModuleMain       = "main"
-	XcallModule      = "xcall"
-
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
 )
@@ -186,7 +181,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
+		}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -211,7 +206,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee.Int64()))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee.Int64()))},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
+		}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -234,7 +229,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
-		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
+		p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
