@@ -68,7 +68,7 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 // generate ecdsa private key
 func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 	generate := &cobra.Command{
-		Use:   "generate-cluster-key",
+		Use:   "gen-cluster-key",
 		Short: "generate cluster key",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -88,10 +88,11 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 				return err
 			}
 			a.config.Global.ClusterMode.Key = pubKey
+			a.config.Global.ClusterMode.Enabled = true
 			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stdout, "Cluster key created: %s\n", a.config.Global.ClusterMode.Key)
+			fmt.Fprintf(os.Stdout, "Cluster key created and encrypted: %s\n", a.config.Global.ClusterMode.Key)
 			return nil
 		},
 	}

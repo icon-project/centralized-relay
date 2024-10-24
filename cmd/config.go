@@ -2,7 +2,13 @@ package cmd
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"reflect"
 	"strings"
@@ -136,15 +142,36 @@ type GlobalConfig struct {
 
 // SetClusterMode sets the cluster mode for the global config
 type ClusterConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"`
-	Key     string `yaml:"key" json:"key"`
+	Enabled    bool   `yaml:"enabled" json:"enabled"`
+	Key        string `yaml:"key" json:"key"`
+	privateKey *ecdsa.PrivateKey
+}
+
+func (c ClusterConfig) IsEnabled() bool {
+	return c.Enabled
+}
+
+func (c ClusterConfig) SignMessage(msg []byte) ([]byte, error) {
+	return c.privateKey.Sign(rand.Reader, msg, crypto.SHA256)
+}
+
+// verify message signature
+func (c ClusterConfig) VerifySignature(msg, sig []byte) error {
+	if c.privateKey == nil {
+		return errors.New("private key is nil")
+	}
+	if !ecdsa.VerifyASN1(&c.privateKey.PublicKey, msg, sig) {
+		return errors.New("signature verification failed")
+	}
+	return nil
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		Timeout:  "10s",
-		KMSKeyID: "",
+		Timeout:     "10s",
+		KMSKeyID:    "",
+		ClusterMode: ClusterConfig{},
 	}
 }
 
@@ -187,6 +214,28 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	if err != nil {
 		return nil, err
 	}
+	if c.Global.ClusterMode.Enabled && c.Global.ClusterMode.Key != "" {
+		path := a.homePath + "/keystore/cluster/" + c.Global.ClusterMode.Key
+		if _, err := os.Stat(path); err != nil {
+			return nil, fmt.Errorf("cluster key not found: %s", path)
+		}
+		keyBytes, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("error reading cluster key: %w", err)
+		}
+		key, err := kmsProvider.Decrypt(ctx, keyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("error decrypting cluster key: %w", err)
+		}
+		privKey := new(ecdsa.PrivateKey)
+		privKey.D = new(big.Int).SetBytes(key)
+		privKey.PublicKey = ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     privKey.X,
+			Y:     privKey.Y,
+		}
+		c.Global.ClusterMode.privateKey = privKey
+	}
 	for chainName, pcfg := range c.ProviderConfigs {
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
@@ -203,6 +252,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		chain := relayer.NewChain(a.log, prov, a.debug)
 		chains[chain.ChainProvider.NID()] = chain
 	}
+	a.cluster = c.Global.ClusterMode
 
 	return &Config{
 		Global: c.Global,
