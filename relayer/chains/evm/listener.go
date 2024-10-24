@@ -180,7 +180,7 @@ func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*re
 			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
 			zap.String("tx_hash", log.TxHash.String()),
-      zap.String("target_network", message.Dst),
+			zap.String("target_network", message.Dst),
 			zap.Uint64("height", log.BlockNumber),
 		)
 		messages = append(messages, message)

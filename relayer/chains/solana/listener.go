@@ -194,7 +194,7 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 						}
 						messages = append(messages, &relayertypes.Message{
 							EventType:     relayerevents.RollbackMessage,
-							Sn:            &rmEvent.Sn,
+							XcallSn:       &rmEvent.Sn,
 							Src:           p.NID(),
 							Dst:           p.NID(),
 							MessageHeight: solEvent.Slot,
