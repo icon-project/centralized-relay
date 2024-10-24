@@ -164,7 +164,6 @@ func (p *Provider) ClusterMessageReceived(ctx context.Context, message *provider
 	var status types.HexInt
 	err := p.client.Call(callParam, &status)
 	return status == types.NewHexInt(1), err
-
 }
 
 // ReverseMessage reverts a message
@@ -296,15 +295,8 @@ func (p *Config) GetConnContract() string {
 	return p.Contracts[providerTypes.ConnectionContract]
 }
 
-func (p *Provider) SignMessage(message []byte) ([]byte, error) {
-	wallet, err := p.Wallet()
-	if err != nil {
-		p.log.Error("error getting wallets", zap.Error(err))
-		return nil, err
-	}
+func (p *Provider) GetSignMessage(message []byte) []byte {
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(message)
-	msgHash := hash.Sum(nil)
-	signedMsg, err := wallet.Sign(msgHash)
-	return signedMsg, err
+	return hash.Sum(nil)
 }

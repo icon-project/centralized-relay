@@ -496,13 +496,8 @@ func (p *Config) GetConnContract() string {
 	return p.Contracts[providerTypes.ConnectionContract]
 }
 
-func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+func (p *Provider) GetSignMessage(message []byte) []byte {
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write([]byte("\x19Ethereum Signed Message:\n" + fmt.Sprint(len(message)) + string(message)))
-	messageHash := hash.Sum(nil)
-	wallet, err := p.Wallet()
-	if err != nil {
-		return nil, err
-	}
-	return crypto.Sign(messageHash, wallet.PrivateKey)
+	return hash.Sum(nil)
 }

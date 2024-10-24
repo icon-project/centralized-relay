@@ -58,6 +58,8 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 
 type ClusterMode interface {
 	SignMessage([]byte) ([]byte, error)
+	VerifySignature([]byte, []byte) error
+	IsEnabled() bool
 }
 
 type Relayer struct {
@@ -71,7 +73,7 @@ type Relayer struct {
 	clusterMode          ClusterMode
 }
 
-func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh, clusterMode bool) (*Relayer, error) {
+func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool, clusterMode ClusterMode) (*Relayer, error) {
 	// if fresh clearing db
 	if fresh {
 		if err := db.ClearStore(); err != nil {
@@ -288,7 +290,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
 	dst *ChainRuntime, src *ChainRuntime,
 ) bool {
-	if !r.clusterMode {
+	if !r.clusterMode.IsEnabled() {
 		return false
 	}
 	switch message.EventType {
@@ -371,7 +373,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 		routeMessage, ok := src.MessageCache.Get(key)
 		originaldst := key.Dst
 		if !ok {
-			if !r.clusterMode {
+			if !r.clusterMode.IsEnabled() {
 				r.log.Error("key not found in messageCache", zap.Any("key", &key))
 				return
 			}
@@ -397,7 +399,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime, key *typ
 				zap.Any("sn", key.Sn),
 				zap.String("tx_hash", response.TxHash),
 			)
-			if r.clusterMode && key.EventType == events.EmitMessage {
+			if r.clusterMode.IsEnabled() && key.EventType == events.EmitMessage {
 				key.Dst = key.Src
 			}
 
@@ -640,7 +642,13 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		r.log.Error("no provider found for submitting cluster message")
 	}
 	if emitEvent {
-		message.SignedData, err = dst.Provider.SignMessage(message.Data)
+		chainSignature := dst.Provider.GetSignMessage(message.Data)
+		signature, err := r.clusterMode.SignMessage(chainSignature)
+		if err != nil {
+			r.log.Error("Error signing message", zap.Error(err))
+			return
+		}
+		message.SignedData = signature
 		if err != nil {
 			r.log.Error("Error signing message", zap.Error(err))
 			return
@@ -666,11 +674,13 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 	}
 	for _, msg := range messages {
 		if msg.Sn.Cmp(message.Sn) == 0 {
-			message.SignedData, err = dst.Provider.SignMessage(message.Data)
+			chainSignature := dst.Provider.GetSignMessage(msg.Data)
+			signature, err := r.clusterMode.SignMessage(chainSignature)
 			if err != nil {
 				r.log.Error("Error signing message", zap.Error(err))
 				return
 			}
+			message.SignedData = signature
 			r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
 		}
 	}

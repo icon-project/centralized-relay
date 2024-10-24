@@ -76,7 +76,6 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 		return nil, errors.New("GenerateMessage: no messages found")
 	}
 	return messages, err
-
 }
 
 func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
@@ -135,7 +134,6 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-
 	message := &relayertypes.Message{
 		EventType: evtypes.ClaimFee,
 	}
@@ -187,6 +185,7 @@ func (p *Config) GetConnContract() string {
 	return p.Contracts[relayertypes.ConnectionContract]
 }
 
-func (p *Provider) SignMessage(message []byte) ([]byte, error) {
-	return p.wallet.Sign(message)
+// TODO: not sure if this is the correct implementation
+func (p *Provider) GetSignMessage(message []byte) []byte {
+	return message
 }

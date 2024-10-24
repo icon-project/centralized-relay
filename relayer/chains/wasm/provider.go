@@ -853,6 +853,6 @@ func (p *Provider) GetLastSavedHeight() uint64 {
 	return p.LastSavedHeightFunc()
 }
 
-func (p *Provider) SignMessage(message []byte) ([]byte, error) {
+func (p *Provider) GetSignMessage(message []byte) []byte {
 	return p.client.SignMessage(p.NID(), message)
 }

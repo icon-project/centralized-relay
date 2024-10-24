@@ -22,10 +22,6 @@ type Config interface {
 type ClusterConfig interface {
 	SetClusterMode(bool)
 	GetClusterMode() bool
-	SetPrivateKey(string)
-	GetPrivateKey() string
-	EncryptPrivateKey(string) (string, error)
-	DecryptPrivateKey() (string, error)
 }
 
 type ChainQuery interface {
@@ -69,7 +65,7 @@ type ChainProvider interface {
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
 
-	SignMessage([]byte) ([]byte, error)
+	GetSignMessage([]byte) []byte
 }
 
 // CommonConfig is the common configuration for all chain providers
