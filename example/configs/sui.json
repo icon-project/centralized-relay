@@ -6,6 +6,7 @@
     "address": "0x07304a5d7d1a4763a1cea91f478d24e40aecf1fdbd2f14764d5ad745f4904f85",
     "xcall-package-id": "0x8c5242ae42c53bdb92c94123184e72429283969772ec6e12e6f086bd673960b7",
     "xcall-storage-id": "0x60add4475c91742470074396ba29b6d62572abd1ac08c18abe228be949c21420",
+    "connection-module": "main",
     "connection-id": "centralized-1",
     "connection-cap-id": "0x5e633b8baf655f4986a5d4b131ec316e8a9964108fd968c507c546cd92f78c27",
     "dapps": [
