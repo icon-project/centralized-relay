@@ -296,7 +296,7 @@ func (p *Config) GetConnContract() string {
 }
 
 func (p *Provider) GetSignMessage(message []byte) []byte {
-	hash := sha3.NewLegacyKeccak256()
+	hash := sha3.New256()
 	hash.Write(message)
 	return hash.Sum(nil)
 }

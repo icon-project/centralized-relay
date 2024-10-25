@@ -135,9 +135,9 @@ $ %s cfg i`, appName, a.homePath, appName)),
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	Timeout     string        `yaml:"timeout" json:"timeout"`
-	KMSKeyID    string        `yaml:"kms-key-id" json:"kms-key-id"`
-	ClusterMode ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
+	Timeout     string         `yaml:"timeout" json:"timeout"`
+	KMSKeyID    string         `yaml:"kms-key-id" json:"kms-key-id"`
+	ClusterMode *ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
 }
 
 // SetClusterMode sets the cluster mode for the global config
@@ -152,10 +152,12 @@ func (c ClusterConfig) IsEnabled() bool {
 }
 
 func (c ClusterConfig) SignMessage(msg []byte) ([]byte, error) {
+	if c.privateKey == nil {
+		return nil, errors.New("private key is nil")
+	}
 	return c.privateKey.Sign(rand.Reader, msg, crypto.SHA256)
 }
 
-// verify message signature
 func (c ClusterConfig) VerifySignature(msg, sig []byte) error {
 	if c.privateKey == nil {
 		return errors.New("private key is nil")
@@ -171,7 +173,7 @@ func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
 		Timeout:     "10s",
 		KMSKeyID:    "",
-		ClusterMode: ClusterConfig{},
+		ClusterMode: new(ClusterConfig),
 	}
 }
 

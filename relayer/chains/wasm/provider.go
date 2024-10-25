@@ -21,6 +21,7 @@ import (
 	"github.com/icon-project/centralized-relay/utils/retry"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/sha3"
 )
 
 var _ provider.ChainProvider = (*Provider)(nil)
@@ -854,5 +855,7 @@ func (p *Provider) GetLastSavedHeight() uint64 {
 }
 
 func (p *Provider) GetSignMessage(message []byte) []byte {
-	return p.client.SignMessage(p.NID(), message)
+	hash := sha3.New256()
+	hash.Write(message)
+	return hash.Sum(nil)
 }

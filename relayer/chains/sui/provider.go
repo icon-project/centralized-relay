@@ -14,6 +14,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -236,5 +237,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 
 // TODO: not sure if this is the right way to sign the message
 func (p *Provider) GetSignMessage(message []byte) []byte {
-	return message
+	hash := sha3.New256()
+	hash.Write(message)
+	return hash.Sum(nil)
 }

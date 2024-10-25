@@ -642,7 +642,8 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		r.log.Error("no provider found for submitting cluster message")
 	}
 	if emitEvent {
-		chainSignature := dst.Provider.GetSignMessage(message.Data)
+		rawData := fmt.Sprintf("%s%s%s", message.Src, message.Sn, message.Data)
+		chainSignature := dst.Provider.GetSignMessage([]byte(rawData))
 		signature, err := r.clusterMode.SignMessage(chainSignature)
 		if err != nil {
 			r.log.Error("Error signing message", zap.Error(err))

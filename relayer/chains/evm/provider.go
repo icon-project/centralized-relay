@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
@@ -172,7 +171,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
+func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
 	ticker := time.NewTicker(DefaultPollingInterval)
 	defer ticker.Stop()
 	counter := 0
@@ -497,7 +496,7 @@ func (p *Config) GetConnContract() string {
 }
 
 func (p *Provider) GetSignMessage(message []byte) []byte {
-	hash := sha3.NewLegacyKeccak256()
-	hash.Write([]byte("\x19Ethereum Signed Message:\n" + fmt.Sprint(len(message)) + string(message)))
+	hash := sha3.New256()
+	hash.Write(message)
 	return hash.Sum(nil)
 }

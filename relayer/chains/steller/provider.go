@@ -14,6 +14,7 @@ import (
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stellar/go/keypair"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/sha3"
 )
 
 type Provider struct {
@@ -187,5 +188,7 @@ func (p *Config) GetConnContract() string {
 
 // TODO: not sure if this is the correct implementation
 func (p *Provider) GetSignMessage(message []byte) []byte {
-	return message
+	hash := sha3.New256()
+	hash.Write(message)
+	return hash.Sum(nil)
 }
