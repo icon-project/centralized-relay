@@ -259,3 +259,7 @@ func (p *Provider) ShouldReceiveMessage(ctx context.Context, messagekey *relayer
 func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertypes.Message) (bool, error) {
 	return true, nil
 }
+
+func (p *Provider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}
