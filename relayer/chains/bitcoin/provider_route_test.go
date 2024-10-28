@@ -113,8 +113,8 @@ func TestDepositBitcoinToIcon(t *testing.T) {
 	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
 
-	bridgeMsg := multisig.BridgeDecodedMsg {
-		Message:	&multisig.XCallMessage{
+	bridgeMsg := multisig.BridgeDecodedMsg{
+		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "0:1",
@@ -123,19 +123,19 @@ func TestDepositBitcoinToIcon(t *testing.T) {
 			Amount:       new(big.Int).SetUint64(100000).Bytes(),
 			Data:         []byte(""),
 		},
-		ChainId:	1,
-		Receiver:	"cxfc86ee7687e1bf681b5548b2667844485c0e7192",
-		Connectors:	[]string{
+		ChainId:  1,
+		Receiver: "cxfc86ee7687e1bf681b5548b2667844485c0e7192",
+		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
 		},
 	}
 
 	inputs := []*multisig.Input{
 		{
-			TxHash:             "e57c10e27f75dbf0856163ca5f825b5af7ffbb3874f606b31330464ddd9df9a1",
-			OutputIdx:          4,
-			OutputAmount:       2974000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "e57c10e27f75dbf0856163ca5f825b5af7ffbb3874f606b31330464ddd9df9a1",
+			OutputIdx:    4,
+			OutputAmount: 2974000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -179,10 +179,10 @@ func TestDepositBitcoinToIconFail1(t *testing.T) {
 
 	inputs := []*multisig.Input{
 		{
-			TxHash:             "eeb8c9f79ecfe7c084b2af95bf82acebd130185a0d188283d78abb58d85eddff",
-			OutputIdx:          4,
-			OutputAmount:       2999000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "eeb8c9f79ecfe7c084b2af95bf82acebd130185a0d188283d78abb58d85eddff",
+			OutputIdx:    4,
+			OutputAmount: 2999000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -190,7 +190,7 @@ func TestDepositBitcoinToIconFail1(t *testing.T) {
 
 	// Add Bridge Message
 	scripts, _ := multisig.CreateBridgeMessageScripts(&multisig.BridgeDecodedMsg{
-		Message:	&multisig.XCallMessage{
+		Message: &multisig.XCallMessage{
 			Action:       "Deposit",
 			TokenAddress: "0:1",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
@@ -198,7 +198,7 @@ func TestDepositBitcoinToIconFail1(t *testing.T) {
 			Amount:       new(big.Int).SetUint64(1000000).Bytes(),
 			Data:         []byte(""),
 		},
-		ChainId: 1,
+		ChainId:  1,
 		Receiver: "cx8b52dfea0aa1e548288102df15ad7159f7266106",
 		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
@@ -206,12 +206,12 @@ func TestDepositBitcoinToIconFail1(t *testing.T) {
 	})
 	for _, script := range scripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}
 
-	msgTx, err:= multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
+	msgTx, err := multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
 	fmt.Println("err: ", err)
 	// sign tx
 	totalSigs := [][][]byte{}
@@ -247,10 +247,10 @@ func TestDepositBitcoinToIconFail2(t *testing.T) {
 
 	inputs := []*multisig.Input{
 		{
-			TxHash:             "0416795b227e1a6a64eeb7bf7542d15964d18ac4c4732675d3189cda8d38bed7",
-			OutputIdx:          3,
-			OutputAmount:       2998000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "0416795b227e1a6a64eeb7bf7542d15964d18ac4c4732675d3189cda8d38bed7",
+			OutputIdx:    3,
+			OutputAmount: 2998000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -258,15 +258,15 @@ func TestDepositBitcoinToIconFail2(t *testing.T) {
 
 	// Add Bridge Message
 	scripts, _ := multisig.CreateBridgeMessageScripts(&multisig.BridgeDecodedMsg{
-		Message:	&multisig.XCallMessage{
+		Message: &multisig.XCallMessage{
 			Action:       "Deposit",
-			TokenAddress: "0:1",
+			TokenAddress: "0:1", // wrong token address
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
 			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
-			Amount:       new(big.Int).SetUint64(1000000).Bytes(),
+			Amount:       new(big.Int).SetUint64(1000000).Bytes(), //
 			Data:         []byte(""),
 		},
-		ChainId: 1,
+		ChainId:  1,
 		Receiver: "cx8b52dfea0aa1e548288102df15ad7159f7266106",
 		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
@@ -274,18 +274,18 @@ func TestDepositBitcoinToIconFail2(t *testing.T) {
 	})
 	for _, script := range scripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}
 
 	// Add transfering bitcoin to relayer multisig
 	outputs = append(outputs, &wire.TxOut{
-		Value: 1000,
+		Value:    1000,
 		PkScript: relayerPkScript,
 	})
 
-	msgTx, err:= multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
+	msgTx, err := multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
 	fmt.Println("err: ", err)
 	// sign tx
 	totalSigs := [][][]byte{}
@@ -321,10 +321,10 @@ func TestDepositBitcoinToIconFail3(t *testing.T) {
 
 	inputs := []*multisig.Input{
 		{
-			TxHash:             "dc21f89436d9fbda2cc521ed9b8988c7cbf84cdc67d728b2b2709a5efe7e775a",
-			OutputIdx:          4,
-			OutputAmount:       2996000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "dc21f89436d9fbda2cc521ed9b8988c7cbf84cdc67d728b2b2709a5efe7e775a",
+			OutputIdx:    4,
+			OutputAmount: 2996000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -332,15 +332,15 @@ func TestDepositBitcoinToIconFail3(t *testing.T) {
 
 	// Add Bridge Message
 	scripts, _ := multisig.CreateBridgeMessageScripts(&multisig.BridgeDecodedMsg{
-		Message:	&multisig.XCallMessage{
+		Message: &multisig.XCallMessage{
 			Action:       "Deposit",
 			TokenAddress: "0:1",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
 			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
-			Amount:       new(big.Int).SetUint64(1000).Bytes(),
+			Amount:       new(big.Int).SetUint64(1000).Bytes(), // wrong amount
 			Data:         []byte(""),
 		},
-		ChainId: 1,
+		ChainId:  1,
 		Receiver: "cx8b52dfea0aa1e548288102df15ad7159f7266106",
 		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
@@ -348,18 +348,18 @@ func TestDepositBitcoinToIconFail3(t *testing.T) {
 	})
 	for _, script := range scripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}
 
 	// Add transfering bitcoin to relayer multisig
 	outputs = append(outputs, &wire.TxOut{
-		Value: 10000,
+		Value:    10000,
 		PkScript: relayerPkScript,
 	})
 
-	msgTx, err:= multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
+	msgTx, err := multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
 	fmt.Println("err: ", err)
 	// sign tx
 	totalSigs := [][][]byte{}
@@ -395,10 +395,10 @@ func TestDepositBitcoinToIconFail4(t *testing.T) {
 
 	inputs := []*multisig.Input{
 		{
-			TxHash:             "1e29fa62942f92dd4cf688e219641b54229fbc2ec2dc74cc9c1c7f247c7172b2",
-			OutputIdx:          4,
-			OutputAmount:       2985000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "1e29fa62942f92dd4cf688e219641b54229fbc2ec2dc74cc9c1c7f247c7172b2",
+			OutputIdx:    4,
+			OutputAmount: 2985000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -406,7 +406,7 @@ func TestDepositBitcoinToIconFail4(t *testing.T) {
 
 	// Add Bridge Message
 	scripts, _ := multisig.CreateBridgeMessageScripts(&multisig.BridgeDecodedMsg{
-		Message:	&multisig.XCallMessage{
+		Message: &multisig.XCallMessage{
 			Action:       "Withdraw",
 			TokenAddress: "0:1",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
@@ -414,7 +414,7 @@ func TestDepositBitcoinToIconFail4(t *testing.T) {
 			Amount:       new(big.Int).SetUint64(1000).Bytes(),
 			Data:         []byte(""),
 		},
-		ChainId: 1,
+		ChainId:  1,
 		Receiver: "cx8b52dfea0aa1e548288102df15ad7159f7266106",
 		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
@@ -422,18 +422,18 @@ func TestDepositBitcoinToIconFail4(t *testing.T) {
 	})
 	for _, script := range scripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}
 
 	// Add transfering bitcoin to relayer multisig
 	outputs = append(outputs, &wire.TxOut{
-		Value: 10000,
+		Value:    10000,
 		PkScript: relayerPkScript,
 	})
 
-	msgTx, err:= multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
+	msgTx, err := multisig.CreateTx(inputs, outputs, userMultisigWallet.PKScript, TX_FEE, 0)
 	fmt.Println("err: ", err)
 	// sign tx
 	totalSigs := [][][]byte{}
@@ -529,19 +529,19 @@ func TestDepositRuneToIcon(t *testing.T) {
 	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
 
-	bridgeMsg := multisig.BridgeDecodedMsg {
-		Message:	&multisig.XCallMessage{
+	bridgeMsg := multisig.BridgeDecodedMsg{
+		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "840000:3",
-			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
+			TokenAddress: "2904354:3119",
+			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
 			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
-			Amount:       new(big.Int).SetUint64(1000000).Bytes(),
+			Amount:       new(big.Int).SetUint64(10000).Bytes(),
 			Data:         []byte(""),
 		},
-		ChainId:	1,
-		Receiver:	"cxfc86ee7687e1bf681b5548b2667844485c0e7192",
-		Connectors:	[]string{
+		ChainId:  1,
+		Receiver: "cxfc86ee7687e1bf681b5548b2667844485c0e7192",
+		Connectors: []string{
 			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
 		},
 	}
@@ -549,17 +549,17 @@ func TestDepositRuneToIcon(t *testing.T) {
 	inputs := []*multisig.Input{
 		// user rune UTXOs to spend
 		{
-			TxHash:             "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
-			OutputIdx:          0,
-			OutputAmount:       1000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "69deba39f5a0700cc713f67fe8cb5ed1e35a9f0d4a3a437d839103c6e26cb947",
+			OutputIdx:    2,
+			OutputAmount: 546,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 		// user bitcoin UTXOs to pay tx fee
 		{
-			TxHash:             "4933e04e3d9320df6e9f046ff83cfc3e9f884d8811df0539af7aaca0218189aa",
-			OutputIdx:          0,
-			OutputAmount:       4000000,
-			PkScript:			userMultisigWallet.PKScript,
+			TxHash:       "16de7df933dacd95b0d3af7325a5a2e680a1b7dd447a97e7678d8dfa1ac750b4",
+			OutputIdx:    4,
+			OutputAmount: 445000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 

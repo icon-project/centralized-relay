@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	UNISAT_DEFAULT_MAINNET	= "https://open-api.unisat.io"
-	UNISAT_DEFAULT_TESTNET	= "https://open-api-testnet.unisat.io"
+	UNISAT_DEFAULT_MAINNET = "https://open-api.unisat.io"
+	UNISAT_DEFAULT_TESTNET = "https://open-api-testnet.unisat.io"
 )
 
 type DataBlockchainInfo struct {
@@ -175,30 +175,30 @@ type ResponseBtcUtxo struct {
 }
 
 type RuneDetail struct {
-	Amount       string        `json:"amount"`
-	RuneId       string        `json:"runeid"`
-	Rune         string        `json:"rune"`
-	SpacedRune   string        `json:"spacedRune"`
-	Symbol       string        `json:"symbol"`
-	Divisibility int           `json:"divisibility"`
+	Amount       string `json:"amount"`
+	RuneId       string `json:"runeid"`
+	Rune         string `json:"rune"`
+	SpacedRune   string `json:"spacedRune"`
+	Symbol       string `json:"symbol"`
+	Divisibility int    `json:"divisibility"`
 }
 
 type RuneUTXO struct {
-	Height        int64         `json:"height"`
-	Confirmations int64         `json:"confirmations"`
-	Address       string        `json:"address"`
-	Satoshi       *big.Int      `json:"satoshi"`
-	ScriptPk      string        `json:"scriptPk"`
-	TxId          string        `json:"txid"`
-	Vout          int           `json:"vout"`
-	Runes 		  []RuneDetail  `json:"runes"`
+	Height        int64        `json:"height"`
+	Confirmations int64        `json:"confirmations"`
+	Address       string       `json:"address"`
+	Satoshi       *big.Int     `json:"satoshi"`
+	ScriptPk      string       `json:"scriptPk"`
+	TxId          string       `json:"txid"`
+	Vout          int          `json:"vout"`
+	Runes         []RuneDetail `json:"runes"`
 }
 
 type DataRuneUtxoList struct {
-	Height int64     `json:"height"`
-	Start int        `json:"start"`
-	Total int        `json:"total"`
-	Utxo  []RuneUTXO `json:"utxo"`
+	Height int64      `json:"height"`
+	Start  int        `json:"start"`
+	Total  int        `json:"total"`
+	Utxo   []RuneUTXO `json:"utxo"`
 }
 
 type ResponseRuneUtxo struct {
@@ -206,6 +206,11 @@ type ResponseRuneUtxo struct {
 	Message string `json:"msg"`
 
 	Data DataRuneUtxoList `json:"data"`
+}
+
+type ResponseUtxoRuneBalance struct {
+	Code int          `json:"code"`
+	Data []RuneDetail `json:"data"`
 }
 
 func BtcUtxoUrl(server, address string, offset, limit int64) string {
@@ -216,6 +221,9 @@ func RuneUtxoUrl(server, address, runeId string, offset, limit int64) string {
 	return fmt.Sprintf("%s/v1/indexer/address/%s/runes/%s/utxo?start=%d&limit=%d", server, address, runeId, offset, limit)
 }
 
+func UtxoRuneBalanceUrl(server, txId string, index int) string {
+	return fmt.Sprintf("%s/v1/indexer/runes/utxo/%s/%d/balance", server, txId, index)
+}
 
 func GetWithHeader(ctx context.Context, url string, header map[string]string, response interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -258,5 +266,12 @@ func GetRuneUtxo(ctx context.Context, server, bear, address, runeId string, offs
 	url := RuneUtxoUrl(server, address, runeId, offset, limit)
 	err := GetWithBear(ctx, url, bear, &resp)
 
+	return resp, err
+}
+
+func GetUtxoRuneBalance(ctx context.Context, server, bear, txId string, index int) (ResponseUtxoRuneBalance, error) {
+	var resp ResponseUtxoRuneBalance
+	url := UtxoRuneBalanceUrl(server, txId, index)
+	err := GetWithBear(ctx, url, bear, &resp)
 	return resp, err
 }
