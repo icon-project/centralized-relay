@@ -102,6 +102,7 @@ type Provider struct {
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 	OpCode                int      `json:"op-code" yaml:"op-code"`
+	RequestTimeout        int      `json:"request-timeout" yaml:"request-timeout"` // seconds
 	UniSatURL             string   `json:"unisat-url" yaml:"unisat-url"`
 	UniSatKey             string   `json:"unisat-key" yaml:"unisat-key"`
 	MempoolURL            string   `json:"mempool-url" yaml:"mempool-url"`
@@ -315,8 +316,8 @@ func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
 	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
 }
 
-func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, timeout int64, addressPkScript []byte) ([]*multisig.Input, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
 	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 64)
@@ -349,8 +350,8 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 	return inputs, nil
 }
 
-func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout uint, addressPkScript []byte) ([]*multisig.Input, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout int64, addressPkScript []byte) ([]*multisig.Input, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
 	resp, err := GetRuneUtxo(ctx, server, p.cfg.UniSatKey, address, runeId, 0, 64)
@@ -384,6 +385,16 @@ func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired u
 	}
 
 	return inputs, nil
+}
+
+func (p *Provider) GetUTXORuneBalance(server, txId string, index int, timeout int64) (*ResponseUtxoRuneBalance, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
+	defer cancel()
+	resp, err := GetUtxoRuneBalance(ctx, server, p.cfg.UniSatKey, txId, index)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query rune UTXO balance from unisat: %v", err)
+	}
+	return &resp, nil
 }
 
 func (p *Provider) CreateBitcoinMultisigTx(
@@ -561,7 +572,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 	inputs := []*multisig.Input{}
 	if !runeToSend.IsZero() {
 		// query rune UTXOs from unisat
-		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, 3, addressPkScript)
+		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, int64(p.cfg.RequestTimeout), addressPkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -570,7 +581,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 
 	// TODO: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
 	// query bitcoin UTXOs from unisat
-	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, 3, addressPkScript)
+	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, int64(p.cfg.RequestTimeout), addressPkScript)
 	if err != nil {
 		return nil, err
 	}
@@ -725,10 +736,18 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 		if err != nil {
 			p.logger.Error("failed to decode message: %v", zap.Error(err))
 		}
-		// 0 is need to rollback
-		if messageDecoded.Code == 0 {
-			p.logger.Info("Detected rollback message", zap.String("sn", messageDecoded.Sn.String()))
+
+		// transaction message decoded successfully
+		// withdraw message has no messageDecoded.Code
+		if err == nil {
+			// 1 is transaction already success, no need to rollback
+			if messageDecoded.Code == 1 {
+				return nil, nil, fmt.Errorf("transaction already success")
+			}
+
+			// message code 0 is need to rollback
 			// Process RollbackMessage
+			p.logger.Info("Detected rollback message", zap.String("sn", messageDecoded.Sn.String()))
 			data, err := p.db.Get([]byte("RB"+messageDecoded.Sn.String()), nil)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
@@ -1058,8 +1077,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 					break
 				}
 			} else {
-				// https://open-api.unisat.io/v1/indexer/runes/utxo
-				runes, err := GetRuneTxIndex(p.cfg.UniSatURL, "GET", p.bearToken, tx.Tx.TxHash().String(), i)
+				runes, err := p.GetUTXORuneBalance(p.cfg.UniSatURL, tx.Tx.TxHash().String(), i, int64(p.cfg.RequestTimeout))
 				if err != nil {
 					return nil, err
 				}
