@@ -102,5 +102,5 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 
 // keystorePath is the path to the keystore file
 func (p *Provider) keystorePath(addr string) string {
-	return path.Join(p.cfg.HomeDir, "keystore", "wallets", p.NID(), addr)
+	return path.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 }
