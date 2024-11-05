@@ -40,7 +40,7 @@ func keystoreCmd(a *appState) *cobra.Command {
 		panic(err)
 	}
 
-	ks.AddCommand(state.init(a), state.new(a), state.list(a), state.importKey(a), state.use(a), state.generateClusterKey(a))
+	ks.AddCommand(state.init(a), state.new(a), state.list(a), state.importKey(a), state.use(a), state.generateClusterKey(a), state.getClusterKey(a))
 
 	return ks
 }
@@ -97,6 +97,22 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 		},
 	}
 	return generate
+}
+
+// get cluster public key
+func (k *keystoreState) getClusterKey(a *appState) *cobra.Command {
+	get := &cobra.Command{
+		Use:   "get-cluster-key",
+		Short: "get cluster key",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !a.config.Global.ClusterMode.Enabled {
+				return fmt.Errorf("cluster mode not enabled")
+			}
+			fmt.Fprintf(os.Stdout, "Cluster key: %s\n", a.config.Global.ClusterMode.Key)
+			return nil
+		},
+	}
+	return get
 }
 
 func (k *keystoreState) new(a *appState) *cobra.Command {
@@ -176,7 +192,7 @@ func (k *keystoreState) importKey(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			kestorePath := filepath.Join(a.homePath, "keystore", "wallets", k.chain)
+			kestorePath := filepath.Join(a.homePath, "keystore", k.chain)
 			if err := os.MkdirAll(kestorePath, 0o755); err != nil {
 				return err
 			}
@@ -207,7 +223,7 @@ func (k *keystoreState) use(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			kestorePath := filepath.Join(a.homePath, "keystore", "wallets", k.chain, k.address)
+			kestorePath := filepath.Join(a.homePath, "keystore", k.chain, k.address)
 			if _, err := os.Stat(kestorePath); os.IsNotExist(err) {
 				return fmt.Errorf("keystore not found")
 			}
