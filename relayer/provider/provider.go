@@ -65,7 +65,7 @@ type ChainProvider interface {
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
 
-	SignMessage([]byte) ([]byte, error)
+	GetSignMessage([]byte) []byte
 }
 
 // CommonConfig is the common configuration for all chain providers

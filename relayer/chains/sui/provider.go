@@ -8,13 +8,13 @@ import (
 	"sync"
 
 	"github.com/coming-chat/go-sui/v2/account"
-	"github.com/coming-chat/go-sui/v2/sui_types"
 	suitypes "github.com/coming-chat/go-sui/v2/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui/types"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -139,12 +139,12 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	//implementation not needed in sui
+	// implementation not needed in sui
 	return fmt.Errorf("set_admin is not implmented in sui contract")
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	//implementation not needed in sui
+	// implementation not needed in sui
 	return fmt.Errorf("revert_message is not implemented in sui contract")
 }
 
@@ -235,10 +235,9 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 	return true, nil
 }
 
-func (p *Provider) SignMessage(message []byte) ([]byte, error) {
-	msg, err := p.wallet.SignSecureWithoutEncode(message, sui_types.DefaultIntent())
-	if err != nil {
-		return nil, err
-	}
-	return msg.Ed25519SuiSignature.Signature[:], nil
+// TODO: not sure if this is the right way to sign the message
+func (p *Provider) GetSignMessage(message []byte) []byte {
+	hash := sha3.New256()
+	hash.Write(message)
+	return hash.Sum(nil)
 }

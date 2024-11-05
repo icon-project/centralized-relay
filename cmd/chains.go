@@ -163,7 +163,7 @@ func addChainFromFile(a *appState, chainName string, file string) error {
 	if err != nil {
 		return fmt.Errorf("failed to build ChainProvider for %s: %w", file, err)
 	}
-	prov.Config().(provider.ClusterConfig).SetClusterMode(a.config.Global.ClusterMode)
+	prov.Config().(provider.ClusterConfig).SetClusterMode(a.config.Global.ClusterMode.Enabled)
 
 	c := relayer.NewChain(a.log, prov, a.debug)
 	if err = a.config.AddChain(c); err != nil {

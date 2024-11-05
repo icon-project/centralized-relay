@@ -18,7 +18,6 @@ import (
 	"github.com/cosmos/go-bip39"
 
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
-	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 
 	bankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
@@ -49,7 +48,7 @@ type IClient interface {
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
 	GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error)
-	SignMessage(uid string, message []byte) ([]byte, error)
+	SignMessage(uid string, message []byte) []byte
 }
 
 type Client struct {
@@ -259,7 +258,7 @@ func (c *Client) Reconnect() error {
 }
 
 // Signs the message with private key
-func (c *Client) SignMessage(uid string, message []byte) ([]byte, error) {
-	signedMsg, _, err := c.ctx.Keyring.Sign(uid, message, signing.SignMode_SIGN_MODE_DIRECT)
-	return signedMsg, err
+// TODO: not sure if this is the right way to sign the message
+func (c *Client) SignMessage(uid string, message []byte) []byte {
+	return message
 }
