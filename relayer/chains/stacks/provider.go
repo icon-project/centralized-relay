@@ -4,14 +4,18 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"path/filepath"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/stacks-go-sdk/pkg/stacks"
 )
 
 type Config struct {
@@ -34,7 +38,17 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, err
 	}
 
-	client, err := NewClient(c.RPCUrl, log)
+	var network *stacks.StacksNetwork
+	if c.NID == "stacks" {
+		network = stacks.NewStacksMainnet()
+	} else if c.NID == "stacks_testnet" {
+		network = stacks.NewStacksTestnet()
+	} else {
+		return nil, fmt.Errorf("no network found for nid: %v", c.NID)
+	}
+
+	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
+	client, err := NewClient(log, network, xcallAbiPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Stacks client: %v", err)
 	}
@@ -107,39 +121,68 @@ func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
 }
 
-func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
-	latestBlock, err := p.client.GetLatestBlock(ctx)
+func (p *Provider) SetAdmin(ctx context.Context, newAdmin string) error {
+	if newAdmin == "" {
+		return fmt.Errorf("new admin address cannot be empty")
+	}
+
+	contractAddress := p.cfg.Contracts[providerTypes.XcallContract]
+	if contractAddress == "" {
+		return fmt.Errorf("xcall contract address is not set")
+	}
+
+	currentImplementation, err := p.client.GetCurrentImplementation(ctx, contractAddress)
 	if err != nil {
-		return 0, err
+		return fmt.Errorf("failed to get current implementation: %w", err)
 	}
-	if latestBlock == nil {
-		return 0, fmt.Errorf("no blocks found")
+
+	txID, err := p.client.SetAdmin(ctx, contractAddress, newAdmin, currentImplementation, p.cfg.Address, p.privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to set new admin: %w", err)
 	}
-	return uint64(latestBlock.Height), nil
+
+	p.log.Info("SetAdmin transaction broadcasted", zap.String("txID", txID))
+
+	receipt, err := p.waitForTransactionConfirmation(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to confirm SetAdmin transaction: %w", err)
+	}
+
+	if !receipt.Status {
+		return fmt.Errorf("SetAdmin transaction failed: %s", txID)
+	}
+
+	p.log.Info("SetAdmin transaction confirmed",
+		zap.String("txID", txID),
+		zap.Uint64("blockHeight", receipt.Height))
+
+	return nil
 }
 
-func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*providerTypes.Receipt, error) {
-	return nil, fmt.Errorf("not implemented")
-}
+func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID string) (*types.Receipt, error) {
+	timeout := time.After(2 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
-func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	return fmt.Errorf("not implemented")
-}
-
-func (p *Provider) ShouldReceiveMessage(ctx context.Context, message *providerTypes.Message) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-func (p *Provider) ShouldSendMessage(ctx context.Context, message *providerTypes.Message) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-func (p *Provider) MessageReceived(ctx context.Context, key *providerTypes.MessageKey) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-func (p *Provider) SetAdmin(ctx context.Context, admin string) error {
-	return fmt.Errorf("not implemented")
+	for {
+		select {
+		case <-ticker.C:
+			receipt, err := p.QueryTransactionReceipt(ctx, txID)
+			if err != nil {
+				p.log.Warn("Failed to query transaction receipt", zap.Error(err))
+				continue
+			}
+			if receipt.Status {
+				p.log.Info("Transaction confirmed", zap.String("txID", txID))
+				return receipt, nil
+			}
+			p.log.Debug("Transaction not yet confirmed", zap.String("txID", txID))
+		case <-timeout:
+			return nil, fmt.Errorf("transaction confirmation timed out after 2 minutes")
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*providerTypes.Coin, error) {
@@ -158,17 +201,58 @@ func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 }
 
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	return 0, fmt.Errorf("not implemented")
+	p.log.Debug("Getting fee", zap.String("networkID", networkID), zap.Bool("responseFee", responseFee))
+
+	fee, err := p.client.GetFee(
+		ctx,
+		p.cfg.Contracts[providerTypes.ConnectionContract],
+		networkID,
+		responseFee,
+	)
+	if err != nil {
+		p.log.Error("Failed to get fee", zap.Error(err))
+		return 0, fmt.Errorf("failed to get fee: %w", err)
+	}
+
+	p.log.Debug("Fee retrieved successfully", zap.Uint64("fee", fee))
+	return fee, nil
 }
 
 func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee *big.Int) error {
-	return fmt.Errorf("not implemented")
+	p.log.Debug("Setting fees", zap.String("networkID", networkID), zap.String("messageFee", msgFee.String()), zap.String("responseFee", resFee.String()))
+
+	txID, err := p.client.SetFee(
+		ctx,
+		p.cfg.Contracts[providerTypes.ConnectionContract],
+		networkID,
+		msgFee,
+		resFee,
+		p.cfg.Address,
+		p.privateKey,
+	)
+	if err != nil {
+		p.log.Error("Failed to set fees", zap.Error(err))
+		return fmt.Errorf("failed to set fees: %w", err)
+	}
+
+	p.log.Info("Fees set successfully", zap.String("txID", txID))
+	return nil
 }
 
 func (p *Provider) ClaimFee(ctx context.Context) error {
-	return fmt.Errorf("not implemented")
-}
+	p.log.Debug("Claiming fees")
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
-	return nil, fmt.Errorf("not implemented")
+	txID, err := p.client.ClaimFee(
+		ctx,
+		p.cfg.Contracts[providerTypes.ConnectionContract],
+		p.cfg.Address,
+		p.privateKey,
+	)
+	if err != nil {
+		p.log.Error("Failed to claim fees", zap.Error(err))
+		return fmt.Errorf("failed to claim fees: %w", err)
+	}
+
+	p.log.Info("Fees claimed successfully", zap.String("txID", txID))
+	return nil
 }

@@ -1,0 +1,733 @@
+{
+    "maps": [
+      {
+        "key": {
+          "string-ascii": {
+            "length": 16
+          }
+        },
+        "name": "data-storage",
+        "value": {
+          "buffer": {
+            "length": 2048
+          }
+        }
+      }
+    ],
+    "epoch": "Epoch30",
+    "functions": [
+      {
+        "args": [
+          {
+            "name": "req-id",
+            "type": "uint128"
+          },
+          {
+            "name": "data",
+            "type": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          },
+          {
+            "name": "receiver",
+            "type": "trait_reference"
+          },
+          {
+            "name": "common",
+            "type": "trait_reference"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "execute-call",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "sn",
+            "type": "uint128"
+          },
+          {
+            "name": "receiver",
+            "type": "trait_reference"
+          },
+          {
+            "name": "common",
+            "type": "trait_reference"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "execute-rollback",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "net",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "rollback",
+            "type": "bool"
+          },
+          {
+            "name": "sources",
+            "type": {
+              "optional": {
+                "list": {
+                  "type": {
+                    "string-ascii": {
+                      "length": 128
+                    }
+                  },
+                  "length": 10
+                }
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "get-fee",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "uint128",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "get-network-address",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": {
+                "string-ascii": {
+                  "length": 128
+                }
+              },
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "get-network-id",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": {
+                "string-ascii": {
+                  "length": 128
+                }
+              },
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "get-protocol-fee",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "uint128",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "sn",
+            "type": "uint128"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "handle-error",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "source-network",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "message",
+            "type": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "handle-message",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "to",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "send-call",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "uint128",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "to",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          },
+          {
+            "name": "rollback",
+            "type": {
+              "optional": {
+                "buffer": {
+                  "length": 1024
+                }
+              }
+            }
+          },
+          {
+            "name": "sources",
+            "type": {
+              "optional": {
+                "list": {
+                  "type": {
+                    "string-ascii": {
+                      "length": 128
+                    }
+                  },
+                  "length": 10
+                }
+              }
+            }
+          },
+          {
+            "name": "destinations",
+            "type": {
+              "optional": {
+                "list": {
+                  "type": {
+                    "string-ascii": {
+                      "length": 128
+                    }
+                  },
+                  "length": 10
+                }
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "send-call-message",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "uint128",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "new-admin",
+            "type": "principal"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "set-admin",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "new-owner",
+            "type": "principal"
+          }
+        ],
+        "name": "set-contract-owner",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "key",
+            "type": {
+              "string-ascii": {
+                "length": 16
+              }
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          }
+        ],
+        "name": "set-data",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "nid",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "connection",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "set-default-connection",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "fee",
+            "type": "uint128"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "set-protocol-fee",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "handler",
+            "type": "principal"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "set-protocol-fee-handler",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "nid",
+            "type": {
+              "string-ascii": {
+                "length": 128
+              }
+            }
+          },
+          {
+            "name": "protocols",
+            "type": {
+              "list": {
+                "type": {
+                  "string-ascii": {
+                    "length": 128
+                  }
+                },
+                "length": 10
+              }
+            }
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "set-trusted-protocols",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "new-implementation",
+            "type": "trait_reference"
+          },
+          {
+            "name": "new-proxy",
+            "type": {
+              "optional": "principal"
+            }
+          }
+        ],
+        "name": "upgrade",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "sn",
+            "type": "uint128"
+          },
+          {
+            "name": "implementation",
+            "type": "trait_reference"
+          }
+        ],
+        "name": "verify-success",
+        "access": "public",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "uint128"
+            }
+          }
+        }
+      },
+      {
+        "args": [],
+        "name": "get-contract-owner",
+        "access": "read_only",
+        "outputs": {
+          "type": "principal"
+        }
+      },
+      {
+        "args": [],
+        "name": "get-current-implementation",
+        "access": "read_only",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "principal",
+              "error": "none"
+            }
+          }
+        }
+      },
+      {
+        "args": [],
+        "name": "get-current-proxy",
+        "access": "read_only",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": {
+                "optional": "principal"
+              },
+              "error": "none"
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "key",
+            "type": {
+              "string-ascii": {
+                "length": 16
+              }
+            }
+          }
+        ],
+        "name": "get-data",
+        "access": "read_only",
+        "outputs": {
+          "type": {
+            "optional": {
+              "buffer": {
+                "length": 2048
+              }
+            }
+          }
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "who",
+            "type": "principal"
+          }
+        ],
+        "name": "is-contract-owner",
+        "access": "read_only",
+        "outputs": {
+          "type": "bool"
+        }
+      },
+      {
+        "args": [
+          {
+            "name": "implementation",
+            "type": "principal"
+          }
+        ],
+        "name": "is-current-implementation",
+        "access": "read_only",
+        "outputs": {
+          "type": {
+            "response": {
+              "ok": "bool",
+              "error": "none"
+            }
+          }
+        }
+      }
+    ],
+    "variables": [
+      {
+        "name": "CONTRACT_NAME",
+        "type": {
+          "string-ascii": {
+            "length": 11
+          }
+        },
+        "access": "constant"
+      },
+      {
+        "name": "err-not-current-implementation",
+        "type": {
+          "response": {
+            "ok": "none",
+            "error": "uint128"
+          }
+        },
+        "access": "constant"
+      },
+      {
+        "name": "err-not-owner",
+        "type": {
+          "response": {
+            "ok": "none",
+            "error": "uint128"
+          }
+        },
+        "access": "constant"
+      },
+      {
+        "name": "contract-owner",
+        "type": "principal",
+        "access": "variable"
+      },
+      {
+        "name": "current-logic-implementation",
+        "type": "principal",
+        "access": "variable"
+      },
+      {
+        "name": "current-proxy",
+        "type": {
+          "optional": "principal"
+        },
+        "access": "variable"
+      }
+    ],
+    "clarity_version": "Clarity2",
+    "fungible_tokens": [],
+    "non_fungible_tokens": []
+  }

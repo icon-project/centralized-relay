@@ -120,6 +120,15 @@ type CosmosRelayerChainConfigValue struct {
 	FinalityBlock          uint64            `yaml:"finality-block"`
 }
 
+type StacksRelayerChainConfigValue struct {
+	RPCURL        string            `yaml:"rpc-url"`
+	StartHeight   int               `yaml:"start-height"`
+	Contracts     map[string]string `yaml:"contracts"`
+	BlockInterval string            `yaml:"block-interval"`
+	Address       string            `yaml:"address"`
+	FinalityBlock uint64            `yaml:"finality-block"`
+}
+
 type ICONRelayerChainConfig struct {
 	Type  string                      `json:"type"`
 	Value ICONRelayerChainConfigValue `json:"value"`
@@ -138,6 +147,11 @@ type CosmosRelayerChainConfig struct {
 type SUIRelayerChainConfig struct {
 	Type  string                     `json:"type"`
 	Value SUIRelayerChainConfigValue `json:"value"`
+}
+
+type StacksRelayerChainConfig struct {
+	Type  string                        `yaml:"type"`
+	Value StacksRelayerChainConfigValue `yaml:"value"`
 }
 
 const (

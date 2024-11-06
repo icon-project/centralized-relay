@@ -15,7 +15,7 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/icon-project/goloop v1.3.11
-	github.com/icon-project/stacks-go-sdk v0.2.0
+	github.com/icon-project/stacks-go-sdk v0.3.1
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -72,6 +72,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
+	github.com/go-resty/resty/v2 v2.14.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect

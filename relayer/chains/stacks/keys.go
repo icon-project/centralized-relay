@@ -41,7 +41,7 @@ func (p *Provider) NewKeystore(passphrase string) (string, error) {
 	}
 	privateKeyBytes := newKey.Serialize()
 
-	network, err := mapNIDToChainID(p.cfg.NID)
+	network, err := MapNIDToChainID(p.cfg.NID)
 	if err != nil {
 		p.log.Error("Chain id not found. Check the NID config", zap.Error(err))
 		return "", fmt.Errorf("chain id not found: %w", err)
@@ -103,7 +103,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 		return "", fmt.Errorf("failed to decrypt imported keystore: %w", err)
 	}
 
-	network, err := mapNIDToChainID(p.cfg.NID)
+	network, err := MapNIDToChainID(p.cfg.NID)
 	if err != nil {
 		p.log.Error("Chain id not found. Check the NID config", zap.Error(err))
 		return "", fmt.Errorf("chain id not found: %w", err)
@@ -156,7 +156,7 @@ func (p *Provider) keystorePath(addr string) string {
 	return filepath.Join(p.cfg.HomeDir, "keystore", p.NID(), addr)
 }
 
-func mapNIDToChainID(nid string) (stacks.ChainID, error) {
+func MapNIDToChainID(nid string) (stacks.ChainID, error) {
 	switch nid {
 	case "stacks":
 		return stacks.ChainIDMainnet, nil
