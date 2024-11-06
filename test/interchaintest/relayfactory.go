@@ -62,7 +62,8 @@ type Config struct {
 	// KMS_ID is the kms is that should be used for the relayer.
 	KMS_ID string `mapstructure:"kms_id"`
 	// KMS_URL is the kms endpoint that should be used for the relayer.
-	KMS_URL string `mapstructure:"kms_url"`
+	KMS_URL     string `mapstructure:"kms_url"`
+	CLUSTER_KEY string `mapstructure:"cluster_key"`
 }
 
 // New returns an implementation of ibc.Relayer depending on the provided RelayerType.

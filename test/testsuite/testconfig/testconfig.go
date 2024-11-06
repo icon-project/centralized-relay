@@ -37,6 +37,8 @@ type Chain struct {
 	ConfigPath                string             `mapstructure:"config_path"`
 	CertPath                  string             `mapstructure:"cert_path"`
 	ClusterRelayWalletAddress string             `mapstructure:"cluster_relay_wallet"`
+	ClusterKey                string             `mapstructure:"cluster_key"`
+	FollowerClusterKey        string             `mapstructure:"follower_cluster_key"`
 }
 
 type DebugConfig struct {

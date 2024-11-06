@@ -196,19 +196,24 @@ func (ic *Interchain) BuildChains(ctx context.Context, rep *testreporter.Relayer
 func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter, opts InterchainBuildOptions, kmsId string) error {
 	// Possible optimization: each relayer could be configured concurrently.
 	// But we are only testing with a single relayer so far, so we don't need this yet.
+	clusterMode := &ibc.ClusterConfig{
+		Enabled: false,
+	}
 	config := ibc.RelayerConfig{
 		Global: struct {
-			ApiListenAddr  int    `yaml:"api-listen-addr"`
-			Timeout        string `yaml:"timeout"`
-			Memo           string `yaml:"memo"`
-			LightCacheSize int    `yaml:"light-cache-size"`
-			KMSKeyID       string `yaml:"kms-key-id"`
+			ApiListenAddr  int                `yaml:"api-listen-addr"`
+			Timeout        string             `yaml:"timeout"`
+			Memo           string             `yaml:"memo"`
+			LightCacheSize int                `yaml:"light-cache-size"`
+			KMSKeyID       string             `yaml:"kms-key-id"`
+			ClusterMode    *ibc.ClusterConfig `yaml:"cluster-mode"`
 		}{
 			ApiListenAddr:  5183,
 			Timeout:        "10s",
 			Memo:           "",
 			LightCacheSize: 20,
 			KMSKeyID:       kmsId,
+			ClusterMode:    clusterMode,
 		},
 		Chains: make(map[string]interface{}),
 	}
@@ -233,22 +238,29 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 }
 
 func (ic *Interchain) BuildClusterRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter,
-	opts InterchainBuildOptions, kmsId string, leader bool) error {
+	opts InterchainBuildOptions, kmsId string, leader bool, clusterKey string) error {
 	// Possible optimization: each relayer could be configured concurrently.
 	// But we are only testing with a single relayer so far, so we don't need this yet.
+
+	clusterMode := &ibc.ClusterConfig{
+		Enabled: true,
+		Key:     clusterKey,
+	}
 	config := ibc.RelayerConfig{
 		Global: struct {
-			ApiListenAddr  int    `yaml:"api-listen-addr"`
-			Timeout        string `yaml:"timeout"`
-			Memo           string `yaml:"memo"`
-			LightCacheSize int    `yaml:"light-cache-size"`
-			KMSKeyID       string `yaml:"kms-key-id"`
+			ApiListenAddr  int                `yaml:"api-listen-addr"`
+			Timeout        string             `yaml:"timeout"`
+			Memo           string             `yaml:"memo"`
+			LightCacheSize int                `yaml:"light-cache-size"`
+			KMSKeyID       string             `yaml:"kms-key-id"`
+			ClusterMode    *ibc.ClusterConfig `yaml:"cluster-mode"`
 		}{
 			ApiListenAddr:  5183,
 			Timeout:        "10s",
 			Memo:           "",
 			LightCacheSize: 20,
 			KMSKeyID:       kmsId,
+			ClusterMode:    clusterMode,
 		},
 		Chains: make(map[string]interface{}),
 	}
@@ -260,7 +272,9 @@ func (ic *Interchain) BuildClusterRelayer(ctx context.Context, rep *testreporter
 			chainConfig := make(map[string]interface{})
 			_ = yaml.Unmarshal(content, &chainConfig)
 			if !leader {
-				chainConfig["value"].(map[string]interface{})["disabled"] = true
+				if chainConfig["type"] != "icon" {
+					chainConfig["value"].(map[string]interface{})["disabled"] = true
+				}
 				chainConfig["value"].(map[string]interface{})["address"] = c.GetContractAddress("cluster-wallet")
 			}
 			config.Chains[chainName] = chainConfig

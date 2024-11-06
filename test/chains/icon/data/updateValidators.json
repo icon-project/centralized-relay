@@ -1,27 +1,23 @@
 {
   "_validators": [
-    "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
-    "cx6582e1e1e88a45fe261f9dec5246b42c010341b2"
+    "hxfee90abd93066267e8133e7a61d6db8559edf032",
+    "hx2c877a6fbe88d7ffdc5705f9c75ab8fb06c1caec"
   ],
   "data": {
     "method": "updateValidators",
     "params": {
       "_threshold": "2",
       "_validators": [
-        "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
-        "hxcd808d9a16234ef3419d19b422dfe61d3a93aeb2"
+        "hxfee90abd93066267e8133e7a61d6db8559edf032",
+        "hx2c877a6fbe88d7ffdc5705f9c75ab8fb06c1caec"
       ]
     }
   },
   "dataType": "call",
   "from": "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
-  "newRelayers": [
-    "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
-    "cx89fe7002a01ce36fef3123fc565846b8ea389484"
-  ],
   "nid": "0x3",
   "stepLimit": "0x174876e800",
   "timestamp": "0x1c9a412f",
-  "to": "cx84554d7e3af2fcfb005539a55c5c4984dcc465b4",
+  "to": "cx53cf2d340000bc5299a773c2e73f8d0ae95033c2",
   "version": "0x3"
 }

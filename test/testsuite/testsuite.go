@@ -389,7 +389,12 @@ func (s *E2ETestSuite) SetupClusterRelayer(ctx context.Context, name string, lea
 			return nil, err
 		}
 	}
-	if err := ic.BuildClusterRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID, leader); err != nil {
+	clusterKey := s.cfg.RelayerConfig.CLUSTER_KEY
+	if !leader {
+		clusterKey = s.cfg.FollowerRelayerConfig.CLUSTER_KEY
+	}
+	if err := ic.BuildClusterRelayer(ctx, eRep, buildOptions,
+		s.cfg.RelayerConfig.KMS_ID, leader, clusterKey); err != nil {
 		return nil, err
 	}
 

@@ -1,14 +1,23 @@
 package ibc
 
+import "crypto/ecdsa"
+
 type RelayerConfig struct {
 	Global struct {
-		ApiListenAddr  int    `yaml:"api-listen-addr"`
-		Timeout        string `yaml:"timeout"`
-		Memo           string `yaml:"memo"`
-		LightCacheSize int    `yaml:"light-cache-size"`
-		KMSKeyID       string `yaml:"kms-key-id"`
+		ApiListenAddr  int            `yaml:"api-listen-addr"`
+		Timeout        string         `yaml:"timeout"`
+		Memo           string         `yaml:"memo"`
+		LightCacheSize int            `yaml:"light-cache-size"`
+		KMSKeyID       string         `yaml:"kms-key-id"`
+		ClusterMode    *ClusterConfig `yaml:"cluster-mode"`
 	} `yaml:"global"`
 	Chains map[string]interface{} `yaml:"chains"`
+}
+
+type ClusterConfig struct {
+	Enabled    bool   `yaml:"enabled" json:"enabled"`
+	Key        string `yaml:"key" json:"key"`
+	privateKey *ecdsa.PrivateKey
 }
 
 // ChainConfig defines the chain parameters requires to run an interchaintest testnet for a chain.
