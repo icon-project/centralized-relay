@@ -97,11 +97,11 @@ relayer:
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
-    cluster_key: 28759381583487852588425375082421304030329885952164936953480667105646303679692
-follower-relayer:
+    cluster_key: "28759381583487852588425375082421304030329885952164936953480667105646303679692"
+relayer-follower:
     image: relayer/relayer
     tag: cluster
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
-    cluster_key: 1473934270070384092076700874851287074542993531271188420327989793166852543013
+    cluster_key: "1473934270070384092076700874851287074542993531271188420327989793166852543013"
