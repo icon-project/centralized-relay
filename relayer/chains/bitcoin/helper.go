@@ -1,6 +1,7 @@
 package bitcoin
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/icon-project/icon-bridge/common/codec"
@@ -37,6 +38,8 @@ func XcallFormat(callData []byte, from, to string, sn uint, protocols []string, 
 	return finalMessage, nil
 }
 
-func mulDiv(a, nNumerator, nDenominator *big.Int) *big.Int {
-	return big.NewInt(0).Div(big.NewInt(0).Mul(a, nNumerator), nDenominator)
+func uint64ToBytes(amount uint64) []byte {
+	bytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(bytes, amount)
+	return bytes
 }

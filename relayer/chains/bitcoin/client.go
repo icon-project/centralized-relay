@@ -42,6 +42,7 @@ type IClient interface {
 	DecodeAddress(btcAddr string) ([]byte, error)
 	TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error)
 	SendRawTransaction(ctx context.Context, url string, rawMsg []json.RawMessage) (string, error)
+	SendRawTransactionV2(rpcUrl string, txHex string) (string, error)
 }
 
 // grouped rpc api clients
@@ -167,13 +168,34 @@ func (c *Client) DecodeAddress(btcAddr string) ([]byte, error) {
 	return destinationAddrByte, nil
 }
 
-func (c *Client) SendRawTransaction(ctx context.Context, url string, rawMsg []json.RawMessage) (string, error) {
-
+func (c *Client) SendRawTransaction(ctx context.Context, rpcUrl string, rawMsg []json.RawMessage) (string, error) {
 	if len(rawMsg) == 0 {
 		return "", fmt.Errorf("empty raw message")
 	}
 
-	resp, err := http.Post(url, "text/plain", bytes.NewReader(rawMsg[0]))
+	resp, err := http.Post(rpcUrl, "text/plain", bytes.NewReader(rawMsg[0]))
+	if err != nil {
+		c.log.Error("failed to send transaction", zap.Error(err))
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.log.Error("failed to broadcast transaction", zap.Int("status", resp.StatusCode), zap.String("response", string(body)))
+		return "", fmt.Errorf("broadcast failed: %v", err)
+	}
+
+	return string(body), nil
+}
+
+func (c *Client) SendRawTransactionV2(rpcUrl string, txHex string) (string, error) {
+	if len(txHex) == 0 {
+		return "", fmt.Errorf("empty transaction hex")
+	}
+
+	payload := fmt.Sprintf(`{"jsonrpc":"1.0","method":"sendrawtransaction","params":["%s"]}`, txHex)
+	resp, err := http.Post(rpcUrl, "text/plain", bytes.NewReader([]byte(payload)))
 	if err != nil {
 		c.log.Error("failed to send transaction", zap.Error(err))
 		return "", err
