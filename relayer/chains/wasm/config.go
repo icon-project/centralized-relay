@@ -100,6 +100,9 @@ func (pc *Config) sanitize() (*Config, error) {
 	if pc.BlockBatchSize == 0 {
 		pc.BlockBatchSize = 50
 	}
+	if pc.Decimals == 0 {
+		pc.Decimals = relayTypes.DefaultCoinDecimals
+	}
 	return pc, nil
 }
 

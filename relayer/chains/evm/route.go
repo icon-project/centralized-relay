@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -27,26 +28,28 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	p.routerMutex.Lock()
 
 	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
-		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
 		p.routerMutex.Unlock()
-		return fmt.Errorf("routing failed: %w", err)
+		return fmt.Errorf("failed to get transaction options: %w", err)
 	}
-
-	messageKey := message.MessageKey()
 
 	tx, err := p.SendTransaction(ctx, opts, message)
 	p.routerMutex.Unlock()
 	if err != nil {
-		return fmt.Errorf("routing failed: %w", err)
+		return fmt.Errorf("failed to send transaction: %w", err)
 	}
-	p.log.Info("transaction sent", zap.String("tx_hash", tx.Hash().String()), zap.Any("message", messageKey))
-	return p.WaitForTxResult(ctx, tx, messageKey, callback)
+
+	p.WaitForTxResult(ctx, tx, message.MessageKey(), callback)
+	return nil
 }
 
 func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts, message *providerTypes.Message) (*types.Transaction, error) {
@@ -118,35 +121,26 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	return tx, err
 }
 
-func (p *Provider) WaitForTxResult(ctx context.Context, tx *types.Transaction, m *providerTypes.MessageKey, callback providerTypes.TxResponseFunc) error {
-	if callback == nil {
-		// no point to wait for result if callback is nil
-		return nil
-	}
-
+func (p *Provider) WaitForTxResult(ctx context.Context, tx *types.Transaction, m *providerTypes.MessageKey, callback providerTypes.TxResponseFunc) {
 	res := &providerTypes.TxResponse{
 		TxHash: tx.Hash().String(),
 	}
 
 	txReceipts, err := p.WaitForResults(ctx, tx)
 	if err != nil {
-		p.log.Error("failed to get tx result", zap.String("hash", res.TxHash), zap.Any("message", m), zap.Error(err))
-		callback(m, res, err)
-		return err
+		callback(m, res, fmt.Errorf("error waiting for tx result: %w", err))
+		return
 	}
 
 	res.Height = txReceipts.BlockNumber.Int64()
 
 	if txReceipts.Status != types.ReceiptStatusSuccessful {
-		err = fmt.Errorf("transaction failed to execute")
-		callback(m, res, err)
-		p.LogFailedTx(m, txReceipts, err)
-		return err
+		res.Code = providerTypes.Failed
+		callback(m, res, fmt.Errorf("transaction failed to execute: %+v", txReceipts.Logs))
+	} else {
+		res.Code = providerTypes.Success
+		callback(m, res, nil)
 	}
-	res.Code = providerTypes.Success
-	callback(m, res, nil)
-	p.LogSuccessTx(m, txReceipts)
-	return nil
 }
 
 func (p *Provider) LogSuccessTx(message *providerTypes.MessageKey, receipt *types.Receipt) {

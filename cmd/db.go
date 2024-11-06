@@ -10,17 +10,19 @@ import (
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/lvldb"
 	"github.com/icon-project/centralized-relay/relayer/socket"
-	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/spf13/cobra"
 )
 
 type dbState struct {
-	chain  string
-	height uint64
-	sn     uint64
-	page   uint
-	limit  uint
-	server *socket.Server
+	chain      string
+	height     uint64
+	sn         uint64
+	txHash     string
+	page       uint
+	limit      uint
+	server     *socket.Server
+	fromHeight uint64
+	toHeight   uint64
 }
 
 func newDBState() *dbState {
@@ -89,19 +91,17 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 				return err
 			}
 			defer client.Close()
-			pg := store.NewPagination().WithPage(d.page, d.limit)
-			messages, err := client.GetMessageList(d.chain, pg)
+			messages, err := client.GetMessageList(d.chain, d.limit)
 			if err != nil {
 				return err
 			}
 
 			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
 			// Print messages
-			for _, msg := range messages.Messages {
+			for _, msg := range messages.Message {
 				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
 					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry)
 			}
-
 			return nil
 		},
 	}
@@ -122,18 +122,20 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.RelayMessage(d.chain, d.height, new(big.Int).SetUint64(d.sn))
+			messages, err := client.RelayMessage(d.chain, d.height, d.txHash)
 			if err != nil {
 				return err
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
-			printValues(result.Sn, result.Src, result.Dst, result.MessageHeight, result.EventType, result.Retry)
+			printLabels("Sn", "Src", "Dst", "Height", "Event")
+			for _, msg := range messages {
+				printValues(msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType)
+			}
 			return nil
 		},
 	}
-	d.messageMsgIDFlag(rly, true)
 	d.messageChainFlag(rly, true)
 	d.messageHeightFlag(rly)
+	d.messageTxHashFlag(rly)
 	return rly
 }
 
@@ -176,6 +178,10 @@ func (d *dbState) messageMsgIDFlag(cmd *cobra.Command, markRequired bool) {
 
 func (d *dbState) messageHeightFlag(cmd *cobra.Command) {
 	cmd.Flags().Uint64Var(&d.height, "height", 0, "block height")
+}
+
+func (d *dbState) messageTxHashFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&d.txHash, "tx_hash", "t", "", "tx hash")
 }
 
 func (d *dbState) messageChainFlag(cmd *cobra.Command, markRequired bool) {
@@ -221,7 +227,7 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			}
 			printLabels("NID", "Height")
 			for _, block := range blocks {
-				printValues(block.Chain, block.Height)
+				printValues(block.Chain, block.CheckPointHeight)
 			}
 			return nil
 		},
@@ -284,19 +290,10 @@ func printLabels(labels ...any) {
 }
 
 func printValues(values ...any) {
-	padStr := `%-10s`
-	padInt := `%-10d`
+	padStr := `%-10v`
 	var valueCell string
-	for _, val := range values {
-		if _, ok := val.(string); ok {
-			valueCell += padStr + " "
-		} else if _, ok := val.(int); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint); ok {
-			valueCell += padInt + " "
-		} else if _, ok := val.(uint64); ok {
-			valueCell += padInt + " "
-		}
+	for range values {
+		valueCell += padStr + " "
 	}
 	valueCell += "\n"
 	fmt.Printf(valueCell, values...)

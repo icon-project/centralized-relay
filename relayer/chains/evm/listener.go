@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 )
@@ -169,22 +168,19 @@ func (p *Provider) isConnectionError(err error) bool {
 		strings.Contains(err.Error(), "websocket")
 }
 
-func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
-	if lbn == nil && lbn.Logs == nil {
-		return nil, nil
-	}
+func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*relayertypes.Message, error) {
 	var messages []*relayertypes.Message
-	for _, log := range lbn.Logs {
+	for _, log := range logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {
 			return nil, err
 		}
 		p.log.Info("Detected eventlog",
-			zap.String("dst", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
 			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
 			zap.String("tx_hash", log.TxHash.String()),
+			zap.String("target_network", message.Dst),
 			zap.Uint64("height", log.BlockNumber),
 		)
 		messages = append(messages, message)

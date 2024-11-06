@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -13,10 +14,13 @@ import (
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
 		zap.Any("sn", message.Sn),
 		zap.Any("req_id", message.ReqID),
-		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
 	iconMessage, err := p.MakeIconMessage(message)
 	if err != nil {
@@ -28,7 +32,10 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
-	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
+
+	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
+
+	return nil
 }
 
 func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
@@ -162,19 +169,13 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 	return txParam.TxHash.Value()
 }
 
-// TODO: review try to remove wait for Tx from packet-transfer and only use this for client and connection creation
 func (p *Provider) WaitForTxResult(
 	ctx context.Context,
 	txHash []byte,
 	messageKey *providerTypes.MessageKey,
 	method string,
 	callback providerTypes.TxResponseFunc,
-) error {
-	if callback == nil {
-		// no point to wait for result if callback is nil
-		return nil
-	}
-
+) {
 	txhash := types.NewHexBytes(txHash)
 	res := &providerTypes.TxResponse{
 		TxHash: string(txhash),
@@ -182,28 +183,25 @@ func (p *Provider) WaitForTxResult(
 
 	txRes, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: txhash})
 	if err != nil {
-		p.log.Error("get txn result failed", zap.String("txHash", string(txhash)), zap.String("method", method), zap.Error(err))
 		callback(messageKey, res, err)
-		return err
+		return
 	}
 
 	height, err := txRes.BlockHeight.Value()
 	if err != nil {
 		callback(messageKey, res, err)
+		return
 	}
-	// assign tx successful height
+
 	res.Height = height
 
 	if status, err := txRes.Status.Int(); status != 1 || err != nil {
-		err = fmt.Errorf("error: %s", err)
-		callback(messageKey, res, err)
-		p.LogFailedTx(method, txRes, err)
-		return err
+		res.Code = providerTypes.Failed
+		callback(messageKey, res, fmt.Errorf("transaction failed: %w", err))
+	} else {
+		res.Code = providerTypes.Success
+		callback(messageKey, res, nil)
 	}
-	res.Code = providerTypes.Success
-	callback(messageKey, res, nil)
-	p.LogSuccessTx(method, txRes)
-	return nil
 }
 
 func (p *Provider) LogSuccessTx(method string, result *types.TransactionResult) {

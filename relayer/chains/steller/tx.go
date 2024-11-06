@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"errors"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -21,36 +21,41 @@ import (
 )
 
 func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, callback relayertypes.TxResponseFunc) error {
+	p.log.Info("starting to route message",
+		zap.String("src", message.Src),
+		zap.String("dst", message.Dst),
+		zap.Any("sn", message.Sn),
+		zap.Any("req_id", message.ReqID),
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
+
 	callArgs, err := p.newContractCallArgs(*message)
 	if err != nil {
 		return err
 	}
 	txRes, err := p.sendCallTransaction(*callArgs)
 	if err != nil {
-		p.log.Warn("error occurred while executing transaction", zap.Any("error", err),
-			zap.Any("sn", message.Sn), zap.Any("reqId", message.ReqID), zap.Any("type", message.EventType))
-	}
-	cbTxResp := &relayertypes.TxResponse{}
-	responseCode := relayertypes.Failed
-	if txRes != nil && txRes.Successful {
-		responseCode = relayertypes.Success
-	}
-	if txRes != nil {
-		cbTxResp.Height = int64(txRes.Ledger)
-		cbTxResp.TxHash = txRes.Hash
-		cbTxResp.Code = responseCode
+		return err
 	}
 
-	var cbErr error
-	if err != nil {
-		cbErr = err
-	} else if txRes != nil && !txRes.Successful {
-		cbErr = errors.New("failed to send call transaction")
+	if txRes == nil {
+		return fmt.Errorf("got empty tx response")
 	}
 
-	callback(message.MessageKey(), cbTxResp, cbErr)
+	cbTxRes := &relayertypes.TxResponse{
+		Height: int64(txRes.Ledger),
+		TxHash: txRes.Hash,
+	}
+	if !txRes.Successful {
+		cbTxRes.Code = relayertypes.Failed
+		callback(message.MessageKey(), cbTxRes, fmt.Errorf("transaction failed with unknown error"))
+	} else {
+		cbTxRes.Code = relayertypes.Success
+		callback(message.MessageKey(), cbTxRes, nil)
+	}
 
-	return err
+	return nil
 }
 
 func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizon.Transaction, error) {
@@ -88,8 +93,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	simres, err := p.client.SimulateTransaction(simtxe)
 	if err != nil {
-		p.log.Warn("tx simulation failed", zap.Any("code", simtxe))
-		return nil, err
+		return nil, fmt.Errorf("tx simulation failed with code: %w", err)
 	}
 	if simres.RestorePreamble != nil {
 		p.log.Info("Need to restore from archived state")
@@ -120,7 +124,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 		}
 		simres, err = p.client.SimulateTransaction(simtxe)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("tx simulation failed with code: %w", err)
 		}
 	}
 	var sorobanTxnData xdr.SorobanTransactionData
@@ -168,7 +172,7 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	}
 	txRes, err := p.client.SubmitTransactionXDR(txe)
 	if err != nil {
-		p.log.Warn("error while executing txn", zap.Any("error", err), zap.Any("code", txe))
+		return nil, fmt.Errorf("tx failed with tx envelope[%s]: %w", txe, err)
 	}
 	return &txRes, err
 }

@@ -18,7 +18,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm
@@ -38,7 +38,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
     tags:
       - static_wasm
@@ -58,7 +58,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags '-Wl,-z,muldefs -lm'
     tags:
@@ -79,7 +79,7 @@ builds:
       - -mod=readonly
       - -trimpath
     ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
       - -linkmode=external
       - -extldflags "-static"
       - -extldflags '-Wl,-z,muldefs -lm'
@@ -96,7 +96,7 @@ archives:
       - linux-arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    wrap_in_directory: false
+    wrap_in_directory: true
 
 checksum:
   name_template: SHA256SUMS-{{.Version}}.txt
@@ -104,4 +104,4 @@ checksum:
 
 release:
   prerelease: auto
-  draft: false
+  draft: true

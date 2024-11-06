@@ -15,6 +15,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/solana"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
@@ -244,7 +245,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 			a.homePath, a.debug, chainName,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build ChainProviders: %w", err)
+			return nil, fmt.Errorf("failed to build ChainProviders: %w chain: %s", err, chainName)
 		}
 		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.ClusterMode.Enabled)
 		a.kms = kmsProvider
@@ -315,6 +316,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(evm.Config)
 	case "cosmos":
 		iw.Value = new(wasm.Config)
+	case "solana":
+		iw.Value = new(solana.Config)
 	case "stellar":
 		iw.Value = new(steller.Config)
 	case "sui":

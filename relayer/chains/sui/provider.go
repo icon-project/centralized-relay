@@ -32,11 +32,6 @@ var (
 	MethodGetExecuteCallParams     = "get_execute_params"
 	MethodGetExecuteRollbackParams = "get_rollback_params"
 
-	ModuleConnection = "centralized_connection"
-	ModuleEntry      = "centralized_entry"
-	ModuleMain       = "main"
-	XcallModule      = "xcall"
-
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000
 )
@@ -98,18 +93,50 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	checkpoint, err := p.client.GetCheckpoint(ctx, messageKey.Height)
-	if err != nil {
-		p.log.Error("failed to fetch checkpoint", zap.Error(err))
-		return nil, err
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayertypes.Message, error) {
+	var messages []*relayertypes.Message
+	for h := fromHeight; h <= toHeight; h++ {
+		checkpoint, err := p.client.GetCheckpoint(ctx, h)
+		if err != nil {
+			p.log.Error("failed to fetch checkpoint", zap.Error(err))
+			return nil, err
+		}
+
+		eventResponse, err := p.client.GetEventsFromTxBlocks(
+			ctx,
+			checkpoint.Transactions,
+			func(stbr *suitypes.SuiTransactionBlockResponse) bool {
+				for _, t := range stbr.ObjectChanges {
+					if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+						return true
+					}
+				}
+				return false
+			},
+		)
+		if err != nil {
+			p.log.Error("failed to query events", zap.Error(err))
+			return nil, err
+		}
+
+		blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+		if err != nil {
+			p.log.Error("failed to parse messages from events", zap.Error(err))
+			return nil, err
+		}
+
+		for _, bi := range blockInfoList {
+			messages = append(messages, bi.Messages...)
+		}
 	}
 
-	var messages []*relayertypes.Message
+	return messages, nil
+}
 
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
 	eventResponse, err := p.client.GetEventsFromTxBlocks(
 		ctx,
-		checkpoint.Transactions,
+		[]string{txHash},
 		func(stbr *suitypes.SuiTransactionBlockResponse) bool {
 			for _, t := range stbr.ObjectChanges {
 				if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
@@ -120,16 +147,15 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertype
 		},
 	)
 	if err != nil {
-		p.log.Error("failed to query events", zap.Error(err))
 		return nil, err
 	}
 
 	blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
 	if err != nil {
-		p.log.Error("failed to parse messages from events", zap.Error(err))
 		return nil, err
 	}
 
+	var messages []*relayertypes.Message
 	for _, bi := range blockInfoList {
 		messages = append(messages, bi.Messages...)
 	}
@@ -156,7 +182,7 @@ func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee boo
 			{Type: CallArgPure, Val: p.cfg.ConnectionID},
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: responseFee},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodGetFee)
+		}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodGetFee)
 	var fee uint64
 	wallet, err := p.Wallet()
 	if err != nil {
@@ -181,7 +207,7 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 			{Type: CallArgPure, Val: networkID},
 			{Type: CallArgPure, Val: strconv.Itoa(int(msgFee.Int64()))},
 			{Type: CallArgPure, Val: strconv.Itoa(int(resFee.Int64()))},
-		}, p.cfg.XcallPkgID, ModuleEntry, MethodSetFee)
+		}, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodSetFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err
@@ -204,7 +230,7 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 		},
-		p.cfg.XcallPkgID, ModuleEntry, MethodClaimFee)
+		p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodClaimFee)
 	txBytes, err := p.prepareTxMoveCall(suiMessage)
 	if err != nil {
 		return err

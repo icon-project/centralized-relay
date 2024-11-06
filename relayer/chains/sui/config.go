@@ -2,11 +2,13 @@ package sui
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
 	suisdkClient "github.com/coming-chat/go-sui/v2/client"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
 )
@@ -22,8 +24,9 @@ type Config struct {
 	XcallPkgID     string `yaml:"xcall-package-id" json:"xcall-package-id"`
 	XcallStorageID string `yaml:"xcall-storage-id" json:"xcall-storage-id"`
 
-	ConnectionID    string `yaml:"connection-id" json:"connection-id"`
-	ConnectionCapID string `yaml:"connection-cap-id" json:"connection-cap-id"`
+	ConnectionModule string `yaml:"connection-module" json:"connection-module"`
+	ConnectionID     string `yaml:"connection-id" json:"connection-id"`
+	ConnectionCapID  string `yaml:"connection-cap-id" json:"connection-cap-id"`
 
 	Dapps []Dapp `yaml:"dapps" json:"dapps"`
 
@@ -95,4 +98,16 @@ func (c *Config) Enabled() bool {
 
 func (pc *Config) GetConnContract() string {
 	return pc.ConnectionID
+}
+
+func (c *Config) ContractsAddress() types.ContractConfigMap {
+	dapps, _ := json.Marshal(c.Dapps)
+
+	return types.ContractConfigMap{
+		"xcall-package-id":  c.XcallPkgID,
+		"xcall-storage-id":  c.XcallStorageID,
+		"connection-id":     c.ConnectionID,
+		"connection-cap-id": c.ConnectionCapID,
+		"dapps":             string(dapps),
+	}
 }

@@ -18,6 +18,7 @@ var (
 	AggregationContract       = "aggregation"
 	SupportedContracts        = []string{XcallContract, ConnectionContract}
 	RetryInterval             = 3*time.Second + RouteDuration
+	DefaultCoinDecimals       = 18
 )
 
 type BlockInfo struct {
@@ -39,6 +40,7 @@ type Message struct {
 	DstConnAddress      string   `json:"conn-addr"`
 	SignedData          []byte   `json:"signedData"`
 	Signatures          [][]byte `json:"signatures"`
+	XcallSn             *big.Int `json:"xcallSN,omitempty"`
 
 	TxInfo []byte `json:"-"`
 }
@@ -78,9 +80,9 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry      uint8
-	Processing bool
-	LastTry    time.Time
+	Retry      uint8     `json:"retry"`
+	Processing bool      `json:"processing"`
+	LastTry    time.Time `json:"lastTry"`
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
@@ -214,12 +216,13 @@ func (m *MessageCache) HasCacheKey(cacheKey string) bool {
 }
 
 type Coin struct {
-	Denom  string
-	Amount uint64
+	Denom    string `json:"denom"`
+	Amount   uint64 `json:"amount"`
+	Decimals int    `json:"decimals"`
 }
 
-func NewCoin(denom string, amount uint64) *Coin {
-	return &Coin{strings.ToLower(denom), amount}
+func NewCoin(denom string, amount uint64, decimals int) *Coin {
+	return &Coin{strings.ToLower(denom), amount, decimals}
 }
 
 func (c *Coin) String() string {
@@ -227,10 +230,9 @@ func (c *Coin) String() string {
 }
 
 func (c *Coin) Calculate() string {
-	balance := new(big.Float).SetUint64(c.Amount)
-	amount := balance.Quo(balance, big.NewFloat(1e18))
-	value, _ := amount.Float64()
-	return fmt.Sprintf("%.18f %s", value, c.Denom)
+	factor := math.Pow10(c.Decimals)
+	val := new(big.Float).Quo(new(big.Float).SetUint64(c.Amount), big.NewFloat(factor))
+	return val.String()
 }
 
 type TransactionObject struct {
@@ -249,6 +251,10 @@ type Receipt struct {
 	Status bool
 }
 
+type EventLog struct {
+	Height uint64
+	Events []string
+}
 type LastProcessedTx struct {
 	Height uint64
 	Info   []byte

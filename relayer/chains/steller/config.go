@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	"github.com/icon-project/centralized-relay/relayer/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/stellar/go/clients/horizonclient"
 	"go.uber.org/zap"
@@ -27,6 +29,7 @@ type Config struct {
 	NetworkPassphrase string                         `json:"network-passphrase" yaml:"network-passphrase"`
 	StartHeight       uint64                         `json:"start-height" yaml:"start-height"` // would be of highest priority
 	Disabled          bool                           `json:"disabled" yaml:"disabled"`
+	PollInterval      time.Duration                  `json:"poll-interval" yaml:"poll-interval"`
 }
 
 func (pc *Config) NewProvider(ctx context.Context, logger *zap.Logger, homePath string, debug bool, chainName string) (provider.ChainProvider, error) {
@@ -75,4 +78,8 @@ func (pc *Config) Validate() error {
 // Enabled returns true if the chain is enabled
 func (pc *Config) Enabled() bool {
 	return !pc.Disabled
+}
+
+func (pc *Config) ContractsAddress() types.ContractConfigMap {
+	return pc.Contracts
 }

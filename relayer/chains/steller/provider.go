@@ -2,7 +2,7 @@ package steller
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"math/big"
 	"strconv"
 	"sync"
@@ -67,16 +67,32 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return 0
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayertypes.MessageKeyWithMessageHeight) ([]*relayertypes.Message, error) {
-	p.log.Info("generating message", zap.Any("messagekey", messageKey))
-	if messageKey == nil {
-		return nil, errors.New("GenerateMessage: message key cannot be nil")
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayertypes.Message, error) {
+	var messages []*relayertypes.Message
+
+	for h := fromHeight; h <= toHeight; h++ {
+		msgs, err := p.fetchLedgerMessages(context.Background(), h)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate message for height %d: %w", h, err)
+		}
+		messages = append(messages, msgs...)
 	}
-	messages, err := p.fetchLedgerMessages(context.Background(), messageKey.Height)
-	if len(messages) == 0 {
-		return nil, errors.New("GenerateMessage: no messages found")
+
+	return messages, nil
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
+	tx, err := p.client.GetTransaction(txHash)
+	if err != nil {
+		return nil, err
 	}
-	return messages, err
+
+	events, err := p.client.ParseTxnEvents(&tx, p.getEventFilter(0))
+	if err != nil {
+		return nil, err
+	}
+
+	return p.parseMessagesFromEvents(events)
 }
 
 func (p *Provider) SetAdmin(ctx context.Context, admin string) error {

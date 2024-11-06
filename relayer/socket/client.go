@@ -5,22 +5,30 @@ import (
 	"math/big"
 	"net"
 
+	"github.com/icon-project/centralized-relay/relayer/types"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/icon-project/centralized-relay/relayer/store"
 )
 
 const (
-	EventGetBlock       Event = "GetBlock"
-	EventGetMessageList Event = "GetMessageList"
-	EventRelayMessage   Event = "RelayMessage"
-	EventMessageRemove  Event = "MessageRemove"
-	EventPruneDB        Event = "PruneDB"
-	EventRevertMessage  Event = "RevertMessage"
-	EventError          Event = "Error"
-	EventGetFee         Event = "GetFee"
-	EventSetFee         Event = "SetFee"
-	EventClaimFee       Event = "ClaimFee"
+	EventGetBlock          Event = "GetBlock"
+	EventGetMessageList    Event = "GetMessageList"
+	EventRelayMessage      Event = "RelayMessage"
+	EventRelayRangeMessage Event = "RelayRangeMessage"
+	EventMessageRemove     Event = "MessageRemove"
+	EventPruneDB           Event = "PruneDB"
+	EventRevertMessage     Event = "RevertMessage"
+	EventError             Event = "Error"
+	EventGetFee            Event = "GetFee"
+	EventSetFee            Event = "SetFee"
+	EventClaimFee          Event = "ClaimFee"
+	EventGetLatestHeight   Event = "GetLatestHeight"
+	EventGetBlockRange     Event = "GetBlockRange"
+	EventGetConfig         Event = "GetConfig"
+	EventListChainInfo     Event = "ListChainInfo"
+	EventGetBalance        Event = "GetChainBalance"
+	EventRelayerInfo       Event = "RelayerInfo"
+	EventMessageReceived   Event = "MessageReceived"
+	EventGetBlockEvents    Event = "GetBlockEvents"
 )
 
 var (
@@ -45,102 +53,34 @@ func NewClient() (*Client, error) {
 }
 
 // send sends message to socket
-func (c *Client) send(event Event, req interface{}) error {
+func (c *Client) send(req interface{}) error {
 	data, err := jsoniter.Marshal(req)
 	if err != nil {
 		return err
 	}
-	msg := &Message{Event: event, Data: data}
-	payload, err := jsoniter.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	if _, err := c.conn.Write(payload); err != nil {
+	if _, err := c.conn.Write(data); err != nil {
 		return err
 	}
 	return nil
 }
 
 // read and parse message from socket
-func (c *Client) read() (interface{}, error) {
+func (c *Client) read() (*Response, error) {
 	buf := make([]byte, 1024*100)
 	nr, err := c.conn.Read(buf)
 	if err != nil {
 		return nil, err
 	}
-	msg := new(Message)
-	if err := jsoniter.Unmarshal(buf[:nr], msg); err != nil {
+	res := new(Response)
+	if err := jsoniter.Unmarshal(buf[:nr], res); err != nil {
 		return nil, err
 	}
-	return c.parseEvent(msg)
-}
 
-// parse event from message
-func (c *Client) parseEvent(msg *Message) (interface{}, error) {
-	switch msg.Event {
-	case EventGetBlock:
-		var res []*ResGetBlock
-		if err := jsoniter.Unmarshal(msg.Data, &res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetMessageList:
-		res := new(ResMessageList)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventRelayMessage:
-		res := new(ResRelayMessage)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventMessageRemove:
-		res := new(ResMessageRemove)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventPruneDB:
-		res := new(ResPruneDB)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventError:
-		res := new(ChainProviderError)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, fmt.Errorf(res.Message)
-	case EventRevertMessage:
-		res := new(ResRevertMessage)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventGetFee:
-		res := new(ResGetFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventSetFee:
-		res := new(ResSetFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	case EventClaimFee:
-		res := new(ResClaimFee)
-		if err := jsoniter.Unmarshal(msg.Data, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	default:
-		return nil, ErrUnknownEvent
+	if !res.Success {
+		return nil, fmt.Errorf(res.Message)
 	}
+
+	return res, nil
 }
 
 func (c *Client) Close() error {
@@ -149,153 +89,224 @@ func (c *Client) Close() error {
 
 // GetBlock sends GetBlock event to socket
 func (c *Client) GetBlock(chain string) ([]*ResGetBlock, error) {
-	req := &ReqGetBlock{Chain: chain, All: chain == ""}
-	if err := c.send(EventGetBlock, req); err != nil {
+	req := &ReqGetBlock{Chain: chain}
+	if err := c.send(&Request{Event: EventGetBlock, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.([]*ResGetBlock)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := []*ResGetBlock{}
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // GetMessageList sends GetMessageList event to socket
-func (c *Client) GetMessageList(chain string, pagination *store.Pagination) (*ResMessageList, error) {
-	req := &ReqMessageList{Chain: chain, Pagination: pagination}
-	if err := c.send(EventGetMessageList, req); err != nil {
+func (c *Client) GetMessageList(chain string, limit uint) (*ResMessageList, error) {
+	req := &ReqMessageList{Chain: chain, Limit: limit}
+	if err := c.send(&Request{Event: EventGetMessageList, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResMessageList)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResMessageList)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // RelayMessage sends RelayMessage event to socket
-func (c *Client) RelayMessage(chain string, height uint64, sn *big.Int) (*ResRelayMessage, error) {
-	req := &ReqRelayMessage{Chain: chain, Sn: sn, Height: height}
-	if err := c.send(EventRelayMessage, req); err != nil {
+func (c *Client) RelayMessage(chain string, height uint64, txHash string) ([]*types.Message, error) {
+	req := &ReqRelayMessage{
+		Chain:  chain,
+		Height: height,
+		TxHash: txHash,
+	}
+	if err := c.send(&Request{Event: EventRelayMessage, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResRelayMessage)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := []*types.Message{}
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // MessageRemove sends MessageRemove event to socket
 func (c *Client) MessageRemove(chain string, sn *big.Int) (*ResMessageRemove, error) {
 	req := &ReqMessageRemove{Chain: chain, Sn: sn}
-	if err := c.send(EventMessageRemove, req); err != nil {
+	if err := c.send(&Request{Event: EventMessageRemove, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResMessageRemove)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResMessageRemove)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // PruneDB sends PruneDB event to socket
 func (c *Client) PruneDB() (*ResPruneDB, error) {
 	req := &ReqPruneDB{}
-	if err := c.send(EventPruneDB, req); err != nil {
+	if err := c.send(&Request{Event: EventPruneDB, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResPruneDB)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResPruneDB)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // RevertMessage sends RevertMessage event to socket
 func (c *Client) RevertMessage(chain string, sn uint64) (*ResRevertMessage, error) {
 	req := &ReqRevertMessage{Chain: chain, Sn: sn}
-	if err := c.send(EventRevertMessage, req); err != nil {
+	if err := c.send(&Request{Event: EventRevertMessage, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResRevertMessage)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResRevertMessage)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // GetFee sends GetFee event to socket
 func (c *Client) GetFee(chain string, network string, isReponse bool) (*ResGetFee, error) {
 	req := &ReqGetFee{Chain: chain, Network: network, Response: isReponse}
-	if err := c.send(EventGetFee, req); err != nil {
+	if err := c.send(&Request{Event: EventGetFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResGetFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResGetFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // SetFee sends SetFee event to socket
 func (c *Client) SetFee(chain, network string, msgFee, resFee *big.Int) (*ResSetFee, error) {
 	req := &ReqSetFee{Chain: chain, Network: network, MsgFee: msgFee, ResFee: resFee}
-	if err := c.send(EventSetFee, req); err != nil {
+	if err := c.send(&Request{Event: EventSetFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResSetFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResSetFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
 }
 
 // ClaimFee sends ClaimFee event to socket
 func (c *Client) ClaimFee(chain string) (*ResClaimFee, error) {
 	req := &ReqClaimFee{Chain: chain}
-	if err := c.send(EventClaimFee, req); err != nil {
+	if err := c.send(&Request{Event: EventClaimFee, Data: req}); err != nil {
 		return nil, err
 	}
-	data, err := c.read()
+	res, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	res, ok := data.(*ResClaimFee)
-	if !ok {
-		return nil, ErrInvalidResponse(err)
+
+	resData := new(ResClaimFee)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
 	}
-	return res, nil
+
+	return resData, nil
+}
+
+func (c *Client) GetLatestHeight(chain string) (*ResChainHeight, error) {
+	req := &ReqChainHeight{Chain: chain}
+	if err := c.send(&Request{Event: EventGetLatestHeight, Data: req}); err != nil {
+		return nil, err
+	}
+	res, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+
+	resData := new(ResChainHeight)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
+	}
+
+	return resData, nil
+}
+
+func (c *Client) QueryBlockRange(chain string, fromHeight, toHeight uint64) (*ResRangeBlockQuery, error) {
+	req := &ReqRangeBlockQuery{Chain: chain, FromHeight: fromHeight, ToHeight: toHeight}
+	if err := c.send(&Request{Event: EventGetBlockRange, Data: req}); err != nil {
+		return nil, err
+	}
+	res, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+
+	resData := new(ResRangeBlockQuery)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
+	}
+
+	return resData, nil
+}
+
+func parseResData(data any, dest interface{}) error {
+	jsonData, err := jsoniter.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	if err := jsoniter.Unmarshal(jsonData, dest); err != nil {
+		return err
+	}
+
+	return nil
 }
