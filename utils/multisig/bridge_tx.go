@@ -20,7 +20,7 @@ func CreateBridgeTxSendBitcoin(
 	outputs := []*wire.TxOut{
 		// bitcoin send to receiver
 		{
-			Value: new(big.Int).SetBytes(msg.Message.Amount).Int64(),
+			Value:    new(big.Int).SetBytes(msg.Message.Amount).Int64(),
 			PkScript: receiverPkScript,
 		},
 	}
@@ -31,7 +31,7 @@ func CreateBridgeTxSendBitcoin(
 	}
 	for _, script := range bridgeScripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}
@@ -57,8 +57,8 @@ func CreateBridgeTxSendRune(
 	runeOutput := &runestone.Runestone{
 		Edicts: []runestone.Edict{
 			{
-				ID:		*runeId,
-				Amount:	uint128.FromBig(new(big.Int).SetBytes(msg.Message.Amount)),
+				ID:     *runeId,
+				Amount: uint128.FromBig(new(big.Int).SetBytes(msg.Message.Amount)),
 				Output: 0,
 			},
 		},
@@ -69,17 +69,17 @@ func CreateBridgeTxSendRune(
 	outputs := []*wire.TxOut{
 		// rune send to receiver
 		{
-			Value: DUST_UTXO_AMOUNT,
+			Value:    DUST_UTXO_AMOUNT,
 			PkScript: receiverPkScript,
 		},
 		// rune change output
 		{
-			Value: DUST_UTXO_AMOUNT,
+			Value:    DUST_UTXO_AMOUNT,
 			PkScript: senderPkScript,
 		},
 		// rune OP_RETURN
 		{
-			Value: 0,
+			Value:    0,
 			PkScript: runeScript,
 		},
 	}
@@ -90,7 +90,7 @@ func CreateBridgeTxSendRune(
 	}
 	for _, script := range bridgeScripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value: 0,
+			Value:    0,
 			PkScript: script,
 		})
 	}

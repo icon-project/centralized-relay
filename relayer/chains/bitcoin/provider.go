@@ -42,6 +42,7 @@ var (
 	BTCToken               = "0:1"
 	MethodDeposit          = "Deposit"
 	MethodWithdrawTo       = "WithdrawTo"
+	MethodRefundTo         = "RefundTo"
 	MasterMode             = "master"
 	SlaveMode              = "slave"
 	BtcDB                  = "btc.db"
@@ -93,7 +94,6 @@ type Provider struct {
 	LastSavedHeightFunc func() uint64
 	LastSerialNumFunc   func() *big.Int
 	multisigAddrScript  []byte
-	bearToken           string
 	httpServer          chan struct{}
 	db                  *leveldb.DB
 	chainParam          *chaincfg.Params
@@ -479,6 +479,16 @@ func (p *Provider) CreateBitcoinMultisigTx(
 
 			bitcoinAmountRequired = MinSatsRequired * 2
 		}
+	} else if decodedData.Action == MethodRefundTo {
+		uintAmount := amount.Uint64()
+		bitcoinAmountRequired = int64(uintAmount)
+		outputs = []*wire.TxOut{
+			// bitcoin send to receiver
+			{
+				Value:    bitcoinAmountRequired,
+				PkScript: receiverPkScript,
+			},
+		}
 	}
 
 	outputs = append(outputs, outputData...)
@@ -486,6 +496,9 @@ func (p *Provider) CreateBitcoinMultisigTx(
 	inputs, estFee, err := p.computeTx(feeRate, bitcoinAmountRequired, runeAmountRequired, decodedData.TokenAddress, msAddressStr, outputs, msWallet)
 	if err != nil {
 		return nil, nil, err
+	}
+	if estFee > bitcoinAmountRequired && decodedData.Action == MethodRefundTo {
+		return nil, nil, fmt.Errorf("estimated fee is greater than the amount")
 	}
 	// create raw tx
 	msgTx, err := multisig.CreateTx(inputs, outputs, msWallet.PKScript, estFee, 0)
@@ -528,11 +541,8 @@ func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128
 
 	estFee := int64(txSize) * feeRate
 	count := 0
-	loopEntered := false
-	var iterationOutputs []*wire.TxOut
 
 	for sumSelectedInputs < satsToSend+estFee {
-		loopEntered = true
 		// Create a fresh copy of outputs for each iteration
 		iterationOutputs := make([]*wire.TxOut, len(outputs))
 		copy(iterationOutputs, outputs)
@@ -555,13 +565,8 @@ func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128
 
 		count += 1
 		if count > 500 {
-			return nil, 0, fmt.Errorf("Not enough sats for fee")
+			return nil, 0, fmt.Errorf("not enough sats for fee")
 		}
-	}
-	// Need to do that cause avoid the same outputs being used for multiple transactions
-	outputs = outputsCopy
-	if loopEntered {
-		outputs = iterationOutputs
 	}
 
 	return inputs, estFee, nil
@@ -620,7 +625,7 @@ func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multi
 	feeRate, err := p.client.GetFeeFromMempool(p.cfg.MempoolURL + "/fees/recommended")
 	if err != nil {
 		p.logger.Error("failed to get recommended fee from mempool", zap.Error(err))
-		feeRate = 0
+		feeRate = 1
 	}
 	inputs, msgTx, err := p.buildTxMessage(message, int64(feeRate), msWallet)
 	if err != nil {
@@ -689,8 +694,8 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("signedMsgTxHex", zap.String("transaction_hex", signedMsgTxHex))
 
 			// Broadcast transaction to bitcoin network
-			txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
-
+			// txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
+			txHash, err := p.client.SendRawTransactionV2(p.cfg.RPCUrl, signedMsgTxHex)
 			if err != nil {
 				p.logger.Error("failed to send raw transaction", zap.Error(err))
 				return err
@@ -782,6 +787,30 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 				})
 			}
 		}
+	case events.RollbackMessage:
+		p.logger.Info("Detected rollback from wrong message", zap.String("sn", message.Sn.String()))
+		key := "RB" + message.Sn.String()
+		data, err := p.db.Get([]byte(key), nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
+		}
+		var storedData StoredMessageData
+		err = json.Unmarshal(data, &storedData)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
+		}
+
+		// only rollback if tokenAddress is BTC
+		if storedData.TokenAddress != BTCToken {
+			return nil, nil, fmt.Errorf("only support rollback for BTC")
+		}
+		decodedData = &MessageDecoded{
+			Action:       storedData.ActionMethod,
+			To:           storedData.SenderAddress,
+			TokenAddress: storedData.TokenAddress,
+			Amount:       uint64ToBytes(storedData.Amount),
+		}
+
 	default:
 		return nil, nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
@@ -803,22 +832,6 @@ func (p *Provider) sendTx(ctx context.Context, signedMsg *wire.MsgTx) (string, e
 
 func (p *Provider) handleSequence(ctx context.Context) error {
 	return nil
-}
-
-func (p *Provider) logTxFailed(err error, txHash string, code uint8) {
-	p.logger.Error("transaction failed",
-		zap.Error(err),
-		zap.String("tx_hash", txHash),
-		zap.Uint8("code", code),
-	)
-}
-
-func (p *Provider) logTxSuccess(height uint64, txHash string) {
-	p.logger.Info("successful transaction",
-		zap.Uint64("block_height", height),
-		zap.String("chain_id", p.cfg.NID),
-		zap.String("tx_hash", txHash),
-	)
 }
 
 func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKey, txHash string, callback relayTypes.TxResponseFunc) {
@@ -1032,6 +1045,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	runeId := ""
 	runeAmount := big.NewInt(0)
 	actionMethod := ""
+	isMatchAmount := true
 	// handle for bitcoin bridge
 	// decode message from OP_RETURN
 	p.logger.Info("parseMessageFromTx",
@@ -1054,57 +1068,20 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
 		tokenId := messageInfo.TokenAddress
-		amount := big.NewInt(0)
-		amount.SetBytes(messageInfo.Amount)
 		destContract := messageInfo.To
-
 		p.logger.Info("tokenId", zap.String("tokenId", tokenId))
-		p.logger.Info("amount", zap.String("amount", amount.String()))
 		p.logger.Info("destContract", zap.String("destContract", destContract))
 
 		// call api to verify the data
 		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
-		verified := false
 		receiverAddresses = p.extractOutputReceiver(tx.Tx)
-		for i, out := range tx.Tx.TxOut {
-			if bytes.Compare(out.PkScript, p.multisigAddrScript) != 0 {
-				continue
-			}
-
-			if messageInfo.TokenAddress == BTCToken {
-				if amount.Cmp(big.NewInt(out.Value)) == 0 {
-					verified = true
-					break
-				}
-			} else {
-				runes, err := p.GetUTXORuneBalance(p.cfg.UniSatURL, tx.Tx.TxHash().String(), i, int64(p.cfg.RequestTimeout))
-				if err != nil {
-					return nil, err
-				}
-
-				if len(runes.Data) == 0 {
-					continue
-				}
-
-				for _, runeOut := range runes.Data {
-					runeTokenBal, ok := big.NewInt(0).SetString(runeOut.Amount, 10)
-					if !ok {
-						return nil, fmt.Errorf("rune amount out invalid")
-					}
-
-					if amount.Cmp(runeTokenBal) == 0 && runeOut.RuneId == messageInfo.TokenAddress {
-						runeId = runeOut.RuneId
-						runeAmount = runeTokenBal
-						verified = true
-						break
-					}
-				}
-			}
+		_runeId, _runeAmount, _isMatchAmount, err := p.verifyBridgeTx(tx, messageInfo)
+		if err != nil {
+			return nil, err
 		}
-
-		if !verified {
-			return nil, fmt.Errorf("failed to verify transaction %v", tx.Tx.TxHash().String())
-		}
+		runeId = _runeId
+		runeAmount = _runeAmount
+		isMatchAmount = _isMatchAmount
 	}
 
 	// todo: verify bridge fee
@@ -1131,9 +1108,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	data, _ := XcallFormat(decodeMessage, from, bridgeMessage.Receiver, uint(sn.Uint64()), bridgeMessage.Connectors, uint8(messageInfo.MessageType))
 	relayMessage := &relayTypes.Message{
-		Dst: "0x2.icon",
-		// TODO:
-		// Dst:           chainIdToName[bridgeMessage.ChainId],
+		Dst:           chainIdToName[bridgeMessage.ChainId],
 		Src:           p.NID(),
 		Sn:            sn,
 		Data:          data,
@@ -1141,8 +1116,16 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		EventType:     events.EmitMessage,
 	}
 
+	if !isMatchAmount {
+		xCallMessage.Action = MethodRefundTo
+		actionMethod = MethodRefundTo
+		relayMessage.EventType = events.RollbackMessage
+		// set dst to the same chain as source for relayer provider detection
+		relayMessage.Dst = relayMessage.Src
+	}
 	var senderAddress string
 	// Find sender address to store in db
+	// todo: check if this is correct
 	for _, address := range receiverAddresses {
 		if address != p.cfg.Address {
 			senderAddress = address
@@ -1150,12 +1133,13 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		}
 	}
 
+	byteAmount := big.NewInt(0).SetBytes(messageInfo.Amount)
 	// When storing the message
 	storedData := StoredMessageData{
 		OriginalMessage:  relayMessage,
 		TxHash:           tx.Tx.TxHash().String(),
 		OutputIndex:      uint32(tx.TxIndex),
-		Amount:           big.NewInt(0).SetBytes(messageInfo.Amount).Uint64(),
+		Amount:           byteAmount.Uint64(),
 		RecipientAddress: p.cfg.Address,
 		SenderAddress:    senderAddress,
 		RuneId:           runeId,
@@ -1170,12 +1154,67 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal stored rollback message data: %v", err)
 	}
-
-	err = p.db.Put([]byte("RB"+sn.String()), data, nil)
+	key := "RB" + sn.String()
+	err = p.db.Put([]byte(key), data, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store rollback message data: %v", err)
 	}
 	return relayMessage, nil
+}
+
+func (p *Provider) verifyBridgeTx(tx *TxSearchRes, messageInfo *multisig.XCallMessage) (string, *big.Int, bool, error) {
+	verified := false
+	isMatchAmount := false
+	runeId := ""
+	runeAmount := big.NewInt(0)
+	amount := big.NewInt(0)
+	amount.SetBytes(messageInfo.Amount)
+
+	for i, out := range tx.Tx.TxOut {
+		if !bytes.Equal(out.PkScript, p.multisigAddrScript) {
+			continue
+		}
+
+		if messageInfo.TokenAddress == BTCToken {
+			verified = true
+			btcAmount := big.NewInt(out.Value)
+			if amount.Cmp(btcAmount) == 0 {
+				isMatchAmount = true
+				break
+			} else {
+				messageInfo.Amount = btcAmount.Bytes()
+			}
+		} else {
+			runes, err := p.GetUTXORuneBalance(p.cfg.UniSatURL, tx.Tx.TxHash().String(), i, int64(p.cfg.RequestTimeout))
+			if err != nil {
+				return "", nil, false, err
+			}
+
+			if len(runes.Data) == 0 {
+				continue
+			}
+
+			for _, runeOut := range runes.Data {
+				runeTokenBal, ok := big.NewInt(0).SetString(runeOut.Amount, 10)
+				if !ok {
+					return "", nil, false, fmt.Errorf("rune amount out invalid")
+				}
+
+				if amount.Cmp(runeTokenBal) == 0 && runeOut.RuneId == messageInfo.TokenAddress {
+					runeId = runeOut.RuneId
+					runeAmount = runeTokenBal
+					// runes tx is not verified if amount is not match
+					verified = true
+					isMatchAmount = true
+					break
+				}
+			}
+		}
+	}
+	if !verified {
+		return "", nil, false, fmt.Errorf("failed to verify transaction %v", tx.Tx.TxHash().String())
+	}
+	return runeId, runeAmount, isMatchAmount, nil
 }
 
 func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayTypes.BlockInfo, error) {

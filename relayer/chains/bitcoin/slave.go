@@ -73,7 +73,7 @@ func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
 
 	if strings.Contains(sn, "RB") {
 		p.logger.Info("Rollback message", zap.String("sn", sn))
-		return nil, nil
+		// return nil, nil
 	}
 
 	var message *relayTypes.Message
