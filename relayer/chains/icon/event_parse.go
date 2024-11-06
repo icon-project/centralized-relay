@@ -99,18 +99,6 @@ func (p *Provider) parseMessageEvent(notifications *types.EventNotification) ([]
 			p.log.Warn("received invalid event", zap.Error(err))
 		} else if msg != nil {
 			messages = append(messages, msg)
-		case PacketRegistered:
-			msg, err := p.parsePacketRegisteredEvent(height.Uint64(), event)
-			if err != nil {
-				return nil, err
-			}
-			messages = append(messages, msg)
-		case PacketAcknowledged:
-			msg, err := p.parsePacketAcknowledgedEvent(height.Uint64(), event)
-			if err != nil {
-				return nil, err
-			}
-			messages = append(messages, msg)
 		}
 	}
 	return messages, nil
@@ -124,6 +112,10 @@ func (p *Provider) parseMessageFromEventLog(height uint64, event *types.EventNot
 		return p.parseCallMessageEvent(height, event)
 	case RollbackMessage:
 		return p.parseRollbackMessageEvent(height, event)
+	case PacketRegistered:
+		return p.parsePacketRegisteredEvent(height, event)
+	case PacketAcknowledged:
+		return p.parsePacketAcknowledgedEvent(height, event)
 	default:
 		return nil, fmt.Errorf("invalid event: %s", event.Indexed[0])
 	}

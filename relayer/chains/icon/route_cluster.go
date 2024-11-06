@@ -26,7 +26,9 @@ func (p *Provider) SubmitClusterMessage(ctx context.Context, message *providerTy
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
-	return p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
+	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
+
+	return nil
 }
 
 func (p *Provider) VerifyMessage(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
