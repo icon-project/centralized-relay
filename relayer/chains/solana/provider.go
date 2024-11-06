@@ -82,7 +82,10 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
-	signature := solana.MustSignatureFromBase58(txHash)
+	signature, err := solana.SignatureFromBase58(txHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tx hash: %w", err)
+	}
 	txVersion := uint64(0)
 	txn, err := p.client.GetTransaction(ctx, signature, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
