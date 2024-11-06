@@ -224,10 +224,6 @@ func (p *MockProviderConfig) GetConnContract() string {
 	return ""
 }
 
-func (ip *MockProvider) GetSignMessage(message []byte) []byte {
-	return message
-}
-
 func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
 	return 0, nil
 }

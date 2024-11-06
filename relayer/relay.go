@@ -58,7 +58,7 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 }
 
 type ClusterMode interface {
-	SignMessage([]byte) ([]byte, error)
+	SignMessage(msg *types.Message) ([]byte, error)
 	VerifySignature([]byte, []byte) error
 	IsEnabled() bool
 }
@@ -642,9 +642,7 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		r.log.Error("no provider found for submitting cluster message")
 	}
 	if emitEvent {
-		rawData := fmt.Sprintf("%s%s%s", message.Src, message.Sn, message.Data)
-		chainSignature := dst.Provider.GetSignMessage([]byte(rawData))
-		signature, err := r.clusterMode.SignMessage(chainSignature)
+		signature, err := r.clusterMode.SignMessage(message.Message)
 		if err != nil {
 			r.log.Error("Error signing message", zap.Error(err))
 			return
@@ -673,8 +671,7 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 	}
 	for _, msg := range messages {
 		if msg.Sn.Cmp(message.Sn) == 0 {
-			chainSignature := dst.Provider.GetSignMessage(msg.Data)
-			signature, err := r.clusterMode.SignMessage(chainSignature)
+			signature, err := r.clusterMode.SignMessage(msg)
 			if err != nil {
 				r.log.Error("Error signing message", zap.Error(err))
 				return

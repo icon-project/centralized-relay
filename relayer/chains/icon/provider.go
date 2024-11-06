@@ -15,7 +15,6 @@ import (
 	"github.com/icon-project/goloop/module"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/sha3"
 )
 
 type Config struct {
@@ -350,10 +349,4 @@ func (p *Provider) GetLastSavedBlockHeight() uint64 {
 
 func (p *Config) GetConnContract() string {
 	return p.Contracts[providerTypes.ConnectionContract]
-}
-
-func (p *Provider) GetSignMessage(message []byte) []byte {
-	hash := sha3.New256()
-	hash.Write(message)
-	return hash.Sum(nil)
 }

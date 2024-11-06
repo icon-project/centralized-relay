@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -500,12 +499,6 @@ func (p *Provider) GetLastSavedBlockHeight() uint64 {
 
 func (p *Config) GetConnContract() string {
 	return p.Contracts[providerTypes.ConnectionContract]
-}
-
-func (p *Provider) GetSignMessage(message []byte) []byte {
-	hash := sha3.New256()
-	hash.Write(message)
-	return hash.Sum(nil)
 }
 
 func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {

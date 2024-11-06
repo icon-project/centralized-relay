@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -25,6 +26,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
+	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -152,11 +154,18 @@ func (c ClusterConfig) IsEnabled() bool {
 	return c.Enabled
 }
 
-func (c ClusterConfig) SignMessage(msg []byte) ([]byte, error) {
+func (c ClusterConfig) SignMessage(msg *relayertypes.Message) ([]byte, error) {
 	if c.privateKey == nil {
 		return nil, errors.New("private key is nil")
 	}
-	return c.privateKey.Sign(rand.Reader, msg, crypto.SHA256)
+
+	msgBytes := []byte(msg.Src)
+	snBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(snBytes, msg.Sn.Uint64())
+	msgBytes = append(msgBytes, snBytes...)
+	msgBytes = append(msgBytes, msg.Data...)
+
+	return c.privateKey.Sign(rand.Reader, msgBytes, crypto.SHA256)
 }
 
 func (c ClusterConfig) VerifySignature(msg, sig []byte) error {

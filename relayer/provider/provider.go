@@ -17,12 +17,12 @@ type Config interface {
 	Validate() error
 	Enabled() bool
 	GetConnContract() string
+	ContractsAddress() types.ContractConfigMap
 }
 
 type ClusterConfig interface {
 	SetClusterMode(bool)
 	GetClusterMode() bool
-	ContractsAddress() types.ContractConfigMap
 }
 
 type ChainQuery interface {
@@ -66,8 +66,6 @@ type ChainProvider interface {
 	GetFee(context.Context, string, bool) (uint64, error)
 	SetFee(context.Context, string, *big.Int, *big.Int) error
 	ClaimFee(context.Context) error
-
-	GetSignMessage([]byte) []byte
 }
 
 // CommonConfig is the common configuration for all chain providers
