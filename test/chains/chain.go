@@ -26,6 +26,7 @@ type Chain interface {
 	FindRollbackExecutedMessage(ctx context.Context, startHeight uint64, sn string) (string, error)
 	GetContractAddress(key string) string
 	DeployXCallMockApp(ctx context.Context, keyName string, connections []XCallConnection) error
+	DeployNSetupClusterContracts(ctx context.Context, targetChains []Chain) error
 }
 
 func GetEnvOrDefault(key, defaultValue string) string {

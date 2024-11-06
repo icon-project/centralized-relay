@@ -20,22 +20,23 @@ const (
 )
 
 type Chain struct {
-	Name               string             `mapstructure:"name"`
-	version            string             `mapstructure:"version"`
-	Environment        string             `mapstructure:"environment"`
-	ChainConfig        chains.ChainConfig `mapstructure:"chain_config"`
-	URL                string             `mapstructure:"url"`
-	NID                string             `mapstructure:"nid"`
-	KeystoreFile       string             `mapstructure:"keystore_file"`
-	KeystorePassword   string             `mapstructure:"keystore_password"`
-	Contracts          map[string]string  `mapstructure:"contracts"`
-	RPCUri             string             `mapstructure:"rpc_uri"`
-	GRPCUri            string             `mapstructure:"grpc_uri"`
-	WebsocketUrl       string             `mapstructure:"websocket_uri"`
-	RelayWalletAddress string             `mapstructure:"relay_wallet"`
-	ContractsPath      string             `mapstructure:"contracts_path"`
-	ConfigPath         string             `mapstructure:"config_path"`
-	CertPath           string             `mapstructure:"cert_path"`
+	Name                      string             `mapstructure:"name"`
+	version                   string             `mapstructure:"version"`
+	Environment               string             `mapstructure:"environment"`
+	ChainConfig               chains.ChainConfig `mapstructure:"chain_config"`
+	URL                       string             `mapstructure:"url"`
+	NID                       string             `mapstructure:"nid"`
+	KeystoreFile              string             `mapstructure:"keystore_file"`
+	KeystorePassword          string             `mapstructure:"keystore_password"`
+	Contracts                 map[string]string  `mapstructure:"contracts"`
+	RPCUri                    string             `mapstructure:"rpc_uri"`
+	GRPCUri                   string             `mapstructure:"grpc_uri"`
+	WebsocketUrl              string             `mapstructure:"websocket_uri"`
+	RelayWalletAddress        string             `mapstructure:"relay_wallet"`
+	ContractsPath             string             `mapstructure:"contracts_path"`
+	ConfigPath                string             `mapstructure:"config_path"`
+	CertPath                  string             `mapstructure:"cert_path"`
+	ClusterRelayWalletAddress string             `mapstructure:"cluster_relay_wallet"`
 }
 
 type DebugConfig struct {
@@ -50,6 +51,7 @@ type TestConfig struct {
 	RelayerConfig interchaintest.Config `mapstructure:"relayer"`
 	// DebugConfig holds configuration for miscellaneous options.
 	//DebugConfig DebugConfig `yaml:"debug"`
+	FollowerRelayerConfig interchaintest.Config `mapstructure:"relayer-follower"`
 }
 
 type ChainOptions struct {

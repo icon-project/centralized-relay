@@ -3,6 +3,7 @@ package testsuite
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/icon-project/centralized-relay/test/chains/cosmos"
@@ -232,9 +233,19 @@ func (s *E2ETestSuite) createChains(chainOptions *testconfig.ChainOptions) []cha
 
 	logger := zaptest.NewLogger(t)
 	chains := []chains.Chain{}
+	var chainsToProcess []string
+	if chainsToProcessVal := os.Getenv("CHAINS_TO_PROCESSS"); chainsToProcessVal != "" {
+		chainsToProcess = strings.Split(chainsToProcessVal, ",")
+	}
+	if len(chainsToProcess) > 0 && len(chainsToProcess) < 2 {
+		panic("at least two chains must be provided in the env var CHAINS_TO_PROCESSS")
+	}
 
 	for _, config := range *chainOptions.ChainConfig {
 		chain, _ := buildChain(logger, t.Name(), s, &config)
+		if len(chainsToProcess) > 0 && !contains(chainsToProcess, chain.Config().Type) {
+			continue
+		}
 		chains = append(chains,
 			chain,
 		)
@@ -338,4 +349,67 @@ func (s *E2ETestSuite) ConvertToPlainString(input string) string {
 		return string(plainString)
 	}
 	return input
+}
+
+// SetupRelayer sets up the relayer, creates interchain networks, builds chains, and starts the relayer.
+// It returns a Relayer interface and an error if any.
+func (s *E2ETestSuite) SetupClusterRelayer(ctx context.Context, name string, leader bool) (ibc.Relayer, error) {
+	createdChains := s.GetChains()
+	r := interchaintest.New(s.T(), s.cfg.RelayerConfig, s.logger, s.DockerClient, s.network)
+	ic := interchaintest.NewInterchain()
+	for index := range createdChains {
+		ic.AddChain(createdChains[index])
+	}
+	ic.AddRelayer(r, "r").
+		AddLink(
+			interchaintest.InterchainLink{
+				Chains:  createdChains,
+				Relayer: r,
+			},
+		)
+
+	eRep := s.GetRelayerExecReporter()
+	buildOptions := interchaintest.InterchainBuildOptions{
+		TestName:          s.T().Name(),
+		Client:            s.DockerClient,
+		NetworkID:         s.network,
+		BlockDatabaseFile: interchaintest.DefaultBlockDatabaseFilepath(),
+		SkipPathCreation:  true,
+	}
+	if err := ic.BuildChains(ctx, eRep, buildOptions); err != nil {
+		return nil, err
+	}
+	var err error
+	if leader {
+		if err := s.SetupClusterXCall(ctx); err != nil {
+			return nil, err
+		}
+		portId := "transfer"
+		if err := s.DeployXCallMockApp(ctx, portId); err != nil {
+			return nil, err
+		}
+	}
+	if err := ic.BuildClusterRelayer(ctx, eRep, buildOptions, s.cfg.RelayerConfig.KMS_ID, leader); err != nil {
+		return nil, err
+	}
+
+	s.startRelayerFn = func(relayer ibc.Relayer) error {
+		env := []string{}
+		if s.cfg.RelayerConfig.KMS_URL != "" {
+			env = append(env, fmt.Sprintf("%s=%s", "AWS_ENDPOINT_URL", s.cfg.RelayerConfig.KMS_URL))
+		}
+		if !leader {
+			env = append(env, "follower")
+		}
+		if err := relayer.StartRelayer(ctx, eRep, env); err != nil {
+			return fmt.Errorf("failed to start relayer: %s", err)
+		}
+		return nil
+	}
+	if s.Relayers == nil {
+		s.Relayers = make(map[string]ibc.Relayer)
+	}
+	s.startRelayerFn(r)
+	s.Relayers[name] = r
+	return r, err
 }

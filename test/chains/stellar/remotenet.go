@@ -457,3 +457,7 @@ func (sn *StellarRemotenet) FindRollbackExecutedMessage(ctx context.Context, sta
 	fsno := event.ValueDecoded["sn"].(uint64)
 	return strconv.FormatUint(fsno, 10), nil
 }
+
+func (c *StellarRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	return nil
+}

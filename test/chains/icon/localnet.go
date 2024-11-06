@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -114,6 +115,10 @@ func (in *IconRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, key
 	contracts := make(map[string]string)
 	contracts["xcall"] = in.GetContractAddress("xcall")
 	contracts["connection"] = in.GetContractAddress("connection")
+	aggregator, exist := in.IBCAddresses["aggregator"]
+	if exist {
+		contracts["aggregation"] = aggregator
+	}
 	config := &centralized.ICONRelayerChainConfig{
 		Type: "icon",
 		Value: centralized.ICONRelayerChainConfigValue{
@@ -239,6 +244,9 @@ func (in *IconRemotenet) DeployXCallMockApp(ctx context.Context, keyName string,
 }
 
 func (in *IconRemotenet) GetContractAddress(key string) string {
+	if key == "cluster-wallet" {
+		return in.testconfig.ClusterRelayWalletAddress
+	}
 	value, exist := in.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
@@ -550,6 +558,17 @@ func (in *IconRemotenet) ExecCallTxCommand(ctx context.Context, scoreAddress, me
 		command = append(command, "--value", "2000000000000000000000")
 	}
 
+	if strings.Contains(params, ".json") {
+		command = []string{"rpc", "sendtx", "raw"}
+		command = append(command,
+			"--key_store", "/goloop/data/godwallet.json",
+			"--key_password", "gochain",
+			"--step_limit", "5000000000",
+		)
+		command = append(command, params)
+		fmt.Println(command)
+	}
+
 	return in.NodeCommand(command...)
 }
 
@@ -560,4 +579,91 @@ func (in *IconRemotenet) FindRollbackExecutedMessage(ctx context.Context, startH
 		return "", err
 	}
 	return "0", nil
+}
+
+func (in *IconRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	xcall := in.IBCAddresses["xcall"]
+
+	validators := []string{in.testconfig.RelayWalletAddress, xcall}
+	aggregator, err := in.DeployContractRemote(ctx, in.scorePaths["aggregator"],
+		in.keystorePath, `{"_admin":"`+in.testconfig.RelayWalletAddress+`"}`)
+	if err != nil {
+		return err
+	}
+	in.IBCAddresses["aggregator"] = aggregator
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	filePath := currentDir + "/../chains/icon/data/cluster.json"
+	file, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Fatalf("Error reading file: %s", err)
+	}
+
+	// Declare a variable to hold the JSON data as a map
+	var data map[string]interface{}
+
+	// Unmarshal the JSON data into the map
+	if err := json.Unmarshal(file, &data); err != nil {
+		log.Fatalf("Error unmarshaling JSON: %s", err)
+	}
+	data["from"] = in.testconfig.RelayWalletAddress
+	data["to"] = in.GetContractAddress("aggregator")
+	data["newRelayers"] = validators
+	updatedJSON, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Fatalf("Error marshaling JSON: %s", err)
+	}
+
+	if err := os.WriteFile(filePath, updatedJSON, 0644); err != nil {
+		log.Fatalf("Error writing file: %s", err)
+	}
+
+	_, err = in.executeContract(context.Background(), aggregator, "setRelayers", "/goloop/data/cluster.json")
+	if err != nil {
+		return err
+	}
+
+	connection, err := in.DeployContractRemote(ctx, in.scorePaths["cluster-connection"], in.keystorePath, `{"_xCall":"`+xcall+`","_relayer":"`+in.testconfig.RelayWalletAddress+`"}`)
+	if err != nil {
+		return err
+	}
+	for _, target := range chains {
+		params := `{"networkId":"` + target.Config().ChainID + `", "messageFee":"0x0", "responseFee":"0x0"}`
+		_, err = in.executeContract(context.Background(), connection, "setFee", params)
+		if err != nil {
+			return err
+		}
+	}
+
+	// update validators
+	updateValidatorsPath := currentDir + "/../chains/icon/data/updateValidators.json"
+	file, err = os.ReadFile(updateValidatorsPath)
+	if err != nil {
+		log.Fatalf("Error reading file: %s", err)
+	}
+
+	// Unmarshal the JSON data into the map
+	if err := json.Unmarshal(file, &data); err != nil {
+		log.Fatalf("Error unmarshaling JSON: %s", err)
+	}
+	data["from"] = in.testconfig.RelayWalletAddress
+	data["to"] = connection
+	data["_validators"] = validators
+	updatedJSON, err = json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Fatalf("Error marshaling JSON: %s", err)
+	}
+	if err := os.WriteFile(updateValidatorsPath, updatedJSON, 0644); err != nil {
+		log.Fatalf("Error writing file: %s", err)
+	}
+	_, err = in.executeContract(context.Background(), connection, "updateValidators", "/goloop/data/updateValidators.json")
+	if err != nil {
+		return err
+	}
+	in.IBCAddresses["connection"] = connection
+
+	// setup validators on agg contract and cluster connections
+	return nil
 }

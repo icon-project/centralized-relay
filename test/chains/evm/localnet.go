@@ -252,6 +252,9 @@ func (an *EVMRemotenet) DeployXCallMockApp(ctx context.Context, keyName string, 
 }
 
 func (an *EVMRemotenet) GetContractAddress(key string) string {
+	if key == "cluster-wallet" {
+		return an.testconfig.ClusterRelayWalletAddress
+	}
 	value, exist := an.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
@@ -641,4 +644,41 @@ func (an *EVMRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHe
 		return "", err
 	}
 	return "0", nil
+}
+
+func (an *EVMRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	xcall := common.HexToAddress(an.IBCAddresses["xcall"])
+	connection, err := an.DeployContractRemote(ctx, an.scorePaths["cluster-connection"], an.testconfig.KeystorePassword)
+	if err != nil {
+		return err
+	}
+	relayerAddress := common.HexToAddress(an.testconfig.RelayWalletAddress)
+
+	_, err = an.ExecCallTx(ctx, connection.Hex(), "initialize", an.testconfig.KeystorePassword, relayerAddress, xcall)
+	if err != nil {
+		fmt.Println("fail to initialized xcall-adapter : %w\n", err)
+		return err
+	}
+	for _, target := range chains {
+		_, err = an.ExecCallTx(ctx, connection.Hex(), "setFee", an.testconfig.KeystorePassword, target.Config().ChainID, big.NewInt(0), big.NewInt(0))
+		if err != nil {
+			fmt.Println("fail to initialized fee for xcall-adapter : %w\n", err)
+			return err
+		}
+	}
+
+	//update validators
+	validators := []common.Address{
+		common.HexToAddress(an.testconfig.RelayWalletAddress),
+		common.HexToAddress(xcall.Hex()),
+	}
+	_, err = an.ExecCallTx(ctx, connection.Hex(), "updateValidators", an.testconfig.KeystorePassword,
+		validators, uint8(2))
+	if err != nil {
+		fmt.Println("fail to update validators for cluster connection : %w\n", err)
+		return err
+	}
+
+	an.IBCAddresses["connection"] = connection.Hex()
+	return nil
 }

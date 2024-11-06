@@ -781,3 +781,7 @@ func paramsToCallArgs(suiMessage *SuiMessage) ([]sui_types.CallArg, error) {
 	}
 	return callArgs, nil
 }
+
+func (c *SuiRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	return nil
+}

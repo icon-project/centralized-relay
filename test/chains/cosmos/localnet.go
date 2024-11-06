@@ -616,3 +616,7 @@ func (c *CosmosRemotenet) FindRollbackExecutedMessage(ctx context.Context, start
 	_, err := c.FindEvent(ctx, startHeight, xCallKey, index)
 	return "0", err
 }
+
+func (c *CosmosRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	return nil
+}

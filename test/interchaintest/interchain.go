@@ -232,6 +232,50 @@ func (ic *Interchain) BuildRelayer(ctx context.Context, rep *testreporter.Relaye
 	return nil
 }
 
+func (ic *Interchain) BuildClusterRelayer(ctx context.Context, rep *testreporter.RelayerExecReporter,
+	opts InterchainBuildOptions, kmsId string, leader bool) error {
+	// Possible optimization: each relayer could be configured concurrently.
+	// But we are only testing with a single relayer so far, so we don't need this yet.
+	config := ibc.RelayerConfig{
+		Global: struct {
+			ApiListenAddr  int    `yaml:"api-listen-addr"`
+			Timeout        string `yaml:"timeout"`
+			Memo           string `yaml:"memo"`
+			LightCacheSize int    `yaml:"light-cache-size"`
+			KMSKeyID       string `yaml:"kms-key-id"`
+		}{
+			ApiListenAddr:  5183,
+			Timeout:        "10s",
+			Memo:           "",
+			LightCacheSize: 20,
+			KMSKeyID:       kmsId,
+		},
+		Chains: make(map[string]interface{}),
+	}
+	for r, nodes := range ic.relayerChains() {
+		for _, c := range nodes {
+			chainName := ic.chains[c]
+			// wallet := ic.relayerWallets[relayerChain{R: r, C: c}]
+			content, _ := c.GetRelayConfig(ctx, r.HomeDir()+"/.centralized-relay", "wallet.KeyName()")
+			chainConfig := make(map[string]interface{})
+			_ = yaml.Unmarshal(content, &chainConfig)
+			if !leader {
+				chainConfig["value"].(map[string]interface{})["disabled"] = true
+				chainConfig["value"].(map[string]interface{})["address"] = c.GetContractAddress("cluster-wallet")
+			}
+			config.Chains[chainName] = chainConfig
+
+		}
+	}
+	content, _ := yaml.Marshal(config)
+	for r := range ic.relayerChains() {
+		if err := r.CreateConfig(ctx, content); err != nil {
+			return fmt.Errorf("failed to restore config to relayer %s : %w", ic.relayers[r], err)
+		}
+	}
+	return nil
+}
+
 // WithLog sets the logger on the interchain object.
 // Usually the default nop logger is fine, but sometimes it can be helpful
 // to see more verbose logs, typically by passing zaptest.NewLogger(t).

@@ -1,0 +1,23 @@
+{
+  "data": {
+    "method": "setRelayers",
+    "params": {
+      "newRelayers": [
+        "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
+        "hxcd808d9a16234ef3419d19b422dfe61d3a93aeb2"
+      ],
+      "threshold": "2"
+    }
+  },
+  "dataType": "call",
+  "from": "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
+  "newRelayers": [
+    "hxb6b5791be0b5ef67063b3c10b840fb81514db2fd",
+    "cx6582e1e1e88a45fe261f9dec5246b42c010341b2"
+  ],
+  "nid": "0x3",
+  "stepLimit": "0x174876e800",
+  "timestamp": "0x1c9a412f",
+  "to": "cx492b22cb891ab1870d76ee238fe822853fd62e2d",
+  "version": "0x3"
+}

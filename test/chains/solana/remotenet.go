@@ -1185,3 +1185,7 @@ func (sn *SolanaRemoteNet) parseReturnValueFromLogs(logs []string, event string)
 	}
 	return events, nil
 }
+
+func (c *SolanaRemoteNet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	return nil
+}

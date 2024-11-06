@@ -33,3 +33,18 @@ func (s *E2ETest) TestE2E_all() {
 		xcall.TextXCall()
 	})
 }
+
+func (s *E2ETest) TestE2E_cluster() {
+	t := s.T()
+	testcase := "xcall"
+	ctx := context.WithValue(context.TODO(), "testcase", testcase)
+	s.Require().NoError(s.SetCfg())
+	_ = s.SetupClusterChainsAndRelayer(ctx)
+	xcall := tests.XCallTestSuite{
+		E2ETestSuite: &s.E2ETestSuite,
+		T:            t,
+	}
+	t.Run("test xcall", func(t *testing.T) {
+		xcall.TextXCall()
+	})
+}
