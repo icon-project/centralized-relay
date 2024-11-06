@@ -111,7 +111,7 @@ func (s *RelayTestSuite) TestRelay() {
 	chains[mock2Nid] = NewChain(logger, mock2Provider, true)
 
 	ctx := context.Background()
-	rly, err := NewRelayer(logger, s.db, chains, true, nil)
+	rly, err := NewRelayer(logger, s.db, chains, nil, false)
 	if err != nil {
 		s.Fail("unable to start the relayer ", err)
 	}

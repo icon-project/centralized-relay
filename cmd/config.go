@@ -2,14 +2,7 @@ package cmd
 
 import (
 	"context"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/binary"
-	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"reflect"
 	"strings"
@@ -20,13 +13,13 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
+	"github.com/icon-project/centralized-relay/relayer/keys"
 
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
-	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -136,55 +129,49 @@ $ %s cfg i`, appName, a.homePath, appName)),
 	return cmd
 }
 
+type ClusterConfig struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+	PubKey  string `yaml:"pub_key" json:"pub_key"`
+	keypair keys.KeyPair
+}
+
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
-	Timeout     string         `yaml:"timeout" json:"timeout"`
-	KMSKeyID    string         `yaml:"kms-key-id" json:"kms-key-id"`
-	ClusterMode *ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
-}
-
-// SetClusterMode sets the cluster mode for the global config
-type ClusterConfig struct {
-	Enabled    bool   `yaml:"enabled" json:"enabled"`
-	Key        string `yaml:"key" json:"key"`
-	privateKey *ecdsa.PrivateKey
-}
-
-func (c ClusterConfig) IsEnabled() bool {
-	return c.Enabled
-}
-
-func (c ClusterConfig) SignMessage(msg *relayertypes.Message) ([]byte, error) {
-	if c.privateKey == nil {
-		return nil, errors.New("private key is nil")
-	}
-
-	msgBytes := []byte(msg.Src)
-	snBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(snBytes, msg.Sn.Uint64())
-	msgBytes = append(msgBytes, snBytes...)
-	msgBytes = append(msgBytes, msg.Data...)
-
-	return c.privateKey.Sign(rand.Reader, msgBytes, crypto.SHA256)
-}
-
-func (c ClusterConfig) VerifySignature(msg, sig []byte) error {
-	if c.privateKey == nil {
-		return errors.New("private key is nil")
-	}
-	if !ecdsa.VerifyASN1(&c.privateKey.PublicKey, msg, sig) {
-		return errors.New("signature verification failed")
-	}
-	return nil
+	Timeout       string         `yaml:"timeout" json:"timeout"`
+	KMSKeyID      string         `yaml:"kms-key-id" json:"kms-key-id"`
+	ClusterConfig *ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		Timeout:     "10s",
-		KMSKeyID:    "",
-		ClusterMode: new(ClusterConfig),
+		Timeout:       "10s",
+		KMSKeyID:      "",
+		ClusterConfig: new(ClusterConfig),
 	}
+}
+
+func (gc *GlobalConfig) IsClusterMode() bool {
+	if gc.ClusterConfig == nil {
+		return false
+	}
+	return gc.ClusterConfig.Enabled
+}
+
+func (gc *GlobalConfig) RelayerPubKey() string {
+	if gc.ClusterConfig == nil {
+		return ""
+	}
+
+	return gc.ClusterConfig.PubKey
+}
+
+func (gc *GlobalConfig) SetKeypair(kp keys.KeyPair) {
+	gc.ClusterConfig.keypair = kp
+}
+
+func (gc *GlobalConfig) GetKeypair() keys.KeyPair {
+	return gc.ClusterConfig.keypair
 }
 
 type Config struct {
@@ -226,28 +213,17 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	if err != nil {
 		return nil, err
 	}
-	if c.Global.ClusterMode.Enabled && c.Global.ClusterMode.Key != "" {
-		path := a.homePath + "/keystore/cluster/" + c.Global.ClusterMode.Key
-		if _, err := os.Stat(path); err != nil {
-			return nil, fmt.Errorf("cluster key not found: %s", path)
-		}
-		keyBytes, err := os.ReadFile(path)
+
+	var keypair keys.KeyPair
+	if a.config.Global.IsClusterMode() {
+		keyPath := keys.GetClusterKeyPath(a.homePath, a.config.Global.RelayerPubKey())
+		keypair, err = keys.LoadKeypairFromFile(keyPath, keys.Secp256k1, kmsProvider)
 		if err != nil {
-			return nil, fmt.Errorf("error reading cluster key: %w", err)
+			return nil, err
 		}
-		key, err := kmsProvider.Decrypt(ctx, keyBytes)
-		if err != nil {
-			return nil, fmt.Errorf("error decrypting cluster key: %w", err)
-		}
-		privKey := new(ecdsa.PrivateKey)
-		privKey.D = new(big.Int).SetBytes(key)
-		privKey.PublicKey = ecdsa.PublicKey{
-			Curve: elliptic.P256(),
-			X:     privKey.X,
-			Y:     privKey.Y,
-		}
-		c.Global.ClusterMode.privateKey = privKey
+		a.config.Global.SetKeypair(keypair)
 	}
+
 	for chainName, pcfg := range c.ProviderConfigs {
 		prov, err := pcfg.Value.(provider.Config).NewProvider(ctx,
 			a.log.With(zap.Stringp("provider_type", &pcfg.Type)),
@@ -256,7 +232,7 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ChainProviders: %w chain: %s", err, chainName)
 		}
-		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.ClusterMode.Enabled)
+		prov.Config().(provider.ClusterConfig).SetClusterMode(c.Global.IsClusterMode())
 		a.kms = kmsProvider
 		if err := prov.Init(ctx, a.homePath, kmsProvider); err != nil {
 			return nil, fmt.Errorf("failed to initialize provider: %w", err)
@@ -264,7 +240,6 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 		chain := relayer.NewChain(a.log, prov, a.debug)
 		chains[chain.ChainProvider.NID()] = chain
 	}
-	a.cluster = c.Global.ClusterMode
 
 	return &Config{
 		Global: c.Global,

@@ -7,7 +7,6 @@ import (
 	"path"
 
 	"github.com/gofrs/flock"
-	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -28,7 +27,6 @@ type appState struct {
 	debug      bool
 	config     *Config
 	kms        kms.KMS
-	cluster    relayer.ClusterMode
 }
 
 // loadConfigFile reads config file into a.Config if file is present.

@@ -268,7 +268,8 @@ func (d *dbState) getRelayer(app *appState) (*relayer.Relayer, error) {
 	if err != nil {
 		return nil, err
 	}
-	rly, err := relayer.NewRelayer(app.log, db, app.config.Chains.GetAll(), false, app.cluster)
+
+	rly, err := relayer.NewRelayer(app.log, db, app.config.Chains.GetAll(), app.config.Global, false)
 	if err != nil {
 		fmt.Printf("failed to create relayer: %s\n", err)
 		return nil, err

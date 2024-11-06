@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/events"
+	"github.com/icon-project/centralized-relay/relayer/keys"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	"github.com/icon-project/centralized-relay/relayer/store"
 	"github.com/icon-project/centralized-relay/relayer/types"
@@ -57,10 +58,10 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 	return errorChan, nil
 }
 
-type ClusterMode interface {
-	SignMessage(msg *types.Message) ([]byte, error)
-	VerifySignature([]byte, []byte) error
-	IsEnabled() bool
+type ConfigProvider interface {
+	IsClusterMode() bool
+	RelayerPubKey() string
+	GetKeypair() keys.KeyPair
 }
 
 type Relayer struct {
@@ -71,10 +72,10 @@ type Relayer struct {
 	blockStore           *store.BlockStore
 	finalityStore        *store.FinalityStore
 	lastProcessedTxStore *store.LastProcessedTxStore
-	clusterMode          ClusterMode
+	cfg                  ConfigProvider
 }
 
-func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh bool, clusterMode ClusterMode) (*Relayer, error) {
+func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, cfg ConfigProvider, fresh bool) (*Relayer, error) {
 	// if fresh clearing db
 	if fresh {
 		if err := db.ClearStore(); err != nil {
@@ -120,7 +121,7 @@ func NewRelayer(log *zap.Logger, db store.Store, chains map[string]*Chain, fresh
 		blockStore:           blockStore,
 		finalityStore:        finalityStore,
 		lastProcessedTxStore: lastProcessedTxStore,
-		clusterMode:          clusterMode,
+		cfg:                  cfg,
 	}, nil
 }
 
@@ -291,7 +292,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
 	dst *ChainRuntime, src *ChainRuntime,
 ) bool {
-	if !r.clusterMode.IsEnabled() {
+	if !r.cfg.IsClusterMode() {
 		return false
 	}
 	switch message.EventType {
@@ -373,7 +374,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime) types.Tx
 		routeMessage, ok := src.MessageCache.Get(key)
 		originaldst := key.Dst
 		if !ok {
-			if !r.clusterMode.IsEnabled() {
+			if !r.cfg.IsClusterMode() {
 				r.log.Error("key not found in messageCache", zap.Any("key", &key))
 				return
 			}
@@ -400,7 +401,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime) types.Tx
 				zap.String("tx_hash", response.TxHash),
 				zap.Uint8("count", routeMessage.Retry),
 			)
-			if r.clusterMode.IsEnabled() && key.EventType == events.EmitMessage {
+			if r.cfg.IsClusterMode() && key.EventType == events.EmitMessage {
 				key.Dst = key.Src
 			}
 
@@ -642,11 +643,8 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		r.log.Error("no provider found for submitting cluster message")
 	}
 	if emitEvent {
-		signature, err := r.clusterMode.SignMessage(message.Message)
-		if err != nil {
-			r.log.Error("Error signing message", zap.Error(err))
-			return
-		}
+		msgHash := keys.Keccak256Hash(message.Message.SignableMsg())
+		signature := r.cfg.GetKeypair().Sign(msgHash)
 		message.SignedData = signature
 		if err != nil {
 			r.log.Error("Error signing message", zap.Error(err))
@@ -671,11 +669,8 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 	}
 	for _, msg := range messages {
 		if msg.Sn.Cmp(message.Sn) == 0 {
-			signature, err := r.clusterMode.SignMessage(msg)
-			if err != nil {
-				r.log.Error("Error signing message", zap.Error(err))
-				return
-			}
+			msgHash := keys.Keccak256Hash(msg.SignableMsg())
+			signature := r.cfg.GetKeypair().Sign(msgHash)
 			message.SignedData = signature
 			r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
 		}

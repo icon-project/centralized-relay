@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/icon-project/centralized-relay/utils"
 )
 
 var (
@@ -76,6 +78,14 @@ func (m *EventMap) GetWasmMsgType() string {
 
 func (m *Message) MessageKey() *MessageKey {
 	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
+}
+
+func (m *Message) SignableMsg() []byte {
+	msgBytes := []byte(m.Src)
+	msgBytes = append(msgBytes, utils.ToTruncatedLE(m.Sn)...)
+	msgBytes = append(msgBytes, m.Data...)
+
+	return msgBytes
 }
 
 type RouteMessage struct {

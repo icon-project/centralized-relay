@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/icon-project/centralized-relay/relayer/keys"
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
 )
@@ -71,28 +69,24 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 		Use:   "gen-cluster-key",
 		Short: "generate cluster key",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			keypair, err := keys.NewKeyPair(keys.Secp256k1)
 			if err != nil {
 				return err
 			}
-			privBytes, err := a.kms.Encrypt(cmd.Context(), priv.D.Bytes())
-			if err != nil {
+
+			if err := os.MkdirAll(keys.GetClusterKeyDir(a.homePath), 0o755); err != nil {
 				return err
 			}
-			privKeyPath := filepath.Join(a.homePath, "keystore", "cluster")
-			if err := os.MkdirAll(privKeyPath, 0o755); err != nil {
+			keypath := keys.GetClusterKeyPath(a.homePath, keypair.PublicKey().String())
+			if err := os.WriteFile(keypath, keypair.PrivateKey(), 0o600); err != nil {
 				return err
 			}
-			pubKey := priv.X.String()
-			if err := os.WriteFile(filepath.Join(privKeyPath, pubKey), privBytes, 0o600); err != nil {
-				return err
-			}
-			a.config.Global.ClusterMode.Key = pubKey
-			a.config.Global.ClusterMode.Enabled = true
+			a.config.Global.ClusterConfig.PubKey = keypair.PublicKey().String()
+			a.config.Global.ClusterConfig.Enabled = true
 			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stdout, "Cluster key created and encrypted: %s\n", a.config.Global.ClusterMode.Key)
+			fmt.Fprintf(os.Stdout, "Cluster key created and encrypted: %s\n", a.config.Global.ClusterConfig.PubKey)
 			return nil
 		},
 	}
@@ -105,10 +99,10 @@ func (k *keystoreState) getClusterKey(a *appState) *cobra.Command {
 		Use:   "get-cluster-key",
 		Short: "get cluster key",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !a.config.Global.ClusterMode.Enabled {
+			if !a.config.Global.ClusterConfig.Enabled {
 				return fmt.Errorf("cluster mode not enabled")
 			}
-			fmt.Fprintf(os.Stdout, "Cluster key: %s\n", a.config.Global.ClusterMode.Key)
+			fmt.Fprintf(os.Stdout, "Cluster key: %s\n", a.config.Global.ClusterConfig.PubKey)
 			return nil
 		},
 	}
