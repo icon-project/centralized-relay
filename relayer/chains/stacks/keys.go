@@ -39,7 +39,7 @@ func (p *Provider) NewKeystore(passphrase string) (string, error) {
 		p.log.Error("Failed to generate new private key", zap.Error(err))
 		return "", fmt.Errorf("failed to generate new private key: %w", err)
 	}
-	privateKeyBytes := newKey.Serialize()
+	privateKeyBytes := append(newKey.Serialize(), byte(0x01))
 
 	network, err := MapNIDToChainID(p.cfg.NID)
 	if err != nil {

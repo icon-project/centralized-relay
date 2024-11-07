@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks"
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
@@ -177,29 +179,31 @@ func TestClient_SetAdmin(t *testing.T) {
 	t.Logf("SetAdmin transaction ID: %s", txID)
 }
 
-// func TestClient_SubscribeToEvents(t *testing.T) {
-// 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-// 	defer cancel()
+func TestClient_SubscribeToEvents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-// 	logger, _ := zap.NewDevelopment()
-// 	client, err := stacks.NewClient("https://api.testnet.hiro.so", logger)
-// 	if err != nil {
-// 		t.Fatalf("Failed to create client: %v", err)
-// 	}
+	logger, _ := zap.NewDevelopment()
+	network := stacksSdk.NewStacksTestnet()
+	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
+	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
 
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-// 	callback := func(eventType string, data interface{}) error {
-// 		t.Logf("Received event: %s, Data: %+v", eventType, data)
-// 		wg.Done()
-// 		return nil
-// 	}
+	callback := func(eventType string, data interface{}) error {
+		t.Logf("Received event: %s, Data: %+v", eventType, data)
+		wg.Done()
+		return nil
+	}
 
-// 	err = client.SubscribeToEvents(ctx, []string{"block"}, callback)
-// 	if err != nil {
-// 		t.Fatalf("Failed to subscribe to events: %v", err)
-// 	}
+	err = client.SubscribeToEvents(ctx, []string{"block"}, callback)
+	if err != nil {
+		t.Fatalf("Failed to subscribe to events: %v", err)
+	}
 
-// 	wg.Wait()
-// }
+	wg.Wait()
+}

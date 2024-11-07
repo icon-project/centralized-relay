@@ -37,7 +37,7 @@ func (p *Provider) Route(ctx context.Context, message *types.Message, callback t
 
 	p.log.Info("Transaction sent", zap.String("txID", txID))
 
-	receipt, err := p.waitForTransactionConfirmation(ctx, txID)
+	receipt, err := p.waitForTransactionConfirmation(ctx, txID, MAX_WAIT_TIME)
 	if err != nil {
 		return fmt.Errorf("failed to confirm transaction: %w", err)
 	}

@@ -18,6 +18,9 @@ import (
 	"github.com/icon-project/stacks-go-sdk/pkg/stacks"
 )
 
+const BLOCK_TIME = 5 * time.Second
+const MAX_WAIT_TIME = 3 * BLOCK_TIME
+
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 }
@@ -143,7 +146,7 @@ func (p *Provider) SetAdmin(ctx context.Context, newAdmin string) error {
 
 	p.log.Info("SetAdmin transaction broadcasted", zap.String("txID", txID))
 
-	receipt, err := p.waitForTransactionConfirmation(ctx, txID)
+	receipt, err := p.waitForTransactionConfirmation(ctx, txID, MAX_WAIT_TIME)
 	if err != nil {
 		return fmt.Errorf("failed to confirm SetAdmin transaction: %w", err)
 	}
@@ -159,9 +162,9 @@ func (p *Provider) SetAdmin(ctx context.Context, newAdmin string) error {
 	return nil
 }
 
-func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID string) (*types.Receipt, error) {
-	timeout := time.After(2 * time.Minute)
-	ticker := time.NewTicker(10 * time.Second)
+func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID string, timeoutDuration time.Duration) (*types.Receipt, error) {
+	timeout := time.After(timeoutDuration)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -178,7 +181,7 @@ func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID stri
 			}
 			p.log.Debug("Transaction not yet confirmed", zap.String("txID", txID))
 		case <-timeout:
-			return nil, fmt.Errorf("transaction confirmation timed out after 2 minutes")
+			return nil, fmt.Errorf("transaction confirmation timed out after %v", timeoutDuration)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}

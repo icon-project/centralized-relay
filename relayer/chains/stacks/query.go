@@ -101,8 +101,25 @@ func GetReceipt(tx interface{}) (*providerTypes.Receipt, error) {
 
 			var status bool = false
 			txStatusField := txStruct.FieldByName("TxStatus")
-			if txStatusField.IsValid() && txStatusField.Kind() == reflect.String {
-				status = txStatusField.String() == "success"
+			if txStatusField.IsValid() && txStatusField.Kind() == reflect.Struct {
+				stringField := txStatusField.FieldByName("String")
+				if stringField.IsValid() {
+					if stringField.Kind() == reflect.Ptr {
+						if !stringField.IsNil() && stringField.Elem().Kind() == reflect.String {
+							status = stringField.Elem().String() == "success"
+						} else {
+							return nil, fmt.Errorf("string field in txstatus did not parse %s", fieldType)
+						}
+					} else if stringField.Kind() == reflect.String {
+						status = stringField.String() == "success"
+					} else {
+						return nil, fmt.Errorf("string field in txstatus did not parse %s", fieldType)
+					}
+				} else {
+					return nil, fmt.Errorf("string field in txstatus did not parse %s", fieldType)
+				}
+			} else {
+				return nil, fmt.Errorf("TxStatus field is missing or not a struct in %s", fieldType)
 			}
 
 			height := blockHeight
