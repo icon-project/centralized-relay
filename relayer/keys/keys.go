@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
