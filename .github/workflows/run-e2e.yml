@@ -36,11 +36,17 @@ jobs:
           fi
           echo "Validated input: $tests_to_run"
           echo "::set-output name=tests::$tests_to_run"
+
+      - name: Set CHAINS_TO_PROCESSS environment variable
+        run: echo "CHAINS_TO_PROCESSS=${{ steps.validate_input.outputs.tests }}" >> $GITHUB_ENV
+        
       - name: Build xcall-multi contracts
         run: | 
           bash ./scripts/execute-test.sh --build-xcall --test e2e
 
       - name: Run E2E Tests
+        env:
+          CHAINS_TO_PROCESSS: ${{ env.CHAINS_TO_PROCESSS }}
         run: |
           echo "Running E2E Tests"
           ./scripts/execute-test.sh  --test e2e
