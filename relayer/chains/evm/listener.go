@@ -12,13 +12,13 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/pkg/errors"
 )
 
 const (
 	defaultReadTimeout         = 60 * time.Second
+	websocketReadTimeout       = 10 * time.Second
 	monitorBlockMaxConcurrency = 10 // number of concurrent requests to synchronize older blocks from source chain
 	maxBlockRange              = 50
 	maxBlockQueryFailedRetry   = 5
@@ -26,6 +26,7 @@ const (
 	BaseRetryInterval          = 3 * time.Second
 	MaxRetryInterval           = 5 * time.Minute
 	MaxRetryCount              = 5
+	ClientReconnectDelay       = 5 * time.Second
 )
 
 type BnOptions struct {
@@ -47,12 +48,13 @@ func (r *Provider) latestHeight(ctx context.Context) uint64 {
 	return height
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayertypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.LastProcessedTx, blockInfoChan chan *relayertypes.BlockInfo) error {
+	lastSavedHeight := lastProcessedTx.Height
+
 	startHeight, err := p.startFromHeight(ctx, lastSavedHeight)
 	if err != nil {
 		return err
 	}
-
 	p.log.Info("Start from height ", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
 
 	var (
@@ -68,12 +70,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		case err := <-errChan:
 			if p.isConnectionError(err) {
 				p.log.Error("connection error", zap.Error(err))
-				client, err := p.client.Reconnect()
-				if err != nil {
-					p.log.Error("failed to reconnect", zap.Error(err))
-				} else {
-					p.log.Info("client reconnected")
-					p.client = client
+				clientReconnected := false
+				for !clientReconnected {
+					p.log.Info("reconnecting client")
+					client, err := p.client.Reconnect()
+					if err == nil {
+						clientReconnected = true
+						p.log.Info("client reconnected")
+						p.client = client
+					} else {
+						p.log.Error("failed to re-connect", zap.Error(err))
+						time.Sleep(ClientReconnectDelay)
+					}
 				}
 			}
 			startHeight = p.GetLastSavedBlockHeight()
@@ -114,11 +122,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 						continue
 					}
 					p.log.Info("Detected eventlog",
-						zap.String("target_network", message.Dst),
+						zap.String("dst", message.Dst),
 						zap.Uint64("sn", message.Sn.Uint64()),
+						zap.Any("req_id", message.ReqID),
 						zap.String("event_type", message.EventType),
 						zap.String("tx_hash", log.TxHash.String()),
-						zap.Uint64("block_number", log.BlockNumber),
+						zap.Uint64("height", log.BlockNumber),
 					)
 					blockInfoChan <- &relayertypes.BlockInfo{
 						Height:   log.BlockNumber,
@@ -154,24 +163,25 @@ func (p *Provider) getLogsRetry(ctx context.Context, filter ethereum.FilterQuery
 }
 
 func (p *Provider) isConnectionError(err error) bool {
-	return strings.Contains(err.Error(), "tcp") || errors.Is(err, context.DeadlineExceeded)
+	return strings.Contains(err.Error(), "tcp") ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "websocket")
 }
 
-func (p *Provider) FindMessages(ctx context.Context, lbn *types.BlockNotification) ([]*relayertypes.Message, error) {
-	if lbn == nil && lbn.Logs == nil {
-		return nil, nil
-	}
+func (p *Provider) FindMessages(ctx context.Context, logs []ethTypes.Log) ([]*relayertypes.Message, error) {
 	var messages []*relayertypes.Message
-	for _, log := range lbn.Logs {
+	for _, log := range logs {
 		message, err := p.getRelayMessageFromLog(log)
 		if err != nil {
 			return nil, err
 		}
 		p.log.Info("Detected eventlog",
-			zap.Uint64("height", lbn.Height.Uint64()),
-			zap.String("target_network", message.Dst),
 			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.Any("req_id", message.ReqID),
 			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+			zap.String("target_network", message.Dst),
+			zap.Uint64("height", log.BlockNumber),
 		)
 		messages = append(messages, message)
 	}
@@ -219,7 +229,9 @@ func (p *Provider) startFromHeight(ctx context.Context, lastSavedHeight uint64) 
 // Subscribe listens to new blocks and sends them to the channel
 func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertypes.BlockInfo, resetCh chan error) error {
 	ch := make(chan ethTypes.Log, 10)
-	sub, err := p.client.Subscribe(ctx, ethereum.FilterQuery{
+	subContext, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+	defer cancel()
+	sub, err := p.client.Subscribe(subContext, ethereum.FilterQuery{
 		Addresses: p.blockReq.Addresses,
 		Topics:    p.blockReq.Topics,
 	}, ch)
@@ -234,9 +246,10 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			p.log.Debug("subscriptions stopped")
+			return ctx.Err()
 		case err := <-sub.Err():
-			p.log.Error("subscription error", zap.Error(err))
+			p.log.Warn("subscription error", zap.Error(err))
 			resetCh <- err
 			return err
 		case log := <-ch:
@@ -246,18 +259,21 @@ func (p *Provider) Subscribe(ctx context.Context, blockInfoChan chan *relayertyp
 				continue
 			}
 			p.log.Info("Detected eventlog",
-				zap.String("target_network", message.Dst),
+				zap.String("dst", message.Dst),
 				zap.Uint64("sn", message.Sn.Uint64()),
+				zap.Any("req_id", message.ReqID),
 				zap.String("event_type", message.EventType),
 				zap.String("tx_hash", log.TxHash.String()),
-				zap.Uint64("block_number", log.BlockNumber),
+				zap.Uint64("height", log.BlockNumber),
 			)
 			blockInfoChan <- &relayertypes.BlockInfo{
 				Height:   log.BlockNumber,
 				Messages: []*relayertypes.Message{message},
 			}
 		case <-time.After(time.Minute * 2):
-			if _, err := p.client.GetHeaderByHeight(ctx, big.NewInt(1)); err != nil {
+			ctx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+			defer cancel()
+			if _, err := p.QueryLatestHeight(ctx); err != nil {
 				resetCh <- err
 				return err
 			}

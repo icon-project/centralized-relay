@@ -29,7 +29,7 @@ type btpBlockRequest struct {
 	response *btpBlockResponse
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incoming chan *providerTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.LastProcessedTx, incoming chan *providerTypes.BlockInfo) error {
 	reconnectCh := make(chan struct{}, 1) // reconnect channel
 
 	reconnect := func() {
@@ -38,6 +38,8 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		default:
 		}
 	}
+
+	lastSavedHeight := lastProcessedTx.Height
 
 	processedheight, err := p.StartFromHeight(ctx, lastSavedHeight)
 	if err != nil {
@@ -59,7 +61,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-
 		case <-reconnectCh:
 			ctxMonitorBlock, cancelMonitorBlock := context.WithCancel(ctx)
 			go func(ctx context.Context, cancel context.CancelFunc) {
@@ -87,11 +88,11 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, incomin
 						}
 						for _, msg := range msgs {
 							p.log.Info("Detected eventlog",
-								zap.Uint64("height", msg.MessageHeight),
-								zap.String("target_network", msg.Dst),
+								zap.String("dst", msg.Dst),
 								zap.Uint64("sn", msg.Sn.Uint64()),
-								zap.String("tx_hash", v.Hash.String()),
+								zap.Any("req_id", msg.ReqID),
 								zap.String("event_type", msg.EventType),
+								zap.Uint64("height", msg.MessageHeight),
 							)
 							outgoing <- &providerTypes.BlockInfo{
 								Messages: []*providerTypes.Message{msg},

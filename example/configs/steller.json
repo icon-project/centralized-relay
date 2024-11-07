@@ -1,0 +1,17 @@
+{
+  "type": "stellar",
+  "value": {
+    "chain-id": "testnet.stellar",
+    "nid": "testnet.stellar",
+    "horizon-url": "https://horizon-testnet.stellar.org",
+    "soroban-url": "https://soroban-testnet.stellar.org",
+    "start-height": 0,
+    "address": "GCQ5YPTO5ORNZ7WMADFAWP2D7NOJBZGDLWAUYNMSNLIHRNMSJXXFFWE3",
+    "max-inclusion-fee": 100000,
+    "contracts": {
+      "xcall": "CBD2YWKFJWNGD347TVKMFGQ6LSTPMVJ5QM5MLD62OLPKLMKIJWXJGK7O",
+      "connection": "CBD2YWKFJWNGD347TVKMFGQ6LSTPMVJ5QM5MLD62OLPKLMKIJWXJGK7O"
+    },
+    "network-passphrase": "Test SDF Network ; September 2015"
+  }
+}

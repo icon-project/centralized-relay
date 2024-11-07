@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/goloop/module"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -68,6 +71,9 @@ func (c *Config) sanitize() error {
 	if c.StepAdjustment == 0 {
 		c.StepAdjustment = 50
 	}
+	if c.Decimals == 0 {
+		c.Decimals = providerTypes.DefaultCoinDecimals
+	}
 	return nil
 }
 
@@ -93,6 +99,57 @@ type Provider struct {
 	contracts           map[string]providerTypes.EventMap
 	networkID           types.HexInt
 	LastSavedHeightFunc func() uint64
+}
+
+func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return p.GetLastSavedBlockHeight(), nil
+}
+
+func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
+	var messages []*providerTypes.Message
+	eventReq := &types.EventRequest{
+		Height:           types.NewHexInt(int64(fromHeight)),
+		EventFilter:      p.GetMonitorEventFilters(),
+		Logs:             types.NewHexInt(1),
+		ProgressInterval: types.NewHexInt(25),
+	}
+	ctxMonitorBlock, cancelMonitorBlock := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelMonitorBlock()
+	err := p.client.MonitorEvent(ctxMonitorBlock, eventReq, nil, func(v *types.EventNotification, outgoing chan *providerTypes.BlockInfo) error {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			msgs, err := p.parseMessageEvent(v)
+			if err != nil {
+				p.log.Error("failed to parse message event", zap.Error(err))
+				return err
+			}
+			shouldBreak := false
+			for _, msg := range msgs {
+				if msg.MessageHeight > toHeight {
+					shouldBreak = true
+				} else {
+					p.log.Info("Found eventlog",
+						zap.Uint64("height", msg.MessageHeight),
+						zap.String("target_network", msg.Dst),
+						zap.Uint64("sn", msg.Sn.Uint64()),
+						zap.String("tx_hash", v.Hash.String()),
+						zap.String("event_type", msg.EventType),
+					)
+					messages = append(messages, msg)
+				}
+			}
+			if shouldBreak {
+				cancelMonitorBlock()
+			}
+		}
+		return nil
+	}, func(conn *websocket.Conn, err error) {})
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return messages, nil
+		}
+		return nil, err
+	}
+	return messages, nil
 }
 
 func (p *Provider) NID() string {
@@ -224,7 +281,6 @@ func (p *Provider) SetFee(ctx context.Context, networkID string, msgFee, resFee 
 	}
 	txr, err := p.client.WaitForResults(ctx, &types.TransactionHashParam{Hash: types.NewHexBytes(txHash)})
 	if err != nil {
-		fmt.Println("SetFee: WaitForResults: %v", err)
 		return fmt.Errorf("SetFee: WaitForResults: %v", err)
 	}
 	if txr.Status != types.NewHexInt(1) {

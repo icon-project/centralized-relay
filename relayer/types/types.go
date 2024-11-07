@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	MaxTxRetry         uint8 = 5
-	StaleMarkCount           = MaxTxRetry * 3
-	RouteDuration            = 3 * time.Second
-	XcallContract            = "xcall"
-	ConnectionContract       = "connection"
-	SupportedContracts       = []string{XcallContract, ConnectionContract}
-	RetryInterval            = 3*time.Second + RouteDuration
+	MaxTxRetry          uint8 = 5
+	StaleMarkCount            = MaxTxRetry * 3
+	RouteDuration             = 3 * time.Second
+	XcallContract             = "xcall"
+	ConnectionContract        = "connection"
+	SupportedContracts        = []string{XcallContract, ConnectionContract}
+	RetryInterval             = 3*time.Second + RouteDuration
+	DefaultCoinDecimals       = 18
 )
 
 type BlockInfo struct {
@@ -25,13 +26,18 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst           string   `json:"dst"`
-	Src           string   `json:"src"`
-	Sn            *big.Int `json:"sn"`
-	Data          []byte   `json:"data"`
-	MessageHeight uint64   `json:"messageHeight"`
-	EventType     string   `json:"eventType"`
-	ReqID         *big.Int `json:"reqID,omitempty"`
+	Dst             string   `json:"dst"`
+	Src             string   `json:"src"`
+	Sn              *big.Int `json:"sn"`
+	XcallSn         *big.Int `json:"xcallSN,omitempty"`
+	Data            []byte   `json:"data"`
+	MessageHeight   uint64   `json:"messageHeight"`
+	EventType       string   `json:"eventType"`
+	ReqID           *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
+	DstConnAddress  string   `json:"dstConnAddress,omitempty"`
+
+	TxInfo []byte `json:"-"`
 }
 
 type ContractConfigMap map[string]string
@@ -69,14 +75,15 @@ func (m *Message) MessageKey() *MessageKey {
 
 type RouteMessage struct {
 	*Message
-	Retry      uint8
-	Processing bool
-	LastTry    time.Time
+	Retry      uint8     `json:"retry"`
+	Processing bool      `json:"processing"`
+	LastTry    time.Time `json:"lastTry"`
 }
 
 func NewRouteMessage(m *Message) *RouteMessage {
 	return &RouteMessage{
 		Message: m,
+		LastTry: time.Now(),
 	}
 }
 
@@ -154,13 +161,13 @@ func NewMessagekeyWithMessageHeight(key *MessageKey, height uint64) *MessageKeyW
 }
 
 type MessageCache struct {
-	Messages map[MessageKey]*RouteMessage
+	Messages map[string]*RouteMessage
 	*sync.RWMutex
 }
 
 func NewMessageCache() *MessageCache {
 	return &MessageCache{
-		Messages: make(map[MessageKey]*RouteMessage),
+		Messages: make(map[string]*RouteMessage),
 		RWMutex:  new(sync.RWMutex),
 	}
 }
@@ -168,7 +175,10 @@ func NewMessageCache() *MessageCache {
 func (m *MessageCache) Add(r *RouteMessage) {
 	m.Lock()
 	defer m.Unlock()
-	m.Messages[*r.MessageKey()] = r
+	cacheKey := m.GetCacheKey(r.MessageKey())
+	if !m.HasCacheKey(cacheKey) {
+		m.Messages[cacheKey] = r
+	}
 }
 
 func (m *MessageCache) Len() int {
@@ -178,24 +188,36 @@ func (m *MessageCache) Len() int {
 func (m *MessageCache) Remove(key *MessageKey) {
 	m.Lock()
 	defer m.Unlock()
-	delete(m.Messages, *key)
+	cacheKey := m.GetCacheKey(key)
+	delete(m.Messages, cacheKey)
 }
 
 // Get returns the message from the cache
 func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
 	m.RLock()
 	defer m.RUnlock()
-	msg, ok := m.Messages[*key]
+	cacheKey := m.GetCacheKey(key)
+	msg, ok := m.Messages[cacheKey]
 	return msg, ok
 }
 
-type Coin struct {
-	Denom  string
-	Amount uint64
+func (m *MessageCache) GetCacheKey(key *MessageKey) string {
+	return key.Src + "-" + key.Dst + "-" + key.EventType + "-" + key.Sn.String()
 }
 
-func NewCoin(denom string, amount uint64) *Coin {
-	return &Coin{strings.ToLower(denom), amount}
+func (m *MessageCache) HasCacheKey(cacheKey string) bool {
+	_, ok := m.Messages[cacheKey]
+	return ok
+}
+
+type Coin struct {
+	Denom    string `json:"denom"`
+	Amount   uint64 `json:"amount"`
+	Decimals int    `json:"decimals"`
+}
+
+func NewCoin(denom string, amount uint64, decimals int) *Coin {
+	return &Coin{strings.ToLower(denom), amount, decimals}
 }
 
 func (c *Coin) String() string {
@@ -203,10 +225,9 @@ func (c *Coin) String() string {
 }
 
 func (c *Coin) Calculate() string {
-	balance := new(big.Float).SetUint64(c.Amount)
-	amount := balance.Quo(balance, big.NewFloat(1e18))
-	value, _ := amount.Float64()
-	return fmt.Sprintf("%.18f %s", value, c.Denom)
+	factor := math.Pow10(c.Decimals)
+	val := new(big.Float).Quo(new(big.Float).SetUint64(c.Amount), big.NewFloat(factor))
+	return val.String()
 }
 
 type TransactionObject struct {
@@ -223,4 +244,13 @@ type Receipt struct {
 	TxHash string
 	Height uint64
 	Status bool
+}
+
+type EventLog struct {
+	Height uint64
+	Events []string
+}
+type LastProcessedTx struct {
+	Height uint64
+	Info   []byte
 }

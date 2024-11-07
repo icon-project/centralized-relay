@@ -100,6 +100,10 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	}, nil
 }
 
+func (p *Provider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {
+	return p.GetLastSavedBlockHeight(), nil
+}
+
 func (p *Provider) NID() string {
 	return p.cfg.NID
 }
@@ -117,6 +121,9 @@ func (p *Config) sanitize() error {
 	}
 	if p.BlockBatchSize == 0 {
 		p.BlockBatchSize = maxBlockRange
+	}
+	if p.Decimals == 0 {
+		p.Decimals = providerTypes.DefaultCoinDecimals
 	}
 	return nil
 }
@@ -478,4 +485,32 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {
+	var messages []*providerTypes.Message
+	filter := ethereum.FilterQuery{
+		FromBlock: new(big.Int).SetUint64(fromHeight),
+		ToBlock:   new(big.Int).SetUint64(toHeight),
+		Addresses: p.blockReq.Addresses,
+		Topics:    p.blockReq.Topics,
+	}
+	p.log.Info("queryting", zap.Uint64("start", fromHeight), zap.Uint64("end", toHeight))
+	logs, _ := p.getLogsRetry(ctx, filter)
+	for _, log := range logs {
+		message, err := p.getRelayMessageFromLog(log)
+		if err != nil {
+			p.log.Error("failed to get relay message from log", zap.Error(err))
+			continue
+		}
+		p.log.Info("Found eventlog",
+			zap.String("target_network", message.Dst),
+			zap.Uint64("sn", message.Sn.Uint64()),
+			zap.String("event_type", message.EventType),
+			zap.String("tx_hash", log.TxHash.String()),
+			zap.Uint64("block_number", log.BlockNumber),
+		)
+		messages = append(messages, message)
+	}
+	return messages, nil
 }

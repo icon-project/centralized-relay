@@ -1,0 +1,46 @@
+{
+    "type": "solana",
+    "value": {
+      "disabled": false,
+      "rpc-url": "https://rpc.ankr.com/solana_devnet",
+      "address": "7GoW5ACKgsKcjWKnfPXeGyZHMSNBJkqHFwjt5ex2i73z",
+      "xcall-program": "GTQovomJUtRyo6kdfwh7PuKFQSDkS45VAymzm8Ka2jks",
+      "connection-program": "4bZDtRAEQhvjRVoNdynkDBBhNBgkjHoEd2GeSNgKUhhd",
+      "other-connections": [
+        "BWruc8NzF3hnGhWEAa89rDW2hP6jFnWGUdEwqckkAfNF"
+      ],
+      "dapps": [
+        {
+          "name": "xcall_manager",
+          "program-id": "EbANgP45vnngbyrZFEobiuVPedCPd3uM5v6NrUWJqLeQ",
+          "config-prefix": "state"
+        },
+        {
+          "name": "balanced_dollar",
+          "program-id": "CYg4QTYHvAQwySKKmxvykmkzhN4nBipeHL6GpMAYtnVe",
+          "config-prefix": "state",
+          "other-prefix": [
+            "bnusd_authority"
+          ]
+        },
+        {
+          "name": "asset_manager",
+          "program-id": "E7YLAjpEdGhuRWeMhTZ24UTjaqroaK2G37YPPHPPxUeM",
+          "config-prefix": "state",
+          "other-prefix": [
+            "vault_native"
+          ]
+        }
+      ],
+      "cp-nids": [
+        "0x2.icon"
+      ],
+      "alt-address": "9zdvWRLFU19dMr6ScTDGwRuUcZBUyZgVPKvoRCgZzrqf",
+      "nid": "solana-test",
+      "home-dir": "/home/relayer/.centralized-relay",
+      "start-tx-sign": "",
+      "tx-confirmation-time": "15s",
+      "compute-unit-limit": 200000
+    }
+  }
+  
