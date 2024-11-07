@@ -31,7 +31,7 @@ type ChainQuery interface {
 }
 
 type ClusterChainProvider interface {
-	SubmitClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
+	SubmitClusterMessage(ctx context.Context, message *types.Message, signature []byte, callback types.TxResponseFunc) error
 	ClusterMessageReceived(ctx context.Context, message *types.Message) (bool, error)
 }
 

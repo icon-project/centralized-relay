@@ -60,6 +60,7 @@ func (r *Relayer) Start(ctx context.Context, flushInterval time.Duration, fresh 
 
 type ConfigProvider interface {
 	IsClusterMode() bool
+	IsClusterLeader() bool
 	RelayerPubKey() string
 	GetKeypair() keys.KeyPair
 }
@@ -266,6 +267,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				continue
 			}
 			message.ToggleProcessing()
+
 			if r.processClusterEvents(ctx, message, dst, src) {
 				continue
 			}
@@ -295,17 +297,14 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 	if !r.cfg.IsClusterMode() {
 		return false
 	}
+
 	switch message.EventType {
 	case events.EmitMessage:
-		srcChainProvider, err := r.FindChainRuntime(message.Src)
 		message.DstConnAddress = dst.Provider.Config().GetConnContract()
-		message.Message.SrcConnAddress = srcChainProvider.Provider.Config().GetConnContract()
+		message.Message.SrcConnAddress = src.Provider.Config().GetConnContract()
 		iconChain := getIconChain(r.chains)
-		if err != nil {
-			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
-			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-		}
-		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, true)
+
+		go r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
 		return true
 	case events.PacketRegistered:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
@@ -314,7 +313,21 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 		}
 		iconChain := getIconChain(r.chains)
-		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, false)
+
+		messages, err := src.Provider.GenerateMessages(ctx, message.MessageHeight, message.MessageHeight)
+		if err != nil {
+			r.log.Error("required message not found", zap.String("src", message.Src),
+				zap.Uint64("nid", message.MessageHeight))
+			message.IncrementRetry()
+			message.ToggleProcessing()
+		} else {
+			for _, item := range messages {
+				if item.Src == message.Src && item.Sn.Cmp(message.Sn) == 0 && item.EventType == message.EventType {
+					go r.AcknowledgeClusterMessage(ctx, message, srcChainProvider, iconChain)
+				}
+			}
+		}
+
 		return true
 	case events.PacketAcknowledged:
 		if dst.Provider.Config().Enabled() {
@@ -624,65 +637,13 @@ func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
 	return nil
 }
 
-func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.RouteMessage,
-	src, dst, iconChain *ChainRuntime, emitEvent bool,
-) {
-	var messages []*types.Message
-	var err error
-	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
-		msgReceived, err := clusterProvider.ClusterMessageReceived(ctx, message.Message)
-		if err != nil {
-			dst.log.Error("error occured when checking cluster message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
-			message.ToggleProcessing()
-			return
-		}
-		if msgReceived {
-			return
-		}
-	} else {
-		r.log.Error("no provider found for submitting cluster message")
-	}
-	if emitEvent {
-		msgHash := keys.Keccak256Hash(message.Message.SignableMsg())
-		signature := r.cfg.GetKeypair().Sign(msgHash)
-		message.SignedData = signature
-		if err != nil {
-			r.log.Error("Error signing message", zap.Error(err))
-			return
-		}
-		r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
-		return
-	}
-	if clusterProvider, ok := src.Provider.(provider.ClusterChainVerifier); ok {
-		messages, err = clusterProvider.VerifyMessage(ctx, &types.MessageKeyWithMessageHeight{
-			Height: message.WrappedSourceHeight.Uint64(),
-		})
-	} else {
-		messages, err = src.Provider.GenerateMessages(ctx, message.WrappedSourceHeight.Uint64(), message.WrappedSourceHeight.Uint64())
-	}
-	if err != nil {
-		r.log.Error("required message not found", zap.String("src", message.Src),
-			zap.Uint64("nid", message.MessageHeight))
-		message.IncrementRetry()
-		message.ToggleProcessing()
-		return
-	}
-	for _, msg := range messages {
-		if msg.Sn.Cmp(message.Sn) == 0 {
-			msgHash := keys.Keccak256Hash(msg.SignableMsg())
-			signature := r.cfg.GetKeypair().Sign(msgHash)
-			message.SignedData = signature
-			r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
-		}
-	}
-}
-
 func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteMessage, src, iconChain *ChainRuntime) {
 	m.IncrementRetry()
 	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
-		if err := clusterProvider.SubmitClusterMessage(ctx, m.Message, r.callback(ctx, iconChain, iconChain)); err != nil {
-			iconChain.log.Error("message acknowledgement failed", zap.String("src", m.Src), zap.String("event_type", m.EventType), zap.Error(err))
-			r.HandleMessageFailed(m, iconChain, iconChain, "", err)
+		msgHash := keys.Keccak256Hash(m.SignableMsg())
+		signature := r.cfg.GetKeypair().Sign(msgHash)
+		if err := clusterProvider.SubmitClusterMessage(ctx, m.Message, signature, r.callback(ctx, src, iconChain)); err != nil {
+			r.HandleMessageFailed(m, src, iconChain, "", err)
 		}
 		return
 	}

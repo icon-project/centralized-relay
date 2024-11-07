@@ -387,14 +387,14 @@ type ExecuteRollback struct {
 }
 
 type SubmitPacket struct {
-	Data           HexBytes `json:"data"`
-	Sn             HexInt   `json:"srcSn"`
-	Height         HexInt   `json:"srcHeight"`
-	Source         string   `json:"srcNetwork"`
-	Destination    string   `json:"dstNetwork"`
-	DstConnAddress string   `json:"dstContractAddress"`
+	SrcNetwork     string   `json:"srcNetwork"`
 	SrcConnAddress string   `json:"srcContractAddress"`
-	SignedBytes    HexBytes `json:"signature"`
+	SrcConnSn      HexInt   `json:"srcSn"`
+	SrcHeight      HexInt   `json:"srcHeight"`
+	DstNetwork     string   `json:"dstNetwork"`
+	DstConnAddress string   `json:"dstContractAddress"`
+	Data           HexBytes `json:"data"`
+	Singature      HexBytes `json:"signature"`
 }
 
 type RecvMessageWithSignature struct {

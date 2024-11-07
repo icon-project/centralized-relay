@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
+	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
@@ -200,53 +201,66 @@ func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotif
 	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
 		return nil, fmt.Errorf("expected indexed: 3 got: %d indexed", indexdedLen)
 	}
-	wrappedSource := e.Indexed[1]
+	srcNetwork := e.Indexed[1]
 	srcConnAddress := e.Indexed[2]
-	sn, err := types.HexInt(e.Data[0]).BigInt()
+
+	srcConnSn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
+		return nil, fmt.Errorf("failed to parse srcConnSn: %s", e.Data[0])
 	}
 
-	wrappedHt, err := types.HexInt(e.Data[1]).BigInt()
+	srcHeight, err := types.HexInt(e.Data[1]).BigInt()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
+		return nil, fmt.Errorf("failed to parse srcHeight: %s", e.Data[1])
 	}
 
-	wrappedDestination := e.Data[2]
+	dstNetwork := e.Data[2]
 	data, err := types.HexBytes(e.Data[3]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[3])
 	}
 	dstConnAddress := e.Data[4]
 
 	return &providerTypes.Message{
-		MessageHeight:       height,
-		EventType:           p.GetEventName(e.Indexed[0]),
-		Src:                 wrappedSource,
-		Dst:                 wrappedDestination,
-		Sn:                  sn,
-		WrappedSourceHeight: wrappedHt,
-		Data:                data,
-		SrcConnAddress:      srcConnAddress,
-		DstConnAddress:      dstConnAddress,
+		EventType:      relayerevents.EmitMessage,
+		Src:            srcNetwork,
+		Sn:             srcConnSn,
+		SrcConnAddress: srcConnAddress,
+		MessageHeight:  srcHeight.Uint64(),
+
+		Dst:            dstNetwork,
+		DstConnAddress: dstConnAddress,
+		Data:           data,
+
+		AggregatorHeight: height,
+		AggregatorEvent:  p.GetEventName(e.Indexed[0]),
 	}, nil
 }
 
 func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
 	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
-		return nil, fmt.Errorf("expected indexed: 3, got: %d indexed", indexdedLen)
+		return nil, fmt.Errorf("expected indexed: 3 got: %d indexed", indexdedLen)
 	}
-	wrappedSource := e.Indexed[1]
+	srcNetwork := e.Indexed[1]
 	srcConnAddress := e.Indexed[2]
-	sn, err := types.HexInt(e.Data[0]).BigInt()
+
+	srcConnSn, err := types.HexInt(e.Data[0]).BigInt()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
+		return nil, fmt.Errorf("failed to parse srcConnSn: %s", e.Data[0])
 	}
-	wrappedDestination := e.Data[2]
-	data, err := types.HexBytes(e.Data[4]).Value()
+
+	srcHeight, err := types.HexInt(e.Data[1]).BigInt()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
+		return nil, fmt.Errorf("failed to parse srcHeight: %s", e.Data[1])
 	}
+
+	dstNetwork := e.Data[2]
+	data, err := types.HexBytes(e.Data[3]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[3])
+	}
+	dstConnAddress := e.Data[4]
+
 	signaturesRlp, err := types.HexBytes(e.Data[5]).Value()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse signatures: %s", e.Data[5])
@@ -256,16 +270,20 @@ func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNot
 		fmt.Println(err)
 		return nil, fmt.Errorf("failed to parse rlp signatures: %s", e.Data[5])
 	}
-	dstConnAddress := e.Data[3]
+
 	return &providerTypes.Message{
-		MessageHeight:  height,
-		EventType:      p.GetEventName(e.Indexed[0]),
-		Dst:            wrappedDestination,
-		Src:            wrappedSource,
-		Sn:             sn,
-		Data:           data,
+		EventType:      relayerevents.EmitMessage,
+		Src:            srcNetwork,
+		Sn:             srcConnSn,
 		SrcConnAddress: srcConnAddress,
+		MessageHeight:  srcHeight.Uint64(),
+
+		Dst:            dstNetwork,
 		DstConnAddress: dstConnAddress,
+		Data:           data,
 		Signatures:     signatures,
+
+		AggregatorHeight: height,
+		AggregatorEvent:  p.GetEventName(e.Indexed[0]),
 	}, nil
 }

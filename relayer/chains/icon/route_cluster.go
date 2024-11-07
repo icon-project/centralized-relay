@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
@@ -10,22 +11,35 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Provider) SubmitClusterMessage(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
-	p.log.Info("starting to acknowledge message",
-		zap.Any("sn", message.Sn),
-		zap.Any("req_id", message.ReqID),
+func (p *Provider) SubmitClusterMessage(ctx context.Context, message *providerTypes.Message, signature []byte, callback providerTypes.TxResponseFunc) error {
+	p.log.Info("starting to submit packet to aggregator",
 		zap.String("src", message.Src),
-		zap.String("event_type", message.EventType))
+		zap.String("dst", message.Dst),
+		zap.Any("sn", message.Sn),
+		zap.String("event_type", message.EventType),
+		zap.String("data", hex.EncodeToString(message.Data)),
+	)
 
-	iconMessage, err := p.MakeIconMessage(message)
-	if err != nil {
-		return err
+	msg := &types.SubmitPacket{
+		SrcNetwork:     message.Src,
+		SrcConnSn:      types.NewHexInt(message.Sn.Int64()),
+		SrcConnAddress: message.SrcConnAddress,
+		SrcHeight:      types.NewHexInt(int64(message.MessageHeight)),
+
+		DstNetwork:     message.Dst,
+		DstConnAddress: message.DstConnAddress,
+		Data:           types.NewHexBytes(message.Data),
+		Singature:      types.NewHexBytes(signature),
 	}
+
+	iconMessage := p.NewIconMessage(types.Address(p.cfg.Contracts[providerTypes.AggregationContract]), msg, MethodSubmitPacket)
+
 	messageKey := message.MessageKey()
 	txhash, err := p.SendTransaction(ctx, iconMessage)
 	if err != nil {
 		return errors.Wrapf(err, "error occured while sending transaction")
 	}
+
 	p.WaitForTxResult(ctx, txhash, messageKey, iconMessage.Method, callback)
 
 	return nil

@@ -130,9 +130,10 @@ $ %s cfg i`, appName, a.homePath, appName)),
 }
 
 type ClusterConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"`
-	PubKey  string `yaml:"pub_key" json:"pub_key"`
-	keypair keys.KeyPair
+	Enabled  bool   `yaml:"enabled" json:"enabled"`
+	IsLeader bool   `yaml:"is_leader" json:"is_leader"`
+	PubKey   string `yaml:"pub_key" json:"pub_key"`
+	keypair  keys.KeyPair
 }
 
 // GlobalConfig describes any global relayer settings
@@ -156,6 +157,13 @@ func (gc *GlobalConfig) IsClusterMode() bool {
 		return false
 	}
 	return gc.ClusterConfig.Enabled
+}
+
+func (gc *GlobalConfig) IsClusterLeader() bool {
+	if gc.ClusterConfig == nil {
+		return false
+	}
+	return gc.ClusterConfig.IsLeader
 }
 
 func (gc *GlobalConfig) RelayerPubKey() string {
