@@ -121,14 +121,10 @@ func GetReceipt(tx interface{}) (*providerTypes.Receipt, error) {
 	return nil, fmt.Errorf("no non-nil transaction field found")
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.MessageKeyWithMessageHeight) ([]*providerTypes.Message, error) {
-	p.log.Info("Generating messages", zap.Any("messagekey", key))
-	if key == nil {
-		return nil, fmt.Errorf("GenerateMessages: message key cannot be nil")
-	}
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight uint64, toHeight uint64) ([]*providerTypes.Message, error) {
+	p.log.Info("Generating messages", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
 
 	eventTypes := p.getSubscribedEventTypes()
-
 	var messages []*providerTypes.Message
 	errChan := make(chan error, 1)
 
@@ -139,8 +135,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 			return err
 		}
 
-		msg.MessageHeight = key.Height
-
+		msg.MessageHeight = fromHeight
 		messages = append(messages, msg)
 		return nil
 	}
@@ -163,4 +158,16 @@ func (p *Provider) GenerateMessages(ctx context.Context, key *providerTypes.Mess
 	}
 
 	return messages, nil
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*providerTypes.Message, error) {
+	p.log.Info("Fetching messages from transaction", zap.String("txHash", txHash))
+
+	receipt, err := p.QueryTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
+	}
+
+	// Pass the same height for both from and to since we're looking at a specific transaction
+	return p.GenerateMessages(ctx, receipt.Height, receipt.Height)
 }

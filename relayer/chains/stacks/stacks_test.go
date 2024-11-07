@@ -40,20 +40,17 @@ func TestGenerateMessages(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Trigger an event on the contract (you'll need to do this manually or automate it)
-	// For example, call a function on your XCall contract that emits an event
+	fromHeight := uint64(12345)
+	toHeight := uint64(12345)
 
-	key := &providerTypes.MessageKeyWithMessageHeight{
-		Height: 12345, // Use an appropriate block height
-	}
-
-	messages, err := p.GenerateMessages(ctx, key)
+	messages, err := p.GenerateMessages(ctx, fromHeight, toHeight)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, messages)
 
 	for _, msg := range messages {
 		t.Logf("Generated message: %+v", msg)
-		// Add more specific assertions based on the expected event data
+		assert.GreaterOrEqual(t, msg.MessageHeight, fromHeight)
+		assert.LessOrEqual(t, msg.MessageHeight, toHeight)
 	}
 }
 
