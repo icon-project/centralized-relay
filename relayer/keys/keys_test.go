@@ -17,7 +17,7 @@ func TestSecp256k1Key(t *testing.T) {
 	fmt.Println("lenght of signature: ", len(signature))
 	fmt.Println("Signature: ", hex.EncodeToString(signature))
 
-	_, err = kp.VerifySignature(Sha256Hash([]byte("hello0")), signature)
+	_, err = kp.VerifySignature(Sha256Hash([]byte("hello")), signature)
 	assert.NoError(t, err)
 
 }

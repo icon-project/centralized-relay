@@ -139,7 +139,7 @@ type ClusterConfig struct {
 type GlobalConfig struct {
 	Timeout       string         `yaml:"timeout" json:"timeout"`
 	KMSKeyID      string         `yaml:"kms-key-id" json:"kms-key-id"`
-	ClusterConfig *ClusterConfig `yaml:"cluster-mode" json:"cluster-mode"`
+	ClusterConfig *ClusterConfig `yaml:"cluster-config" json:"cluster-config"`
 }
 
 // newDefaultGlobalConfig returns a global config with defaults set
@@ -215,13 +215,13 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	}
 
 	var keypair keys.KeyPair
-	if a.config.Global.IsClusterMode() {
-		keyPath := keys.GetClusterKeyPath(a.homePath, a.config.Global.RelayerPubKey())
+	if c.Global.IsClusterMode() && c.Global.RelayerPubKey() != "" {
+		keyPath := keys.GetClusterKeyPath(a.homePath, c.Global.RelayerPubKey())
 		keypair, err = keys.LoadKeypairFromFile(keyPath, keys.Secp256k1, kmsProvider)
 		if err != nil {
 			return nil, err
 		}
-		a.config.Global.SetKeypair(keypair)
+		c.Global.SetKeypair(keypair)
 	}
 
 	for chainName, pcfg := range c.ProviderConfigs {

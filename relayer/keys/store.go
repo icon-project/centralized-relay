@@ -22,9 +22,9 @@ func LoadKeypairFromFile(keypath string, scheme SignatureScheme, kms kms.KMS) (K
 }
 
 func GetClusterKeyPath(homedir string, pubkey string) string {
-	return filepath.Join(homedir, "cluster", pubkey)
+	return filepath.Join(GetClusterKeyDir(homedir), pubkey)
 }
 
 func GetClusterKeyDir(homedir string) string {
-	return filepath.Join(homedir, "cluster")
+	return filepath.Join(homedir, "keystore", "cluster")
 }

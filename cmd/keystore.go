@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -77,12 +78,25 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 			if err := os.MkdirAll(keys.GetClusterKeyDir(a.homePath), 0o755); err != nil {
 				return err
 			}
-			keypath := keys.GetClusterKeyPath(a.homePath, keypair.PublicKey().String())
-			if err := os.WriteFile(keypath, keypair.PrivateKey(), 0o600); err != nil {
+
+			cipherPk, err := a.kms.Encrypt(context.Background(), keypair.PrivateKey())
+			if err != nil {
 				return err
 			}
-			a.config.Global.ClusterConfig.PubKey = keypair.PublicKey().String()
-			a.config.Global.ClusterConfig.Enabled = true
+
+			keypath := keys.GetClusterKeyPath(a.homePath, keypair.PublicKey().String())
+			if err := os.WriteFile(keypath, cipherPk, 0o600); err != nil {
+				return err
+			}
+
+			clusterCfg := ClusterConfig{
+				Enabled: true,
+				PubKey:  keypair.PublicKey().String(),
+				keypair: keypair,
+			}
+
+			a.config.Global.ClusterConfig = &clusterCfg
+
 			if err := a.config.Save(a.configPath); err != nil {
 				return err
 			}
