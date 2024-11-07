@@ -41,6 +41,19 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
+		if message.AggregatorEvent == events.PacketAcknowledged {
+			var sigs []types.HexBytes
+			for _, sig := range message.Signatures {
+				sigs = append(sigs, types.NewHexBytes(sig))
+			}
+			msg := &types.RecvMessageWithSignature{
+				SrcNID:     message.Src,
+				ConnSn:     types.NewHexInt(message.Sn.Int64()),
+				Msg:        types.NewHexBytes(message.Data),
+				Signatures: sigs,
+			}
+			return p.NewIconMessage(p.GetAddressByEventType(events.EmitMessage), msg, MethodRecvMessageWithSignature), nil
+		}
 		msg := &types.RecvMessage{
 			SrcNID: message.Src,
 			ConnSn: types.NewHexInt(message.Sn.Int64()),
@@ -77,18 +90,6 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			ResFee:    types.NewHexInt(message.ReqID.Int64()),
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(message.EventType), msg, MethodSetFee), nil
-	case events.PacketAcknowledged:
-		var sigs []types.HexBytes
-		for _, sig := range message.Signatures {
-			sigs = append(sigs, types.NewHexBytes(sig))
-		}
-		msg := &types.RecvMessageWithSignature{
-			SrcNID:     message.Src,
-			ConnSn:     types.NewHexInt(message.Sn.Int64()),
-			Msg:        types.NewHexBytes(message.Data),
-			Signatures: sigs,
-		}
-		return p.NewIconMessage(p.GetAddressByEventType(events.EmitMessage), msg, MethodRecvMessageWithSignature), nil
 	}
 	return nil, fmt.Errorf("can't generate message for unknown event type: %s ", message.EventType)
 }
