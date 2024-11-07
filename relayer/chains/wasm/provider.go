@@ -770,8 +770,11 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*coreTypes.ResultTx) ([]
 func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes.RawContractMessage, error) {
 	switch message.EventType {
 	case events.EmitMessage:
-		rcvMsg := types.NewExecRecvMsg(message)
-		return jsoniter.Marshal(rcvMsg)
+		if message.AggregatorEvent == events.PacketAcknowledged {
+			return jsoniter.Marshal(types.NewExecClusterRecvMsg(message))
+		} else {
+			return jsoniter.Marshal(types.NewExecRecvMsg(message))
+		}
 	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
 		return jsoniter.Marshal(execMsg)

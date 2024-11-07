@@ -268,10 +268,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 			message.ToggleProcessing()
 
-			if r.processClusterEvents(ctx, message, dst, src) {
-				continue
-			}
-
 			// if message reached delete the message
 			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 			if err != nil {
@@ -286,58 +282,78 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
-			go r.RouteMessage(ctx, message, dst, src)
+
+			if r.cfg.IsClusterMode() && message.EventType == events.EmitMessage {
+				r.processClusterEvents(ctx, message, dst, src)
+			} else {
+				go r.RouteMessage(ctx, message, dst, src)
+			}
 		}
 	}
 }
 
+func (r *Relayer) verifySrcMessage(ctx context.Context, message *types.RouteMessage, src *ChainRuntime) (bool, error) {
+	return false, nil
+}
+
 func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
 	dst *ChainRuntime, src *ChainRuntime,
-) bool {
-	if !r.cfg.IsClusterMode() {
-		return false
-	}
-
-	switch message.EventType {
-	case events.EmitMessage:
-		message.DstConnAddress = dst.Provider.Config().GetConnContract()
-		message.Message.SrcConnAddress = src.Provider.Config().GetConnContract()
-		iconChain := getIconChain(r.chains)
-
-		go r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
-		return true
-	case events.PacketRegistered:
-		srcChainProvider, err := r.FindChainRuntime(message.Src)
-		if err != nil {
-			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
-			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-		}
-		iconChain := getIconChain(r.chains)
-
-		messages, err := src.Provider.GenerateMessages(ctx, message.MessageHeight, message.MessageHeight)
-		if err != nil {
-			r.log.Error("required message not found", zap.String("src", message.Src),
-				zap.Uint64("nid", message.MessageHeight))
-			message.IncrementRetry()
-			message.ToggleProcessing()
+) {
+	switch message.AggregatorEvent {
+	case "", events.PacketRegistered:
+		if message.AggregatorEvent == "" {
+			message.DstConnAddress = dst.Provider.Config().GetConnContract()
+			message.SrcConnAddress = src.Provider.Config().GetConnContract()
 		} else {
-			for _, item := range messages {
-				if item.Src == message.Src && item.Sn.Cmp(message.Sn) == 0 && item.EventType == message.EventType {
-					go r.AcknowledgeClusterMessage(ctx, message, srcChainProvider, iconChain)
-				}
+			verified, err := r.verifySrcMessage(ctx, message, src)
+			if err != nil {
+				r.log.Error("failed to verify message in src chain",
+					zap.String("src", message.Src),
+					zap.Any("sn", message.Sn),
+					zap.String("dst", message.Dst),
+					zap.Error(err),
+				)
+				message.IncrementRetry()
+				message.ToggleProcessing()
+				return
+			}
+			if !verified {
+				r.log.Warn("found unverified message in src chain",
+					zap.String("src", message.Src),
+					zap.Any("sn", message.Sn),
+					zap.String("dst", message.Dst),
+				)
+				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+				return
 			}
 		}
+		aggChain := getAggregatorChain(r.chains)
 
-		return true
+		received, err := aggChain.Provider.(provider.ClusterChainProvider).ClusterMessageReceived(ctx, message.Message)
+		if err != nil {
+			r.log.Error("failed to check if packet is registered in aggregator",
+				zap.String("src", message.Src),
+				zap.Any("sn", message.Sn),
+				zap.String("dst", message.Dst),
+				zap.Error(err),
+			)
+			message.IncrementRetry()
+			message.ToggleProcessing()
+			return
+		}
+		if received {
+			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+			return
+		}
+
+		go r.AcknowledgeClusterMessage(ctx, message, src, aggChain)
 	case events.PacketAcknowledged:
 		if dst.Provider.Config().Enabled() {
 			if message.DstConnAddress == dst.Provider.Config().GetConnContract() {
 				go r.RouteMessage(ctx, message, dst, src)
 			}
 		}
-		return true
 	}
-	return false
 }
 
 // processBlockInfo->
@@ -628,7 +644,7 @@ func (r *Relayer) cleanExpiredMessages(ctx context.Context) {
 	}
 }
 
-func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
+func getAggregatorChain(chains map[string]*ChainRuntime) *ChainRuntime {
 	for _, v := range chains {
 		if v.Provider.Type() == "icon" && strings.Contains(v.Provider.NID(), "icon") {
 			return v
@@ -637,13 +653,13 @@ func getIconChain(chains map[string]*ChainRuntime) *ChainRuntime {
 	return nil
 }
 
-func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteMessage, src, iconChain *ChainRuntime) {
+func (r *Relayer) AcknowledgeClusterMessage(ctx context.Context, m *types.RouteMessage, src, aggChain *ChainRuntime) {
 	m.IncrementRetry()
-	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
+	if clusterProvider, ok := aggChain.Provider.(provider.ClusterChainProvider); ok {
 		msgHash := keys.Keccak256Hash(m.SignableMsg())
 		signature := r.cfg.GetKeypair().Sign(msgHash)
-		if err := clusterProvider.SubmitClusterMessage(ctx, m.Message, signature, r.callback(ctx, src, iconChain)); err != nil {
-			r.HandleMessageFailed(m, src, iconChain, "", err)
+		if err := clusterProvider.SubmitClusterMessage(ctx, m.Message, signature, r.callback(ctx, src, aggChain)); err != nil {
+			r.HandleMessageFailed(m, src, aggChain, "", err)
 		}
 		return
 	}
