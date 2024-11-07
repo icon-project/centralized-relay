@@ -1,4 +1,31 @@
 chains:
+
+  - name: stacks
+    version: "3"
+    environment: remote
+    rpc_uri: https://tt.net.solidwallet.io/stacks-api
+    contracts_path: "$BASE_PATH/artifacts/stacks"
+    config_path: "$BASE_PATH/test/chains/stacks/data"
+    chain_config:
+      type: stacks
+      name: stacks
+      chain_id: stacks.local
+      image:
+        repository: blockstack/stacks-blockchain
+        version: latest
+        uid_gid: ""
+      bin: stx
+      bech32_prefix: ST
+      denom: stx
+      coin_type: 5757
+      gas_prices: 0.001stx
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+    contracts:
+      xcall: "$BASE_PATH/artifacts/stacks/xcall.clar"
+      connection: "$BASE_PATH/artifacts/stacks/centralized_connection.clar"
+      dapp: "$BASE_PATH/artifacts/stacks/mock_dapp_multi.clar"
   
   - name: stellar
     version: "3"

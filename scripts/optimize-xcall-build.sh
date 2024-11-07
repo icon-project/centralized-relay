@@ -4,6 +4,7 @@ mkdir -p artifacts/icon
 mkdir -p artifacts/archway
 mkdir -p artifacts/evm
 mkdir -p artifacts/sui
+mkdir -p artifacts/stacks
 LOCAL_X_CALL_REPO=".xcall-multi"
 LOCAL_ARTIFACT_XCALL_SUI="xcall"
 
@@ -27,6 +28,7 @@ build_xCall_contracts() {
   cp artifacts/archway/*.wasm ../artifacts/archway/
   cp artifacts/icon/*.jar ../artifacts/icon/
   cp -R artifacts/evm/ ../artifacts/evm/
+  cp -R contracts/stacks/*.clar ../artifacts/stacks/
   cd -
 }
 
