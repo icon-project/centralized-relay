@@ -77,7 +77,7 @@ func (m *EventMap) GetWasmMsgType() string {
 }
 
 func (m *Message) MessageKey() *MessageKey {
-	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType)
+	return NewMessageKey(m.Sn, m.Src, m.Dst, m.EventType, m.AggregatorEvent)
 }
 
 func (m *Message) SignableMsg() []byte {
@@ -163,14 +163,15 @@ const (
 )
 
 type MessageKey struct {
-	Sn        *big.Int
-	Src       string
-	Dst       string
-	EventType string
+	Sn              *big.Int
+	Src             string
+	Dst             string
+	EventType       string
+	AggregatorEvent string
 }
 
-func NewMessageKey(sn *big.Int, src string, dst string, eventType string) *MessageKey {
-	return &MessageKey{sn, src, dst, eventType}
+func NewMessageKey(sn *big.Int, src string, dst string, eventType string, aggregatorEvent string) *MessageKey {
+	return &MessageKey{sn, src, dst, eventType, aggregatorEvent}
 }
 
 type MessageKeyWithMessageHeight struct {
@@ -224,7 +225,11 @@ func (m *MessageCache) Get(key *MessageKey) (*RouteMessage, bool) {
 }
 
 func (m *MessageCache) GetCacheKey(key *MessageKey) string {
-	return key.Src + "-" + key.Dst + "-" + key.EventType + "-" + key.Sn.String()
+	keystring := key.Src + "-" + key.Dst + "-" + key.EventType + "-" + key.Sn.String()
+	if key.AggregatorEvent != "" {
+		return keystring + "-" + key.AggregatorEvent
+	}
+	return keystring
 }
 
 func (m *MessageCache) HasCacheKey(cacheKey string) bool {

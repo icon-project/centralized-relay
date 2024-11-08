@@ -57,7 +57,7 @@ func TestMessageStoreSet(t *testing.T) {
 	})
 
 	t.Run("getMessage", func(t *testing.T) {
-		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
+		getMessage, err := messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage", ""))
 		assert.NoError(t, err, " error occured while getting message")
 		assert.Equal(t, getMessage.Message, types.NewRouteMessage(storeMessage).Message)
 		if err := testdb.ClearStore(); err != nil {
@@ -65,21 +65,21 @@ func TestMessageStoreSet(t *testing.T) {
 		}
 
 		// getMessageFail case
-		getMessage, err = messageStore.GetMessage(types.NewMessageKey(Sn, "archway", "", "emitMessage"))
+		getMessage, err = messageStore.GetMessage(types.NewMessageKey(Sn, "archway", "", "emitMessage", ""))
 		assert.Error(t, err)
 
 		// getMessageFail case
 		newSn := big.NewInt(0)
 		newSn.Add(Sn, big.NewInt(1))
-		getMessage, err = messageStore.GetMessage(types.NewMessageKey(newSn, "archway", "", "emitMessage"))
+		getMessage, err = messageStore.GetMessage(types.NewMessageKey(newSn, "archway", "", "emitMessage", ""))
 		assert.Error(t, err)
 	})
 
 	t.Run("deleteMessage", func(t *testing.T) {
-		err := messageStore.DeleteMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
+		err := messageStore.DeleteMessage(types.NewMessageKey(Sn, nId, "", "emitMessage", ""))
 		assert.NoError(t, err)
 
-		_, err = messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage"))
+		_, err = messageStore.GetMessage(types.NewMessageKey(Sn, nId, "", "emitMessage", ""))
 		assert.Error(t, err)
 	})
 
