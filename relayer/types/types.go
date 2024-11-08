@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/icon-project/centralized-relay/utils"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var (
@@ -81,11 +81,18 @@ func (m *Message) MessageKey() *MessageKey {
 }
 
 func (m *Message) SignableMsg() []byte {
-	msgBytes := []byte(m.Src)
-	msgBytes = append(msgBytes, utils.ToTruncatedLE(m.Sn)...)
-	msgBytes = append(msgBytes, m.Data...)
+	stream := rlp.NewEncoderBuffer(nil)
+	index := stream.List()
 
-	return msgBytes
+	stream.WriteString(m.Src)
+	stream.WriteBigInt(m.Sn)
+	stream.WriteBytes(m.Data)
+
+	stream.ListEnd(index)
+
+	encoded := stream.ToBytes()
+
+	return encoded
 }
 
 type RouteMessage struct {
