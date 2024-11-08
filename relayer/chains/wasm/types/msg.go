@@ -27,7 +27,7 @@ type ClusterReceiveMessage struct {
 	SrcNetwork string           `json:"src_network"`
 	ConnSn     string           `json:"conn_sn"`
 	Msg        hexstr.HexString `json:"msg"`
-	Signatures [][]byte         `json:"signatures"`
+	Signatures [][]int          `json:"signatures"`
 }
 
 type ExecMessage struct {
@@ -49,7 +49,7 @@ type ExecRecvMsg struct {
 }
 
 type ExecClusterRecvMsg struct {
-	RecvMessage *ClusterReceiveMessage `json:"cluster_recv_message"`
+	RecvMessage *ClusterReceiveMessage `json:"recv_message"`
 }
 
 type ExecExecMsg struct {
@@ -67,12 +67,20 @@ func NewExecRecvMsg(message *relayTypes.Message) *ExecRecvMsg {
 }
 
 func NewExecClusterRecvMsg(message *relayTypes.Message) *ExecClusterRecvMsg {
+	intSignatures := make([][]int, len(message.Signatures))
+	for i, signature := range message.Signatures {
+		intSignature := make([]int, len(signature))
+		for j, b := range signature {
+			intSignature[j] = int(b)
+		}
+		intSignatures[i] = intSignature
+	}
 	return &ExecClusterRecvMsg{
 		RecvMessage: &ClusterReceiveMessage{
 			SrcNetwork: message.Src,
 			ConnSn:     message.Sn.String(),
 			Msg:        hexstr.NewFromByte(message.Data),
-			Signatures: message.Signatures,
+			Signatures: intSignatures,
 		},
 	}
 }
