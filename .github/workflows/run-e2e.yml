@@ -1,0 +1,53 @@
+name: E2E Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      tests_to_run:
+        description: 'Comma-separated list of chain names to run (e.g., archway,icon,foundry)'
+        required: true
+        default: ''
+        type: string
+# on:
+#   push:
+#     branches:
+#       - "**"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: Validate input
+        id: validate_input
+        run: |
+          tests_to_run="${{ github.event.inputs.tests_to_run }}"
+          if [[ ! "$tests_to_run" =~ ^([a-zA-Z]+,)*[a-zA-Z]+$ ]]; then
+            echo "Invalid input format. Please provide a comma-separated list of test names (e.g., archway,icon,foundry)."
+            exit 1
+          fi
+          echo "Validated input: $tests_to_run"
+          echo "::set-output name=tests::$tests_to_run"
+
+      - name: Set CHAINS_TO_PROCESSS environment variable
+        run: echo "CHAINS_TO_PROCESSS=${{ steps.validate_input.outputs.tests }}" >> $GITHUB_ENV
+        
+      - name: Build xcall-multi contracts
+        run: | 
+          bash ./scripts/execute-test.sh --build-xcall --test e2e
+
+      - name: Run E2E Tests
+        env:
+          CHAINS_TO_PROCESSS: ${{ env.CHAINS_TO_PROCESSS }}
+        run: |
+          echo "Running E2E Tests"
+          ./scripts/execute-test.sh  --test e2e
+

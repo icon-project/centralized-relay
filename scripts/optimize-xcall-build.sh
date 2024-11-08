@@ -12,6 +12,7 @@ clone_xCall_multi() {
   X_CALL_BRANCH="${1:-main}"
   rm -rf "$LOCAL_X_CALL_REPO"
   git clone -b "$X_CALL_BRANCH" --single-branch "https://github.com/icon-project/xcall-multi.git" "$LOCAL_X_CALL_REPO"
+  sed -i 's/docker-compose/docker compose/g' "${LOCAL_X_CALL_REPO}"/Makefile
   cd artifacts/sui
   git clone --bare -b "$X_CALL_BRANCH" --single-branch "https://github.com/icon-project/xcall-multi.git" "$LOCAL_ARTIFACT_XCALL_SUI"
   cd -
