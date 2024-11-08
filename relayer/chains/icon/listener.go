@@ -93,6 +93,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 								zap.Uint64("sn", msg.Sn.Uint64()),
 								zap.Any("req_id", msg.ReqID),
 								zap.String("event_type", msg.EventType),
+								zap.String("aggregator_event", msg.AggregatorEvent),
 								zap.Uint64("height", msg.MessageHeight),
 							)
 							outgoing <- &providerTypes.BlockInfo{

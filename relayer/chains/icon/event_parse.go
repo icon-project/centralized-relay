@@ -255,11 +255,12 @@ func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNot
 	}
 
 	dstNetwork := e.Data[2]
-	data, err := types.HexBytes(e.Data[3]).Value()
+	dstConnAddress := e.Data[3]
+
+	data, err := types.HexBytes(e.Data[4]).Value()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse data: %s", e.Data[3])
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
 	}
-	dstConnAddress := e.Data[4]
 
 	signaturesRlp, err := types.HexBytes(e.Data[5]).Value()
 	if err != nil {
