@@ -2,33 +2,34 @@ package stacks
 
 import (
 	"context"
-	"time"
+	"fmt"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
 )
 
 func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.LastProcessedTx, blockInfoChan chan *providerTypes.BlockInfo) error {
-	eventTypes := p.getSubscribedEventTypes()
+	p.log.Info("Starting Stacks event listener")
 
-	errChan := make(chan error, 1)
+	wsURL := p.client.GetWebSocketURL()
+	p.log.Debug("Using WebSocket URL", zap.String("url", wsURL))
 
-	callback := func(eventType string, data interface{}) error {
-		msg, err := p.getRelayMessageFromEvent(eventType, data)
+	eventSystem := events.NewEventSystem(ctx, wsURL, p.log)
+
+	eventSystem.OnEvent(func(event *events.Event) error {
+		msg, err := p.getRelayMessageFromEvent(event.Type, event.Data)
 		if err != nil {
-			p.log.Error("Failed to parse relay message from event", zap.Error(err))
-
-			select {
-			case errChan <- err:
-			default:
-			}
+			p.log.Error("Failed to parse relay message from event",
+				zap.Error(err),
+				zap.String("eventType", event.Type))
 			return err
 		}
 
-		blockHeight := uint64(0)
+		msg.MessageHeight = event.BlockHeight
 
 		blockInfo := &providerTypes.BlockInfo{
-			Height:   blockHeight,
+			Height:   event.BlockHeight,
 			Messages: []*providerTypes.Message{msg},
 		}
 
@@ -38,56 +39,16 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	})
+
+	if err := eventSystem.Start(); err != nil {
+		return fmt.Errorf("failed to start event system: %w", err)
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			p.log.Info("Listener context canceled")
-			return ctx.Err()
-		default:
-			p.log.Info("Subscribing to Stacks contract events")
-			err := p.client.SubscribeToEvents(ctx, eventTypes, callback)
-			if err != nil {
-				p.log.Error("Failed to subscribe to events", zap.Error(err))
-				select {
-				case <-time.After(5 * time.Second):
-					p.log.Info("Retrying subscription to events")
-				case <-ctx.Done():
-					p.log.Info("Listener context canceled during retry wait")
-					return ctx.Err()
-				}
-				continue
-			}
+	p.log.Info("Stacks event listener started successfully")
 
-			select {
-			case err := <-errChan:
-				p.log.Error("Error received in event subscription", zap.Error(err))
-				select {
-				case <-time.After(5 * time.Second):
-					p.log.Info("Re-subscribing to events after error")
-				case <-ctx.Done():
-					p.log.Info("Listener context canceled during resubscription wait")
-					return ctx.Err()
-				}
-			case <-ctx.Done():
-				p.log.Info("Listener context canceled")
-				return ctx.Err()
-			}
-		}
-	}
-}
-
-func (p *Provider) getSubscribedEventTypes() []string {
-	eventTypeSet := make(map[string]struct{})
-	for _, eventMap := range p.contracts {
-		for _, eventType := range eventMap.SigType {
-			eventTypeSet[eventType] = struct{}{}
-		}
-	}
-	eventTypes := make([]string, 0, len(eventTypeSet))
-	for et := range eventTypeSet {
-		eventTypes = append(eventTypes, et)
-	}
-	return eventTypes
+	<-ctx.Done()
+	p.log.Info("Stopping Stacks event listener")
+	eventSystem.Stop()
+	return ctx.Err()
 }

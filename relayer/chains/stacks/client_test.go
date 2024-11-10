@@ -5,9 +5,7 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks"
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
@@ -177,33 +175,4 @@ func TestClient_SetAdmin(t *testing.T) {
 	assert.NotEmpty(t, txID, "Transaction ID should not be empty")
 
 	t.Logf("SetAdmin transaction ID: %s", txID)
-}
-
-func TestClient_SubscribeToEvents(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	logger, _ := zap.NewDevelopment()
-	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	callback := func(eventType string, data interface{}) error {
-		t.Logf("Received event: %s, Data: %+v", eventType, data)
-		wg.Done()
-		return nil
-	}
-
-	err = client.SubscribeToEvents(ctx, []string{"block"}, callback)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to events: %v", err)
-	}
-
-	wg.Wait()
 }

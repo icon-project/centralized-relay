@@ -874,8 +874,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/icon-project/goloop v1.3.11 h1:Lry7rCM9QeZudiAqi7n7CqmoOsg7qNDwrw6O12j7vuo=
 github.com/icon-project/goloop v1.3.11/go.mod h1:9PoWRb5kowidc9jYy0RLuLpay1zT5FXgEKijx7rDQjE=
-github.com/icon-project/stacks-go-sdk v0.3.1 h1:tw7sz9P6HICG+sclTCFs2wgYs1I5Xom3QZLhRXJOOIw=
-github.com/icon-project/stacks-go-sdk v0.3.1/go.mod h1:yg4j/KACqhZ7+ZR0zpf3tE6Vw6HiZKBpFtVFzZlaGKw=
+github.com/icon-project/stacks-go-sdk v0.3.2 h1:WzzhNxSQIMZg4PM+II8m+9mxjnJfTpbWeQ0/4GRrmKI=
+github.com/icon-project/stacks-go-sdk v0.3.2/go.mod h1:yg4j/KACqhZ7+ZR0zpf3tE6Vw6HiZKBpFtVFzZlaGKw=
 github.com/imkira/go-interpol v1.1.0 h1:KIiKr0VSG2CUW1hl1jpiyuzuJeKUUpC8iM1AIE7N1Vk=
 github.com/imkira/go-interpol v1.1.0/go.mod h1:z0h2/2T3XF8kyEPpRgJ3kmNv+C43p+I/CoI+jC3w2iA=
 github.com/improbable-eng/grpc-web v0.15.0 h1:BN+7z6uNXZ1tQGcNAuaU1YjsLTApzkjt2tzCixLaUPQ=

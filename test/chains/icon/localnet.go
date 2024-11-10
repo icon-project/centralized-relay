@@ -120,7 +120,7 @@ func (in *IconRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, key
 			NID:           in.Config().ChainID,
 			RPCURL:        in.GetRPCAddress(),
 			StartHeight:   0,
-			NetworkID:     0x3,
+			NetworkID:     0x2,
 			Contracts:     contracts,
 			BlockInterval: "6s",
 			Address:       in.testconfig.RelayWalletAddress,
@@ -418,7 +418,7 @@ func (in *IconRemotenet) NodeCommand(command ...string) []string {
 	command = in.BinCommand(command...)
 	return append(command,
 		"--uri", in.GetRPCAddress(), //fmt.Sprintf("http://%s/api/v3", in.HostRPCPort),
-		"--nid", "0x3",
+		"--nid", "0x2",
 	)
 }
 

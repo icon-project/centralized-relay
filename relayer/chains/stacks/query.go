@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
-	"github.com/icon-project/centralized-relay/relayer/events"
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
+	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
 	"go.uber.org/zap"
 )
-
-const eventListeningTimeout = 30 * time.Second
 
 func (p *Provider) ShouldReceiveMessage(ctx context.Context, message *providerTypes.Message) (bool, error) {
 	return true, nil
@@ -72,6 +70,43 @@ func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 }
 
 func GetReceipt(tx interface{}) (*providerTypes.Receipt, error) {
+	if response, ok := tx.(*blockchainApiClient.GetTransactionById200Response); ok {
+		if mempool := response.GetMempoolTransactionList200ResponseResultsInner; mempool != nil {
+			if mempool.ContractCallMempoolTransaction1 != nil {
+				txStatus := mempool.ContractCallMempoolTransaction1.TxStatus.String
+				if txStatus == nil {
+					return nil, fmt.Errorf("nil tx status for contract call mempool transaction")
+				}
+
+				return &providerTypes.Receipt{
+					TxHash: mempool.ContractCallMempoolTransaction1.TxId,
+					Height: 0,
+					Status: *txStatus == "success",
+				}, nil
+			}
+			if mempool.SmartContractMempoolTransaction1 != nil {
+				txStatus := mempool.SmartContractMempoolTransaction1.TxStatus.String
+				if txStatus == nil {
+					return nil, fmt.Errorf("nil tx status for smart contract mempool transaction")
+				}
+
+				return &providerTypes.Receipt{
+					TxHash: mempool.SmartContractMempoolTransaction1.TxId,
+					Height: 0,
+					Status: *txStatus == "success",
+				}, nil
+			}
+		}
+
+		if confirmed := response.GetTransactionList200ResponseResultsInner; confirmed != nil {
+			return getConfirmedReceipt(confirmed)
+		}
+	}
+
+	return nil, fmt.Errorf("unsupported transaction response type")
+}
+
+func getConfirmedReceipt(tx interface{}) (*providerTypes.Receipt, error) {
 	val := reflect.ValueOf(tx).Elem()
 	typ := val.Type()
 
@@ -139,42 +174,74 @@ func GetReceipt(tx interface{}) (*providerTypes.Receipt, error) {
 }
 
 func (p *Provider) GenerateMessages(ctx context.Context, fromHeight uint64, toHeight uint64) ([]*providerTypes.Message, error) {
-	p.log.Info("Generating messages", zap.Uint64("fromHeight", fromHeight), zap.Uint64("toHeight", toHeight))
+	p.log.Info("Generating messages",
+		zap.Uint64("fromHeight", fromHeight),
+		zap.Uint64("toHeight", toHeight))
 
-	eventTypes := p.getSubscribedEventTypes()
-	var messages []*providerTypes.Message
-	errChan := make(chan error, 1)
-
-	callback := func(eventType string, data interface{}) error {
-		msg, err := p.getRelayMessageFromEvent(eventType, data)
-		if err != nil {
-			p.log.Error("Failed to parse relay message from event", zap.Error(err))
-			return err
-		}
-
-		msg.MessageHeight = fromHeight
-		messages = append(messages, msg)
-		return nil
-	}
-
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, eventListeningTimeout)
+	ctx, cancel := context.WithTimeout(ctx, MAX_WAIT_TIME)
 	defer cancel()
 
-	err := p.client.SubscribeToEvents(ctxWithTimeout, eventTypes, callback)
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to events: %w", err)
-	}
+	var messages []*providerTypes.Message
+	messageChan := make(chan *providerTypes.Message)
+	errorChan := make(chan error, 1)
 
-	select {
-	case err := <-errChan:
-		return nil, fmt.Errorf("error occurred while processing events: %w", err)
-	case <-ctxWithTimeout.Done():
-		if len(messages) == 0 {
-			return nil, fmt.Errorf("no messages generated within the timeout period")
+	wsURL := p.client.GetWebSocketURL()
+	eventSystem := events.NewEventSystem(ctx, wsURL, p.log)
+
+	eventSystem.OnEvent(func(event *events.Event) error {
+		if event.BlockHeight < fromHeight || event.BlockHeight > toHeight {
+			return nil
+		}
+
+		msg, err := p.getRelayMessageFromEvent(event.Type, event.Data)
+		if err != nil {
+			return fmt.Errorf("failed to parse relay message from event: %w", err)
+		}
+
+		msg.MessageHeight = event.BlockHeight
+
+		select {
+		case messageChan <- msg:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+
+	go func() {
+		defer close(messageChan)
+
+		if err := eventSystem.Start(); err != nil {
+			errorChan <- fmt.Errorf("failed to start event system: %w", err)
+			return
+		}
+
+		<-ctx.Done()
+		eventSystem.Stop()
+
+		if ctx.Err() == context.DeadlineExceeded {
+			p.log.Info("Event collection completed due to timeout")
+		}
+	}()
+
+	for {
+		select {
+		case msg, ok := <-messageChan:
+			if !ok {
+				return messages, nil
+			}
+			messages = append(messages, msg)
+
+		case err := <-errorChan:
+			return nil, err
+
+		case <-ctx.Done():
+			if len(messages) == 0 {
+				return nil, fmt.Errorf("no messages generated within the timeout period")
+			}
+			return messages, nil
 		}
 	}
-
-	return messages, nil
 }
 
 func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*providerTypes.Message, error) {
@@ -185,6 +252,5 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*provi
 		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
 	}
 
-	// Pass the same height for both from and to since we're looking at a specific transaction
 	return p.GenerateMessages(ctx, receipt.Height, receipt.Height)
 }

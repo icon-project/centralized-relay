@@ -16,7 +16,7 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/icon-project/goloop v1.3.11
-	github.com/icon-project/stacks-go-sdk v0.3.1
+	github.com/icon-project/stacks-go-sdk v0.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/near/borsh-go v0.3.1

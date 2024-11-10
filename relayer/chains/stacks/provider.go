@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -50,7 +51,11 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("no network found for nid: %v", c.NID)
 	}
 
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error:", err)
+	}
+	xcallAbiPath := filepath.Join(dir, "relayer/chains/stacks", "abi", "xcall-proxy-abi.json")
 	client, err := NewClient(log, network, xcallAbiPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Stacks client: %v", err)

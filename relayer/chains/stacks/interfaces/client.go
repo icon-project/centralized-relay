@@ -25,7 +25,7 @@ type IClient interface {
 	ExecuteRollback(ctx context.Context, contractAddress string, args []clarity.ClarityValue, senderAddress string, senderKey []byte) (string, error)
 	GetLatestBlock(ctx context.Context) (*blockchainApiClient.GetBlocks200ResponseResultsInner, error)
 	CallReadOnlyFunction(ctx context.Context, contractAddress string, contractName string, functionName string, functionArgs []string) (*string, error)
-	SubscribeToEvents(ctx context.Context, eventTypes []string, callback EventCallback) error
+	GetWebSocketURL() string
 	Log() *zap.Logger
 }
 

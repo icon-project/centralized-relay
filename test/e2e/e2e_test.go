@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/icon-project/centralized-relay/test/e2e/tests"
@@ -19,6 +20,8 @@ type E2ETest struct {
 
 func (s *E2ETest) TestE2E_all() {
 	// go panicOnTimeout(10 * time.Hour) // custom timeout
+
+	os.Setenv("AWS_ENDPOINT_URL", "http://localhost:8088/")
 
 	t := s.T()
 	testcase := "xcall"

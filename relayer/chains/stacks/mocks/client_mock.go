@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
 	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
 	"github.com/stretchr/testify/mock"
@@ -90,9 +89,9 @@ func (m *MockClient) ExecuteRollback(ctx context.Context, contractAddress string
 	return mockArgs.String(0), mockArgs.Error(1)
 }
 
-func (m *MockClient) SubscribeToEvents(ctx context.Context, eventTypes []string, callback interfaces.EventCallback) error {
-	args := m.Called(ctx, eventTypes, callback)
-	return args.Error(0)
+func (m *MockClient) GetWebSocketURL() string {
+	mockArgs := m.Called()
+	return mockArgs.String(0)
 }
 
 func (m *MockClient) Log() *zap.Logger {
