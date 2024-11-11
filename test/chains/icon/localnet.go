@@ -198,9 +198,9 @@ func (in *IconRemotenet) SetupConnection(ctx context.Context, target chains.Chai
 func (in *IconRemotenet) SetupXCall(ctx context.Context) error {
 	if in.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		in.IBCAddresses["xcall"] = "cx07c425640148e54b07cd92ad0835d83b64ad25a8"
-		in.IBCAddresses["connection"] = "cx97b13c438086271a61f611f396e3834b381cbb91"
-		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cxf18fc12e7fc1d34deb9e85f318640d433ddbc01f"
+		in.IBCAddresses["xcall"] = "cxda8bbd8894da22ce9f11f8592d4a2cf34b48ed54"
+		in.IBCAddresses["connection"] = "cx146000b0fe5040a553a9bf221353512559964170"
+		in.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "cx96fb738262aa66f477629381cd2ba38051ffd438"
 		return nil
 	}
 	nid := in.cfg.ChainID
@@ -581,6 +581,10 @@ func (in *IconRemotenet) FindRollbackExecutedMessage(ctx context.Context, startH
 	return "0", nil
 }
 func (in *IconRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	if in.testconfig.Environment == "preconfigured" {
+		in.IBCAddresses["aggregator"] = "cxe0be388d4aeb57af4a861ef9abfc4259549e2393"
+		return nil
+	}
 	xcall := in.IBCAddresses["xcall"]
 	validators := []string{in.testconfig.ClusterKey, in.testconfig.FollowerClusterKey}
 

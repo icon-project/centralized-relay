@@ -647,6 +647,9 @@ func (an *EVMRemotenet) FindRollbackExecutedMessage(ctx context.Context, startHe
 }
 
 func (an *EVMRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	if an.testconfig.Environment == "preconfigured" {
+		return nil
+	}
 	xcall := common.HexToAddress(an.IBCAddresses["xcall"])
 	connection, err := an.DeployContractRemote(ctx, an.scorePaths["cluster-connection"], an.testconfig.KeystorePassword)
 	if err != nil {

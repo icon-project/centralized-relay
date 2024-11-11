@@ -3,6 +3,7 @@ package cosmos
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -67,6 +68,9 @@ func NewCosmosRemotenet(testName string, log *zap.Logger, chainConfig chains.Cha
 }
 
 func (c *CosmosRemotenet) GetContractAddress(key string) string {
+	if key == "cluster-wallet" {
+		return c.testconfig.ClusterRelayWalletAddress
+	}
 	value, exist := c.IBCAddresses[key]
 	if !exist {
 		panic(fmt.Sprintf(`IBC address not exist %s`, key))
@@ -131,9 +135,9 @@ func (c *CosmosRemotenet) SetupConnection(ctx context.Context, target chains.Cha
 func (c *CosmosRemotenet) SetupXCall(ctx context.Context) error {
 	if c.testconfig.Environment == "preconfigured" {
 		testcase := ctx.Value("testcase").(string)
-		c.IBCAddresses["xcall"] = "archway1u3kd42ns0m5fdlw8xpe3kp87dpfds68vhsfwt28hen7x8y8tjfuq9avr2n"
-		c.IBCAddresses["connection"] = "archway1mrhm2xy5yzlagl62zt2qt2dmrwrjwsag4pcc57uc44z04etn9slsa257y3"
-		c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "archway1x8ejvuzjs9m40sljx4u6z0x2x7tc2q9k25a92v3hp5u4r30vurls5qujxr"
+		c.IBCAddresses["xcall"] = "archway1kxan9m4q38cyp20l9e7xtcesu2lxt3tnjsgxypuv6d5fqq3vrk3sfr4adm"
+		c.IBCAddresses["connection"] = "archway18tsr2mlwcslg8mv8xnegr5dswl6t3ert23ujr7nmh8e6974yxq0q78966t"
+		c.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)] = "archway1292gr4gneza4ms00e83wls74w73f9xv6t6m6p75l48qzujvdjmqshuhffa"
 		return nil
 	}
 	denom := c.Config().Denom
@@ -385,7 +389,7 @@ func (c *CosmosRemotenet) StoreContractRemote(ctx context.Context, fileName stri
 		return "", err
 	}
 
-	time.Sleep(9 * time.Second)
+	time.Sleep(10 * time.Second)
 	stdout, _, err := c.ExecQuery(ctx, "wasm", "list-code", "--reverse")
 	if err != nil {
 		return "", err
@@ -409,7 +413,7 @@ func (c *CosmosRemotenet) InstantiateContractRemote(ctx context.Context, codeID 
 	if err != nil {
 		return "", err
 	}
-	time.Sleep(8 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	stdout, _, err := c.ExecQuery(ctx, "wasm", "list-contract-by-code", codeID)
 	if err != nil {
@@ -618,5 +622,46 @@ func (c *CosmosRemotenet) FindRollbackExecutedMessage(ctx context.Context, start
 }
 
 func (c *CosmosRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
+	if c.testconfig.Environment == "preconfigured" {
+		return nil
+	}
+	xcall := c.IBCAddresses["xcall"]
+	denom := c.Config().Denom
+	connectionCodeId, err := c.StoreContractRemote(ctx, c.filepath["cluster-connection"])
+	if err != nil {
+		return err
+	}
+	time.Sleep(5 * time.Second)
+	connectionAddress, err := c.InstantiateContractRemote(ctx, connectionCodeId, `{"denom":"`+denom+`","xcall_address":"`+xcall+`","relayer":"`+c.testconfig.RelayWalletAddress+`"}`, true, c.GetCommonArgs()...)
+
+	if err != nil {
+		return err
+	}
+	time.Sleep(5 * time.Second)
+	c.IBCAddresses["connection"] = connectionAddress
+	fmt.Println("connection deployed at ", connectionAddress)
+	validators := []string{
+		c.testconfig.ClusterKey,
+		c.testconfig.FollowerClusterKey,
+	}
+	var byteArrays [][]byte
+	for _, str := range validators {
+		// Decode each hex string to bytes
+		byteArray, err := hex.DecodeString(str)
+		if err != nil {
+			fmt.Println("Error decoding string:", err)
+			continue
+		}
+		// Append the byte array to the slice
+		byteArrays = append(byteArrays, byteArray)
+	}
+	validatorsArray := strings.Join(strings.Fields(fmt.Sprintf("%d", byteArrays)), ",")
+	params := fmt.Sprintf(`{"validators":%s, "threshold":%d}`, validatorsArray, uint8(2))
+	_, err = c.ExecuteContractRemote(context.Background(), connectionAddress,
+		"set_validators", params)
+	if err != nil {
+		fmt.Println("fail to update validators for cluster connection : %w\n", err)
+		return err
+	}
 	return nil
 }
