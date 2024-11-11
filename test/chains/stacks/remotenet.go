@@ -45,11 +45,16 @@ type StacksLocalnet struct {
 
 func NewStacksLocalnet(testName string, log *zap.Logger, chainConfig chains.ChainConfig, testconfig *testconfig.Chain, kms kms.KMS) chains.Chain {
 	network := stacks.NewStacksTestnet()
-	client, err := stacksClient.NewClient(log, network, testconfig.Contracts["xcall-abi"])
+	client, err := stacksClient.NewClient(log, network)
 	if err != nil {
 		log.Error("Failed to create Stacks client", zap.Error(err))
 		return nil
 	}
+
+	log.Debug("Creating Stacks chain",
+		zap.String("chainID", chainConfig.ChainID),
+		zap.String("name", chainConfig.Name),
+		zap.String("type", chainConfig.Type))
 
 	return &StacksLocalnet{
 		testName:     testName,
@@ -84,6 +89,7 @@ func (s *StacksLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, key
 	config := &centralized.StacksRelayerChainConfig{
 		Type: "stacks",
 		Value: centralized.StacksRelayerChainConfigValue{
+			NID:           s.testconfig.NID,
 			RPCURL:        s.testconfig.RPCUri,
 			StartHeight:   0,
 			Contracts:     contracts,
@@ -1071,18 +1077,6 @@ func (s *StacksLocalnet) SendPacketXCall(ctx context.Context, keyName, _to strin
 	}
 
 	implAddr := s.IBCAddresses["xcall-impl"]
-	implResult, err := s.client.CallReadOnlyFunction(
-		ctx,
-		"ST1FTM84RHDZ3AB21MNYKA3XQEFB090HZBB81DSFE",
-		"xcall-proxy",
-		"get-current-implementation",
-		[]string{},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current implementation: %w", err)
-	}
-	s.log.Debug("Current implementation", zap.String("result", *implResult))
-
 	implPrincipal, err := clarity.StringToPrincipal(implAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create implementation argument: %w", err)
@@ -1109,84 +1103,6 @@ func (s *StacksLocalnet) SendPacketXCall(ctx context.Context, keyName, _to strin
 
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid dapp address format: %s", dappAddress)
-	}
-	contractAddr := parts[0]
-
-	network := strings.Split(_to, "/")[0]
-
-	s.log.Debug("Checking network sources/destinations",
-		zap.String("network", network))
-
-	networkArg, err := clarity.NewStringASCII(network)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create network argument: %w", err)
-	}
-
-	networkBytes, err := networkArg.Serialize()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize network argument: %w", err)
-	}
-
-	hexEncodedNetwork := hex.EncodeToString(networkBytes)
-
-	sourcesResult, err := s.client.CallReadOnlyFunction(
-		ctx,
-		contractAddr,
-		contractName,
-		"get-sources",
-		[]string{hexEncodedNetwork},
-	)
-	if err != nil {
-		s.log.Error("Failed to get sources",
-			zap.Error(err),
-			zap.String("contractAddr", contractAddr),
-			zap.String("contractName", contractName),
-			zap.String("network", network),
-			zap.String("networkArg", hexEncodedNetwork))
-	} else {
-		sourceBytes, err := hex.DecodeString(strings.TrimPrefix(*sourcesResult, "0x"))
-		if err != nil {
-			s.log.Error("Failed to decode sources result", zap.Error(err))
-		} else {
-			sourcesValue, err := clarity.DeserializeClarityValue(sourceBytes)
-			if err != nil {
-				s.log.Error("Failed to deserialize sources", zap.Error(err))
-			} else {
-				s.log.Debug("Sources for network",
-					zap.String("network", network),
-					zap.Any("sources", sourcesValue))
-			}
-		}
-	}
-
-	destsResult, err := s.client.CallReadOnlyFunction(
-		ctx,
-		contractAddr,
-		contractName,
-		"get-destinations",
-		[]string{hexEncodedNetwork},
-	)
-	if err != nil {
-		s.log.Error("Failed to get destinations",
-			zap.Error(err),
-			zap.String("contractAddr", contractAddr),
-			zap.String("contractName", contractName),
-			zap.String("network", network),
-			zap.String("networkArg", hexEncodedNetwork))
-	} else {
-		destBytes, err := hex.DecodeString(strings.TrimPrefix(*destsResult, "0x"))
-		if err != nil {
-			s.log.Error("Failed to decode destinations result", zap.Error(err))
-		} else {
-			destsValue, err := clarity.DeserializeClarityValue(destBytes)
-			if err != nil {
-				s.log.Error("Failed to deserialize destinations", zap.Error(err))
-			} else {
-				s.log.Debug("Destinations for network",
-					zap.String("network", network),
-					zap.Any("destinations", destsValue))
-			}
-		}
 	}
 
 	txCall, err := transaction.MakeContractCall(
@@ -1221,6 +1137,11 @@ func (s *StacksLocalnet) SendPacketXCall(ctx context.Context, keyName, _to strin
 		return nil, fmt.Errorf("failed to extract serial number: %w", err)
 	}
 
+	s.log.Info("Successfully sent packet",
+		zap.String("txID", txID),
+		zap.String("sn", sn),
+		zap.String("to", _to))
+
 	ctx = context.WithValue(ctx, snContextKey, sn)
 	return ctx, nil
 }
@@ -1238,13 +1159,20 @@ func (s *StacksLocalnet) extractSnFromTransaction(ctx context.Context, txID stri
 					contractLog := event.SmartContractLogTransactionEvent.ContractLog
 					if contractLog.Topic == "print" {
 						repr := contractLog.Value.Repr
+						s.log.Debug("Found event log",
+							zap.String("repr", repr),
+							zap.String("topic", contractLog.Topic))
 						if strings.Contains(repr, "CallMessageSent") {
+							s.log.Debug("Found CallMessageSent event",
+								zap.String("full_event", repr))
 							startIdx := strings.Index(repr, "(sn u")
 							if startIdx != -1 {
 								startIdx += 5 // Move past "(sn u"
 								endIdx := strings.Index(repr[startIdx:], ")")
 								if endIdx != -1 {
 									sn := repr[startIdx : startIdx+endIdx]
+									s.log.Info("Successfully extracted sn",
+										zap.String("sn", sn))
 									return sn, nil
 								}
 							}

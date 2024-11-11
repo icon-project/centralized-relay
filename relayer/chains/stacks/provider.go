@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -14,7 +11,6 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
-	"github.com/icon-project/centralized-relay/relayer/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/stacks-go-sdk/pkg/stacks"
 )
@@ -34,13 +30,17 @@ type Provider struct {
 	privateKey          []byte
 	contracts           map[string]providerTypes.EventMap
 	LastSavedHeightFunc func() uint64
-	routerMutex         sync.Mutex
 }
 
 func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath string, debug bool, chainName string) (provider.ChainProvider, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
+
+	log.Info("Initializing Stacks provider",
+		zap.String("nid", c.NID),
+		zap.String("chainName", chainName),
+		zap.String("rpcUrl", c.RPCUrl))
 
 	var network *stacks.StacksNetwork
 	if c.NID == "stacks" {
@@ -51,12 +51,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("no network found for nid: %v", c.NID)
 	}
 
-	dir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-	xcallAbiPath := filepath.Join(dir, "relayer/chains/stacks", "abi", "xcall-proxy-abi.json")
-	client, err := NewClient(log, network, xcallAbiPath)
+	client, err := NewClient(log, network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Stacks client: %v", err)
 	}
@@ -167,7 +162,7 @@ func (p *Provider) SetAdmin(ctx context.Context, newAdmin string) error {
 	return nil
 }
 
-func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID string, timeoutDuration time.Duration) (*types.Receipt, error) {
+func (p *Provider) waitForTransactionConfirmation(ctx context.Context, txID string, timeoutDuration time.Duration) (*providerTypes.Receipt, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

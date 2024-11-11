@@ -155,6 +155,7 @@ type SolanaRelayerChainConfigValue struct {
 }
 
 type StacksRelayerChainConfigValue struct {
+	NID           string            `yaml:"nid" json:"nid"`
 	RPCURL        string            `yaml:"rpc-url"`
 	StartHeight   int               `yaml:"start-height"`
 	Contracts     map[string]string `yaml:"contracts"`

@@ -1,6 +1,7 @@
 chains:
 
   - name: stacks
+    nid: stacks_testnet
     version: "3"
     environment: remote
     rpc_uri: https://api.testnet.hiro.so
@@ -13,6 +14,7 @@ chains:
       type: stacks
       name: stacks
       chain_id: stacks_testnet
+      nid: stacks_testnet
       image:
         repository: blockstack/stacks-blockchain
         version: latest
@@ -27,7 +29,6 @@ chains:
       no_host_mount: false
     contracts:
       xcall-proxy: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-proxy.clar"
-      xcall-abi: "$BASE_PATH/relayer/chains/stacks/abi/xcall-proxy-abi.json"
       connection: "$BASE_PATH/artifacts/stacks/contracts/connections/centralized-connection.clar"
       dapp: "$BASE_PATH/artifacts/stacks/tests/mocks/mock-dapp.clar"
       common-trait: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-common-trait.clar"

@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
-	"github.com/icon-project/stacks-go-sdk/pkg/abi"
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
 	rpcClient "github.com/icon-project/stacks-go-sdk/pkg/rpc_client"
 	"github.com/icon-project/stacks-go-sdk/pkg/stacks"
@@ -28,10 +26,9 @@ type Client struct {
 	log             *zap.Logger
 	pendingRequests map[int64]chan *json.RawMessage
 	network         *stacks.StacksNetwork
-	xCallProxyABI   *abi.ABI
 }
 
-func NewClient(logger *zap.Logger, network *stacks.StacksNetwork, xcallAbiPath string) (*Client, error) {
+func NewClient(logger *zap.Logger, network *stacks.StacksNetwork) (*Client, error) {
 	cfg := blockchainApiClient.NewConfiguration()
 	cfg.Servers = blockchainApiClient.ServerConfigurations{
 		{
@@ -49,23 +46,12 @@ func NewClient(logger *zap.Logger, network *stacks.StacksNetwork, xcallAbiPath s
 	}
 	rpcApiClient := rpcClient.NewAPIClient(rpcCfg)
 
-	xCallProxyABIBytes, err := os.ReadFile(xcallAbiPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read xcall-proxy ABI: %w", err)
-	}
-
-	var xCallProxyABI abi.ABI
-	if err := json.Unmarshal(xCallProxyABIBytes, &xCallProxyABI); err != nil {
-		return nil, fmt.Errorf("failed to parse xcall-proxy ABI: %w", err)
-	}
-
 	return &Client{
 		apiClient:       *apiClient,
 		rpcApiClient:    *rpcApiClient,
 		log:             logger,
 		pendingRequests: make(map[int64]chan *json.RawMessage),
 		network:         network,
-		xCallProxyABI:   &xCallProxyABI,
 	}, nil
 }
 

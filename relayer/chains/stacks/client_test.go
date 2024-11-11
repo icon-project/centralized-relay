@@ -3,7 +3,6 @@ package stacks_test
 import (
 	"context"
 	"encoding/hex"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,8 +18,7 @@ func TestClient_GetAccountBalance(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -38,8 +36,7 @@ func TestClient_GetAccountNonce(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -57,8 +54,7 @@ func TestClient_GetBlockByHeightOrHash(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -85,8 +81,7 @@ func TestClient_GetLatestBlock(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -103,8 +98,7 @@ func TestClient_CallReadOnlyFunction(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -138,8 +132,7 @@ func TestClient_GetCurrentImplementation(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	assert.NoError(t, err, "Failed to create client")
 
 	contractAddress := "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH"
@@ -155,8 +148,7 @@ func TestClient_SetAdmin(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	network := stacksSdk.NewStacksTestnet()
-	xcallAbiPath := filepath.Join("abi", "xcall-proxy-abi.json")
-	client, err := stacks.NewClient(logger, network, xcallAbiPath)
+	client, err := stacks.NewClient(logger, network)
 	assert.NoError(t, err, "Failed to create client")
 
 	contractAddress := "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH.xcall-proxy"

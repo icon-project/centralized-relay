@@ -81,17 +81,29 @@ func (l *EventListener) connect() error {
 	defer l.mu.Unlock()
 
 	if l.conn != nil {
+		l.log.Debug("Closing existing connection")
 		l.conn.Close()
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(l.wsURL, nil)
+	l.log.Info("Attempting WebSocket connection", zap.String("url", l.wsURL))
+
+	conn, resp, err := websocket.DefaultDialer.Dial(l.wsURL, nil)
 	if err != nil {
+		if resp != nil {
+			l.log.Error("WebSocket connection failed",
+				zap.Error(err),
+				zap.Int("status", resp.StatusCode),
+				zap.String("status_text", resp.Status))
+		} else {
+			l.log.Error("WebSocket connection failed with no response",
+				zap.Error(err))
+		}
 		return err
 	}
 
 	l.conn = conn
+	l.log.Info("WebSocket connection established")
 
-	// Subscribe to all event types
 	for _, eventType := range []string{EmitMessage, CallMessage, RollbackMessage} {
 		if err := l.subscribe(eventType); err != nil {
 			l.conn.Close()
