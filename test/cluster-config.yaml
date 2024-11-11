@@ -7,8 +7,8 @@ chains:
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     cluster_relay_wallet : 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
     keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-    cluster_key: 28759381583487852588425375082421304030329885952164936953480667105646303679692
-    follower_cluster_key: 1473934270070384092076700874851287074542993531271188420327989793166852543013
+    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
+    follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
     chain_config:
       type: evm
       name: foundry
@@ -40,8 +40,8 @@ chains:
     cluster_relay_wallet : hxac1f0b75d2c05692fdea027fdd0d8475650c72d6
     contracts_path: "$BASE_PATH/artifacts/icon"
     config_path: "$BASE_PATH/test/chains/icon/data"
-    cluster_key: 28759381583487852588425375082421304030329885952164936953480667105646303679692
-    follower_cluster_key: 1473934270070384092076700874851287074542993531271188420327989793166852543013
+    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
+    follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
     # for testing with local chains with self signed certs
     # cert_path: /Users/home/centralized-relay/rootCA/
     chain_config:
@@ -97,11 +97,11 @@ relayer:
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
-    cluster_key: "28759381583487852588425375082421304030329885952164936953480667105646303679692"
+    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
 relayer-follower:
     image: relayer/relayer
     tag: cluster
     kms_id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
     # kms_url is required in case of local kms is being used
     kms_url: http://docker.for.mac.host.internal:8088
-    cluster_key: "1473934270070384092076700874851287074542993531271188420327989793166852543013"
+    cluster_key: "04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095"

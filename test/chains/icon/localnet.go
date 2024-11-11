@@ -580,11 +580,12 @@ func (in *IconRemotenet) FindRollbackExecutedMessage(ctx context.Context, startH
 	}
 	return "0", nil
 }
-
 func (in *IconRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains []chains.Chain) error {
 	xcall := in.IBCAddresses["xcall"]
+	validators := []string{in.testconfig.ClusterKey, in.testconfig.FollowerClusterKey}
 
-	validators := []string{in.testconfig.RelayWalletAddress, xcall}
+	relayers := []string{in.testconfig.RelayWalletAddress, in.testconfig.ClusterRelayWalletAddress}
+
 	aggregator, err := in.DeployContractRemote(ctx, in.scorePaths["aggregator"],
 		in.keystorePath, `{"_admin":"`+in.testconfig.RelayWalletAddress+`"}`)
 	if err != nil {
@@ -610,7 +611,8 @@ func (in *IconRemotenet) DeployNSetupClusterContracts(ctx context.Context, chain
 	}
 	data["from"] = in.testconfig.RelayWalletAddress
 	data["to"] = in.GetContractAddress("aggregator")
-	data["newRelayers"] = validators
+	datum := data["data"].(map[string]interface{})["params"].(map[string]interface{})
+	datum["newRelayers"] = relayers
 	updatedJSON, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		log.Fatalf("Error marshaling JSON: %s", err)
@@ -650,7 +652,8 @@ func (in *IconRemotenet) DeployNSetupClusterContracts(ctx context.Context, chain
 	}
 	data["from"] = in.testconfig.RelayWalletAddress
 	data["to"] = connection
-	data["_validators"] = validators
+	datum = data["data"].(map[string]interface{})["params"].(map[string]interface{})
+	datum["_validators"] = validators
 	updatedJSON, err = json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		log.Fatalf("Error marshaling JSON: %s", err)
