@@ -1,9 +1,44 @@
 chains:  
+  - name: archway
+    version: "3"
+    environment: preconfigure
+    contracts_path: "$BASE_PATH/artifacts/archway"
+    config_path: "$BASE_PATH/test/chains/cosmos/data"
+    rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc/
+    relay_wallet: archway1x394ype3x8nt9wz0j78m8c8kcezpslrcnvs6ef
+    cluster_relay_wallet : archway1fcg726trzj08h02sgetc6pct6jjp0aggsdmhzd
+    grpc_uri: tt.net.solidwallet.io:443
+    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
+    follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/home/centralized-relay/rootCA/
+    keystore_file: relayer
+    chain_config:
+      type: wasm
+      name: archway
+      chain_id: localnet-1
+      bin: archwayd
+      image:
+        repository: ghcr.io/archway-network/archwayd-dev
+        version: v6.0.1-amd64
+        uid_gid: ""
+      bech32_prefix: archway
+      denom: arch
+      coin_type: 118
+      gas_prices: 0.000arch
+      gas_adjustment: 1.3
+      trusting_period: 508h
+      no_host_mount: false
+      nid: localnet-1
+    contracts:
+      xcall: "$BASE_PATH/artifacts/archway/cw_xcall_latest.wasm"
+      cluster-connection: "$BASE_PATH/artifacts/archway/cluster_connection.wasm"
+      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"
   - name: foundry
     version: "3"
     environment: remote
-    rpc_uri: http://docker.for.mac.host.internal:8545
-    websocket_uri: ws://docker.for.mac.host.internal:8545
+    rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
+    websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
     relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     cluster_relay_wallet : 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
     keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -32,8 +67,8 @@ chains:
       cluster-connection: "$BASE_PATH/artifacts/evm/ClusterConnection"
   - name: icon
     version: "3"
-    environment: remote
-    rpc_uri: http://docker.for.mac.host.internal:9082/api/v3/ 
+    environment: preconfigure
+    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
     keystore_file: godwallet.json
     keystore_password: gochain
     relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
