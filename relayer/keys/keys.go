@@ -79,7 +79,7 @@ func (pair *secp256k1Keypair) PrivateKey() []byte {
 }
 
 func (pair *secp256k1Keypair) PublicKey() PublicKey {
-	return PublicKey(pair.pk.PubKey().SerializeCompressed())
+	return PublicKey(pair.pk.PubKey().SerializeUncompressed())
 }
 
 func (pair *secp256k1Keypair) Scheme() SignatureScheme {
@@ -96,9 +96,9 @@ func (pair *secp256k1Keypair) VerifySignature(msg []byte, signature []byte) (pub
 		return nil, err
 	}
 
-	if !slices.Equal(pair.PublicKey(), publicKey.SerializeCompressed()) {
+	if !slices.Equal(pair.PublicKey(), publicKey.SerializeUncompressed()) {
 		return nil, fmt.Errorf("signature verification failed: wrong signer")
 	}
 
-	return publicKey.SerializeCompressed(), nil
+	return publicKey.SerializeUncompressed(), nil
 }
