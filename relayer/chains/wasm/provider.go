@@ -199,6 +199,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	case events.CallMessage, events.RollbackMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
+	case events.PacketAcknowledged:
+		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
@@ -772,6 +774,9 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	case events.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
 		return jsoniter.Marshal(rcvMsg)
+	case events.PacketAcknowledged:
+		clusterRcvMsg := types.NewExecClusterRecvMsg(message)
+		return jsoniter.Marshal(clusterRcvMsg)
 	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
 		return jsoniter.Marshal(execMsg)
