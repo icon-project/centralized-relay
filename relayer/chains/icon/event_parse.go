@@ -213,11 +213,11 @@ func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotif
 	}
 
 	wrappedDestination := e.Data[2]
-	data, err := types.HexBytes(e.Data[3]).Value()
+	data, err := types.HexBytes(e.Data[4]).Value()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
 	}
-	dstConnAddress := e.Data[4]
+	dstConnAddress := e.Data[3]
 
 	return &providerTypes.Message{
 		MessageHeight:       height,

@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"context"
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -15,12 +12,15 @@ import (
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/solana"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
 
+	ecr "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/icon-project/centralized-relay/relayer"
 	"github.com/icon-project/centralized-relay/relayer/chains/evm"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon"
@@ -158,14 +158,22 @@ func (c ClusterConfig) SignMessage(msg *relayertypes.Message) ([]byte, error) {
 	if c.privateKey == nil {
 		return nil, errors.New("private key is nil")
 	}
+	encodedData := c.rlpEncodeData(msg)
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write(encodedData)
+	msgHash := hash.Sum(nil)
+	return ecr.Sign(msgHash[:], c.privateKey)
+}
 
-	msgBytes := []byte(msg.Src)
-	snBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(snBytes, msg.Sn.Uint64())
-	msgBytes = append(msgBytes, snBytes...)
-	msgBytes = append(msgBytes, msg.Data...)
-
-	return c.privateKey.Sign(rand.Reader, msgBytes, crypto.SHA256)
+func (ClusterConfig) rlpEncodeData(msg *relayertypes.Message) []byte {
+	stream := rlp.NewEncoderBuffer(nil)
+	index := stream.List()
+	stream.WriteString(msg.Src)
+	stream.WriteBigInt(msg.Sn)
+	stream.WriteBytes(msg.Data)
+	stream.ListEnd(index)
+	encodedData := stream.ToBytes()
+	return encodedData
 }
 
 func (c ClusterConfig) VerifySignature(msg, sig []byte) error {

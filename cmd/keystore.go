@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	ecr "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
@@ -71,7 +74,7 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 		Use:   "gen-cluster-key",
 		Short: "generate cluster key",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			priv, err := ecdsa.GenerateKey(ecr.S256(), rand.Reader)
 			if err != nil {
 				return err
 			}
@@ -83,7 +86,8 @@ func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
 			if err := os.MkdirAll(privKeyPath, 0o755); err != nil {
 				return err
 			}
-			pubKey := priv.X.String()
+			pubKeyBytes := crypto.FromECDSAPub(&priv.PublicKey)
+			pubKey := hex.EncodeToString(pubKeyBytes)
 			if err := os.WriteFile(filepath.Join(privKeyPath, pubKey), privBytes, 0o600); err != nil {
 				return err
 			}
