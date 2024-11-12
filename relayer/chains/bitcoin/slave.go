@@ -53,7 +53,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 			http.Error(w, "Error decoding request body", http.StatusInternalServerError)
 			return
 		}
-		sigs, _ := buildAndSignTxFromDbMessage(rsi.MsgSn, p)
+		sigs, _ := buildAndSignTxFromDbMessage(rsi.MsgSn, rsi.FeeRate, p)
 		// return sigs to master
 		returnData, _ := json.Marshal(sigs)
 		w.Write(returnData)
@@ -63,7 +63,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 	}
 }
 
-func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
+func buildAndSignTxFromDbMessage(sn string, feeRate int, p *Provider) ([][]byte, error) {
 	p.logger.Info("Slave start to build and sign tx from db message", zap.String("sn", sn))
 	key := sn
 	data, err := p.db.Get([]byte(key), nil)
@@ -73,7 +73,7 @@ func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
 
 	if strings.Contains(sn, "RB") {
 		p.logger.Info("Rollback message", zap.String("sn", sn))
-		// return nil, nil
+		return nil, nil
 	}
 
 	var message *relayTypes.Message
@@ -82,7 +82,7 @@ func buildAndSignTxFromDbMessage(sn string, p *Provider) ([][]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, err := p.HandleBitcoinMessageTx(message)
+	_, _, _, relayerSigns, _, err := p.HandleBitcoinMessageTx(message, feeRate)
 	if err != nil {
 		return nil, err
 	}

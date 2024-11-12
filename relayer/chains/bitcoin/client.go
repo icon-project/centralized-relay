@@ -20,7 +20,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
-type FeeResponse struct {
+type MempoolFeeResponse struct {
 	FastestFee  uint64 `json:"fastestFee"`
 	HalfHourFee uint64 `json:"halfHourFee"`
 	HourFee     uint64 `json:"hourFee"`
@@ -42,7 +42,7 @@ type IClient interface {
 	DecodeAddress(btcAddr string) ([]byte, error)
 	TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearchRes, error)
 	SendRawTransaction(ctx context.Context, url string, rawMsg []json.RawMessage) (string, error)
-	SendRawTransactionV2(rpcUrl string, txHex string) (string, error)
+	SendRawTxByRpc(rpcUrl string, txHex string) (string, error)
 }
 
 // grouped rpc api clients
@@ -134,7 +134,7 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 
 		// Print the block hash to a string
 		blockHashStr := fmt.Sprintf("%v", blockHash)
-		c.log.Info("Block Hash", zap.String("blockHash", blockHashStr))
+		c.log.Info("Block Hash", zap.String("blockHash", blockHashStr), zap.Uint64("height", i))
 
 		block, err := c.client.GetBlock(blockHash)
 		if err != nil {
@@ -189,7 +189,7 @@ func (c *Client) SendRawTransaction(ctx context.Context, rpcUrl string, rawMsg [
 	return string(body), nil
 }
 
-func (c *Client) SendRawTransactionV2(rpcUrl string, txHex string) (string, error) {
+func (c *Client) SendRawTxByRpc(rpcUrl string, txHex string) (string, error) {
 	if len(txHex) == 0 {
 		return "", fmt.Errorf("empty transaction hex")
 	}
@@ -233,7 +233,7 @@ func (c *Client) GetFeeFromMempool(mempoolURL string) (uint64, error) {
 		c.log.Error("Error reading response: %v", zap.Error(err))
 	}
 
-	var feeResponse FeeResponse
+	var feeResponse MempoolFeeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&feeResponse); err != nil {
 		return 0, err
 	}

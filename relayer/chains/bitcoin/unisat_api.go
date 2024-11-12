@@ -213,6 +213,22 @@ type ResponseUtxoRuneBalance struct {
 	Data []RuneDetail `json:"data"`
 }
 
+type ResponseFeeSummary struct {
+	Code    int        `json:"code"`
+	Message string     `json:"msg"`
+	Data    FeeSummary `json:"data"`
+}
+
+type FeeSummary struct {
+	List []FeeSummaryDetail `json:"list"`
+}
+
+type FeeSummaryDetail struct {
+	Title   string `json:"title"`
+	FeeRate int    `json:"feeRate"`
+	Desc    string `json:"desc"`
+}
+
 func BtcUtxoUrl(server, address string, offset, limit int64) string {
 	return fmt.Sprintf("%s/v1/indexer/address/%s/utxo-data?cursor=%d&size=%d", server, address, offset, limit)
 }
@@ -223,6 +239,10 @@ func RuneUtxoUrl(server, address, runeId string, offset, limit int64) string {
 
 func UtxoRuneBalanceUrl(server, txId string, index int) string {
 	return fmt.Sprintf("%s/v1/indexer/runes/utxo/%s/%d/balance", server, txId, index)
+}
+
+func FeeSummaryUrl(server string) string {
+	return fmt.Sprintf("%s/v5/default/fee-summary", server)
 }
 
 func GetWithHeader(ctx context.Context, url string, header map[string]string, response interface{}) error {
@@ -274,4 +294,25 @@ func GetUtxoRuneBalance(ctx context.Context, server, bear, txId string, index in
 	url := UtxoRuneBalanceUrl(server, txId, index)
 	err := GetWithBear(ctx, url, bear, &resp)
 	return resp, err
+}
+
+func GetFeeSummary(ctx context.Context, server string) (ResponseFeeSummary, error) {
+	var resp ResponseFeeSummary
+	url := FeeSummaryUrl(server)
+	err := GetWithHeader(ctx, url, nil, &resp)
+	return resp, err
+}
+
+func GetFastestFee(ctx context.Context, server string) (int, error) {
+	resp, err := GetFeeSummary(ctx, server)
+	if err != nil {
+		return 0, err
+	}
+	fastestFee := resp.Data.List[0].FeeRate
+	for _, detail := range resp.Data.List {
+		if detail.Title == "Fast" {
+			fastestFee = detail.FeeRate
+		}
+	}
+	return fastestFee, nil
 }

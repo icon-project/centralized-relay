@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcd/btcutil"
 )
 
 func TransposeSigs(sigs [][][]byte) [][][]byte {
@@ -22,7 +22,9 @@ func TransposeSigs(sigs [][][]byte) [][][]byte {
 	}
 	for i := 0; i < xl; i++ {
 		for j := 0; j < yl; j++ {
-			result[i][j] = sigs[j][i]
+			if len(sigs[j]) > i {
+				result[i][j] = sigs[j][i]
+			}
 		}
 	}
 
@@ -157,7 +159,7 @@ func CombineTapMultisig(
 		if bytes.Equal(inputs[idx].PkScript, multisigWallet.PKScript) {
 			reverseV := [][]byte{}
 			for i := len(v) - 1; i >= 0; i-- {
-				if (len(v[i]) != 0) {
+				if len(v[i]) != 0 {
 					reverseV = append(reverseV, v[i])
 				}
 			}
