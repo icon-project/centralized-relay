@@ -13,7 +13,7 @@ import (
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	// TODO: remove this after testing
-	if message.Src == "0x2.icon" || message.Dst == "0x2.icon" {
+	if (message.Src == "0x2.icon" || message.Src == "0x2.btc") && message.Dst == "0x2.icon" {
 		p.log.Info("starting to route message", zap.Any("message", message))
 		iconMessage, err := p.MakeIconMessage(message)
 

@@ -53,15 +53,16 @@ type ChainProvider interface {
 
 // CommonConfig is the common configuration for all chain providers
 type CommonConfig struct {
-	ChainName     string                  `json:"-" yaml:"-"`
-	RPCUrl        string                  `json:"rpc-url" yaml:"rpc-url"`
-	StartHeight   uint64                  `json:"start-height" yaml:"start-height"`
-	Address       string                  `json:"address" yaml:"address"`
-	Contracts     types.ContractConfigMap `json:"contracts" yaml:"contracts"`
-	FinalityBlock uint64                  `json:"finality-block" yaml:"finality-block"`
-	NID           string                  `json:"nid" yaml:"nid"`
-	HomeDir       string                  `json:"-" yaml:"-"`
-	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+	ChainName      string                  `json:"-" yaml:"-"`
+	RPCUrl         string                  `json:"rpc-url" yaml:"rpc-url"`
+	BroadcastTxUrl string                  `json:"broadcast-tx-url" yaml:"broadcast-tx-url"`
+	StartHeight    uint64                  `json:"start-height" yaml:"start-height"`
+	Address        string                  `json:"address" yaml:"address"`
+	Contracts      types.ContractConfigMap `json:"contracts" yaml:"contracts"`
+	FinalityBlock  uint64                  `json:"finality-block" yaml:"finality-block"`
+	NID            string                  `json:"nid" yaml:"nid"`
+	HomeDir        string                  `json:"-" yaml:"-"`
+	Disabled       bool                    `json:"disabled" yaml:"disabled"`
 }
 
 // Enabled returns true if the provider is enabled

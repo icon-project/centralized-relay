@@ -46,7 +46,7 @@ var (
 	MasterMode             = "master"
 	SlaveMode              = "slave"
 	BtcDB                  = "btc.db"
-	MinSatsRequired  int64 = 1000
+	MinSatsRequired  int64 = 546
 	WitnessSize            = 125
 )
 
@@ -473,7 +473,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 				Edicts: []runestone.Edict{
 					{
 						ID:     *runeRequired,
-						Amount: uint128.FromBig(amount),
+						Amount: runeAmountRequired,
 						Output: 0,
 					},
 				},
@@ -618,6 +618,9 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 		if err != nil {
 			return nil, err
 		}
+		if len(runeInputs) == 0 {
+			return nil, fmt.Errorf("no rune UTXOs found")
+		}
 		inputs = append(inputs, runeInputs...)
 	}
 
@@ -626,6 +629,9 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, addressPkScript)
 	if err != nil {
 		return nil, err
+	}
+	if len(bitcoinInputs) == 0 {
+		return nil, fmt.Errorf("no bitcoin UTXOs found")
 	}
 	inputs = append(inputs, bitcoinInputs...)
 
@@ -694,7 +700,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 				p.logger.Error("failed to store message in LevelDB: %v", zap.Error(err))
 				return err
 			}
-			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)))
+			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)), zap.Any("message", message))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
 
@@ -738,7 +744,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			// Broadcast transaction to bitcoin network
 			// txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
 
-			txHash, err := p.client.SendRawTxByRpc(p.cfg.RPCUrl, signedMsgTxHex)
+			txHash, err := p.client.SendRawTxByRpc(p.cfg.BroadcastTxUrl, signedMsgTxHex)
 			if err != nil {
 				p.removeCachedSpentUTXOs(inputs)
 				p.logger.Error("failed to send raw transaction", zap.Error(err))
@@ -1229,6 +1235,9 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to store rollback message data: %v", err)
 	}
+	if p.cfg.Mode == SlaveMode {
+		return nil, nil
+	}
 	return relayMessage, nil
 }
 
@@ -1293,6 +1302,9 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayT
 		msg, err := p.parseMessageFromTx(resultTx)
 		if err != nil {
 			return nil, err
+		}
+		if msg == nil {
+			continue
 		}
 
 		msg.MessageHeight = resultTx.Height
