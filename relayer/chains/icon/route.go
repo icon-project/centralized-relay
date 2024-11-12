@@ -94,7 +94,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 		msg := &types.SubmitPacket{
 			Data:           types.NewHexBytes(message.Data),
 			Sn:             types.NewHexInt(message.Sn.Int64()),
-			Height:         types.NewHexInt(int64(message.MessageHeight)),
+			Height:         types.NewHexInt(message.WrappedSourceHeight.Int64()),
 			Source:         message.Src,
 			Destination:    message.Dst,
 			SrcConnAddress: message.SrcConnAddress,
