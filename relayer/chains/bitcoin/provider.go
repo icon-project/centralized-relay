@@ -72,7 +72,8 @@ type CSMessageResult struct {
 }
 
 type slaveRequestParams struct {
-	MsgSn string `json:"msgSn"`
+	MsgSn   string `json:"msgSn"`
+	FeeRate int    `json:"feeRate"`
 }
 type StoredMessageData struct {
 	OriginalMessage  *relayTypes.Message
@@ -105,6 +106,7 @@ type Config struct {
 	RequestTimeout        int      `json:"request-timeout" yaml:"request-timeout"` // seconds
 	UniSatURL             string   `json:"unisat-url" yaml:"unisat-url"`
 	UniSatKey             string   `json:"unisat-key" yaml:"unisat-key"`
+	UniSatWalletURL       string   `json:"unisat-wallet-url" yaml:"unisat-wallet-url"`
 	MempoolURL            string   `json:"mempool-url" yaml:"mempool-url"`
 	Type                  string   `json:"type" yaml:"type"`
 	User                  string   `json:"rpc-user" yaml:"rpc-user"`
@@ -140,7 +142,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("failed to open or create database: %v", err)
 	}
 
-	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, false, log)
+	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, true, log)
 	if err != nil {
 		db.Close() // Close the database if client creation fails
 		return nil, fmt.Errorf("failed to create new client: %v", err)
@@ -267,7 +269,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		p.logger.Error("failed to determine start height", zap.Error(err))
 		return err
 	}
-	// startHeight := uint64(3082427)
 
 	pollHeightTicker := time.NewTicker(time.Second * 60) // do scan each 2 mins
 	pollHeightTicker.Stop()
@@ -277,16 +278,21 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	for {
 		select {
 		case <-pollHeightTicker.C:
-			//pollHeightTicker.Stop()
-			//startHeight = p.GetLastSavedHeight()
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
 				continue
 			}
 		default:
-			if startHeight < latestHeight {
-				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
+			toHeight := latestHeight
+			if p.cfg.Mode == MasterMode {
+				// master mode should query slower slave 1 block
+				// for ensure slave cache tx data before calling to get signed tx
+				toHeight = latestHeight - 1
+			}
+
+			if startHeight < toHeight {
+				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", toHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 			}
 		}
@@ -316,8 +322,8 @@ func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
 	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
 }
 
-func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, timeout int64, addressPkScript []byte) ([]*multisig.Input, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
+func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, addressPkScript []byte) ([]*multisig.Input, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
 	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 64)
@@ -337,6 +343,10 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 		if totalAmount >= amountRequired {
 			break
 		}
+		isSpent, _ := p.isSpentUTXO(utxo.TxId, utxo.Vout)
+		if isSpent {
+			continue
+		}
 		outputAmount := utxo.Satoshi.Int64()
 		inputs = append(inputs, &multisig.Input{
 			TxHash:       utxo.TxId,
@@ -350,8 +360,8 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 	return inputs, nil
 }
 
-func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, timeout int64, addressPkScript []byte) ([]*multisig.Input, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
+func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, addressPkScript []byte) ([]*multisig.Input, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
 	defer cancel()
 	// TODO: loop query until sastified amountRequired
 	resp, err := GetRuneUtxo(ctx, server, p.cfg.UniSatKey, address, runeId, 0, 64)
@@ -371,15 +381,20 @@ func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired u
 		if totalAmount.Cmp(amountRequired) >= 0 {
 			break
 		}
+		if len(utxo.Runes) != 1 {
+			// return nil, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
+			continue
+		}
+		isSpent, _ := p.isSpentUTXO(utxo.TxId, utxo.Vout)
+		if isSpent {
+			continue
+		}
 		inputs = append(inputs, &multisig.Input{
 			TxHash:       utxo.TxId,
 			OutputIdx:    uint32(utxo.Vout),
 			OutputAmount: utxo.Satoshi.Int64(),
 			PkScript:     addressPkScript,
 		})
-		if len(utxo.Runes) != 1 {
-			return nil, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
-		}
 		runeAmount, _ := uint128.FromString(utxo.Runes[0].Amount)
 		totalAmount = totalAmount.Add(runeAmount)
 	}
@@ -387,14 +402,24 @@ func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired u
 	return inputs, nil
 }
 
-func (p *Provider) GetUTXORuneBalance(server, txId string, index int, timeout int64) (*ResponseUtxoRuneBalance, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*timeout))
+func (p *Provider) GetUTXORuneBalance(server, txId string, index int) (*ResponseUtxoRuneBalance, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
 	defer cancel()
 	resp, err := GetUtxoRuneBalance(ctx, server, p.cfg.UniSatKey, txId, index)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query rune UTXO balance from unisat: %v", err)
 	}
 	return &resp, nil
+}
+
+func (p *Provider) GetFastestFee() (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
+	defer cancel()
+	fastestFee, err := GetFastestFee(ctx, p.cfg.UniSatWalletURL)
+	if err != nil {
+		return 0, err
+	}
+	return fastestFee, nil
 }
 
 func (p *Provider) CreateBitcoinMultisigTx(
@@ -480,6 +505,9 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			bitcoinAmountRequired = MinSatsRequired * 2
 		}
 	} else if decodedData.Action == MethodRefundTo {
+		if decodedData.TokenAddress != BTCToken {
+			return nil, nil, fmt.Errorf("refund is only supported for btc token, current token: %s", decodedData.TokenAddress)
+		}
 		uintAmount := amount.Uint64()
 		bitcoinAmountRequired = int64(uintAmount)
 		outputs = []*wire.TxOut{
@@ -497,12 +525,21 @@ func (p *Provider) CreateBitcoinMultisigTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	if estFee > bitcoinAmountRequired && decodedData.Action == MethodRefundTo {
-		return nil, nil, fmt.Errorf("estimated fee is greater than the amount")
+
+	if decodedData.Action == MethodRefundTo {
+		if estFee >= bitcoinAmountRequired {
+			return nil, nil, fmt.Errorf("estimated fee is greater than the amount")
+		} else {
+			for _, output := range outputs {
+				if bytes.Equal(output.PkScript, receiverPkScript) {
+					output.Value = bitcoinAmountRequired - estFee
+					break
+				}
+			}
+		}
 	}
 	// create raw tx
 	msgTx, err := multisig.CreateTx(inputs, outputs, msWallet.PKScript, estFee, 0)
-	// msgTx, hexRawTx, txSigHashes, err := multisig.CreateMultisigTx(inputs, outputs, estFee, msWallet, nil, p.chainParam, msAddressStr, 0)
 
 	return inputs, msgTx, err
 }
@@ -577,7 +614,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 	inputs := []*multisig.Input{}
 	if !runeToSend.IsZero() {
 		// query rune UTXOs from unisat
-		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, int64(p.cfg.RequestTimeout), addressPkScript)
+		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, addressPkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -586,7 +623,7 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 
 	// TODO: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
 	// query bitcoin UTXOs from unisat
-	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, int64(p.cfg.RequestTimeout), addressPkScript)
+	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, addressPkScript)
 	if err != nil {
 		return nil, err
 	}
@@ -617,35 +654,37 @@ func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	return msWallet, nil
 }
 
-func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message) ([]*multisig.Input, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, error) {
+func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate int) ([]*multisig.Input, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, int, error) {
 	msWallet, err := p.buildMultisigWallet()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, 0, err
 	}
-	feeRate, err := p.client.GetFeeFromMempool(p.cfg.MempoolURL + "/fees/recommended")
-	if err != nil {
-		p.logger.Error("failed to get recommended fee from mempool", zap.Error(err))
-		feeRate = 1
+	if feeRate == 0 {
+		feeRate, err = p.GetFastestFee()
+		if err != nil {
+			p.logger.Error("failed to get fastest fee from unisat", zap.Error(err))
+			feeRate = 1
+		}
 	}
 	inputs, msgTx, err := p.buildTxMessage(message, int64(feeRate), msWallet)
 	if err != nil {
 		p.logger.Error("failed to build tx message: %v", zap.Error(err))
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, 0, err
 	}
 	relayerSigs, err := multisig.SignTapMultisig(p.cfg.RelayerPrivKey, msgTx, inputs, msWallet, 0)
 	if err != nil {
 		p.logger.Error("failed to sign tx message: %v", zap.Error(err))
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, 0, err
 	}
-	return inputs, msWallet, msgTx, relayerSigs, err
+	return inputs, msWallet, msgTx, relayerSigs, feeRate, err
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message", zap.Any("message", message))
 
 	messageDstDetail := strings.Split(message.Dst, ".")
-	if strings.Split(message.Src, ".")[1] == "icon" && messageDstDetail[1] == "btc" {
-
+	messageSrcDetail := strings.Split(message.Src, ".")
+	if (messageSrcDetail[1] == "icon" || messageSrcDetail[1] == "btc") && messageDstDetail[1] == "btc" {
 		if p.cfg.Mode == SlaveMode {
 			// store the message in LevelDB
 			key := []byte(message.Sn.String())
@@ -659,7 +698,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			return nil
 		} else if p.cfg.Mode == MasterMode {
 
-			inputs, msWallet, msgTx, relayerSigs, err := p.HandleBitcoinMessageTx(message)
+			inputs, msWallet, msgTx, relayerSigs, feeRate, err := p.HandleBitcoinMessageTx(message, 0)
 			if err != nil {
 				p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
 				return err
@@ -667,7 +706,8 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			totalSigs := [][][]byte{relayerSigs}
 			// send unsigned raw tx and message sn to 2 slave relayers to get sign
 			rsi := slaveRequestParams{
-				MsgSn: message.Sn.String(),
+				MsgSn:   message.Sn.String(),
+				FeeRate: feeRate,
 			}
 
 			slaveRequestData, _ := json.Marshal(rsi)
@@ -693,20 +733,49 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			signedMsgTxHex := hex.EncodeToString(buf.Bytes())
 			p.logger.Info("signedMsgTxHex", zap.String("transaction_hex", signedMsgTxHex))
 
+			p.cacheSpentUTXOs(inputs)
+
 			// Broadcast transaction to bitcoin network
 			// txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
-			txHash, err := p.client.SendRawTransactionV2(p.cfg.RPCUrl, signedMsgTxHex)
+
+			txHash, err := p.client.SendRawTxByRpc(p.cfg.RPCUrl, signedMsgTxHex)
 			if err != nil {
+				p.removeCachedSpentUTXOs(inputs)
 				p.logger.Error("failed to send raw transaction", zap.Error(err))
 				return err
 			}
 
 			p.logger.Info("txHash", zap.String("transaction_hash", txHash))
-			// TODO: After successful broadcast, request slaves to remove the message from LevelDB if it exists
 		}
 
 	}
 	return nil
+}
+
+func (p *Provider) cacheSpentUTXOs(inputs []*multisig.Input) {
+	prefix := fmt.Sprintf("%s_utxo_spent", p.cfg.NID)
+	for _, input := range inputs {
+		key := fmt.Sprintf("%s_%s_%d", prefix, input.TxHash, input.OutputIdx)
+		p.db.Put([]byte(key), []byte{1}, nil)
+	}
+}
+
+func (p *Provider) removeCachedSpentUTXOs(inputs []*multisig.Input) {
+	prefix := fmt.Sprintf("%s_utxo_spent", p.cfg.NID)
+	for _, input := range inputs {
+		key := fmt.Sprintf("%s_%s_%d", prefix, input.TxHash, input.OutputIdx)
+		p.db.Delete([]byte(key), nil)
+	}
+}
+
+func (p *Provider) isSpentUTXO(txHash string, outputIdx int) (bool, error) {
+	prefix := fmt.Sprintf("%s_utxo_spent", p.cfg.NID)
+	key := fmt.Sprintf("%s_%s_%d", prefix, txHash, outputIdx)
+	data, err := p.db.Get([]byte(key), nil)
+	if err != nil {
+		return false, err
+	}
+	return len(data) > 0, nil
 }
 
 // TODO: Implement proper callback handling
@@ -734,7 +803,7 @@ func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, 
 func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, msWallet *multisig.MultisigWallet) ([]*multisig.Input, *wire.MsgTx, error) {
 	outputs := []*wire.TxOut{}
 	decodedData := &MessageDecoded{}
-
+	fmt.Println("eventType: ", message.EventType)
 	switch message.EventType {
 	case events.EmitMessage:
 		messageDecoded, err := p.decodeMessage(message)
@@ -766,10 +835,10 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 				Action:       storedData.ActionMethod,
 				To:           storedData.SenderAddress,
 				TokenAddress: storedData.TokenAddress,
-				Amount:       []byte(fmt.Sprintf("%d", storedData.Amount)),
+				Amount:       uint64ToBytes(storedData.Amount),
 			}
 			if storedData.RuneId != "" {
-				decodedData.Amount = []byte(fmt.Sprintf("%d", storedData.RuneAmount))
+				decodedData.Amount = uint64ToBytes(storedData.RuneAmount)
 			}
 		} else {
 			// Perform WithdrawData
@@ -1155,6 +1224,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		return nil, fmt.Errorf("failed to marshal stored rollback message data: %v", err)
 	}
 	key := "RB" + sn.String()
+	p.logger.Info("stored rollback message key", zap.String("key", key))
 	err = p.db.Put([]byte(key), data, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store rollback message data: %v", err)
@@ -1185,7 +1255,7 @@ func (p *Provider) verifyBridgeTx(tx *TxSearchRes, messageInfo *multisig.XCallMe
 				messageInfo.Amount = btcAmount.Bytes()
 			}
 		} else {
-			runes, err := p.GetUTXORuneBalance(p.cfg.UniSatURL, tx.Tx.TxHash().String(), i, int64(p.cfg.RequestTimeout))
+			runes, err := p.GetUTXORuneBalance(p.cfg.UniSatURL, tx.Tx.TxHash().String(), i)
 			if err != nil {
 				return "", nil, false, err
 			}
