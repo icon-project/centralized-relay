@@ -31,7 +31,42 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		txInfo.TxDigest = p.cfg.StartTxDigest
 	}
 
+	if txInfo.TxDigest == "" {
+		latestTx, err := p.getLatestXcallTransaction()
+		if err != nil {
+			p.log.Error("failed to get latest xcall transaction", zap.Error(err))
+			return err
+		}
+		if latestTx != nil {
+			txInfo.TxDigest = latestTx.Digest.String()
+		}
+	}
+
 	return p.listenByPolling(ctx, txInfo.TxDigest, blockInfo)
+}
+
+func (p *Provider) getLatestXcallTransaction() (*cctypes.SuiTransactionBlockResponse, error) {
+	inputObj, err := sui_types.NewObjectIdFromHex(p.cfg.XcallStorageID)
+	if err != nil {
+		return nil, err
+	}
+	query := cctypes.SuiTransactionBlockResponseQuery{
+		Filter: &cctypes.TransactionFilter{
+			InputObject: inputObj,
+		},
+	}
+	limit := uint(1)
+
+	res, err := p.client.QueryTxBlocks(context.Background(), query, nil, &limit, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res.Data) > 0 {
+		return &res.Data[0], nil
+	}
+
+	return nil, nil
 }
 
 func (p *Provider) shouldSkipMessage(msg *relayertypes.Message) bool {
@@ -216,19 +251,19 @@ func (p *Provider) handleEventNotification(ctx context.Context, ev types.EventRe
 	}
 }
 
-func (p *Provider) listenByPolling(ctx context.Context, lastSavedTxDigestStr string, blockStream chan *relayertypes.BlockInfo) error {
+func (p *Provider) listenByPolling(ctx context.Context, startTxDigestStr string, blockStream chan *relayertypes.BlockInfo) error {
 	done := make(chan interface{})
 	defer close(done)
 
-	var lastSavedTxDigest *sui_types.TransactionDigest
+	var startTxDigest *sui_types.TransactionDigest
 
-	if lastSavedTxDigestStr != "" { //process probably unexplored events of last saved tx digest
+	if startTxDigestStr != "" { //process probably unexplored events of last saved tx digest
 		var err error
-		lastSavedTxDigest, err = sui_types.NewDigest(lastSavedTxDigestStr)
+		startTxDigest, err = sui_types.NewDigest(startTxDigestStr)
 		if err != nil {
 			return err
 		}
-		currentEvents, err := p.client.GetEvents(ctx, *lastSavedTxDigest)
+		currentEvents, err := p.client.GetEvents(ctx, *startTxDigest)
 		if err != nil {
 			return err
 		}
@@ -238,9 +273,9 @@ func (p *Provider) listenByPolling(ctx context.Context, lastSavedTxDigestStr str
 		}
 	}
 
-	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, lastSavedTxDigest)
+	eventStream := p.getObjectEventStream(done, p.cfg.XcallStorageID, startTxDigest)
 
-	p.log.Info("event query started from last saved tx digest", zap.String("last-saved-tx-digest", lastSavedTxDigestStr))
+	p.log.Info("event query started", zap.String("start-tx-digest", startTxDigestStr))
 
 	for {
 		select {

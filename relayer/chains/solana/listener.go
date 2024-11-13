@@ -36,7 +36,18 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		txInfo.TxSign = p.cfg.StartTxSign
 	}
 
-	p.log.Info("started querying from height", zap.String("from-signature", txInfo.TxSign))
+	if txInfo.TxSign == "" {
+		latestTxSign, err := p.getLatestXcallTxSignature()
+		if err != nil {
+			p.log.Error("failed to get latest xcall tx signature", zap.Error(err))
+			return err
+		}
+		if latestTxSign != nil {
+			txInfo.TxSign = latestTxSign.Signature.String()
+		}
+	}
+
+	p.log.Info("started querying", zap.String("from-signature", txInfo.TxSign))
 
 	return p.listenByPolling(ctx, txInfo.TxSign, blockInfo)
 }
@@ -209,6 +220,26 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 	}
 
 	return messages, nil
+}
+
+func (p *Provider) getLatestXcallTxSignature() (*solrpc.TransactionSignature, error) {
+	progId := p.xcallIdl.GetProgramID()
+
+	limit := 1
+	opts := &solrpc.GetSignaturesForAddressOpts{
+		Limit: &limit,
+	}
+
+	txSigns, err := p.client.GetSignaturesForAddress(context.Background(), progId, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(txSigns) > 0 {
+		return txSigns[0], nil
+	}
+
+	return nil, nil
 }
 
 func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
