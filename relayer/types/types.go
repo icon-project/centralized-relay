@@ -227,6 +227,7 @@ func (c *Coin) String() string {
 func (c *Coin) Calculate() string {
 	factor := math.Pow10(c.Decimals)
 	val := new(big.Float).Quo(new(big.Float).SetUint64(c.Amount), big.NewFloat(factor))
+	val = val.SetMode(big.ToNearestEven)
 	return fmt.Sprintf("%.3f", val)
 }
 
