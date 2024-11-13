@@ -169,13 +169,16 @@ func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayertypes
 
 	var amt uint64
 	for _, bal := range account.Balances {
-		balance, err := strconv.Atoi(bal.Balance)
+		balance, err := strconv.ParseFloat(bal.Balance, 64)
 		if err != nil {
 			return nil, err
-		} else {
-			amt = uint64(balance)
-			break
 		}
+		tot, accur := new(big.Float).SetFloat64(balance).Uint64()
+		if accur != big.Exact {
+			accur := big.ToNearestEven
+			tot, _ = new(big.Float).SetFloat64(balance).SetMode(accur).Uint64()
+		}
+		amt += tot
 	}
 
 	return &relayertypes.Coin{
