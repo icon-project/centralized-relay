@@ -308,7 +308,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 			}
 			balance, err := chain.Provider.QueryBalance(ctx, req.Address)
 			if err != nil {
-				balance = types.NewCoin("", 0, 0)
+				balance = types.NewCoin("N/A", 0, 0)
 			}
 			res = append(res, &ResGetBalance{Chain: req.Chain, Address: req.Address, Balance: balance, Value: balance.Calculate()})
 		}
