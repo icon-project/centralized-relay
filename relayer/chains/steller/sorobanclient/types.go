@@ -56,7 +56,7 @@ type TransactionResponse struct {
 	ResultMetaXdr         string `json:"resultMetaXdr"`
 	Ledger                int64  `json:"ledger"`
 	CreatedAt             string `json:"createdAt"`
-	Hash                  string `json:"hash"`
+	Hash                  string
 }
 
 type TxnCreationResponse struct {
