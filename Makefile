@@ -3,7 +3,6 @@ COMMIT  := $(shell git log -1 --format='%H')
 DIRTY := $(shell git status --porcelain | wc -l | xargs)
 GOPATH := $(shell go env GOPATH)
 GOBIN := $(GOPATH)/bin
-CURRENT_PATH := $(shell pwd)
 
 
 all: lint install
@@ -46,7 +45,6 @@ e2e-test:
 	@go test -v ./test/e2e -testify.m TestE2E_all -timeout 30m
 
 e2e-cluster-test:
-	@export TEST_CONFIG_PATH=$(CURRENT_PATH)/test/cluster-config.yaml && \
 	go test -v ./test/e2e -testify.m TestE2E_cluster -timeout 30m
 
 test-all:
