@@ -268,7 +268,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			if r.processClusterEvents(ctx, message, dst, src) {
 				continue
 			}
-
 			// if message reached delete the message
 			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
 			if err != nil {
@@ -401,7 +400,7 @@ func (r *Relayer) callback(ctx context.Context, src, dst *ChainRuntime) types.Tx
 				zap.Uint8("count", routeMessage.Retry),
 			)
 			if r.clusterMode.IsEnabled() && key.EventType == events.EmitMessage {
-				key.Dst = key.Src
+				key.Dst = dst.Provider.NID()
 			}
 
 			// cannot clear incase of finality block
@@ -648,10 +647,6 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 			return
 		}
 		message.SignedData = signature
-		if err != nil {
-			r.log.Error("Error signing message", zap.Error(err))
-			return
-		}
 		r.AcknowledgeClusterMessage(ctx, message, src, iconChain)
 		return
 	}

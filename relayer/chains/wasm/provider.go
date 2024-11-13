@@ -866,6 +866,9 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			}
 			var messages []*relayTypes.Message
 			msgs, err := p.ParseMessageFromEvents(res.Result.Events)
+			for _, msg := range msgs {
+				msg.MessageHeight = uint64(res.Height)
+			}
 			if err != nil {
 				p.logger.Error("failed to parse message from events", zap.Error(err))
 				continue
