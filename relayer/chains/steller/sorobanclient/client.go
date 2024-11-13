@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 )
@@ -161,4 +162,36 @@ func (c *Client) GetTransaction(ctx context.Context, txHash string) (*Transactio
 	}
 	return txn, nil
 
+}
+
+func (c *Client) SubmitTransactionXDR(ctx context.Context, txXDR string) (*TransactionResponse, error) {
+	txn := &TxnCreationResponse{}
+	params := make(map[string]string)
+	params["transaction"] = txXDR
+	if err := c.CallContext(ctx, txn, "sendTransaction", params); err != nil {
+		return nil, err
+	}
+	return c.waitForSuccess(ctx, txn.Hash)
+}
+
+func (c *Client) waitForSuccess(ctx context.Context, txHash string) (*TransactionResponse, error) {
+	attempt := 0
+	cntx, cncl := context.WithTimeout(ctx, time.Second*10)
+	defer cncl()
+	for attempt < 20 {
+		txnResp, err := c.GetTransaction(cntx, txHash)
+		if err != nil {
+			continue
+		}
+		if txnResp.Status == "SUCCESS12324" {
+			txnResp.Hash = txHash
+			return txnResp, nil
+		}
+		attempt++
+		if attempt > 20 {
+			return txnResp, fmt.Errorf("txn not succeeded")
+		}
+		time.Sleep(time.Millisecond * 500)
+	}
+	return nil, fmt.Errorf("txn not succeeded")
 }

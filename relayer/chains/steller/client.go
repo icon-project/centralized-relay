@@ -16,7 +16,7 @@ import (
 type IClient interface {
 	SimulateTransaction(txXDR string) (*sorobanclient.TxSimulationResult, error)
 
-	SubmitTransactionXDR(txXDR string) (horizon.Transaction, error)
+	SubmitTransactionXDR(ctx context.Context, txXDR string) (*sorobanclient.TransactionResponse, error)
 
 	GetTransaction(ctx context.Context, txHash string) (*sorobanclient.TransactionResponse, error)
 
@@ -27,8 +27,6 @@ type IClient interface {
 	GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*sorobanclient.LedgerEventResponse, error)
 
 	ParseTxnEvents(txn *horizon.Transaction, fl types.EventFilter) ([]types.Event, error)
-	LedgerDetail(sequence uint32) (ledger horizon.Ledger, err error)
-	Transactions(request horizonclient.TransactionRequest) (txs horizon.TransactionsPage, err error)
 }
 
 type Client struct {
@@ -40,32 +38,24 @@ func NewClient(hClient *horizonclient.Client, srbClient *sorobanclient.Client) I
 	return &Client{horizon: hClient, soroban: srbClient}
 }
 
+func (cl *Client) AccountDetail(addr string) (horizon.Account, error) {
+	return cl.horizon.AccountDetail(horizonclient.AccountRequest{AccountID: addr})
+}
+
 func (cl *Client) SimulateTransaction(txXDR string) (*sorobanclient.TxSimulationResult, error) {
 	return cl.soroban.SimulateTransaction(txXDR, nil)
 }
 
-func (cl *Client) SubmitTransactionXDR(txXDR string) (horizon.Transaction, error) {
-	return cl.horizon.SubmitTransactionXDR(txXDR)
+func (cl *Client) SubmitTransactionXDR(ctx context.Context, txXDR string) (*sorobanclient.TransactionResponse, error) {
+	return cl.soroban.SubmitTransactionXDR(ctx, txXDR)
 }
 
 func (cl *Client) GetTransaction(ctx context.Context, txHash string) (*sorobanclient.TransactionResponse, error) {
 	return cl.soroban.GetTransaction(ctx, txHash)
 }
 
-func (cl *Client) AccountDetail(addr string) (horizon.Account, error) {
-	return cl.horizon.AccountDetail(horizonclient.AccountRequest{AccountID: addr})
-}
-
 func (cl *Client) GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error) {
 	return cl.soroban.GetLatestLedger(ctx)
-}
-
-func (cl *Client) LedgerDetail(sequence uint32) (ledger horizon.Ledger, err error) {
-	return cl.horizon.LedgerDetail(sequence)
-}
-
-func (cl *Client) Transactions(request horizonclient.TransactionRequest) (txs horizon.TransactionsPage, err error) {
-	return cl.horizon.Transactions(request)
 }
 
 func (cl *Client) GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*sorobanclient.LedgerEventResponse, error) {
