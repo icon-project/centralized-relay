@@ -247,7 +247,7 @@ func (c commander) RelayerCommand(command string, params ...interface{}) []strin
 
 func (c commander) StartRelayer(homeDir string, pathNames ...string) []string {
 	cmd := []string{
-		"centralized-relay", "start", "--debug", "--flush-interval", "40s",
+		"centralized-relay", "start", "--debug", "--flush-interval", "400s",
 	}
 	cmd = append(cmd, c.extraStartFlags...)
 	cmd = append(cmd, pathNames...)

@@ -135,7 +135,6 @@ func (an *EVMRemotenet) GetRelayConfig(ctx context.Context, rlyHome string, keyN
 	contracts := make(map[string]string)
 	contracts["xcall"] = an.GetContractAddress("xcall")
 	contracts["connection"] = an.GetContractAddress("connection")
-
 	config := &centralized.EVMRelayerChainConfig{
 		Type: "evm",
 		Value: centralized.EVMRelayerChainConfigValue{
@@ -278,7 +277,7 @@ func (an *EVMRemotenet) SendPacketXCall(ctx context.Context, keyName, _to string
 	}
 	params := []interface{}{_to, data, rollback}
 	// TODO: send fees
-	ctx, err := an.executeContract(ctx, an.IBCAddresses[dappKey], "sendMessage", params...)
+	ctx, err := an.executeContractWithPwd(ctx, an.IBCAddresses[dappKey], "sendMessage", an.testconfig.DappMsgKeystorePassword, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -450,6 +449,20 @@ func (an *EVMRemotenet) executeContract(ctx context.Context, contractAddress, me
 	//an.CheckForKeyStore(ctx, keyName)
 
 	receipt, err := an.ExecCallTx(ctx, contractAddress, methodName, an.testconfig.KeystorePassword, params...)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Transaction Hash for %s: %s\n", methodName, receipt.TxHash.String())
+
+	return context.WithValue(ctx, "txResult", receipt), nil
+
+}
+
+// executeContract implements chains.Chain
+func (an *EVMRemotenet) executeContractWithPwd(ctx context.Context, contractAddress, methodName, password string, params ...interface{}) (context.Context, error) {
+	//an.CheckForKeyStore(ctx, keyName)
+
+	receipt, err := an.ExecCallTx(ctx, contractAddress, methodName, password, params...)
 	if err != nil {
 		return nil, err
 	}

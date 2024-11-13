@@ -28,6 +28,7 @@ type Chain struct {
 	NID                       string             `mapstructure:"nid"`
 	KeystoreFile              string             `mapstructure:"keystore_file"`
 	KeystorePassword          string             `mapstructure:"keystore_password"`
+	DappMsgKeystorePassword   string             `mapstructure:"dapp_msg_keystore_password"`
 	Contracts                 map[string]string  `mapstructure:"contracts"`
 	RPCUri                    string             `mapstructure:"rpc_uri"`
 	GRPCUri                   string             `mapstructure:"grpc_uri"`

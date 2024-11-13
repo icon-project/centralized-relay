@@ -274,6 +274,9 @@ func (ic *Interchain) BuildClusterRelayer(ctx context.Context, rep *testreporter
 			if !leader {
 				if chainConfig["type"] != "icon" {
 					chainConfig["value"].(map[string]interface{})["disabled"] = true
+				} else {
+					delete(chainConfig["value"].(map[string]interface{})["contracts"].(map[string]interface{}), "connection")
+					delete(chainConfig["value"].(map[string]interface{})["contracts"].(map[string]interface{}), "xcall")
 				}
 				chainConfig["value"].(map[string]interface{})["address"] = c.GetContractAddress("cluster-wallet")
 			}

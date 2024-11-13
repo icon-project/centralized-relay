@@ -1,12 +1,47 @@
 chains:  
+  - name: icon
+    version: "3"
+    environment: remote
+    # rpc_uri: http://docker.for.mac.host.internal:9082/api/v3/
+    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
+    keystore_file: godwallet.json
+    keystore_password: gochain
+    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
+    cluster_relay_wallet : hxac1f0b75d2c05692fdea027fdd0d8475650c72d6    
+    contracts_path: "$BASE_PATH/artifacts/icon"
+    config_path: "$BASE_PATH/test/chains/icon/data"
+    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
+    follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
+    # for testing with local chains with self signed certs
+    # cert_path: /Users/home/centralized-relay/rootCA/
+    chain_config:
+      type: icon
+      name: icon
+      chain_id: icon.local
+      bech32_prefix: hx
+      bin: "/goloop/bin/goloop"
+      image:
+        repository: iconloop/goloop-icon
+        version: latest
+        uid_gid: ""
+    contracts:
+      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
+      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
+      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
+      aggregator: "$BASE_PATH/artifacts/icon/aggregator-0.1.0-optimized.jar"
+      cluster-connection: "$BASE_PATH/artifacts/icon/cluster-connection-0.1.0-optimized.jar"
   - name: foundry
     version: "3"
     environment: remote
+    # rpc_uri: http://docker.for.mac.host.internal:8545
+    # websocket_uri: ws://docker.for.mac.host.internal:8545
     rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc/
     websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc/
-    relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    relay_wallet : 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc
     cluster_relay_wallet : 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
-    keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    cluster_relay_leader_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    keystore_password: 8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+    dapp_msg_keystore_password: 2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
     cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
     follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
     chain_config:
@@ -32,7 +67,7 @@ chains:
       cluster-connection: "$BASE_PATH/artifacts/evm/ClusterConnection"
   - name: archway
     version: "3"
-    environment: preconfigure
+    environment: remote
     contracts_path: "$BASE_PATH/artifacts/archway"
     config_path: "$BASE_PATH/test/chains/cosmos/data"
     rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc/
@@ -64,37 +99,7 @@ chains:
     contracts:
       xcall: "$BASE_PATH/artifacts/archway/cw_xcall_latest.wasm"
       cluster-connection: "$BASE_PATH/artifacts/archway/cluster_connection.wasm"
-      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"  
-  - name: icon
-    version: "3"
-    environment: preconfigure
-    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
-    keystore_file: godwallet.json
-    keystore_password: gochain
-    relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
-    cluster_relay_wallet : hxac1f0b75d2c05692fdea027fdd0d8475650c72d6
-    contracts_path: "$BASE_PATH/artifacts/icon"
-    config_path: "$BASE_PATH/test/chains/icon/data"
-    cluster_key: 044a4c7d9e59db15b03c21a652ff3f2aeff6173ac827033fb9dc40b644a86fdc39a6d895686bcea469da1b847a9bb03efa4691a142c52df49848c9a8faf9b8b7e7
-    follower_cluster_key: 04c12a4997b5d0c46739f8175b6ece15aa79c891776acc7965f9ed68a5108ec93bcd3d4eeaf989e4471450cfcb1f563c10ff43770542d0158d944c5664a90d1095
-    # for testing with local chains with self signed certs
-    # cert_path: /Users/home/centralized-relay/rootCA/
-    chain_config:
-      type: icon
-      name: icon
-      chain_id: icon.local
-      bech32_prefix: hx
-      bin: "/goloop/bin/goloop"
-      image:
-        repository: iconloop/goloop-icon
-        version: latest
-        uid_gid: ""
-    contracts:
-      xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
-      connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
-      dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
-      aggregator: "$BASE_PATH/artifacts/icon/aggregator-0.1.0-optimized.jar"
-      cluster-connection: "$BASE_PATH/artifacts/icon/cluster-connection-0.1.0-optimized.jar"
+      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
   - name: stellar
     version: "3"
     environment: remote
