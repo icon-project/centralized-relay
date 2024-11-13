@@ -18,6 +18,7 @@ import (
 
 const (
 	jsonRPCVersion = "2.0"
+	successStatus  = "SUCCESS"
 )
 
 type Client struct {
@@ -175,23 +176,23 @@ func (c *Client) SubmitTransactionXDR(ctx context.Context, txXDR string) (*Trans
 }
 
 func (c *Client) waitForSuccess(ctx context.Context, txHash string) (*TransactionResponse, error) {
-	attempt := 0
 	cntx, cncl := context.WithTimeout(ctx, time.Second*10)
 	defer cncl()
-	for attempt < 20 {
-		txnResp, err := c.GetTransaction(cntx, txHash)
-		if err != nil {
-			continue
+	ticker := time.NewTicker(time.Millisecond * 500)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-cntx.Done():
+			return nil, cntx.Err()
+		case <-ticker.C:
+			txnResp, err := c.GetTransaction(cntx, txHash)
+			if err != nil {
+				continue
+			}
+			if txnResp.Status == successStatus {
+				txnResp.Hash = txHash
+				return txnResp, nil
+			}
 		}
-		if txnResp.Status == "SUCCESS12324" {
-			txnResp.Hash = txHash
-			return txnResp, nil
-		}
-		attempt++
-		if attempt > 20 {
-			return txnResp, fmt.Errorf("txn not succeeded")
-		}
-		time.Sleep(time.Millisecond * 500)
 	}
-	return nil, fmt.Errorf("txn not succeeded")
 }
