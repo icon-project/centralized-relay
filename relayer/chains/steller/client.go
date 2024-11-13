@@ -18,13 +18,13 @@ type IClient interface {
 
 	SubmitTransactionXDR(txXDR string) (horizon.Transaction, error)
 
-	GetTransaction(txHash string) (horizon.Transaction, error)
+	GetTransaction(ctx context.Context, txHash string) (*sorobanclient.TransactionResponse, error)
 
 	AccountDetail(addr string) (horizon.Account, error)
 
 	GetLatestLedger(ctx context.Context) (*sorobanclient.LatestLedgerResponse, error)
 
-	FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error)
+	GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*sorobanclient.LedgerEventResponse, error)
 
 	ParseTxnEvents(txn *horizon.Transaction, fl types.EventFilter) ([]types.Event, error)
 	LedgerDetail(sequence uint32) (ledger horizon.Ledger, err error)
@@ -48,8 +48,8 @@ func (cl *Client) SubmitTransactionXDR(txXDR string) (horizon.Transaction, error
 	return cl.horizon.SubmitTransactionXDR(txXDR)
 }
 
-func (cl *Client) GetTransaction(txHash string) (horizon.Transaction, error) {
-	return cl.horizon.TransactionDetail(txHash)
+func (cl *Client) GetTransaction(ctx context.Context, txHash string) (*sorobanclient.TransactionResponse, error) {
+	return cl.soroban.GetTransaction(ctx, txHash)
 }
 
 func (cl *Client) AccountDetail(addr string) (horizon.Account, error) {
@@ -68,26 +68,8 @@ func (cl *Client) Transactions(request horizonclient.TransactionRequest) (txs ho
 	return cl.horizon.Transactions(request)
 }
 
-func (cl *Client) FetchEvents(ctx context.Context, eventFilter types.EventFilter) ([]types.Event, error) {
-	req := horizonclient.TransactionRequest{
-		ForLedger:     uint(eventFilter.LedgerSeq),
-		IncludeFailed: false,
-	}
-	txnPage, err := cl.horizon.Transactions(req)
-	if err != nil {
-		return nil, err
-	}
-
-	var allEvents []types.Event
-	for _, txn := range txnPage.Embedded.Records {
-		events, err := cl.ParseTxnEvents(&txn, eventFilter)
-		if err != nil {
-			return allEvents, err
-		}
-		allEvents = append(allEvents, events...)
-	}
-
-	return allEvents, nil
+func (cl *Client) GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*sorobanclient.LedgerEventResponse, error) {
+	return cl.soroban.GetEvents(ctx, eventFilter)
 }
 
 func (cl *Client) ParseTxnEvents(txn *horizon.Transaction, fl types.EventFilter) ([]types.Event, error) {

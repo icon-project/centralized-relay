@@ -352,14 +352,14 @@ func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayertypes.Receipt, error) {
-	tx, err := p.client.GetTransaction(txHash)
+	tx, err := p.client.GetTransaction(ctx, txHash)
 	if err != nil {
 		return nil, err
 	}
 	return &relayertypes.Receipt{
 		TxHash: txHash,
 		Height: uint64(tx.Ledger),
-		Status: tx.Successful,
+		Status: tx.Status == "SUCCESS",
 	}, nil
 }
 

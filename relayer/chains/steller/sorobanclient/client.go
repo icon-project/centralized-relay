@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 )
 
 const (
@@ -52,6 +54,14 @@ func (c *Client) SimulateTransaction(txnXdr string, resourceCfg *ResourceConfig)
 	}
 
 	return simResult, nil
+}
+
+func (c *Client) GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*LedgerEventResponse, error) {
+	ledgerEvents := &LedgerEventResponse{}
+	if err := c.CallContext(ctx, ledgerEvents, "getEvents", eventFilter); err != nil {
+		return nil, err
+	}
+	return ledgerEvents, nil
 }
 
 func (c *Client) GetLatestLedger(ctx context.Context) (*LatestLedgerResponse, error) {
@@ -114,7 +124,6 @@ func (c *Client) doRequest(ctx context.Context, msg interface{}) (io.ReadCloser,
 	}
 	req.ContentLength = int64(len(body))
 	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-
 	req.Header.Set("Content-Type", "application/json")
 
 	// do request
@@ -141,4 +150,15 @@ func (c *Client) doRequest(ctx context.Context, msg interface{}) (io.ReadCloser,
 func (c *Client) nextID() json.RawMessage {
 	id := atomic.AddUint64(&c.idCounter, 1)
 	return strconv.AppendUint(nil, uint64(id), 10)
+}
+
+func (c *Client) GetTransaction(ctx context.Context, txHash string) (*TransactionResponse, error) {
+	txn := &TransactionResponse{}
+	params := make(map[string]string)
+	params["hash"] = txHash
+	if err := c.CallContext(ctx, txn, "getTransaction", params); err != nil {
+		return nil, err
+	}
+	return txn, nil
+
 }
