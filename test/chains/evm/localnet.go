@@ -461,7 +461,9 @@ func (an *EVMRemotenet) executeContract(ctx context.Context, contractAddress, me
 // executeContract implements chains.Chain
 func (an *EVMRemotenet) executeContractWithPwd(ctx context.Context, contractAddress, methodName, password string, params ...interface{}) (context.Context, error) {
 	//an.CheckForKeyStore(ctx, keyName)
-
+	if password == "" {
+		password = an.testconfig.KeystorePassword
+	}
 	receipt, err := an.ExecCallTx(ctx, contractAddress, methodName, password, params...)
 	if err != nil {
 		return nil, err
