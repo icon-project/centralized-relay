@@ -70,28 +70,36 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 	var messages []*relayertypes.Message
 
 	for h := fromHeight; h <= toHeight; h++ {
-		msgs, err := p.fetchLedgerMessages(context.Background(), h)
+		msgs, err := p.fetchLedgerMessages(ctx, h)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate message for height %d: %w", h, err)
 		}
 		messages = append(messages, msgs...)
 	}
-
 	return messages, nil
 }
 
 func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayertypes.Message, error) {
-	tx, err := p.client.GetTransaction(txHash)
+	var messages []*relayertypes.Message
+	tx, err := p.client.GetTransaction(ctx, txHash)
 	if err != nil {
 		return nil, err
 	}
-
-	events, err := p.client.ParseTxnEvents(&tx, p.getEventFilter(0))
+	eventFilter := p.getEventFilter(uint64(tx.Ledger), "")
+	response, err := p.client.GetEvents(ctx, eventFilter)
 	if err != nil {
-		return nil, err
+		p.log.Warn("error occurred while fetching transactions", zap.Error(err))
 	}
-
-	return p.parseMessagesFromEvents(events)
+	for _, ev := range response.Events {
+		if ev.TxHash == txHash {
+			msg := p.parseMessagesFromSorobanEvent(ev)
+			if msg != nil {
+				p.log.Info("detected event log:", zap.Any("event", *msg))
+				messages = append(messages, msg)
+			}
+		}
+	}
+	return messages, nil
 }
 
 func (p *Provider) SetAdmin(ctx context.Context, admin string) error {

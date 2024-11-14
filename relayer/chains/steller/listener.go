@@ -2,18 +2,13 @@ package steller
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"net/url"
-	"slices"
 	"time"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/sorobanclient"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/stellar/go/clients/horizonclient"
-	"github.com/stellar/go/protocols/horizon"
-	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/xdr"
 	"go.uber.org/zap"
 )
@@ -44,135 +39,68 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		startSeq = p.cfg.StartHeight
 	}
 	p.log.Info("start querying from ledger seq", zap.Uint64("start-seq", startSeq))
-	eventFilter := p.getEventFilter(0)
-	ledger, err := p.client.LedgerDetail(uint32(startSeq))
-	if err != nil {
-		p.log.Error("error getting ledger details", zap.Error(err))
-		return err
-	}
-	ledgerCursor := ledger.PagingToken()
 	pollInterval := 6 * time.Second
 	if p.cfg.PollInterval != 0 {
 		pollInterval = p.cfg.PollInterval
 	}
 	ticker := time.NewTicker(pollInterval)
+	var cursor string
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			hasNext := true
-			for hasNext {
-				p.log.Debug("Querying for ledger ", zap.Any("cursor", ledgerCursor))
-				trRequest := horizonclient.TransactionRequest{
-					Cursor:        ledgerCursor,
-					Limit:         uint(limit),
-					IncludeFailed: false,
-					Order:         horizonclient.OrderAsc,
-				}
-				txns, err := p.client.Transactions(trRequest)
-				if err != nil {
-					p.log.Warn("error occurred while fetching transactions", zap.Error(err))
-					break
-				}
-				p.log.Debug("got ledger result", zap.Any("size", len(txns.Embedded.Records)))
-				p.processTxns(txns, eventFilter, blockInfo)
-				newledgerCursor := ""
-				if txns.Links.Next.Href != "" {
-					parsedURL, err := url.Parse(txns.Links.Next.Href)
-					if err != nil {
-						p.log.Warn("error occurred while parsing cursor url", zap.Error(err))
-						break
-					}
-					queryParams := parsedURL.Query()
-					cursor := queryParams.Get("cursor")
-					newledgerCursor = cursor
-				}
-				if newledgerCursor == ledgerCursor || len(txns.Embedded.Records) < limit {
-					hasNext = false
-				}
-				if newledgerCursor != "" {
-					ledgerCursor = newledgerCursor
-				}
-			}
-		}
-	}
-}
-
-func (p *Provider) processTxns(txns horizon.TransactionsPage, eventFilter types.EventFilter,
-	blockInfo chan *relayertypes.BlockInfo) {
-	for _, txn := range txns.Embedded.Records {
-		if !txn.Successful {
-			continue
-		}
-		var txnMeta xdr.TransactionMeta
-		if err := xdr.SafeUnmarshalBase64(txn.ResultMetaXdr, &txnMeta); err != nil {
-			continue
-		}
-		if txnMeta.V3 == nil || txnMeta.V3.SorobanMeta == nil {
-			continue
-		}
-		if len(txnMeta.V3.SorobanMeta.Events) == 0 {
-			continue
-		}
-		for _, ev := range txnMeta.V3.SorobanMeta.Events {
-			hexBytes, err := hex.DecodeString(ev.ContractId.HexString())
+			eventFilter := p.getEventFilter(startSeq, cursor)
+			response, err := p.client.GetEvents(ctx, eventFilter)
 			if err != nil {
-				continue
+				p.log.Warn("error occurred while fetching transactions", zap.Error(err))
+				break
 			}
-			contractID, err := strkey.Encode(strkey.VersionByteContract, hexBytes)
-			if err != nil {
-				continue
-			}
-			if slices.Contains(eventFilter.ContractIds, contractID) {
-				for _, topic := range ev.Body.V0.Topics {
-					if slices.Contains(eventFilter.Topics, topic.String()) {
-						event := types.Event{
-							ContractEvent: &ev,
-							LedgerSeq:     uint64(txn.Ledger),
-						}
-						messages := p.parseMessagesFromEvent(event)
-						if messages != nil {
-							blockInfo <- &relayertypes.BlockInfo{
-								Height: messages.MessageHeight, Messages: []*relayertypes.Message{messages},
-							}
-						}
+			for _, ev := range response.Events {
+				msg := p.parseMessagesFromSorobanEvent(ev)
+				if msg != nil {
+					blockInfo <- &relayertypes.BlockInfo{
+						Height: msg.MessageHeight, Messages: []*relayertypes.Message{msg},
 					}
 				}
+				cursor = ev.PagingToken
 			}
+			startSeq = response.LatestLedger
 		}
 	}
 }
 
-func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([]*relayertypes.Message, error) {
-	eventFilter := p.getEventFilter(ledgerSeq)
-	events, err := p.client.FetchEvents(ctx, eventFilter)
-	if err != nil {
-		return nil, err
+func (p *Provider) getEventFilter(ledgerSeq uint64, cursor string) types.GetEventFilter {
+	getEventFilter := types.GetEventFilter{}
+	contractIds := []string{p.cfg.Contracts[relayertypes.ConnectionContract]}
+	getEventFilter.Pagination.Limit = limit
+	if cursor == "" {
+		getEventFilter.StartLedger = ledgerSeq
+	} else {
+		getEventFilter.Pagination.Cursor = cursor
 	}
-	messages, err := p.parseMessagesFromEvents(events)
-	for _, msg := range messages {
-		p.log.Info("detected event log:", zap.Any("event", *msg))
+	addr, ok := p.cfg.Contracts[relayertypes.XcallContract]
+	isExecutor := ok && addr != ""
+	if isExecutor {
+		contractIds = append(contractIds, p.cfg.Contracts[relayertypes.XcallContract])
 	}
-	p.log.Debug("query successful", zap.Uint64("ledger-seq", ledgerSeq))
-	return messages, err
+	getEventFilter.Filters = append(getEventFilter.Filters, types.Filter{
+		ContractIDS: contractIds,
+		Type:        "contract",
+	})
+
+	return getEventFilter
 }
 
-func (p *Provider) parseMessagesFromEvents(events []types.Event) ([]*relayertypes.Message, error) {
-	messages := []*relayertypes.Message{}
-	for _, ev := range events {
-		msg := p.parseMessagesFromEvent(ev)
-		if msg != nil {
-			messages = append(messages, msg)
-		}
-	}
-	return messages, nil
-}
-
-func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message {
+func (p *Provider) parseMessagesFromSorobanEvent(ev sorobanclient.LedgerEvents) *relayertypes.Message {
 	var eventType string
-	for _, topic := range ev.Body.V0.Topics {
-		switch topic.String() {
+	for _, topic := range ev.Topic {
+		var decodedRes xdr.ScVal
+		err := xdr.SafeUnmarshalBase64(topic, &decodedRes)
+		if err != nil {
+			return nil
+		}
+		switch decodedRes.String() {
 		case "Message":
 			eventType = relayerevents.EmitMessage
 		case "CallMessage":
@@ -181,16 +109,18 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 			eventType = relayerevents.RollbackMessage
 		}
 	}
-
 	if eventType == "" {
 		return nil
 	}
-
 	msg := &relayertypes.Message{
 		EventType:     eventType,
-		MessageHeight: ev.LedgerSeq,
+		MessageHeight: uint64(ev.Ledger),
 	}
-	scval := ev.Body.V0.Data
+	var scval xdr.ScVal
+	err := xdr.SafeUnmarshalBase64(ev.Value, &scval)
+	if err != nil {
+		return nil
+	}
 	scMap, ok := scval.GetMap()
 	if !ok {
 		return nil
@@ -237,26 +167,20 @@ func (p *Provider) parseMessagesFromEvent(ev types.Event) *relayertypes.Message 
 	return msg
 }
 
-func (p *Provider) getEventFilter(ledgerSeq uint64) types.EventFilter {
-	contractIds := []string{p.cfg.Contracts[relayertypes.ConnectionContract]}
-	topics := []string{"Message"}
-
-	addr, ok := p.cfg.Contracts[relayertypes.XcallContract]
-	isExecutor := ok && addr != ""
-	if isExecutor {
-		contractIds = append(contractIds, p.cfg.Contracts[relayertypes.XcallContract])
-		topics = append(topics, []string{"CallMessage", "RollbackMessage"}...)
+func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([]*relayertypes.Message, error) {
+	eventFilter := p.getEventFilter(ledgerSeq, "")
+	response, err := p.client.GetEvents(ctx, eventFilter)
+	if err != nil {
+		p.log.Warn("error occurred while fetching transactions", zap.Error(err))
 	}
-
-	if ledgerSeq <= 0 {
-		return types.EventFilter{
-			ContractIds: contractIds,
-			Topics:      topics,
+	var messages []*relayertypes.Message
+	for _, ev := range response.Events {
+		msg := p.parseMessagesFromSorobanEvent(ev)
+		if msg != nil {
+			p.log.Info("detected event log:", zap.Any("event", *msg))
+			messages = append(messages, msg)
 		}
 	}
-	return types.EventFilter{
-		LedgerSeq:   ledgerSeq,
-		ContractIds: contractIds,
-		Topics:      topics,
-	}
+	p.log.Debug("query successful", zap.Uint64("ledger-seq", ledgerSeq))
+	return messages, err
 }

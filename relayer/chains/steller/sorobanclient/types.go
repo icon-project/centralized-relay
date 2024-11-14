@@ -1,5 +1,21 @@
 package sorobanclient
 
+type LedgerEventResponse struct {
+	Events       []LedgerEvents `json:"events"`
+	LatestLedger uint64         `json:"latestLedger"`
+}
+type LedgerEvents struct {
+	Type                     string   `json:"type"`
+	Ledger                   int64    `json:"ledger"`
+	ContractID               string   `json:"contractId"`
+	ID                       string   `json:"id"`
+	PagingToken              string   `json:"pagingToken"`
+	Topic                    []string `json:"topic"`
+	Value                    string   `json:"value"`
+	InSuccessfulContractCall bool     `json:"inSuccessfulContractCall"`
+	TxHash                   string   `json:"txHash"`
+}
+
 type LatestLedgerResponse struct {
 	ID              string `json:"id"`
 	ProtocolVersion uint64 `json:"protocolVersion"`
@@ -26,4 +42,26 @@ type RestorePreamble struct {
 
 type ResourceConfig struct {
 	InstructionLeeway uint64 `json:"instructionLeeway"`
+}
+
+type TransactionResponse struct {
+	Status                string `json:"status"`
+	LatestLedger          int64  `json:"latestLedger"`
+	LatestLedgerCloseTime string `json:"latestLedgerCloseTime"`
+	OldestLedger          int64  `json:"oldestLedger"`
+	OldestLedgerCloseTime string `json:"oldestLedgerCloseTime"`
+	ApplicationOrder      int64  `json:"applicationOrder"`
+	EnvelopeXdr           string `json:"envelopeXdr"`
+	ResultXdr             string `json:"resultXdr"`
+	ResultMetaXdr         string `json:"resultMetaXdr"`
+	Ledger                int64  `json:"ledger"`
+	CreatedAt             string `json:"createdAt"`
+	Hash                  string
+}
+
+type TxnCreationResponse struct {
+	Status                string `json:"status"`
+	Hash                  string `json:"hash"`
+	LatestLedger          int64  `json:"latestLedger"`
+	LatestLedgerCloseTime string `json:"latestLedgerCloseTime"`
 }
