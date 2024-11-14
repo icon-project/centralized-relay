@@ -6,6 +6,7 @@ import (
 
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
 	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
+	"github.com/icon-project/stacks-go-sdk/pkg/transaction"
 	"go.uber.org/zap"
 )
 
@@ -25,6 +26,8 @@ type IClient interface {
 	ExecuteRollback(ctx context.Context, contractAddress string, args []clarity.ClarityValue, senderAddress string, senderKey []byte) (string, error)
 	GetLatestBlock(ctx context.Context) (*blockchainApiClient.GetBlocks200ResponseResultsInner, error)
 	CallReadOnlyFunction(ctx context.Context, contractAddress string, contractName string, functionName string, functionArgs []string) (*string, error)
+	BroadcastTransaction(ctx context.Context, tx transaction.StacksTransaction) (string, error)
+	MakeContractCall(context.Context, string, string, string, []clarity.ClarityValue, string, []byte) (*transaction.ContractCallTransaction, error)
 	GetWebSocketURL() string
 	Log() *zap.Logger
 }

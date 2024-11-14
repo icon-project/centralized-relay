@@ -55,26 +55,38 @@ type WSResponse struct {
 	} `json:"error,omitempty"`
 }
 
-type EmitMessageData struct {
-	TargetNetwork string `json:"targetNetwork"`
-	Sn            string `json:"sn"`
-	Msg           string `json:"msg"`
+type CallMessageSentData struct {
+	From         string   `json:"from"`
+	To           string   `json:"to"`
+	Sn           uint64   `json:"sn"`
+	Data         string   `json:"data"`
+	Sources      []string `json:"sources"`
+	Destinations []string `json:"destinations"`
 }
 
 type CallMessageData struct {
-	ReqID string `json:"req_id"`
-	Sn    string `json:"sn"`
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Sn    uint64 `json:"sn"`
+	ReqID uint64 `json:"req-id"`
 	Data  string `json:"data"`
 }
 
+type ResponseMessageData struct {
+	Sn   uint64 `json:"sn"`
+	Code uint64 `json:"code"`
+	Msg  string `json:"msg"`
+}
+
 type RollbackMessageData struct {
-	Sn string `json:"sn"`
+	Sn uint64 `json:"sn"`
 }
 
 const (
-	EmitMessage     = "message_event"
-	CallMessage     = "call_message_event"
-	RollbackMessage = "rollback_message_event"
+	CallMessageSent = "CallMessageSent"
+	CallMessage     = "CallMessage"
+	ResponseMessage = "ResponseMessage"
+	RollbackMessage = "RollbackMessage"
 )
 
 type EventHandler func(event *Event) error

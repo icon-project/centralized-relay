@@ -72,7 +72,7 @@ chains:
   - name: icon
     version: "3"
     environment: remote
-    rpc_uri: https://lisbon.net.solidwallet.io/api/v3
+    rpc_uri: https://lisbon.net.solidwallet.io/api/v3/
     keystore_file: godwallet.json
     keystore_password: gochain
     relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd

@@ -6,6 +6,7 @@ import (
 
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
 	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
+	"github.com/icon-project/stacks-go-sdk/pkg/transaction"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 )
@@ -86,6 +87,24 @@ func (m *MockClient) ExecuteCall(ctx context.Context, contractAddress string, ar
 
 func (m *MockClient) ExecuteRollback(ctx context.Context, contractAddress string, args []clarity.ClarityValue, senderAddress string, senderKey []byte) (string, error) {
 	mockArgs := m.Called(ctx, contractAddress, args, senderAddress, senderKey)
+	return mockArgs.String(0), mockArgs.Error(1)
+}
+
+func (m *MockClient) MakeContractCall(
+	ctx context.Context,
+	contractAddress string,
+	contractName string,
+	functionName string,
+	args []clarity.ClarityValue,
+	senderAddress string,
+	senderKey []byte,
+) (*transaction.ContractCallTransaction, error) {
+	mockArgs := m.Called(ctx, contractAddress, contractName, functionName, args, senderAddress, senderKey)
+	return mockArgs.Get(0).(*transaction.ContractCallTransaction), mockArgs.Error(1)
+}
+
+func (m *MockClient) BroadcastTransaction(ctx context.Context, tx transaction.StacksTransaction) (string, error) {
+	mockArgs := m.Called(ctx, tx)
 	return mockArgs.String(0), mockArgs.Error(1)
 }
 

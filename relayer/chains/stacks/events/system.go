@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
 	"go.uber.org/zap"
 )
 
@@ -15,12 +16,12 @@ type EventSystem struct {
 	cancel    context.CancelFunc
 }
 
-func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger) *EventSystem {
+func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger, client interfaces.IClient, senderAddress string, senderKey []byte) *EventSystem {
 	ctx, cancel := context.WithCancel(ctx)
 
 	store := NewMemoryEventStore()
 	listener := NewEventListener(ctx, wsURL, 1000, log)
-	processor := NewEventProcessor(ctx, store, listener.processChan, 5, log)
+	processor := NewEventProcessor(ctx, store, listener.processChan, 5, log, client, senderAddress, senderKey)
 
 	return &EventSystem{
 		listener:  listener,

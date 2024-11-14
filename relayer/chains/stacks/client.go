@@ -89,6 +89,28 @@ func (c *Client) GetContractById(ctx context.Context, contractId string) (*block
 	return resp, nil
 }
 
+func (c *Client) GetContractEvents(ctx context.Context, contractId string, limit, offset int32) (*blockchainApiClient.GetContractEventsById200Response, error) {
+	req := c.apiClient.SmartContractsAPI.GetContractEventsById(ctx, contractId)
+
+	if limit > 0 {
+		req = req.Limit(limit)
+	}
+
+	if offset > 0 {
+		req = req.Offset(offset)
+	}
+
+	resp, httpResp, err := req.Execute()
+	if err != nil {
+		if httpResp != nil {
+			return nil, fmt.Errorf("failed to get contract events (status %d): %w", httpResp.StatusCode, err)
+		}
+		return nil, fmt.Errorf("failed to get contract events: %w", err)
+	}
+
+	return resp, nil
+}
+
 func (c *Client) GetAccountNonce(ctx context.Context, address string) (uint64, error) {
 	principal := blockchainApiClient.GetFilteredEventsAddressParameter{
 		String: &address,

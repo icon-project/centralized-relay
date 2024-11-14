@@ -21,9 +21,11 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *providerTypes
 
 func (p *Provider) MessageReceived(ctx context.Context, key *providerTypes.MessageKey) (bool, error) {
 	switch key.EventType {
-	case events.EmitMessage:
+	case events.CallMessageSent:
 		return p.client.GetReceipt(ctx, p.cfg.Contracts[providerTypes.ConnectionContract], key.Src, key.Sn)
 	case events.CallMessage:
+		return false, nil
+	case events.ResponseMessage:
 		return false, nil
 	case events.RollbackMessage:
 		return false, nil
@@ -186,7 +188,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight uint64, toHe
 	errorChan := make(chan error, 1)
 
 	wsURL := p.client.GetWebSocketURL()
-	eventSystem := events.NewEventSystem(ctx, wsURL, p.log)
+	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey)
 
 	eventSystem.OnEvent(func(event *events.Event) error {
 		if event.BlockHeight < fromHeight || event.BlockHeight > toHeight {

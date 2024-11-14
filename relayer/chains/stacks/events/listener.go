@@ -104,7 +104,7 @@ func (l *EventListener) connect() error {
 	l.conn = conn
 	l.log.Info("WebSocket connection established")
 
-	for _, eventType := range []string{EmitMessage, CallMessage, RollbackMessage} {
+	for _, eventType := range []string{CallMessageSent, CallMessage, ResponseMessage, RollbackMessage} {
 		if err := l.subscribe(eventType); err != nil {
 			l.conn.Close()
 			return fmt.Errorf("failed to subscribe to %s: %w", eventType, err)
@@ -224,24 +224,31 @@ func (l *EventListener) parseEvent(message []byte) (*Event, error) {
 
 	var eventData interface{}
 	switch printValue.Event {
-	case EmitMessage:
-		var data EmitMessageData
+	case CallMessageSent:
+		var data CallMessageSentData
 		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal emit message data: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal CallMessageSent data: %w", err)
 		}
 		eventData = data
 
 	case CallMessage:
 		var data CallMessageData
 		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal call message data: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal CallMessage data: %w", err)
+		}
+		eventData = data
+
+	case ResponseMessage:
+		var data ResponseMessageData
+		if err := json.Unmarshal(printValue.Data, &data); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ResponseMessage data: %w", err)
 		}
 		eventData = data
 
 	case RollbackMessage:
 		var data RollbackMessageData
 		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal rollback message data: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal RollbackMessage data: %w", err)
 		}
 		eventData = data
 

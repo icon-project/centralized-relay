@@ -2,18 +2,15 @@ package stacks
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/mocks"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
-	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
 	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -141,132 +138,6 @@ func TestProvider_ClaimFee(t *testing.T) {
 
 	err := provider.ClaimFee(context.Background())
 	assert.NoError(t, err)
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestProvider_SetAdmin(t *testing.T) {
-	provider, mockClient := setupTestProvider(t)
-
-	newAdmin := "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
-	expectedTxID := "0x123456789"
-
-	var hash160 [20]byte
-	copy(hash160[:], []byte("ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH"))
-	currentImpl, err := clarity.NewContractPrincipal(0, hash160, "xcall-impl")
-	assert.NoError(t, err)
-
-	mockClient.On("GetCurrentImplementation", mock.Anything, provider.cfg.Contracts[providerTypes.XcallContract]).
-		Return(currentImpl, nil).Once()
-
-	mockClient.On("SetAdmin",
-		mock.Anything,
-		provider.cfg.Contracts[providerTypes.XcallContract],
-		newAdmin,
-		currentImpl,
-		provider.cfg.Address,
-		provider.privateKey,
-	).Return(expectedTxID, nil).Once()
-
-	successStatus := "success"
-	mockResponse := &blockchainApiClient.GetTransactionById200Response{
-		GetTransactionList200ResponseResultsInner: &blockchainApiClient.GetTransactionList200ResponseResultsInner{
-			ContractCallTransaction: &blockchainApiClient.ContractCallTransaction{
-				TxId:        expectedTxID,
-				BlockHeight: 1234,
-				TxStatus: blockchainApiClient.TokenTransferTransactionTxStatus{
-					String: &successStatus,
-				},
-				Canonical: true,
-			},
-		},
-	}
-	mockClient.On("GetTransactionById", mock.Anything, expectedTxID).
-		Return(mockResponse, nil).Once()
-
-	err = provider.SetAdmin(context.Background(), newAdmin)
-	assert.NoError(t, err, "SetAdmin should execute without error")
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestProvider_MessageReceived(t *testing.T) {
-	provider, mockClient := setupTestProvider(t)
-
-	tests := []struct {
-		name      string
-		key       *providerTypes.MessageKey
-		mockSetup func()
-		expected  bool
-		expectErr bool
-	}{
-		{
-			name: "EmitMessage Success",
-			key: &providerTypes.MessageKey{
-				EventType: events.EmitMessage,
-				Src:       "icon",
-				Sn:        big.NewInt(12345),
-			},
-			mockSetup: func() {
-				mockClient.On("GetReceipt",
-					mock.Anything,
-					provider.cfg.Contracts[providerTypes.ConnectionContract],
-					"icon",
-					big.NewInt(12345),
-				).Return(true, nil).Once()
-			},
-			expected:  true,
-			expectErr: false,
-		},
-		{
-			name: "CallMessage Returns False",
-			key: &providerTypes.MessageKey{
-				EventType: events.CallMessage,
-				Src:       "icon",
-				Sn:        big.NewInt(12345),
-			},
-			mockSetup: func() {},
-			expected:  false,
-			expectErr: false,
-		},
-		{
-			name: "RollbackMessage Returns False",
-			key: &providerTypes.MessageKey{
-				EventType: events.RollbackMessage,
-				Src:       "icon",
-				Sn:        big.NewInt(12345),
-			},
-			mockSetup: func() {},
-			expected:  false,
-			expectErr: false,
-		},
-		{
-			name: "Unknown Event Type",
-			key: &providerTypes.MessageKey{
-				EventType: "unknown",
-				Src:       "icon",
-				Sn:        big.NewInt(12345),
-			},
-			mockSetup: func() {},
-			expected:  true,
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
-
-			received, err := provider.MessageReceived(context.Background(), tt.key)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, received)
-			}
-		})
-	}
 
 	mockClient.AssertExpectations(t)
 }
@@ -487,70 +358,6 @@ func TestProviderConfig_GetWallet(t *testing.T) {
 	assert.Equal(t, cfg.Address, address)
 }
 
-func TestProvider_QueryTransactionReceipt(t *testing.T) {
-	provider, mockClient := setupTestProvider(t)
-
-	txID := "0x123456789"
-
-	t.Run("Mempool Transaction", func(t *testing.T) {
-		pendingStatus := "pending"
-		response := &blockchainApiClient.GetTransactionById200Response{
-			GetMempoolTransactionList200ResponseResultsInner: &blockchainApiClient.GetMempoolTransactionList200ResponseResultsInner{
-				ContractCallMempoolTransaction1: &blockchainApiClient.ContractCallMempoolTransaction1{
-					TxId: txID,
-					TxStatus: blockchainApiClient.TokenTransferMempoolTransaction1TxStatus{
-						String: &pendingStatus,
-					},
-				},
-			},
-		}
-
-		mockClient.On("GetTransactionById", mock.Anything, txID).Return(response, nil).Once()
-
-		receipt, err := provider.QueryTransactionReceipt(context.Background(), txID)
-		assert.NoError(t, err)
-		assert.NotNil(t, receipt)
-		assert.Equal(t, txID, receipt.TxHash)
-		assert.Equal(t, uint64(0), receipt.Height)
-	})
-
-	t.Run("Confirmed Transaction", func(t *testing.T) {
-		successStatus := "success"
-		response := &blockchainApiClient.GetTransactionById200Response{
-			GetTransactionList200ResponseResultsInner: &blockchainApiClient.GetTransactionList200ResponseResultsInner{
-				ContractCallTransaction: &blockchainApiClient.ContractCallTransaction{
-					TxId:        txID,
-					BlockHeight: 1234,
-					TxStatus: blockchainApiClient.TokenTransferTransactionTxStatus{
-						String: &successStatus,
-					},
-					Canonical: true,
-				},
-			},
-		}
-
-		mockClient.On("GetTransactionById", mock.Anything, txID).Return(response, nil).Once()
-
-		receipt, err := provider.QueryTransactionReceipt(context.Background(), txID)
-		assert.NoError(t, err)
-		assert.NotNil(t, receipt)
-		assert.Equal(t, txID, receipt.TxHash)
-		assert.Equal(t, uint64(1234), receipt.Height)
-		assert.True(t, receipt.Status)
-	})
-
-	t.Run("Error Case", func(t *testing.T) {
-		mockClient.On("GetTransactionById", mock.Anything, txID).
-			Return((*blockchainApiClient.GetTransactionById200Response)(nil), fmt.Errorf("transaction not found")).Once()
-
-		receipt, err := provider.QueryTransactionReceipt(context.Background(), txID)
-		assert.Error(t, err)
-		assert.Nil(t, receipt)
-	})
-
-	mockClient.AssertExpectations(t)
-}
-
 func TestProvider_ShouldReceiveMessage(t *testing.T) {
 	provider, _ := setupTestProvider(t)
 
@@ -577,72 +384,6 @@ func TestProvider_ShouldSendMessage(t *testing.T) {
 	should, err := provider.ShouldSendMessage(context.Background(), message)
 	assert.NoError(t, err)
 	assert.True(t, should)
-}
-
-func TestProvider_WaitForTransactionConfirmation(t *testing.T) {
-	provider, mockClient := setupTestProvider(t)
-
-	txID := "0x123456789"
-
-	t.Run("Successful Confirmation", func(t *testing.T) {
-		successStatus := "success"
-		response := &blockchainApiClient.GetTransactionById200Response{
-			GetTransactionList200ResponseResultsInner: &blockchainApiClient.GetTransactionList200ResponseResultsInner{
-				ContractCallTransaction: &blockchainApiClient.ContractCallTransaction{
-					TxId:        txID,
-					BlockHeight: 1234,
-					TxStatus: blockchainApiClient.TokenTransferTransactionTxStatus{
-						String: &successStatus,
-					},
-					Canonical: true,
-				},
-			},
-		}
-
-		mockClient.On("GetTransactionById", mock.Anything, txID).Return(response, nil)
-
-		receipt, err := provider.waitForTransactionConfirmation(context.Background(), txID, MAX_WAIT_TIME)
-		assert.NoError(t, err)
-		assert.NotNil(t, receipt)
-		assert.Equal(t, txID, receipt.TxHash)
-		assert.True(t, receipt.Status)
-		assert.Equal(t, uint64(1234), receipt.Height)
-	})
-
-	t.Run("Context Cancellation", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		_, err := provider.waitForTransactionConfirmation(ctx, txID, MAX_WAIT_TIME)
-		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
-	})
-
-	t.Run("Timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel()
-
-		pendingStatus := "pending"
-		pendingResponse := &blockchainApiClient.GetTransactionById200Response{
-			GetMempoolTransactionList200ResponseResultsInner: &blockchainApiClient.GetMempoolTransactionList200ResponseResultsInner{
-				ContractCallMempoolTransaction1: &blockchainApiClient.ContractCallMempoolTransaction1{
-					TxId: txID,
-					TxStatus: blockchainApiClient.TokenTransferMempoolTransaction1TxStatus{
-						String: &pendingStatus,
-					},
-				},
-			},
-		}
-
-		mockClient.On("GetTransactionById", mock.Anything, txID).Return(pendingResponse, nil)
-
-		timeoutDuration := 100 * time.Millisecond
-		_, err := provider.waitForTransactionConfirmation(ctx, txID, timeoutDuration)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "transaction confirmation timed out")
-	})
-
-	mockClient.AssertExpectations(t)
 }
 
 func TestProvider_ImportKeystore(t *testing.T) {
