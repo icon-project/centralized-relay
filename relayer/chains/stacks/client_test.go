@@ -13,6 +13,24 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestClient_GetAccountBalance(t *testing.T) {
+	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
+	network := stacksSdk.NewStacksTestnet()
+	client, err := stacks.NewClient(logger, network)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	address := "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH"
+	balance, err := client.GetAccountBalance(ctx, address)
+	if err != nil {
+		t.Fatalf("Failed to get account balance: %v", err)
+	}
+
+	t.Logf("Balance for address %s: %s", address, balance.String())
+}
+
 func TestClient_GetAccountNonce(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
@@ -29,6 +47,50 @@ func TestClient_GetAccountNonce(t *testing.T) {
 	}
 
 	t.Logf("Nonce for address %s: %d", address, nonce)
+}
+
+func TestClient_GetBlockByHeightOrHash(t *testing.T) {
+	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
+	network := stacksSdk.NewStacksTestnet()
+	client, err := stacks.NewClient(logger, network)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	block, err := client.GetLatestBlock(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get latest blocks: %v", err)
+	}
+	if block == nil {
+		t.Fatalf("No blocks found")
+	}
+
+	blockHeight := block.Height
+
+	block, err = client.GetBlockByHeightOrHash(ctx, uint64(blockHeight))
+	if err != nil {
+		t.Fatalf("Failed to get block by height: %v", err)
+	}
+
+	t.Logf("Block at height %d: %+v", blockHeight, block)
+}
+
+func TestClient_GetLatestBlock(t *testing.T) {
+	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
+	network := stacksSdk.NewStacksTestnet()
+	client, err := stacks.NewClient(logger, network)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	block, err := client.GetLatestBlock(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get latest blocks: %v", err)
+	}
+
+	t.Logf("Latest block: %+v", block)
 }
 
 func TestClient_CallReadOnlyFunction(t *testing.T) {

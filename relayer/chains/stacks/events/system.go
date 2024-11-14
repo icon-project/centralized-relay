@@ -16,11 +16,11 @@ type EventSystem struct {
 	cancel    context.CancelFunc
 }
 
-func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger, client interfaces.IClient, senderAddress string, senderKey []byte) *EventSystem {
+func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger, client interfaces.IClient, senderAddress string, senderKey []byte, contractAddress string) *EventSystem {
 	ctx, cancel := context.WithCancel(ctx)
 
 	store := NewMemoryEventStore()
-	listener := NewEventListener(ctx, wsURL, 1000, log)
+	listener := NewEventListener(ctx, wsURL, 1000, log, contractAddress)
 	processor := NewEventProcessor(ctx, store, listener.processChan, 5, log, client, senderAddress, senderKey)
 
 	return &EventSystem{

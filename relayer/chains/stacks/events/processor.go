@@ -65,6 +65,10 @@ func (p *EventProcessor) worker() {
 }
 
 func (p *EventProcessor) processEvent(event *Event) {
+	p.log.Debug("Processing event",
+		zap.String("type", event.Type),
+		zap.Any("data", event.Data))
+
 	if err := p.store.SaveEvent(event); err != nil {
 		p.log.Error("Failed to save event", zap.Error(err))
 		return
@@ -72,7 +76,9 @@ func (p *EventProcessor) processEvent(event *Event) {
 
 	for _, handler := range p.handlers {
 		if err := handler(event); err != nil {
-			p.log.Error("Handler failed", zap.Error(err))
+			p.log.Error("Handler failed",
+				zap.Error(err),
+				zap.String("type", event.Type))
 			continue
 		}
 	}
@@ -80,12 +86,16 @@ func (p *EventProcessor) processEvent(event *Event) {
 	var err error
 	switch event.Type {
 	case CallMessageSent:
+		p.log.Debug("Processing CallMessageSent event")
 		err = p.handleCallMessageSentEvent(event)
 	case CallMessage:
+		p.log.Debug("Processing CallMessage event")
 		err = p.handleCallMessageEvent(event)
 	case ResponseMessage:
+		p.log.Debug("Processing ResponseMessage event")
 		err = p.handleResponseMessageEvent(event)
 	case RollbackMessage:
+		p.log.Debug("Processing RollbackMessage event")
 		err = p.handleRollbackMessageEvent(event)
 	default:
 		p.log.Warn("No handler for event type", zap.String("type", event.Type))
@@ -93,7 +103,9 @@ func (p *EventProcessor) processEvent(event *Event) {
 	}
 
 	if err != nil {
-		p.log.Error("Handler failed", zap.Error(err), zap.String("eventType", event.Type))
+		p.log.Error("Handler failed",
+			zap.Error(err),
+			zap.String("eventType", event.Type))
 		return
 	}
 

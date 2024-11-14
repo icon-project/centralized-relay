@@ -108,6 +108,11 @@ func (m *MockClient) BroadcastTransaction(ctx context.Context, tx transaction.St
 	return mockArgs.String(0), mockArgs.Error(1)
 }
 
+func (m *MockClient) GetContractEvents(ctx context.Context, contractId string, limit, offset int32) (*blockchainApiClient.GetContractEventsById200Response, error) {
+	args := m.Called(ctx, contractId, limit, offset)
+	return args.Get(0).(*blockchainApiClient.GetContractEventsById200Response), args.Error(1)
+}
+
 func (m *MockClient) GetWebSocketURL() string {
 	mockArgs := m.Called()
 	return mockArgs.String(0)

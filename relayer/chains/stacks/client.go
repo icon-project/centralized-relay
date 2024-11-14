@@ -150,9 +150,39 @@ func (c *Client) GetBlockByHeightOrHash(ctx context.Context, height uint64) (*bl
 }
 
 func (c *Client) GetLatestBlock(ctx context.Context) (*blockchainApiClient.GetBlocks200ResponseResultsInner, error) {
-	resp, _, err := c.apiClient.BlocksAPI.GetBlocks(ctx).Limit(1).Execute()
+	req := c.apiClient.BlocksAPI.GetBlocks(ctx).Limit(1)
+	resp, httpResp, err := req.Execute()
 	if err != nil {
+		if httpResp != nil && httpResp.StatusCode == 200 {
+			var rawMap map[string]interface{}
+			if err := json.NewDecoder(httpResp.Body).Decode(&rawMap); err != nil {
+				return nil, fmt.Errorf("failed to decode response: %w", err)
+			}
+
+			results, ok := rawMap["results"].([]interface{})
+			if !ok || len(results) == 0 {
+				return nil, fmt.Errorf("no blocks found")
+			}
+
+			firstBlock, ok := results[0].(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("invalid block format")
+			}
+
+			height, ok := firstBlock["height"].(float64)
+			if !ok {
+				return nil, fmt.Errorf("invalid height format")
+			}
+
+			return &blockchainApiClient.GetBlocks200ResponseResultsInner{
+				Height: int32(height),
+			}, nil
+		}
 		return nil, err
+	}
+
+	if len(resp.Results) == 0 {
+		return nil, fmt.Errorf("no blocks found")
 	}
 	return &resp.Results[0], nil
 }

@@ -15,29 +15,31 @@ import (
 )
 
 type EventListener struct {
-	wsURL         string
-	conn          *websocket.Conn
-	eventChan     chan *Event
-	processChan   chan *Event
-	backlog       *ring.Ring
-	maxBufferSize int
-	mu            sync.RWMutex
-	log           *zap.Logger
-	ctx           context.Context
-	cancel        context.CancelFunc
+	wsURL           string
+	conn            *websocket.Conn
+	eventChan       chan *Event
+	processChan     chan *Event
+	backlog         *ring.Ring
+	maxBufferSize   int
+	mu              sync.RWMutex
+	log             *zap.Logger
+	ctx             context.Context
+	cancel          context.CancelFunc
+	contractAddress string
 }
 
-func NewEventListener(ctx context.Context, wsURL string, bufferSize int, log *zap.Logger) *EventListener {
+func NewEventListener(ctx context.Context, wsURL string, bufferSize int, log *zap.Logger, contractAddress string) *EventListener {
 	ctx, cancel := context.WithCancel(ctx)
 	return &EventListener{
-		wsURL:         wsURL,
-		eventChan:     make(chan *Event, bufferSize),
-		processChan:   make(chan *Event, bufferSize),
-		backlog:       ring.New(bufferSize),
-		maxBufferSize: bufferSize,
-		log:           log,
-		ctx:           ctx,
-		cancel:        cancel,
+		wsURL:           wsURL,
+		eventChan:       make(chan *Event, bufferSize),
+		processChan:     make(chan *Event, bufferSize),
+		backlog:         ring.New(bufferSize),
+		maxBufferSize:   bufferSize,
+		log:             log,
+		ctx:             ctx,
+		cancel:          cancel,
+		contractAddress: contractAddress,
 	}
 }
 
@@ -126,6 +128,8 @@ func (l *EventListener) readMessages() {
 				return
 			}
 
+			l.log.Debug("Received WebSocket message", zap.String("message", string(message)))
+
 			event, err := l.parseEvent(message)
 			if err != nil {
 				l.log.Error("Failed to parse event", zap.Error(err))
@@ -135,6 +139,11 @@ func (l *EventListener) readMessages() {
 			if event == nil {
 				continue
 			}
+
+			l.log.Info("Parsed event",
+				zap.String("id", event.ID),
+				zap.String("type", event.Type),
+				zap.Any("data", event.Data))
 
 			l.eventChan <- event
 		}
@@ -160,9 +169,14 @@ func (l *EventListener) subscribe(eventType string) error {
 		ID:      time.Now().UnixNano(),
 		Method:  "subscribe",
 		Params: map[string]interface{}{
-			"event": eventType,
+			"event":   eventType,
+			"address": l.contractAddress,
 		},
 	}
+
+	l.log.Debug("Subscribing to event",
+		zap.String("type", eventType),
+		zap.Any("request", request))
 
 	data, err := json.Marshal(request)
 	if err != nil {
@@ -183,14 +197,22 @@ func (l *EventListener) subscribe(eventType string) error {
 
 	var response WSResponse
 	if err := json.Unmarshal(message, &response); err != nil {
+		l.log.Error("Failed to unmarshal subscription response",
+			zap.Error(err),
+			zap.String("response", string(message)))
 		return fmt.Errorf("failed to unmarshal subscription response: %w", err)
 	}
 
 	if response.Error != nil {
+		l.log.Error("Subscription failed",
+			zap.String("type", eventType),
+			zap.String("error", response.Error.Message))
 		return fmt.Errorf("subscription failed: %s", response.Error.Message)
 	}
 
-	l.log.Info("Successfully subscribed to event", zap.String("type", eventType))
+	l.log.Info("Successfully subscribed to event",
+		zap.String("type", eventType),
+		zap.String("response", string(message)))
 	return nil
 }
 
@@ -199,6 +221,10 @@ func (l *EventListener) parseEvent(message []byte) (*Event, error) {
 	if err := json.Unmarshal(message, &wsMsg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal WebSocket message: %w", err)
 	}
+
+	l.log.Debug("Parsed WebSocket message",
+		zap.String("method", wsMsg.Method),
+		zap.String("params", string(wsMsg.Params)))
 
 	if wsMsg.Method != "event" {
 		return nil, nil
