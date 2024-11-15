@@ -427,7 +427,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 
 	// add withdraw output
 	amount := new(big.Int).SetBytes(decodedData.Amount)
-	if decodedData.Action == MethodWithdrawTo || decodedData.Action == MethodDeposit {
+	if decodedData.Action == MethodWithdrawTo || decodedData.Action == MethodDeposit || decodedData.Action == MethodRollback {
 		if decodedData.TokenAddress == BTCToken {
 			// transfer btc
 			bitcoinAmountRequired = amount.Int64()
