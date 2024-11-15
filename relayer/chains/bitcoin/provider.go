@@ -270,7 +270,7 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		return err
 	}
 
-	pollHeightTicker := time.NewTicker(time.Second * 60) // do scan each 2 mins
+	pollHeightTicker := time.NewTicker(time.Second * 60)
 	pollHeightTicker.Stop()
 
 	p.logger.Info("Start from height", zap.Uint64("height", startHeight), zap.Uint64("finality block", p.FinalityBlock(ctx)))
@@ -278,22 +278,18 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 	for {
 		select {
 		case <-pollHeightTicker.C:
+			pollHeightTicker.Stop()
+			startHeight = p.GetLastSavedHeight()
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
-				continue
+				pollHeightTicker.Reset(time.Second * 60)
 			}
 		default:
-			toHeight := latestHeight
-			if p.cfg.Mode == MasterMode {
-				// master mode should query slower slave 1 block
-				// for ensure slave cache tx data before calling to get signed tx
-				toHeight = latestHeight - 1
-			}
-
-			if startHeight < toHeight {
-				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", toHeight))
+			if startHeight < latestHeight {
+				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
+				pollHeightTicker.Reset(time.Second * 60)
 			}
 		}
 	}
@@ -1021,12 +1017,23 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 			select {
 			case <-done:
 				return
-			case heightChan <- &HeightRange{Start: fromHeight, End: fromHeight + 2}:
-				fromHeight += 2
+			case heightChan <- &HeightRange{
+				Start: fromHeight,
+				End:   fromHeight + min(2, toHeight-fromHeight),
+			}:
+				fromHeight += min(2, toHeight-fromHeight)
 			}
 		}
 	}(fromHeight, toHeight, heightChan)
 	return heightChan
+}
+
+// Helper function to get minimum of two uint64 values
+func min(a, b uint64) uint64 {
+	if a <= b {
+		return a
+	}
+	return b
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
@@ -1041,7 +1048,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 	if err != nil {
 		return nil, err
 	}
-
+	p.logger.Info("TxSearch", zap.String("StartHeight", fmt.Sprintf("%d", heightInfo.Start)), zap.String("EndHeight", fmt.Sprintf("%d", heightInfo.End)))
 	searchParam := TxSearchParam{
 		StartHeight:    heightInfo.Start,
 		EndHeight:      heightInfo.End,
