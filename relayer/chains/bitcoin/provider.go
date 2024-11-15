@@ -39,15 +39,16 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 var (
-	BTCToken               = "0:1"
-	MethodDeposit          = "Deposit"
-	MethodWithdrawTo       = "WithdrawTo"
-	MethodRefundTo         = "RefundTo"
-	MasterMode             = "master"
-	SlaveMode              = "slave"
-	BtcDB                  = "btc.db"
-	MinSatsRequired  int64 = 546
-	WitnessSize            = 125
+	BTCToken         = "0:1"
+	MethodDeposit    = "Deposit"
+	MethodWithdrawTo = "WithdrawTo"
+	MethodRefundTo   = "RefundTo"
+	MethodRollback   = "Rollback"
+	MasterMode       = "master"
+	SlaveMode        = "slave"
+	BtcDB            = "btc.db"
+	// MinSatsRequired  int64 = 300
+	WitnessSize = 125
 )
 
 var chainIdToName = map[uint8]string{
@@ -142,7 +143,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 		return nil, fmt.Errorf("failed to open or create database: %v", err)
 	}
 
-	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, true, log)
+	client, err := newClient(ctx, c.RPCUrl, c.User, c.Password, true, false, log)
 	if err != nil {
 		db.Close() // Close the database if client creation fails
 		return nil, fmt.Errorf("failed to create new client: %v", err)
@@ -297,29 +298,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			}
 		}
 	}
-}
-
-func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
-	withdrawInfoWrapper := CSMessage{}
-	_, err := codec.RLP.UnmarshalFromBytes(input, &withdrawInfoWrapper)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	// withdraw info data
-	withdrawInfoWrapperV2 := CSMessageRequestV2{}
-	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapper.Payload, &withdrawInfoWrapperV2)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	// withdraw info
-	withdrawInfo := &MessageDecoded{}
-	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapperV2.Data, &withdrawInfo)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
 }
 
 func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, addressPkScript []byte) ([]*multisig.Input, error) {
@@ -487,12 +465,12 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			outputs = []*wire.TxOut{
 				// rune send to receiver
 				{
-					Value:    MinSatsRequired,
+					Value:    multisig.RUNE_DUST_UTXO_AMOUNT,
 					PkScript: receiverPkScript,
 				},
 				// rune change output
 				{
-					Value:    MinSatsRequired,
+					Value:    multisig.RUNE_DUST_UTXO_AMOUNT,
 					PkScript: msWallet.PKScript,
 				},
 				// rune OP_RETURN
@@ -502,7 +480,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 				},
 			}
 
-			bitcoinAmountRequired = MinSatsRequired * 2
+			bitcoinAmountRequired = multisig.RUNE_DUST_UTXO_AMOUNT * 2
 		}
 	} else if decodedData.Action == MethodRefundTo {
 		if decodedData.TokenAddress != BTCToken {
@@ -742,9 +720,7 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.cacheSpentUTXOs(inputs)
 
 			// Broadcast transaction to bitcoin network
-			// txHash, err := p.client.SendRawTransaction(ctx, p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(`"` + signedMsgTxHex + `"`)})
-
-			txHash, err := p.client.SendRawTxByRpc(p.cfg.BroadcastTxUrl, signedMsgTxHex)
+			txHash, err := p.client.SendRawTransaction(p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(signedMsgTxHex)})
 			if err != nil {
 				p.removeCachedSpentUTXOs(inputs)
 				p.logger.Error("failed to send raw transaction", zap.Error(err))
@@ -784,9 +760,6 @@ func (p *Provider) isSpentUTXO(txHash string, outputIdx int) (bool, error) {
 	return len(data) > 0, nil
 }
 
-// TODO: Implement proper callback handling
-// callback(message.MessageKey(), txResponse, nil)
-
 func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, error) {
 
 	wrapperInfo := CSMessage{}
@@ -804,6 +777,52 @@ func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, 
 	}
 
 	return messageDecoded, nil
+}
+
+func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
+	withdrawInfoWrapper := CSMessage{}
+	_, err := codec.RLP.UnmarshalFromBytes(input, &withdrawInfoWrapper)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// withdraw info data
+	withdrawInfoWrapperV2 := CSMessageRequestV2{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapper.Payload, &withdrawInfoWrapperV2)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	// withdraw info
+	withdrawInfo := &MessageDecoded{}
+	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapperV2.Data, &withdrawInfo)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
+}
+
+func (p *Provider) storedDataToMessageDecoded(sn string) (*MessageDecoded, []byte, error) {
+	data, err := p.db.Get([]byte("RB"+sn), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
+	}
+	var storedData StoredMessageData
+	err = json.Unmarshal(data, &storedData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
+	}
+	decodedData := &MessageDecoded{
+		Action:       storedData.ActionMethod,
+		To:           storedData.SenderAddress,
+		TokenAddress: storedData.TokenAddress,
+		Amount:       uint64ToBytes(storedData.Amount),
+	}
+	if storedData.RuneId != "" {
+		decodedData.Amount = uint64ToBytes(storedData.RuneAmount)
+	}
+	decodeDataBuffer, _ := codec.RLP.MarshalToBytes(decodedData)
+	return decodedData, decodeDataBuffer, nil
 }
 
 func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, msWallet *multisig.MultisigWallet) ([]*multisig.Input, *wire.MsgTx, error) {
@@ -828,63 +847,38 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 			// message code 0 is need to rollback
 			// Process RollbackMessage
 			p.logger.Info("Detected rollback message", zap.String("sn", messageDecoded.Sn.String()))
-			data, err := p.db.Get([]byte("RB"+messageDecoded.Sn.String()), nil)
+			messageDecoded, decodeDataBuffer, err := p.storedDataToMessageDecoded(messageDecoded.Sn.String())
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
+				p.logger.Error("failed to get decode data: %v", zap.Error(err))
+				return nil, nil, err
 			}
-			var storedData StoredMessageData
-			err = json.Unmarshal(data, &storedData)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
-			}
-			decodedData = &MessageDecoded{
-				Action:       storedData.ActionMethod,
-				To:           storedData.SenderAddress,
-				TokenAddress: storedData.TokenAddress,
-				Amount:       uint64ToBytes(storedData.Amount),
-			}
-			if storedData.RuneId != "" {
-				decodedData.Amount = uint64ToBytes(storedData.RuneAmount)
-			}
+			scripts, _ := multisig.EncodePayloadToScripts(decodeDataBuffer)
+			outputs = multisig.BuildBridgeScriptsOutputs(outputs, scripts)
+			decodedData = messageDecoded
 		} else {
 			// Perform WithdrawData
-			data, opreturnData, err := decodeWithdrawToMessage(message.Data)
+			data, opBufferData, err := decodeWithdrawToMessage(message.Data)
 			decodedData = data
 			if err != nil {
 				p.logger.Error("failed to decode message: %v", zap.Error(err))
 				return nil, nil, err
 			}
-			scripts, _ := multisig.EncodePayloadToScripts(opreturnData)
-			for _, script := range scripts {
-				outputs = append(outputs, &wire.TxOut{
-					Value:    0,
-					PkScript: script,
-				})
-			}
+			scripts, _ := multisig.EncodePayloadToScripts(opBufferData)
+			outputs = multisig.BuildBridgeScriptsOutputs(outputs, scripts)
 		}
 	case events.RollbackMessage:
-		p.logger.Info("Detected rollback from wrong message", zap.String("sn", message.Sn.String()))
-		key := "RB" + message.Sn.String()
-		data, err := p.db.Get([]byte(key), nil)
+		p.logger.Info("Detected refund message", zap.String("sn", message.Sn.String()))
+		messageDecoded, decodeDataBuffer, err := p.storedDataToMessageDecoded(message.Sn.String())
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to retrieve stored rollback message data: %v", err)
+			p.logger.Error("failed to get decode data: %v", zap.Error(err))
+			return nil, nil, err
 		}
-		var storedData StoredMessageData
-		err = json.Unmarshal(data, &storedData)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal stored rollback message data: %v", err)
+		if messageDecoded.TokenAddress != BTCToken {
+			return nil, nil, fmt.Errorf("only support refund for BTC")
 		}
-
-		// only rollback if tokenAddress is BTC
-		if storedData.TokenAddress != BTCToken {
-			return nil, nil, fmt.Errorf("only support rollback for BTC")
-		}
-		decodedData = &MessageDecoded{
-			Action:       storedData.ActionMethod,
-			To:           storedData.SenderAddress,
-			TokenAddress: storedData.TokenAddress,
-			Amount:       uint64ToBytes(storedData.Amount),
-		}
+		decodedData = messageDecoded
+		scripts, _ := multisig.EncodePayloadToScripts(decodeDataBuffer)
+		outputs = multisig.BuildBridgeScriptsOutputs(outputs, scripts)
 
 	default:
 		return nil, nil, fmt.Errorf("unknown event type: %s", message.EventType)
@@ -993,13 +987,6 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 // GetFee returns the fee for the given networkID
 // responseFee is used to determine if the fee should be returned
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
-	//getFee := types.NewExecGetFee(networkID, responseFee)
-	//data, err := jsoniter.Marshal(getFee)
-	//if err != nil {
-	//	return 0, err
-	//}
-	//return p.client.GetFee(ctx, p.cfg.Contracts[relayTypes.ConnectionContract], data)
-
 	return 0, nil
 }
 
@@ -1050,35 +1037,6 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 	return heightChan
 }
 
-func (p *Provider) getBlockInfoStream(ctx context.Context, done <-chan bool, heightStreamChan <-chan *HeightRange) <-chan interface{} {
-	blockInfoStream := make(chan interface{})
-	go func(blockInfoChan chan interface{}, heightChan <-chan *HeightRange) {
-		defer close(blockInfoChan)
-		for {
-			select {
-			case <-done:
-				return
-			case height, ok := <-heightChan:
-				if ok {
-					for {
-						messages, err := p.fetchBlockMessages(ctx, height)
-						if err != nil {
-							p.logger.Error("failed to fetch block messages", zap.Error(err), zap.Any("height", height))
-							time.Sleep(time.Second * 3)
-						} else {
-							for _, message := range messages {
-								blockInfoChan <- message
-							}
-							break
-						}
-					}
-				}
-			}
-		}
-	}(blockInfoStream, heightStreamChan)
-	return blockInfoStream
-}
-
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
 
 	var (
@@ -1119,7 +1077,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	receiverAddresses := []string{}
 	runeId := ""
 	runeAmount := big.NewInt(0)
-	actionMethod := ""
 	isMatchAmount := true
 	// handle for bitcoin bridge
 	// decode message from OP_RETURN
@@ -1138,7 +1095,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 
 	if messageInfo.Action == MethodDeposit && isValidConnector {
-		actionMethod = MethodDeposit
 		// maybe get this function name from cf file
 		// todo verify transfer amount match in calldata if it
 		// call 3rd to check rune amount
@@ -1158,12 +1114,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		runeAmount = _runeAmount
 		isMatchAmount = _isMatchAmount
 	}
-
-	// todo: verify bridge fee
-
-	// parse message
-
-	// todo: handle for rad fi
 
 	// TODO: call xcallformat and then replace to data
 	sn := new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex)
@@ -1191,13 +1141,17 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		EventType:     events.EmitMessage,
 	}
 
+	actionMethod := MethodRollback
+
+	// validate message amount failed -> refund to user
 	if !isMatchAmount {
-		xCallMessage.Action = MethodRefundTo
 		actionMethod = MethodRefundTo
+		// only set rollbackMessage because eventType variable can not be changed
 		relayMessage.EventType = events.RollbackMessage
 		// set dst to the same chain as source for relayer provider detection
 		relayMessage.Dst = relayMessage.Src
 	}
+
 	var senderAddress string
 	// Find sender address to store in db
 	// todo: check if this is correct
@@ -1209,7 +1163,7 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 
 	byteAmount := big.NewInt(0).SetBytes(messageInfo.Amount)
-	// When storing the message
+	// stored message for rollback and refund case
 	storedData := StoredMessageData{
 		OriginalMessage:  relayMessage,
 		TxHash:           tx.Tx.TxHash().String(),

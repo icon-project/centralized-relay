@@ -15,8 +15,6 @@ func CreateBridgeTxSendBitcoin(
 	receiverPkScript []byte,
 	txFee int64,
 ) (*wire.MsgTx, error) {
-	// TODO: verify msg content
-
 	outputs := []*wire.TxOut{
 		// bitcoin send to receiver
 		{
@@ -29,14 +27,19 @@ func CreateBridgeTxSendBitcoin(
 	if err != nil {
 		return nil, err
 	}
+	outputs = BuildBridgeScriptsOutputs(outputs, bridgeScripts)
+
+	return CreateTx(inputs, outputs, senderPkScript, txFee, 0)
+}
+
+func BuildBridgeScriptsOutputs(outputs []*wire.TxOut, bridgeScripts [][]byte) []*wire.TxOut {
 	for _, script := range bridgeScripts {
 		outputs = append(outputs, &wire.TxOut{
-			Value:    0,
+			Value:    OP_MIN_DUST_AMOUNT,
 			PkScript: script,
 		})
 	}
-
-	return CreateTx(inputs, outputs, senderPkScript, txFee, 0)
+	return outputs
 }
 
 func CreateBridgeTxSendRune(
@@ -46,8 +49,6 @@ func CreateBridgeTxSendRune(
 	receiverPkScript []byte,
 	txFee int64,
 ) (*wire.MsgTx, error) {
-	// TODO: verify msg content
-
 	// create runestone OP_RETURN
 	runeId, err := runestone.RuneIdFromString(msg.Message.TokenAddress)
 	if err != nil {
@@ -69,12 +70,12 @@ func CreateBridgeTxSendRune(
 	outputs := []*wire.TxOut{
 		// rune send to receiver
 		{
-			Value:    DUST_UTXO_AMOUNT,
+			Value:    RUNE_DUST_UTXO_AMOUNT,
 			PkScript: receiverPkScript,
 		},
 		// rune change output
 		{
-			Value:    DUST_UTXO_AMOUNT,
+			Value:    RUNE_DUST_UTXO_AMOUNT,
 			PkScript: senderPkScript,
 		},
 		// rune OP_RETURN
@@ -88,12 +89,6 @@ func CreateBridgeTxSendRune(
 	if err != nil {
 		return nil, err
 	}
-	for _, script := range bridgeScripts {
-		outputs = append(outputs, &wire.TxOut{
-			Value:    0,
-			PkScript: script,
-		})
-	}
-
+	outputs = BuildBridgeScriptsOutputs(outputs, bridgeScripts)
 	return CreateTx(inputs, outputs, senderPkScript, txFee, 0)
 }
