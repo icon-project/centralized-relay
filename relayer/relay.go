@@ -216,8 +216,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
 		for key, message := range src.MessageCache.Messages {
 			// REMOVE AFTER TESTING
-			dstChain := strings.Split(message.Dst, ".")[1]
-			if dstChain != "btc" && dstChain != "icon" {
+			if !strings.HasSuffix(message.Dst, "btc") && !strings.HasSuffix(message.Dst, "icon") {
 				continue
 			}
 			dst, err := r.FindChainRuntime(message.Dst)

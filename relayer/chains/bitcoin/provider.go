@@ -680,9 +680,7 @@ func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate i
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
 	p.logger.Info("starting to route message", zap.Any("message", message))
 
-	messageDstDetail := strings.Split(message.Dst, ".")
-	messageSrcDetail := strings.Split(message.Src, ".")
-	if (messageSrcDetail[1] == "icon" || messageSrcDetail[1] == "btc") && messageDstDetail[1] == "btc" {
+	if (strings.HasSuffix(message.Src, "icon") || strings.HasSuffix(message.Src, "btc")) && strings.HasSuffix(message.Dst, "btc") {
 		if p.cfg.Mode == SlaveMode {
 			key := []byte(message.Sn.String())
 
@@ -692,6 +690,8 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			if len(data) > 0 {
 				json.Unmarshal(data, &storedRelayerMessage)
 				if storedRelayerMessage.Status == MessageStatusSuccess {
+					// delete cached message
+					p.db.Delete(key, nil)
 					callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: storedRelayerMessage.TxHash}, nil)
 					return nil
 				}
@@ -729,7 +729,6 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: txHash}, nil)
 			return nil
 		}
-
 	}
 	return nil
 }
