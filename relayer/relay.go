@@ -3,6 +3,7 @@ package relayer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/icon-project/centralized-relay/relayer/store"
@@ -214,7 +215,13 @@ func (r *Relayer) getActiveMessagesFromStore(nId string, maxMessages uint) ([]*t
 func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
 		for key, message := range src.MessageCache.Messages {
+			// REMOVE AFTER TESTING
+			dstChain := strings.Split(message.Dst, ".")[1]
+			if dstChain != "btc" && dstChain != "icon" {
+				continue
+			}
 			dst, err := r.FindChainRuntime(message.Dst)
+
 			if err != nil {
 				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
 				r.ClearMessages(ctx, []*types.MessageKey{&key}, src)

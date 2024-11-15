@@ -55,8 +55,12 @@ var chainIdToName = map[uint8]string{
 	2: "0x1.btc",
 	3: "0x2.icon",
 	4: "0x2.btc",
-	// Add more mappings as needed
 }
+
+var (
+	MessageStatusPending = "pending"
+	MessageStatusSuccess = "success"
+)
 
 type MessageDecoded struct {
 	Action       string
@@ -75,6 +79,13 @@ type slaveRequestParams struct {
 	MsgSn   string `json:"msgSn"`
 	FeeRate int    `json:"feeRate"`
 }
+
+type slaveRequestUpdateRelayMessageStatus struct {
+	MsgSn  string `json:"msgSn"`
+	Status string `json:"status"`
+	TxHash string `json:"txHash"`
+}
+
 type StoredMessageData struct {
 	OriginalMessage  *relayTypes.Message
 	TxHash           string
@@ -86,6 +97,12 @@ type StoredMessageData struct {
 	RuneAmount       uint64
 	ActionMethod     string
 	TokenAddress     string
+}
+
+type StoredRelayMessage struct {
+	Message *relayTypes.Message
+	Status  string
+	TxHash  string
 }
 
 type Provider struct {
@@ -182,7 +199,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	return p, nil
 }
 
-func (p *Provider) CallSlaves(slaveRequestData []byte) [][][]byte {
+func (p *Provider) CallSlaves(slaveRequestData []byte, path string) [][][]byte {
 	resultChan := make(chan [][][]byte)
 	go func() {
 		responses := make(chan struct {
@@ -192,8 +209,8 @@ func (p *Provider) CallSlaves(slaveRequestData []byte) [][][]byte {
 		var wg sync.WaitGroup
 		wg.Add(2)
 
-		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer1, slaveRequestData, responses, 1, &wg)
-		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer2, slaveRequestData, responses, 2, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer1+path, slaveRequestData, responses, 1, &wg)
+		go requestPartialSign(p.cfg.ApiKey, p.cfg.SlaveServer2+path, slaveRequestData, responses, 2, &wg)
 
 		go func() {
 			wg.Wait()
@@ -667,9 +684,25 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 	messageSrcDetail := strings.Split(message.Src, ".")
 	if (messageSrcDetail[1] == "icon" || messageSrcDetail[1] == "btc") && messageDstDetail[1] == "btc" {
 		if p.cfg.Mode == SlaveMode {
-			// store the message in LevelDB
 			key := []byte(message.Sn.String())
-			value, _ := json.Marshal(message)
+
+			// check if the message is already success
+			storedRelayerMessage := StoredRelayMessage{}
+			data, _ := p.db.Get(key, nil)
+			if len(data) > 0 {
+				json.Unmarshal(data, &storedRelayerMessage)
+				if storedRelayerMessage.Status == MessageStatusSuccess {
+					callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: storedRelayerMessage.TxHash}, nil)
+					return nil
+				}
+			}
+
+			// store the message in LevelDB
+			storedMessage := StoredRelayMessage{
+				Message: message,
+				Status:  MessageStatusPending,
+			}
+			value, _ := json.Marshal(storedMessage)
 			err := p.db.Put(key, value, nil)
 			if err != nil {
 				p.logger.Error("failed to store message in LevelDB: %v", zap.Error(err))
@@ -678,53 +711,23 @@ func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callb
 			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)), zap.Any("message", message))
 			return nil
 		} else if p.cfg.Mode == MasterMode {
-
-			inputs, msWallet, msgTx, relayerSigs, feeRate, err := p.HandleBitcoinMessageTx(message, 0)
+			txHash, err := p.sendTransaction(ctx, message)
 			if err != nil {
-				p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
+				p.logger.Error("failed to send transaction: %v", zap.Error(err))
 				return err
 			}
-			totalSigs := [][][]byte{relayerSigs}
-			// send unsigned raw tx and message sn to 2 slave relayers to get sign
-			rsi := slaveRequestParams{
-				MsgSn:   message.Sn.String(),
-				FeeRate: feeRate,
-			}
 
+			// call to slave to clear message
+			rsi := slaveRequestUpdateRelayMessageStatus{
+				MsgSn:  message.Sn.String(),
+				Status: MessageStatusSuccess,
+				TxHash: txHash,
+			}
 			slaveRequestData, _ := json.Marshal(rsi)
-			slaveSigs := p.CallSlaves(slaveRequestData)
-			p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
-			totalSigs = append(totalSigs, slaveSigs...)
-			// combine sigs
-			signedMsgTx, err := multisig.CombineTapMultisig(totalSigs, msgTx, inputs, msWallet, 0)
+			p.CallSlaves(slaveRequestData, "/update-relayer-message-status")
 
-			if err != nil {
-				p.logger.Error("err combine tx: ", zap.Error(err))
-			}
-			p.logger.Info("signedMsgTx", zap.Any("transaction", signedMsgTx))
-			var buf bytes.Buffer
-			err = signedMsgTx.Serialize(&buf)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			txSize := len(buf.Bytes())
-			p.logger.Info("--------------------txSize--------------------", zap.Int("size", txSize))
-			signedMsgTxHex := hex.EncodeToString(buf.Bytes())
-			p.logger.Info("signedMsgTxHex", zap.String("transaction_hex", signedMsgTxHex))
-
-			p.cacheSpentUTXOs(inputs)
-
-			// Broadcast transaction to bitcoin network
-			txHash, err := p.client.SendRawTransaction(p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(signedMsgTxHex)})
-			if err != nil {
-				p.removeCachedSpentUTXOs(inputs)
-				p.logger.Error("failed to send raw transaction", zap.Error(err))
-				return err
-			}
-
-			p.logger.Info("txHash", zap.String("transaction_hash", txHash))
+			callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: txHash}, nil)
+			return nil
 		}
 
 	}
@@ -776,7 +779,7 @@ func (p *Provider) decodeMessage(message *relayTypes.Message) (CSMessageResult, 
 	return messageDecoded, nil
 }
 
-func decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
+func (p *Provider) decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byte, error) {
 	withdrawInfoWrapper := CSMessage{}
 	_, err := codec.RLP.UnmarshalFromBytes(input, &withdrawInfoWrapper)
 	if err != nil {
@@ -851,7 +854,7 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 			decodedData = messageDecoded
 		} else {
 			// Perform WithdrawData
-			data, opBufferData, err := decodeWithdrawToMessage(message.Data)
+			data, opBufferData, err := p.decodeWithdrawToMessage(message.Data)
 			decodedData = data
 			if err != nil {
 				p.logger.Error("failed to decode message: %v", zap.Error(err))
@@ -887,8 +890,54 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (strin
 	return "", nil
 }
 
-func (p *Provider) sendTx(ctx context.Context, signedMsg *wire.MsgTx) (string, error) {
-	return "", nil
+func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Message) (string, error) {
+	inputs, msWallet, msgTx, relayerSigs, feeRate, err := p.HandleBitcoinMessageTx(message, 0)
+	if err != nil {
+		p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
+		return "", err
+	}
+	totalSigs := [][][]byte{relayerSigs}
+	// send unsigned raw tx and message sn to 2 slave relayers to get sign
+	rsi := slaveRequestParams{
+		MsgSn:   message.Sn.String(),
+		FeeRate: feeRate,
+	}
+
+	slaveRequestData, _ := json.Marshal(rsi)
+	slaveSigs := p.CallSlaves(slaveRequestData, "")
+	p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
+	totalSigs = append(totalSigs, slaveSigs...)
+	// combine sigs
+	signedMsgTx, err := multisig.CombineTapMultisig(totalSigs, msgTx, inputs, msWallet, 0)
+
+	if err != nil {
+		p.logger.Error("err combine tx: ", zap.Error(err))
+	}
+	p.logger.Info("signedMsgTx", zap.Any("transaction", signedMsgTx))
+	var buf bytes.Buffer
+	err = signedMsgTx.Serialize(&buf)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txSize := len(buf.Bytes())
+	p.logger.Info("--------------------txSize--------------------", zap.Int("size", txSize))
+	signedMsgTxHex := hex.EncodeToString(buf.Bytes())
+	p.logger.Info("signedMsgTxHex", zap.String("transaction_hex", signedMsgTxHex))
+
+	p.cacheSpentUTXOs(inputs)
+
+	// Broadcast transaction to bitcoin network
+	txHash, err := p.client.SendRawTransaction(p.cfg.MempoolURL, []json.RawMessage{json.RawMessage(signedMsgTxHex)})
+	if err != nil {
+		p.removeCachedSpentUTXOs(inputs)
+		p.logger.Error("failed to send raw transaction", zap.Error(err))
+		return "", err
+	}
+
+	p.logger.Info("txHash", zap.String("transaction_hash", txHash))
+	return txHash, nil
 }
 
 func (p *Provider) handleSequence(ctx context.Context) error {
