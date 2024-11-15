@@ -47,8 +47,7 @@ var (
 	MasterMode       = "master"
 	SlaveMode        = "slave"
 	BtcDB            = "btc.db"
-	// MinSatsRequired  int64 = 300
-	WitnessSize = 125
+	WitnessSize      = 380
 )
 
 var chainIdToName = map[uint8]string{
@@ -534,7 +533,9 @@ func (p *Provider) calculateTxSize(inputs []*multisig.Input, outputs []*wire.TxO
 	if err != nil {
 		return 0, err
 	}
-	txSize := len(rawTxBytes.Bytes()) + len(inputs)*WitnessSize
+	baseSize := len(rawTxBytes.Bytes())
+	totalSize := baseSize + len(inputs)*WitnessSize
+	txSize := (baseSize*3 + totalSize) / 4
 	return txSize, nil
 }
 
@@ -832,11 +833,8 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 	switch message.EventType {
 	case events.EmitMessage:
 		messageDecoded, err := p.decodeMessage(message)
-		if err != nil {
-			p.logger.Error("failed to decode message: %v", zap.Error(err))
-		}
 
-		// transaction message decoded successfully
+		// transaction message from icon decoded successfully
 		// withdraw message has no messageDecoded.Code
 		if err == nil {
 			// 1 is transaction already success, no need to rollback
@@ -890,12 +888,10 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 
 // call the smart contract to send the message
 func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (string, error) {
-
 	return "", nil
 }
 
 func (p *Provider) sendTx(ctx context.Context, signedMsg *wire.MsgTx) (string, error) {
-
 	return "", nil
 }
 
@@ -909,23 +905,19 @@ func (p *Provider) waitForTxResult(ctx context.Context, mk *relayTypes.MessageKe
 
 func (p *Provider) pollTxResultStream(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResult {
 	txResChan := make(chan *types.TxResult)
-
 	return txResChan
 }
 
 func (p *Provider) subscribeTxResultStream(ctx context.Context, txHash string, maxWaitInterval time.Duration) <-chan *types.TxResult {
 	txResChan := make(chan *types.TxResult)
-
 	return txResChan
 }
 
 func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-
 	return false, nil
 }
 
 func (p *Provider) QueryBalance(ctx context.Context, addr string) (*relayTypes.Coin, error) {
-
 	return nil, nil
 }
 
