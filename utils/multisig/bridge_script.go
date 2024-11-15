@@ -114,12 +114,10 @@ func EncodePayloadToScripts(payload []byte) ([][]byte, error) {
 	if len(payload) > 0 {
 		chunks = append(chunks, payload)
 	}
-	// turn parts to OP_RETURN script
+	// turn parts to OP_BRIDGE_IDENT script
 	scripts := [][]byte{}
 	for _, part := range chunks {
 		builder := txscript.NewScriptBuilder()
-
-		builder.AddOp(txscript.OP_RETURN)
 		builder.AddOp(OP_BRIDGE_IDENT)
 		builder.AddData(part)
 
@@ -139,7 +137,6 @@ func CreateBridgeMessageScripts(msg *BridgeDecodedMsg) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return EncodePayloadToScripts(payload)
 }
 
@@ -147,12 +144,9 @@ func ReadBridgeMessage(transaction *wire.MsgTx) (*BridgeDecodedMsg, error) {
 	payload := []byte{}
 	for _, output := range transaction.TxOut {
 		tokenizer := txscript.MakeScriptTokenizer(0, output.PkScript)
-		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != txscript.OP_RETURN {
-			// Check for OP_RETURN
-			continue
-		}
+
+		// Check for OP_BRIDGE_IDENT
 		if !tokenizer.Next() || tokenizer.Err() != nil || tokenizer.Opcode() != OP_BRIDGE_IDENT {
-			// Check to ignore non Bridge protocol identifier (Rune or RadFi)
 			continue
 		}
 
