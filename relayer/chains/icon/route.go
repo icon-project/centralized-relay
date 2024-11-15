@@ -14,9 +14,7 @@ import (
 
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	// TODO: remove this after testing
-	srcChain := strings.Split(message.Src, ".")[1]
-	dstChain := strings.Split(message.Dst, ".")[1]
-	if (srcChain == "icon" || srcChain == "btc") && dstChain == "icon" {
+	if (strings.HasSuffix(message.Src, "icon") || strings.HasSuffix(message.Src, "btc")) && strings.HasSuffix(message.Dst, "icon") {
 		p.log.Info("starting to route message", zap.Any("message", message))
 		iconMessage, err := p.MakeIconMessage(message)
 
