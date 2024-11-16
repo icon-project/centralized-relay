@@ -296,14 +296,16 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 		select {
 		case <-pollHeightTicker.C:
 			pollHeightTicker.Stop()
-			startHeight = p.GetLastSavedHeight()
 			latestHeight, err = p.QueryLatestHeight(ctx)
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
 				pollHeightTicker.Reset(time.Second * 60)
+			} else if latestHeight < startHeight {
+				p.logger.Warn("latest block height is less than start height, sleep 3 minutes to wait for new block", zap.Uint64("latest-height", latestHeight), zap.Uint64("start-height", startHeight))
+				pollHeightTicker.Reset(time.Minute * 3)
 			}
 		default:
-			if startHeight < latestHeight {
+			if startHeight <= latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 				pollHeightTicker.Reset(time.Second * 60)
