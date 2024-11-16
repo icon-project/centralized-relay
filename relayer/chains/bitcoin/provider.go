@@ -1337,6 +1337,10 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 	heightStream := p.getHeightStream(done, fromHeight, toHeight)
 
 	diff := int(toHeight-fromHeight) / 2
+	remain := (toHeight - fromHeight) % 2
+	if remain == 1 {
+		diff += 1
+	}
 
 	numOfPipelines := p.getNumOfPipelines(diff)
 	wg := &sync.WaitGroup{}
