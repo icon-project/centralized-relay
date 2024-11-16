@@ -10,3 +10,5 @@ vendor
 
 /go.work
 /go.work.sum
+keystore
+data
