@@ -1096,7 +1096,7 @@ func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRan
 	if err != nil {
 		return nil, err
 	}
-	p.logger.Info("TxSearch", zap.String("StartHeight", fmt.Sprintf("%d", heightInfo.Start)), zap.String("EndHeight", fmt.Sprintf("%d", heightInfo.End)))
+	p.logger.Info("Fetching Block Messages", zap.String("StartHeight", fmt.Sprintf("%d", heightInfo.Start)), zap.String("EndHeight", fmt.Sprintf("%d", heightInfo.End)))
 	searchParam := TxSearchParam{
 		StartHeight:    heightInfo.Start,
 		EndHeight:      heightInfo.End,

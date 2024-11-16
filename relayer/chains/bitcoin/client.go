@@ -130,10 +130,6 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 			return nil, err
 		}
 
-		// Print the block hash to a string
-		blockHashStr := fmt.Sprintf("%v", blockHash)
-		c.log.Info("Block Hash", zap.String("blockHash", blockHashStr), zap.Uint64("height", i))
-
 		block, err := c.client.GetBlock(blockHash)
 		if err != nil {
 			c.log.Error("Failed to get block", zap.Error(err))
