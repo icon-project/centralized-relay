@@ -1242,9 +1242,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to store rollback message data: %v", err)
 	}
-	if p.cfg.Mode == SlaveMode {
-		return nil, nil
-	}
 	return relayMessage, nil
 }
 
