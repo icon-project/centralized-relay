@@ -680,57 +680,61 @@ func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate i
 }
 
 func (p *Provider) Route(ctx context.Context, message *relayTypes.Message, callback relayTypes.TxResponseFunc) error {
-	p.logger.Info("starting to route message", zap.Any("message", message))
-
 	if (strings.HasSuffix(message.Src, "icon") || strings.HasSuffix(message.Src, "btc")) && strings.HasSuffix(message.Dst, "btc") {
-		if p.cfg.Mode == SlaveMode {
-			key := []byte(message.Sn.String())
+		p.logger.Info("starting to route message", zap.Any("message", message))
 
-			// check if the message is already success
-			storedRelayerMessage := StoredRelayMessage{}
-			data, _ := p.db.Get(key, nil)
-			if len(data) > 0 {
-				json.Unmarshal(data, &storedRelayerMessage)
-				if storedRelayerMessage.Status == MessageStatusSuccess {
-					// delete cached message
-					p.db.Delete(key, nil)
-					callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: storedRelayerMessage.TxHash}, nil)
-					return nil
-				}
+		key := []byte(message.Sn.String())
+		storedRelayerMessage := StoredRelayMessage{}
+		data, _ := p.db.Get(key, nil)
+		if len(data) > 0 {
+			json.Unmarshal(data, &storedRelayerMessage)
+			if storedRelayerMessage.Status == MessageStatusSuccess {
+				p.logger.Info("Message already success", zap.Any("message", storedRelayerMessage))
+				callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: storedRelayerMessage.TxHash}, nil)
+				return nil
 			}
+		}
 
-			// store the message in LevelDB
-			storedMessage := StoredRelayMessage{
-				Message: message,
-				Status:  MessageStatusPending,
-			}
-			value, _ := json.Marshal(storedMessage)
-			err := p.db.Put(key, value, nil)
-			if err != nil {
-				p.logger.Error("failed to store message in LevelDB: %v", zap.Error(err))
-				return err
-			}
-			p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)), zap.Any("message", message))
-			return nil
-		} else if p.cfg.Mode == MasterMode {
-			txHash, err := p.sendTransaction(ctx, message)
-			if err != nil {
-				p.logger.Error("failed to send transaction: %v", zap.Error(err))
-				return err
-			}
+		storedMessage := StoredRelayMessage{
+			Message: message,
+			Status:  MessageStatusPending,
+		}
+		value, _ := json.Marshal(storedMessage)
+		err := p.db.Put(key, value, nil)
+		if err != nil {
+			p.logger.Error("failed to store message in LevelDB: %v", zap.Error(err))
+			return err
+		}
+		p.logger.Info("Message stored in LevelDB", zap.String("key", string(key)), zap.Any("message", message))
 
-			// call to slave to clear message
-			rsi := slaveRequestUpdateRelayMessageStatus{
-				MsgSn:  message.Sn.String(),
-				Status: MessageStatusSuccess,
-				TxHash: txHash,
-			}
-			slaveRequestData, _ := json.Marshal(rsi)
-			p.CallSlaves(slaveRequestData, "/update-relayer-message-status")
-
-			callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: txHash}, nil)
+		if p.cfg.Mode != MasterMode {
 			return nil
 		}
+		txHash, err := p.sendTransaction(ctx, message)
+		if err != nil {
+			p.logger.Error("failed to send transaction: %v", zap.Error(err))
+			return err
+		}
+		p.logger.Info("transaction sent", zap.String("txHash", txHash), zap.Any("message", message))
+
+		// update message status to success and save
+		storedMessage.Status = MessageStatusSuccess
+		storedMessage.TxHash = txHash
+		value, _ = json.Marshal(storedMessage)
+		p.db.Put(key, value, nil)
+
+		// call to slave to update message status
+		rsi := slaveRequestUpdateRelayMessageStatus{
+			MsgSn:  message.Sn.String(),
+			Status: MessageStatusSuccess,
+			TxHash: txHash,
+		}
+		slaveRequestData, _ := json.Marshal(rsi)
+		p.CallSlaves(slaveRequestData, "/update-relayer-message-status")
+
+		// callback to clear relayer message
+		callback(message.MessageKey(), &relayTypes.TxResponse{Code: relayTypes.Success, TxHash: txHash}, nil)
+		return nil
 	}
 	return nil
 }
