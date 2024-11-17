@@ -23,16 +23,16 @@ import (
 )
 
 const (
-	// TESTNET
-	TESTNET_USER_WALLET_ADDRESS         = ""
-	TESTNET_RELAYER_ADDRESS             = ""
-	TESTNET_ASSET_MANAGER_ADDRESS       = ""
-	TESTNET_ASSET_MANAGER_ADDRESS_WRONG = ""
-	TESTNET_CONNECTION_ADDRESS          = ""
-	TESTNET_TX_FEE                      = 20000
+	// MAIN NET
+	MAINNET_USER_WALLET_ADDRESS         = ""
+	MAINNET_RELAYER_ADDRESS             = ""
+	MAINNET_ASSET_MANAGER_ADDRESS       = ""
+	MAINNET_ASSET_MANAGER_ADDRESS_WRONG = ""
+	MAINNET_CONNECTION_ADDRESS          = ""
+	MAINNET_TX_FEE                      = 20000
 )
 
-func initBtcProviderTestnet() (*Provider, string) {
+func initBtcProviderMainnet() (*Provider, string) {
 	tempDir, _ := os.MkdirTemp("", "bitcoin_provider_test")
 
 	dbPath := filepath.Join(tempDir, "test.db")
@@ -57,10 +57,10 @@ func initBtcProviderTestnet() (*Provider, string) {
 		Port:             "8080",
 		RequestTimeout:   1000,
 		ApiKey:           "key",
-		Connections:      []string{TESTNET_CONNECTION_ADDRESS},
+		Connections:      []string{MAINNET_CONNECTION_ADDRESS},
 	}
-	config.NID = "0x2.btc"
-	config.Address = TESTNET_RELAYER_ADDRESS
+	config.NID = "0x1.btc"
+	config.Address = MAINNET_RELAYER_ADDRESS
 	config.RPCUrl = ""
 	config.User = "123"
 	config.Password = "123"
@@ -83,7 +83,7 @@ func initBtcProviderTestnet() (*Provider, string) {
 		db:         db,
 		cfg:        config,
 		client:     &Client{client: client, log: logger},
-		chainParam: &chaincfg.TestNet3Params,
+		chainParam: &chaincfg.MainNetParams,
 	}
 
 	msPubkey, _ := btcutil.DecodeAddress(provider.cfg.Address, provider.chainParam)
@@ -92,22 +92,22 @@ func initBtcProviderTestnet() (*Provider, string) {
 	return provider, tempDir
 }
 
-func buildUserMultisigWalletTestnet(chainParam *chaincfg.Params) ([]string, *multisig.MultisigWallet, error) {
+func buildUserMultisigWalletMainnet(chainParam *chaincfg.Params) ([]string, *multisig.MultisigWallet, error) {
 	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 1}, 1, 1)
 	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
 	return userPrivKeys, userMultisigWallet, nil
 }
 
 // parse message from icon and build withdraw btc tx
-func TestBuildWithdrawBtcTxMessageTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestBuildWithdrawBtcTxMessageMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 
 	// decode message from icon
 	data, _ := base64.StdEncoding.DecodeString("+QEfAbkBG/kBGLMweDIuaWNvbi9jeGZjODZlZTc2ODdlMWJmNjgxYjU1NDhiMjY2Nzg0NDQ4NWMwZTcxOTK4PnRiMXBmMGF0cHQyZDN6ZWw2dWR3czM4cGtyaDJlNDl2cWQzYzVqY3VkM2E4MnNycGhubXBlNTVxMGVjcnprgi5kAbhU+FKKV2l0aGRyYXdUb4MwOjG4PnRiMXBnZTh0aHUzdTBreXF3NXY1dmxoamd0eWR6MzJtbWtkeGRnanRsOTlqcjVmNTlxczB5YXhzNTZ3a3l6gicQ+Ei4RjB4Mi5idGMvdGIxcGd6eDg4MHlmcjdxOGRnejhkcWh3NTBzbmN1NGY0aG13NWNuMzgwMDM1NHR1emN5OWp4NXNodnY3c3U=")
 	message := &relayTypes.Message{
-		Src:           "0x2.icon",
-		Dst:           "0x2.btc",
+		Src:           "0x1.icon",
+		Dst:           "0x1.btc",
 		Sn:            big.NewInt(11),
 		MessageHeight: 1000000,
 		EventType:     events.EmitMessage,
@@ -162,14 +162,14 @@ func TestBuildWithdrawBtcTxMessageTestnet(t *testing.T) {
 }
 
 // parse message from icon and build withdraw rune tx
-func TestBuildWithdrawRunesTxMessageTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestBuildWithdrawRunesTxMessageMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// decode message from icon
 	data, _ := base64.StdEncoding.DecodeString("+QEoAbkBJPkBIbMweDIuaWNvbi9jeDhjOWEyMTNjZDVkY2ViZmI1MzljMzBlMWFmNmQ3Nzk5MGIyMDBjYTS4PnRiMXBmMGF0cHQyZDN6ZWw2dWR3czM4cGtyaDJlNDl2cWQzYzVqY3VkM2E4MnNycGhubXBlNTVxMGVjcnprgi6wArhd+FuKV2l0aGRyYXdUb4wyOTA0MzU0OjMxMTm4PnRiMXB5OHZ4ZTdlY3dqdGRsdmNjcmVrZ3E1dTkwcnpzZzV3djZhamg0YXZjcDRxNXBrdjYyOWRxeDZlZGg5gg+g+Ei4RjB4Mi5idGMvdGIxcGYwYXRwdDJkM3plbDZ1ZHdzMzhwa3JoMmU0OXZxZDNjNWpjdWQzYTgyc3JwaG5tcGU1NXEwZWNyems=")
 	message := &relayTypes.Message{
-		Src:           "0x2.icon",
-		Dst:           "0x2.btc",
+		Src:           "0x1.icon",
+		Dst:           "0x1.btc",
 		Sn:            big.NewInt(12),
 		MessageHeight: 46166601,
 		EventType:     events.EmitMessage,
@@ -221,30 +221,30 @@ func TestBuildWithdrawRunesTxMessageTestnet(t *testing.T) {
 	btcProvider.logger.Info("txHash", zap.String("transaction_hash", txHash))
 }
 
-func TestBuildRollbackBtcTxMessageTestnet(t *testing.T) {
+func TestBuildRollbackBtcTxMessageMainnet(t *testing.T) {
 	// Create a mock Provider
-	btcProvider, termpDir := initBtcProviderTestnet()
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// relayer multisig
-	decodedAddr, _ := btcutil.DecodeAddress(TESTNET_RELAYER_ADDRESS, btcProvider.chainParam)
+	decodedAddr, _ := btcutil.DecodeAddress(MAINNET_RELAYER_ADDRESS, btcProvider.chainParam)
 	relayerPkScript, _ := txscript.PayToAddrScript(decodedAddr)
 	// user key
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 
 	bridgeMsg := multisig.BridgeDecodedMsg{
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800", // user icon address
-			From:         TESTNET_USER_WALLET_ADDRESS,                           // user bitcoin address
+			To:           "0x1.icon/hx1493794ba31fa3372bf7903f04030497e7d14800", // user icon address
+			From:         MAINNET_USER_WALLET_ADDRESS,                           // user bitcoin address
 			Amount:       new(big.Int).SetUint64(5000).Bytes(),
 			Data:         []byte(""),
 		},
 		ChainId:  1,
-		Receiver: TESTNET_ASSET_MANAGER_ADDRESS, // asset manager
+		Receiver: MAINNET_ASSET_MANAGER_ADDRESS, // asset manager
 		Connectors: []string{
-			TESTNET_CONNECTION_ADDRESS, // connector contract
+			MAINNET_CONNECTION_ADDRESS, // connector contract
 		},
 	}
 
@@ -263,7 +263,7 @@ func TestBuildRollbackBtcTxMessageTestnet(t *testing.T) {
 		inputs,
 		userMultisigWallet.PKScript,
 		relayerPkScript,
-		TESTNET_TX_FEE,
+		MAINNET_TX_FEE,
 	)
 	if err != nil {
 		fmt.Println("err: ", err)
@@ -294,29 +294,29 @@ func TestBuildRollbackBtcTxMessageTestnet(t *testing.T) {
 
 }
 
-func TestDepositBitcoinToIconTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestDepositBitcoinToIconMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// relayer multisig
-	decodedAddr, _ := btcutil.DecodeAddress(TESTNET_RELAYER_ADDRESS, btcProvider.chainParam)
+	decodedAddr, _ := btcutil.DecodeAddress(MAINNET_RELAYER_ADDRESS, btcProvider.chainParam)
 	relayerPkScript, _ := txscript.PayToAddrScript(decodedAddr)
 	// user key
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 
 	bridgeMsg := multisig.BridgeDecodedMsg{
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
-			From:         TESTNET_USER_WALLET_ADDRESS,
+			To:           "0x1.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			From:         MAINNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1000).Bytes(),
 			Data:         []byte(""),
 		},
 		ChainId:  1,
-		Receiver: TESTNET_ASSET_MANAGER_ADDRESS,
+		Receiver: MAINNET_ASSET_MANAGER_ADDRESS,
 		Connectors: []string{
-			TESTNET_CONNECTION_ADDRESS,
+			MAINNET_CONNECTION_ADDRESS,
 		},
 	}
 
@@ -335,7 +335,7 @@ func TestDepositBitcoinToIconTestnet(t *testing.T) {
 		inputs,
 		userMultisigWallet.PKScript,
 		relayerPkScript,
-		TESTNET_TX_FEE,
+		MAINNET_TX_FEE,
 	)
 
 	// log hex of unsigned tx
@@ -360,29 +360,29 @@ func TestDepositBitcoinToIconTestnet(t *testing.T) {
 	fmt.Println("txHash: ", txHash)
 	fmt.Println("err: ", err)
 }
-func TestDepositBitcoinToIconFailTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestDepositBitcoinToIconFailMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// relayer multisig
-	decodedAddr, _ := btcutil.DecodeAddress(TESTNET_RELAYER_ADDRESS, btcProvider.chainParam)
+	decodedAddr, _ := btcutil.DecodeAddress(MAINNET_RELAYER_ADDRESS, btcProvider.chainParam)
 	relayerPkScript, _ := txscript.PayToAddrScript(decodedAddr)
 	// user key
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 
 	bridgeMsg := multisig.BridgeDecodedMsg{
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
-			From:         TESTNET_USER_WALLET_ADDRESS,
+			To:           "0x1.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			From:         MAINNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(3000).Bytes(),
 			Data:         []byte(""),
 		},
 		ChainId:  1,
-		Receiver: TESTNET_ASSET_MANAGER_ADDRESS_WRONG,
+		Receiver: MAINNET_ASSET_MANAGER_ADDRESS_WRONG,
 		Connectors: []string{
-			TESTNET_CONNECTION_ADDRESS,
+			MAINNET_CONNECTION_ADDRESS,
 		},
 	}
 
@@ -401,7 +401,7 @@ func TestDepositBitcoinToIconFailTestnet(t *testing.T) {
 		inputs,
 		userMultisigWallet.PKScript,
 		relayerPkScript,
-		TESTNET_TX_FEE,
+		MAINNET_TX_FEE,
 	)
 	fmt.Println("err: ", err)
 	// sign tx
@@ -424,29 +424,29 @@ func TestDepositBitcoinToIconFailTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
-func TestDepositRuneToIconTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestDepositRuneToIconMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// relayer multisig
-	decodedAddr, _ := btcutil.DecodeAddress(TESTNET_RELAYER_ADDRESS, btcProvider.chainParam)
+	decodedAddr, _ := btcutil.DecodeAddress(MAINNET_RELAYER_ADDRESS, btcProvider.chainParam)
 	relayerPkScript, _ := txscript.PayToAddrScript(decodedAddr)
 	// user key
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 
 	bridgeMsg := multisig.BridgeDecodedMsg{
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "1:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
-			From:         TESTNET_USER_WALLET_ADDRESS,
+			To:           "0x1.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			From:         MAINNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1).Bytes(),
 			Data:         []byte(""),
 		},
 		ChainId:  1,
-		Receiver: TESTNET_ASSET_MANAGER_ADDRESS,
+		Receiver: MAINNET_ASSET_MANAGER_ADDRESS,
 		Connectors: []string{
-			TESTNET_CONNECTION_ADDRESS,
+			MAINNET_CONNECTION_ADDRESS,
 		},
 	}
 
@@ -473,7 +473,7 @@ func TestDepositRuneToIconTestnet(t *testing.T) {
 		inputs,
 		userMultisigWallet.PKScript,
 		relayerPkScript,
-		TESTNET_TX_FEE,
+		MAINNET_TX_FEE,
 	)
 	fmt.Println("err: ", err)
 	// sign tx
@@ -497,29 +497,29 @@ func TestDepositRuneToIconTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
-func TestDepositRuneToIconFailTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestDepositRuneToIconFailMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	// relayer multisig
-	decodedAddr, _ := btcutil.DecodeAddress(TESTNET_RELAYER_ADDRESS, btcProvider.chainParam)
+	decodedAddr, _ := btcutil.DecodeAddress(MAINNET_RELAYER_ADDRESS, btcProvider.chainParam)
 	relayerPkScript, _ := txscript.PayToAddrScript(decodedAddr)
 	// user key
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 
 	bridgeMsg := multisig.BridgeDecodedMsg{
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
 			TokenAddress: "1:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
-			From:         TESTNET_USER_WALLET_ADDRESS,
+			To:           "0x1.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			From:         MAINNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1).Bytes(),
 			Data:         []byte(""),
 		},
 		ChainId:  1,
-		Receiver: TESTNET_ASSET_MANAGER_ADDRESS_WRONG,
+		Receiver: MAINNET_ASSET_MANAGER_ADDRESS_WRONG,
 		Connectors: []string{
-			TESTNET_CONNECTION_ADDRESS,
+			MAINNET_CONNECTION_ADDRESS,
 		},
 	}
 
@@ -546,7 +546,7 @@ func TestDepositRuneToIconFailTestnet(t *testing.T) {
 		inputs,
 		userMultisigWallet.PKScript,
 		relayerPkScript,
-		TESTNET_TX_FEE,
+		MAINNET_TX_FEE,
 	)
 	fmt.Println("err: ", err)
 	// sign tx
@@ -569,8 +569,8 @@ func TestDepositRuneToIconFailTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
-func TestBuildRelayerMultisigWalletTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestBuildRelayerMultisigWalletMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
 	msWallet, err := btcProvider.buildMultisigWallet()
 	fmt.Println("err: ", err)
@@ -584,10 +584,10 @@ func TestBuildRelayerMultisigWalletTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
-func TestBuildUserMultisigWalletTestnet(t *testing.T) {
-	btcProvider, termpDir := initBtcProviderTestnet()
+func TestBuildUserMultisigWalletMainnet(t *testing.T) {
+	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)
-	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletTestnet(btcProvider.chainParam)
+	userPrivKeys, userMultisigWallet, _ := buildUserMultisigWalletMainnet(btcProvider.chainParam)
 	fmt.Println("userPrivKeys: ", userPrivKeys)
 	fmt.Println("userMultisigWallet: ", userMultisigWallet)
 	addr, err := multisig.AddressOnChain(btcProvider.chainParam, userMultisigWallet)
