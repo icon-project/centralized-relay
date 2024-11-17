@@ -127,6 +127,7 @@ func (c *Client) TxSearch(ctx context.Context, param TxSearchParam) ([]*TxSearch
 
 		blockHash, err := c.client.GetBlockHash(int64(i))
 		if err != nil {
+			c.log.Error("Failed to get block hash", zap.Error(err))
 			return nil, err
 		}
 
