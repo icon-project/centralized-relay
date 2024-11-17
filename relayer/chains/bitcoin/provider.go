@@ -36,8 +36,6 @@ import (
 	"go.uber.org/zap"
 )
 
-//var _ provider.ChainProvider = (*Provider)(nil)
-
 var (
 	BTCToken         = "0:0"
 	MethodDeposit    = "Deposit"
@@ -245,8 +243,6 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	}
 	return &relayTypes.Receipt{
 		TxHash: res.Txid,
-		// Height: uint64(res.TxResponse.Height),
-		// Status: types.CodeTypeOK == res.TxResponse.Code,
 	}, nil
 }
 
@@ -259,10 +255,6 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
-	//if err := p.cfg.Contracts.Validate(); err != nil {
-	//	return err
-	//}
-	//p.kms = kms
 	return nil
 }
 
@@ -380,7 +372,6 @@ func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired u
 			break
 		}
 		if len(utxo.Runes) != 1 {
-			// return nil, fmt.Errorf("number of runes in the utxo is not 1, but: %v", err)
 			continue
 		}
 		isSpent, _ := p.isSpentUTXO(utxo.TxId, utxo.Vout)
@@ -650,8 +641,6 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 	return inputs, nil
 }
 
-// add tx fee the the required bitcoin amount
-
 func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	masterPubKey, _ := hex.DecodeString(p.cfg.MasterPubKey)
 	slave1PubKey, _ := hex.DecodeString(p.cfg.Slave1PubKey)
@@ -907,7 +896,6 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 	return inputs, msgTx, err
 }
 
-// call the smart contract to send the message
 func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (string, error) {
 	return "", nil
 }
@@ -919,7 +907,8 @@ func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Mess
 		return "", err
 	}
 	totalSigs := [][][]byte{relayerSigs}
-	// send unsigned raw tx and message sn to 2 slave relayers to get sign
+
+	// send message sn and inputs to 2 slave relayers to get sign
 	slaveInputs := []slaveRequestInput{}
 	for _, input := range inputs {
 		slaveInputs = append(slaveInputs, slaveRequestInput{
@@ -938,6 +927,7 @@ func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Mess
 	slaveSigs := p.CallSlaves(slaveRequestData, "")
 	p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
 	totalSigs = append(totalSigs, slaveSigs...)
+
 	// combine sigs
 	signedMsgTx, err := multisig.CombineTapMultisig(totalSigs, msgTx, inputs, msWallet, 0)
 
@@ -1018,7 +1008,6 @@ func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.
 }
 
 func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
-	//return p.cfg.FinalityBlock
 	return 0
 }
 
@@ -1052,8 +1041,6 @@ func (p *Provider) ClaimFee(ctx context.Context) error {
 	return err
 }
 
-// GetFee returns the fee for the given networkID
-// responseFee is used to determine if the fee should be returned
 func (p *Provider) GetFee(ctx context.Context, networkID string, responseFee bool) (uint64, error) {
 	return 0, nil
 }
@@ -1106,14 +1093,6 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 		}
 	}(fromHeight, toHeight, heightChan)
 	return heightChan
-}
-
-// Helper function to get minimum of two uint64 values
-func min(a, b uint64) uint64 {
-	if a <= b {
-		return a
-	}
-	return b
 }
 
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
@@ -1174,16 +1153,11 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 	}
 
 	if messageInfo.Action == MethodDeposit && isValidConnector {
-		// maybe get this function name from cf file
-		// todo verify transfer amount match in calldata if it
-		// call 3rd to check rune amount
 		tokenId := messageInfo.TokenAddress
 		destContract := messageInfo.To
 		p.logger.Info("tokenId", zap.String("tokenId", tokenId))
 		p.logger.Info("destContract", zap.String("destContract", destContract))
 
-		// call api to verify the data
-		// https://docs.unisat.io/dev/unisat-developer-center/runes/get-utxo-runes-balance
 		receiverAddresses = p.extractOutputReceiver(tx.Tx)
 		_runeId, _runeAmount, _isMatchAmount, err := p.verifyBridgeTx(tx, messageInfo)
 		if err != nil {
@@ -1194,11 +1168,9 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 		isMatchAmount = _isMatchAmount
 	}
 
-	// TODO: call xcallformat and then replace to data
 	sn := new(big.Int).SetUint64(tx.Height<<32 + tx.TxIndex)
 
 	from := p.cfg.NID + "/" + p.cfg.Address
-	// Remove messageType from messageInfo before calling MarshalToBytes
 
 	xCallMessage := XCallMessage{
 		Action:       messageInfo.Action,
@@ -1233,7 +1205,6 @@ func (p *Provider) parseMessageFromTx(tx *TxSearchRes) (*relayTypes.Message, err
 
 	var senderAddress string
 	// Find sender address to store in db
-	// todo: check if this is correct
 	for _, address := range receiverAddresses {
 		if address != p.cfg.Address {
 			senderAddress = address

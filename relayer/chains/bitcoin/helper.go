@@ -43,3 +43,11 @@ func uint64ToBytes(amount uint64) []byte {
 	binary.BigEndian.PutUint64(bytes, amount)
 	return bytes
 }
+
+// Helper function to get minimum of two uint64 values
+func min(a, b uint64) uint64 {
+	if a <= b {
+		return a
+	}
+	return b
+}

@@ -20,11 +20,6 @@ func startMaster(c *Config) {
 	}
 
 	log.Printf("Master starting on port %s", port)
-
-	// isProcess := os.Getenv("IS_PROCESS")
-	// if isProcess == "1" {
-	// 	callSlaves("test")
-	// }
 	log.Fatal(server.ListenAndServe())
 }
 
@@ -60,7 +55,6 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Process the message as needed
 	fmt.Println("Received message: ", msg)
 
 	// Send a response
