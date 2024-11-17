@@ -48,7 +48,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request, p *Provider) {
 		http.Error(w, "Error decoding request body", http.StatusInternalServerError)
 		return
 	}
-	sigs, _ := buildAndSignTxFromDbMessage(rsi.MsgSn, rsi.FeeRate, p)
+	sigs, _ := buildAndSignTxFromDbMessage(rsi, p)
 	// return sigs to master
 	returnData, _ := json.Marshal(sigs)
 	w.Write(returnData)
@@ -103,16 +103,16 @@ func validateMethod(w http.ResponseWriter, r *http.Request, p *Provider) bool {
 	return true
 }
 
-func buildAndSignTxFromDbMessage(sn string, feeRate int, p *Provider) ([][]byte, error) {
-	p.logger.Info("Slave start to build and sign tx from db message", zap.String("sn", sn))
-	key := sn
+func buildAndSignTxFromDbMessage(params slaveRequestParams, p *Provider) ([][]byte, error) {
+	p.logger.Info("Slave start to build and sign tx from db message", zap.String("sn", params.MsgSn))
+	key := params.MsgSn
 	data, err := p.db.Get([]byte(key), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if strings.Contains(sn, "RB") {
-		p.logger.Info("Rollback message", zap.String("sn", sn))
+	if strings.Contains(params.MsgSn, "RB") {
+		p.logger.Info("Rollback message", zap.String("sn", params.MsgSn))
 		return nil, nil
 	}
 
@@ -122,7 +122,7 @@ func buildAndSignTxFromDbMessage(sn string, feeRate int, p *Provider) ([][]byte,
 		return nil, err
 	}
 
-	_, _, _, relayerSigns, _, err := p.HandleBitcoinMessageTx(message.Message, feeRate)
+	_, _, _, relayerSigns, _, err := p.HandleBitcoinMessageTx(message.Message, params.FeeRate, params.Inputs)
 	if err != nil {
 		return nil, err
 	}

@@ -39,7 +39,7 @@ import (
 //var _ provider.ChainProvider = (*Provider)(nil)
 
 var (
-	BTCToken         = "0:1"
+	BTCToken         = "0:0"
 	MethodDeposit    = "Deposit"
 	MethodWithdrawTo = "WithdrawTo"
 	MethodRefundTo   = "RefundTo"
@@ -76,8 +76,14 @@ type CSMessageResult struct {
 }
 
 type slaveRequestParams struct {
-	MsgSn   string `json:"msgSn"`
-	FeeRate int    `json:"feeRate"`
+	MsgSn   string              `json:"msgSn"`
+	FeeRate int                 `json:"feeRate"`
+	Inputs  []slaveRequestInput `json:"inputs"`
+}
+type slaveRequestInput struct {
+	TxHash string `json:"txHash"`
+	Output int    `json:"output"`
+	Amount int64  `json:"amount"`
 }
 
 type slaveRequestUpdateRelayMessageStatus struct {
@@ -300,12 +306,12 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 			if err != nil {
 				p.logger.Error("failed to get latest block height", zap.Error(err))
 				pollHeightTicker.Reset(time.Second * 60)
-			} else if latestHeight < startHeight {
+			} else if latestHeight <= startHeight {
 				p.logger.Warn("latest block height is less than start height, sleep 3 minutes to wait for new block", zap.Uint64("latest-height", latestHeight), zap.Uint64("start-height", startHeight))
 				pollHeightTicker.Reset(time.Minute * 3)
 			}
 		default:
-			if startHeight <= latestHeight {
+			if startHeight < latestHeight {
 				p.logger.Debug("Query started", zap.Uint64("from-height", startHeight), zap.Uint64("to-height", latestHeight))
 				startHeight = p.runBlockQuery(ctx, blockInfoChan, startHeight, latestHeight)
 				pollHeightTicker.Reset(time.Second * 60)
@@ -419,6 +425,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 	feeRate int64,
 	decodedData *MessageDecoded,
 	msWallet *multisig.MultisigWallet,
+	reqInputs []slaveRequestInput,
 ) ([]*multisig.Input, *wire.MsgTx, error) {
 	// build receiver Pk Script
 	receiverAddr, err := btcutil.DecodeAddress(decodedData.To, p.chainParam)
@@ -513,7 +520,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 
 	outputs = append(outputs, outputData...)
 	// ----- BUILD INPUTS -----
-	inputs, estFee, err := p.computeTx(feeRate, bitcoinAmountRequired, runeAmountRequired, decodedData.TokenAddress, msAddressStr, outputs, msWallet)
+	inputs, estFee, err := p.computeTx(feeRate, bitcoinAmountRequired, runeAmountRequired, decodedData.TokenAddress, msAddressStr, outputs, msWallet, reqInputs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -554,12 +561,12 @@ func (p *Provider) calculateTxSize(inputs []*multisig.Input, outputs []*wire.TxO
 	return txSize, nil
 }
 
-func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128.Uint128, runeId, address string, outputs []*wire.TxOut, msWallet *multisig.MultisigWallet) ([]*multisig.Input, int64, error) {
+func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128.Uint128, runeId, address string, outputs []*wire.TxOut, msWallet *multisig.MultisigWallet, reqInputs []slaveRequestInput) ([]*multisig.Input, int64, error) {
 
 	outputsCopy := make([]*wire.TxOut, len(outputs))
 	copy(outputsCopy, outputs)
 
-	inputs, err := p.selectUnspentUTXOs(satsToSend, runeToSend, runeId, address, msWallet.PKScript)
+	inputs, err := p.selectUnspentUTXOs(satsToSend, runeToSend, runeId, address, msWallet.PKScript, reqInputs)
 	sumSelectedInputs := multisig.SumInputsSat(inputs)
 	if err != nil {
 		return nil, 0, err
@@ -580,7 +587,7 @@ func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128
 
 		newSatsToSend := satsToSend + estFee
 		var err error
-		inputs, err = p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, address, msWallet.PKScript)
+		inputs, err = p.selectUnspentUTXOs(newSatsToSend, runeToSend, runeId, address, msWallet.PKScript, reqInputs)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -603,9 +610,20 @@ func (p *Provider) computeTx(feeRate int64, satsToSend int64, runeToSend uint128
 	return inputs, estFee, nil
 }
 
-func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint128, runeId string, address string, addressPkScript []byte) ([]*multisig.Input, error) {
+func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint128, runeId string, address string, addressPkScript []byte, reqInputs []slaveRequestInput) ([]*multisig.Input, error) {
 	// add tx fee the the required bitcoin amount
 	inputs := []*multisig.Input{}
+	if len(reqInputs) > 0 {
+		for _, input := range reqInputs {
+			inputs = append(inputs, &multisig.Input{
+				TxHash:       input.TxHash,
+				OutputIdx:    uint32(input.Output),
+				OutputAmount: input.Amount,
+				PkScript:     addressPkScript,
+			})
+		}
+		return inputs, nil
+	}
 	if !runeToSend.IsZero() {
 		// query rune UTXOs from unisat
 		runeInputs, err := p.GetRuneUTXOs(p.cfg.UniSatURL, address, runeId, runeToSend, addressPkScript)
@@ -654,7 +672,7 @@ func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	return msWallet, nil
 }
 
-func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate int) ([]*multisig.Input, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, int, error) {
+func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate int, reqInputs []slaveRequestInput) ([]*multisig.Input, *multisig.MultisigWallet, *wire.MsgTx, [][]byte, int, error) {
 	msWallet, err := p.buildMultisigWallet()
 	if err != nil {
 		return nil, nil, nil, nil, 0, err
@@ -666,7 +684,7 @@ func (p *Provider) HandleBitcoinMessageTx(message *relayTypes.Message, feeRate i
 			feeRate = 1
 		}
 	}
-	inputs, msgTx, err := p.buildTxMessage(message, int64(feeRate), msWallet)
+	inputs, msgTx, err := p.buildTxMessage(message, int64(feeRate), msWallet, reqInputs)
 	if err != nil {
 		p.logger.Error("failed to build tx message: %v", zap.Error(err))
 		return nil, nil, nil, nil, 0, err
@@ -830,10 +848,9 @@ func (p *Provider) storedDataToMessageDecoded(sn string) (*MessageDecoded, []byt
 	return decodedData, decodeDataBuffer, nil
 }
 
-func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, msWallet *multisig.MultisigWallet) ([]*multisig.Input, *wire.MsgTx, error) {
+func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, msWallet *multisig.MultisigWallet, reqInputs []slaveRequestInput) ([]*multisig.Input, *wire.MsgTx, error) {
 	outputs := []*wire.TxOut{}
 	decodedData := &MessageDecoded{}
-	fmt.Println("eventType: ", message.EventType)
 	switch message.EventType {
 	case events.EmitMessage:
 		messageDecoded, err := p.decodeMessage(message)
@@ -886,7 +903,7 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 		return nil, nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
 
-	inputs, msgTx, err := p.CreateBitcoinMultisigTx(outputs, feeRate, decodedData, msWallet)
+	inputs, msgTx, err := p.CreateBitcoinMultisigTx(outputs, feeRate, decodedData, msWallet, reqInputs)
 	return inputs, msgTx, err
 }
 
@@ -896,16 +913,25 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (strin
 }
 
 func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Message) (string, error) {
-	inputs, msWallet, msgTx, relayerSigs, feeRate, err := p.HandleBitcoinMessageTx(message, 0)
+	inputs, msWallet, msgTx, relayerSigs, feeRate, err := p.HandleBitcoinMessageTx(message, 0, []slaveRequestInput{})
 	if err != nil {
 		p.logger.Error("failed to handle bitcoin message tx: %v", zap.Error(err))
 		return "", err
 	}
 	totalSigs := [][][]byte{relayerSigs}
 	// send unsigned raw tx and message sn to 2 slave relayers to get sign
+	slaveInputs := []slaveRequestInput{}
+	for _, input := range inputs {
+		slaveInputs = append(slaveInputs, slaveRequestInput{
+			TxHash: input.TxHash,
+			Output: int(input.OutputIdx),
+			Amount: input.OutputAmount,
+		})
+	}
 	rsi := slaveRequestParams{
 		MsgSn:   message.Sn.String(),
 		FeeRate: feeRate,
+		Inputs:  slaveInputs,
 	}
 
 	slaveRequestData, _ := json.Marshal(rsi)
@@ -1305,7 +1331,8 @@ func (p *Provider) getMessagesFromTxList(resultTxList []*TxSearchRes) ([]*relayT
 	for _, resultTx := range resultTxList {
 		msg, err := p.parseMessageFromTx(resultTx)
 		if err != nil {
-			return nil, err
+			p.logger.Error("Failed to parse message from tx", zap.Error(err))
+			continue
 		}
 		if msg == nil {
 			continue
@@ -1369,7 +1396,7 @@ func (p *Provider) runBlockQuery(ctx context.Context, blockInfoChan chan *relayT
 		}(wg, heightStream)
 	}
 	wg.Wait()
-	return toHeight + 1
+	return toHeight
 }
 
 func (p *Provider) getAddressesFromTx(txOut *wire.TxOut, chainParams *chaincfg.Params) []string {
