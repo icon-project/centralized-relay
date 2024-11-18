@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/icon-project/centralized-relay/relayer/transmission"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 )
 
@@ -12,7 +13,9 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return nil, fmt.Errorf("topic length mismatch")
 	}
 	topic := log.Topics[0]
-
+	if len(topic) != 0 {
+		transmission.CallBitcoinRelay(topic.Hex())
+	}
 	switch topic {
 	case EmitMessageHash:
 		msg, err := p.client.ParseConnectionMessage(log)

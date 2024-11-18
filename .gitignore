@@ -8,3 +8,8 @@ vendor
 .DS_Store
 .*env
 dist
+
+/go.work
+/go.work.sum
+keystore
+data
