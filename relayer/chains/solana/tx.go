@@ -469,6 +469,12 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 
 	accounts = append(accounts, recvMessageAccounts...)
 
+	accounts = append(accounts, &solana.AccountMeta{
+		PublicKey:  p.xcallIdl.GetProgramID(),
+		IsWritable: false,
+		IsSigner:   false,
+	})
+
 	instructions := []solana.Instruction{
 		&solana.GenericInstruction{
 			ProgID:        p.connIdl.GetProgramID(),
