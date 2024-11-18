@@ -172,6 +172,7 @@ func (p *Provider) fetchLedgerMessages(ctx context.Context, ledgerSeq uint64) ([
 	response, err := p.client.GetEvents(ctx, eventFilter)
 	if err != nil {
 		p.log.Warn("error occurred while fetching transactions", zap.Error(err))
+		return nil, err
 	}
 	var messages []*relayertypes.Message
 	for _, ev := range response.Events {
