@@ -13,7 +13,6 @@ func (p *Provider) getRelayMessageFromLog(log types.Log) (*providerTypes.Message
 		return nil, fmt.Errorf("topic length mismatch")
 	}
 	topic := log.Topics[0]
-	// TODO: Bitcoin
 	if len(topic) != 0 {
 		transmission.CallBitcoinRelay(topic.Hex())
 	}

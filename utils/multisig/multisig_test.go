@@ -18,6 +18,7 @@ const (
 	TX_FEE                   = 10000
 	RELAYER_MULTISIG_ADDRESS = "tb1pv5j5j0dmq2c8d0vnehrlsgrwr9g95m849dl5v0tal8chfdgzqxfskv0w8u"
 	USER_MULTISIG_ADDRESS    = "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	DUST_UTXO_AMOUNT         = 547
 )
 
 func TestGenerateKeys(t *testing.T) {
@@ -105,7 +106,7 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
-	bridgeMsg := BridgeDecodedMsg {
+	bridgeMsg := BridgeDecodedMsg{
 		&XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
@@ -127,10 +128,10 @@ func TestTransferBitcoinWithBridgeMessage(t *testing.T) {
 	inputs := []*Input{
 		// user bitcoin UTXO to transfer and pay tx fee
 		{
-			TxHash:			"d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
-			OutputIdx:		4,
-			OutputAmount:	1929000,
-			PkScript:		userMultisigWallet.PKScript,
+			TxHash:       "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:    4,
+			OutputAmount: 1929000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 
@@ -188,7 +189,7 @@ func TestTransferRuneWithBridgeMessage(t *testing.T) {
 	userPrivKeys, userMultisigInfo := RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := BuildMultisigWallet(userMultisigInfo)
 
-	bridgeMsg := BridgeDecodedMsg {
+	bridgeMsg := BridgeDecodedMsg{
 		&XCallMessage{
 			Action:       "Deposit",
 			TokenAddress: "840000:3",
@@ -207,17 +208,17 @@ func TestTransferRuneWithBridgeMessage(t *testing.T) {
 	inputs := []*Input{
 		// userrune UTXO used to transfer
 		{
-			TxHash:			"647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
-			OutputIdx:		0,
-			OutputAmount:	DUST_UTXO_AMOUNT,
-			PkScript:		userMultisigWallet.PKScript,
+			TxHash:       "647a499a394bdb2a477f29b9f0515ed186e57a469a732be362a172cde4ea67a5",
+			OutputIdx:    0,
+			OutputAmount: DUST_UTXO_AMOUNT,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 		// user bitcoin UTXO to pay tx fee
 		{
-			TxHash:			"d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
-			OutputIdx:		4,
-			OutputAmount:	1929000,
-			PkScript:		userMultisigWallet.PKScript,
+			TxHash:       "d316231a8aa1f74472ed9cc0f1ed0e36b9b290254cf6b2c377f0d92b299868bf",
+			OutputIdx:    4,
+			OutputAmount: 1929000,
+			PkScript:     userMultisigWallet.PKScript,
 		},
 	}
 

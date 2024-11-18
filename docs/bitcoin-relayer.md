@@ -106,7 +106,7 @@ bridgeMsg := BridgeDecodedMsg{
 		Message:  XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "0:1",
+			TokenAddress: "0:0",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
 			From:         "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su",
 			Amount:       new(big.Int).SetUint64(100000).Bytes(),
@@ -235,3 +235,7 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
 - With a tx send to the relayer multisig wallet, if the BTC amount of btc does not match with the BTC amount defined in the xcall message, and the relayer will refund the amount to the sender but minus the fee.
 - To stress test the system, you need to prepare a lot of BTC/RUNE utxos for the relayer multisig wallet, to make sure the system has enough utxos to process the transactions and avoid the issue of insufficient utxos.
 - In case Rollback transaction, the relayer will refund the same amount of BTC/RUNE that the user sent to the relayer multisig wallet.
+
+### How to build transaction
+
+To build transaction please check the file relayer/chains/bitcoin/provider_mainnet_test.go

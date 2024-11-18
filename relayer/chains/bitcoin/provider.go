@@ -235,7 +235,6 @@ func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 	return p.client.GetLatestBlockHeight(ctx)
 }
 
-// todo: fill up the result
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayTypes.Receipt, error) {
 	res, err := p.client.GetTransactionReceipt(ctx, txHash)
 	if err != nil {
@@ -315,7 +314,6 @@ func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockIn
 func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64, addressPkScript []byte) ([]*multisig.Input, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
 	defer cancel()
-	// TODO: loop query until sastified amountRequired
 	resp, err := GetBtcUtxo(ctx, server, p.cfg.UniSatKey, address, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bitcoin UTXOs from unisat: %v", err)
@@ -353,7 +351,6 @@ func (p *Provider) GetBitcoinUTXOs(server, address string, amountRequired int64,
 func (p *Provider) GetRuneUTXOs(server, address, runeId string, amountRequired uint128.Uint128, addressPkScript []byte) ([]*multisig.Input, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int64(time.Second)*int64(p.cfg.RequestTimeout)))
 	defer cancel()
-	// TODO: loop query until sastified amountRequired
 	resp, err := GetRuneUtxo(ctx, server, p.cfg.UniSatKey, address, runeId, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query rune UTXOs from unisat: %v", err)
@@ -627,7 +624,6 @@ func (p *Provider) selectUnspentUTXOs(satToSend int64, runeToSend uint128.Uint12
 		inputs = append(inputs, runeInputs...)
 	}
 
-	// TODO: cover case rune UTXOs have big enough dust amount to cover inputsSatNeeded, can store rune and bitcoin in the same utxo
 	// query bitcoin UTXOs from unisat
 	bitcoinInputs, err := p.GetBitcoinUTXOs(p.cfg.UniSatURL, address, satToSend, addressPkScript)
 	if err != nil {
@@ -1098,7 +1094,6 @@ func (p *Provider) getHeightStream(done <-chan bool, fromHeight, toHeight uint64
 func (p *Provider) fetchBlockMessages(ctx context.Context, heightInfo *HeightRange) ([]*relayTypes.BlockInfo, error) {
 
 	var (
-		// todo: query from provide.config
 		multisigAddress = p.cfg.Address
 		preFixOP        = p.cfg.OpCode
 	)

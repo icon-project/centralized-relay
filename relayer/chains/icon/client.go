@@ -268,8 +268,6 @@ func (c *Client) Monitor(ctx context.Context, reqUrl string, reqPtr, respPtr int
 		c.log.Debug(fmt.Sprintf("Monitor finish %s", conn.RemoteAddr().String()))
 		c.wsClose(conn)
 	}()
-	//TODO: should remove after test
-	// if err = c.wsRequest(conn, interface{}("")); err != nil {
 	if err = c.wsRequest(conn, reqPtr); err != nil {
 		return err
 	}

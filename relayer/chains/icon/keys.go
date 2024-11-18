@@ -15,22 +15,19 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	// TODO: Should remove comment this
-	// keystoreJson, err := p.kms.Decrypt(ctx, keystoreCipher)
-	// if err != nil {
-	// 	return err
-	// }
+	keystoreJson, err := p.kms.Decrypt(ctx, keystoreCipher)
+	if err != nil {
+		return err
+	}
 	authCipher, err := os.ReadFile(path + ".pass")
 	if err != nil {
 		return err
 	}
-	// TODO: Should remove comment this
-	// secret, err := p.kms.Decrypt(ctx, authCipher)
-	// if err != nil {
-	// 	return err
-	// }
-	wallet, err := wallet.NewFromKeyStore(keystoreCipher, authCipher)
+	secret, err := p.kms.Decrypt(ctx, authCipher)
+	if err != nil {
+		return err
+	}
+	wallet, err := wallet.NewFromKeyStore(keystoreJson, secret)
 	if err != nil {
 		return err
 	}
