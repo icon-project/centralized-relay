@@ -1,17 +1,17 @@
 # Bitcoin Relayer
 
-This is a relayer for Bitcoin that allows you to send or receive BTC/Rune from your Bitcoin taproot wallet to your wallet on other chains.
+This is a relayer for Bitcoin that enables you to send or receive BTC or Runes from your Bitcoin Taproot wallet to your wallet on other blockchains.
 
 ## Prerequisites
 
-- Understand the basics of Bitcoin transactions and Multisig taproot wallets
-- Understand about Bitcoin RPC and the related APIs (Unisat, Quicknode, etc.)
+- Understand the basics of Bitcoin transactions and multisig Taproot wallets.
+- Gain knowledge about Bitcoin RPC and related APIs, such as Unisat, Quicknode, and others.
 
-Note: At this implementation, We use 3rd party APIs such as Quicknode to crawl the Bitcoin transactions, and Unisat to get BTC/RUNE utxos or fee rate, so we need to prepare the API keys for these services.
+Note: In this implementation, we use third-party APIs, such as Quicknode, to crawl Bitcoin transactions and Unisat to retrieve BTC/RUNE UTXOs or fee rates. Therefore, it is necessary to prepare API keys for these services.
 
 ## Configuration
 
-config.yaml is the main configuration file for the Bitcoin relayer. It includes the following sections:
+config.yaml is the main configuration file for the Bitcoin relayer. It includes the following configurations:
 
 ```yaml
 bitcoin:
@@ -50,35 +50,35 @@ The mechanism of the Bitcoin relayer is based on the master-slave architecture.
 
 ## Relayer Multisig Taproot Wallet
 
-- Because in Bitcoin network that not support the smart contract, so the Relayer Multisig Taproot Wallet is the wallet that will receive the BTC/Rune, keep them and the logic to handle send and receive BTC/Rune will process based on this wallet
+- Since the Bitcoin network does not support smart contracts, the Relayer Multisig Taproot Wallet serves as the wallet to receive BTC/Rune, securely store them, and the logic for sending and receiving BTC/Rune will be based on this wallet.
 
-- The private key of the Relayer Multisig Taproot Wallet was generated from the `relayerPrivKey` in the config.yaml file
+- The private key of the Relayer Multisig Taproot Wallet is generated from the `relayerPrivKey` in the config.yaml file
 
-- This Wallet Address was combined from 3 different public keys: the master public key, slave1 public key and slave2 public key
+- This wallet address is derived from three different public keys: the master public key, the slave1 public key, and the slave2 public key.
 
-- To spend token from this wallet, it needs 3 signatures from the 3 public keys (the master public key and one of the slave public keys)
+- To spend tokens from this wallet, it requires signatures from two out of the three public keys: the master public key and one of the slave public keys.
 
-**_Note: The order of the public keys in the wallet address is important, it must be the same between the order when we generate the Relayer Multisig Taproot Wallet and sign the transaction_**
+**_Note: The order of the public keys in the wallet address is crucial. It must remain consistent between the order used to generate the Relayer Multisig Taproot Wallet and the order used to sign the transaction_**
 
 ## Master Server
 
-The master server will crawl Bitcoin transaction from the Bitcoin network and check if the transaction is a valid transaction with recipient is Relayer multigsig wallet address and the condition that contain value of OP_14 data is the same as the `op-code` in the config.yaml file.
-The master server is the main server that handles:
+The master server will crawl Bitcoin transactions from the Bitcoin network and verify if the transaction is valid. A valid transaction must have the recipient as the Relayer Multisig Wallet address and must include an OP_14 data value matching the `op-code` specified in the `config.yaml` file.
+The master server is the primary server responsible for:
 
 - Requesting the slave servers to sign the transactions
-- Combining the signatures from the slave servers and itself then broadcasting the transaction to the Bitcoin network
+- Combining the signatures from the slave servers and its own, then broadcasting the transaction to the Bitcoin network.
 
 ## Slave Servers
 
-It works as the same with the master server, but the slave servers will not broadcast transaction instead of they crawl transactions and cache them, and waiting for the master request to sign the transactions and send the signature back to the master server.
+It functions similarly to the master server, but the slave servers do not broadcast transactions. Instead, they crawl transactions, cache them, and wait for requests from the master server to sign the transactions. Once signed, the slave servers send the signatures back to the master server.
 
 ## Data Structure
 
-Based on the XCall message structure, The Bitcoin Relayer was designed and implemented to parse message with structure `OP_14 YOUR _PAYLOAD`.
+Based on the XCall message structure, the Bitcoin Relayer is designed and implemented to parse messages with the following structure: `OP_14 YOUR _PAYLOAD`.
 
-Because we use leverage op code to send data so the limitation is 40 bytes by Bitcoin Core's default standardness rules, so the payload `(YOUR_PAYLOAD)` will be split into multiple utxos (output) with the maximum size of 40 bytes including a dust amount (547 sats) for each part.
+Since we leverage op codes to send data, the limitation is 40 bytes per transaction due to Bitcoin Core's default standardness rules. Therefore, the payload `(YOUR_PAYLOAD)` will be split into multiple UTXOs (outputs), each with a maximum size of 40 bytes, including a dust amount of 547 sats for each part.
 
-The Bitcoin Relayer will decode the message from the Bitcoin transaction and parse the payload to `BridgeDecodedMsg` data structure.
+The Bitcoin Relayer will decode the message from the Bitcoin transaction and parse the payload into the `BridgeDecodedMsg` data structure.
 
 ```golang
 type BridgeDecodedMsg struct {
@@ -122,11 +122,11 @@ bridgeMsg := BridgeDecodedMsg{
 
 ### Deploy the Relayer
 
-Since the Bitcoin relayer works based on the master-slave architecture, so we should deploy seperate the master server and at least 2 slave servers, in totally there are 3 servers need to be run at the same time for ideally, or deploy these servers in the same server for testing purpose.
+Since the Bitcoin Relayer operates based on a master-slave architecture, the master server and at least two slave servers should be deployed separately. Ideally, a total of three servers should run simultaneously. However, for testing purposes, these servers can be deployed on the same machine.
 
 #### Master Server Configuration
 
-Here is some config difference between master and slave servers:
+Here are some configuration differences between the master and slave servers:
 
 ```yaml
 # ... config above
@@ -143,7 +143,7 @@ relayerPrivKey: # Relayer Private Key for master public key
 
 #### Slave Server Configuration
 
-For slave, don't need to config `slave-server-1` and `slave-server-2` but `mode` will be `slave`
+For the slave servers, there is no need to configure `slave-server-1` and `slave-server-2`. The mode parameter should be set to `slave`.
 
 ```yaml
 # ... config above
@@ -163,10 +163,10 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
 
 ### Implementation Details:
 
-- Deposit BTC/Runes from BTC to Icon
-- Withdraw BTC/Runes from Icon to BTC
-- Rollback BTC/Runes when deposit fail
-- Refund BTC if the bridge message amount does not match the output to the relayer
+- Deposit BTC/Runes from Bitcoin to ICON
+- Withdraw BTC/Runes from ICON to Bitcoin
+- Rollback BTC/Runes in case the deposit fails
+- Refund BTC if the bridge message amount does not match the output sent to the Relayer
 
 #### Testing Results:
 
@@ -210,7 +210,7 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
   - https://mempool.space/address/bc1p2sdwgq7j32j250w8h47fe9v3hyc8fl2rdftwhxp0r7ww89mcwrns5reskh
 
 ##### Deposit BTC with wrong amount, and got refund
-*The refund amount does not include tx fee, if the transfer amount can not cover tx fee, the refund tx will be ignored*
+*The refund amount does not include the transaction fee. If the transfer amount cannot cover the transaction fee, the refund transaction will be ignored.*
 
 - Request tx:
   - https://mempool.space/tx/50aa0c67d8a533d3766bd2076a2bc57bb67de7d61e9f503db271e915f0f75bae
@@ -219,24 +219,24 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
 
 ##### Withdraw BTC Successfully
 
-- Icon tx:
+- ICON tx:
   - https://tracker.icon.community/transaction/0x3854443002829635830e679c83d41303ace0093a78320846aa6f543835ecf751
 - Bitcoin tx:
   - https://mempool.space/tx/cf671e0ecc434e2cb06152bae30d35114d7fef8c1c3ec7ae60aea45691edf75b
 
 ##### Withdraw RUNE Successfully
 
-- Icon tx:
+- ICON tx:
   - https://tracker.icon.community/transaction/0x2fbb0aca1b99692b24baae68c2b451945db9eb829f09996eac01b5799bf35fc1
 - Bitcoin tx:
   - https://mempool.space/tx/21f8ba718ba003e38ef291c1f8a6de7706fb49b2addfbb3eadf4bf1808d83a17
 
 ### Known Issues
 
-- With a tx send to the relayer multisig wallet, if the BTC amount of btc does not match with the BTC amount defined in the xcall message, and the relayer will refund the amount to the sender but minus the fee.
-- To stress test the system, you need to prepare a lot of BTC/RUNE utxos for the relayer multisig wallet, to make sure the system has enough utxos to process the transactions and avoid the issue of insufficient utxos.
-- In case Rollback transaction, the relayer will refund the same amount of BTC/RUNE that the user sent to the relayer multisig wallet.
+- If a transaction sent to the Relayer Multisig Wallet contains a BTC amount that does not match the BTC amount defined in the XCall message, the relayer will refund the amount to the sender, minus the transaction fee.
+- To stress test the system, you need to prepare a large number of BTC/RUNE UTXOs for the Relayer Multisig Wallet. This ensures the system has sufficient UTXOs to process transactions and avoids issues related to insufficient UTXOs.
+- In the case of a rollback transaction, the relayer will refund the exact amount of BTC/RUNE that the user sent to the Relayer Multisig Wallet.
 
 ### How to build transaction
 
-To build transaction please check the file relayer/chains/bitcoin/provider_mainnet_test.go
+To build a transaction, please refer to this file relayer/chains/bitcoin/provider_mainnet_test.go for detailed instructions and guidelines.
