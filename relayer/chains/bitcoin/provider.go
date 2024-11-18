@@ -270,14 +270,14 @@ func (p *Provider) Config() provider.Config {
 	return p.cfg
 }
 
-func (p *Provider) Listener(ctx context.Context, lastSavedHeight uint64, blockInfoChan chan *relayTypes.BlockInfo) error {
+func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayTypes.LastProcessedTx, blockInfoChan chan *relayTypes.BlockInfo) error {
 	// run http server to help btc interact each others
 	latestHeight, err := p.QueryLatestHeight(ctx)
 	if err != nil {
 		p.logger.Error("failed to get latest block height", zap.Error(err))
 		return err
 	}
-
+	lastSavedHeight := lastProcessedTx.Height
 	startHeight, err := p.getStartHeight(latestHeight, lastSavedHeight)
 	if err != nil {
 		p.logger.Error("failed to determine start height", zap.Error(err))
@@ -991,8 +991,8 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *relayTypes.Me
 	return true, nil
 }
 
-func (p *Provider) GenerateMessages(ctx context.Context, messageKey *relayTypes.MessageKeyWithMessageHeight) ([]*relayTypes.Message, error) {
-	blocks, err := p.fetchBlockMessages(ctx, &HeightRange{messageKey.Height, messageKey.Height})
+func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*relayTypes.Message, error) {
+	blocks, err := p.fetchBlockMessages(ctx, &HeightRange{fromHeight, toHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -1404,6 +1404,10 @@ func (p *Provider) SetSerialNumberFunc(f func() *big.Int) {
 
 func (p *Provider) GetSerialNumber() *big.Int {
 	return p.LastSerialNumFunc()
+}
+
+func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relayTypes.Message, error) {
+	return nil, nil
 }
 
 func (p *Config) sanitize() error {

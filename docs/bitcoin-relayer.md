@@ -30,7 +30,7 @@ bitcoin:
     finality-block: # Bitcoin Finality Block (10: default)
     nid: 0x1.btc # Bitcoin NID (0x1.btc: Bitcoin Mainnet, 0x2.btc: Bitcoin Testnet)
     chain-name: bitcoin # Bitcoin Chain Name
-		recoveryLockTime: # Recovery Lock Time (recovery lock time of the master wallet)
+    recoveryLockTime: # Recovery Lock Time (recovery lock time of the master wallet)
     start-height: # Start Height (start height)
     mode: master # master or slave
     slave-server-1: # Slave Server 1 URL (only used when mode is master)
@@ -210,6 +210,7 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
   - https://mempool.space/address/bc1p2sdwgq7j32j250w8h47fe9v3hyc8fl2rdftwhxp0r7ww89mcwrns5reskh
 
 ##### Deposit BTC with wrong amount, and got refund
+*The refund amount does not include tx fee, if the transfer amount can not cover tx fee, the refund tx will be ignored*
 
 - Request tx:
   - https://mempool.space/tx/50aa0c67d8a533d3766bd2076a2bc57bb67de7d61e9f503db271e915f0f75bae
