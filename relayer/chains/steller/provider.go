@@ -89,6 +89,7 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relay
 	response, err := p.client.GetEvents(ctx, eventFilter)
 	if err != nil {
 		p.log.Warn("error occurred while fetching transactions", zap.Error(err))
+		return nil, err
 	}
 	for _, ev := range response.Events {
 		if ev.TxHash == txHash {
