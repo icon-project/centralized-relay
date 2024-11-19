@@ -37,15 +37,16 @@ import (
 )
 
 var (
-	BTCToken         = "0:0"
-	MethodDeposit    = "Deposit"
-	MethodWithdrawTo = "WithdrawTo"
-	MethodRefundTo   = "RefundTo"
-	MethodRollback   = "Rollback"
-	MasterMode       = "master"
-	SlaveMode        = "slave"
-	BtcDB            = "btc.db"
-	WitnessSize      = 380
+	BTCToken           = "0:0"
+	MethodDeposit      = "Deposit"
+	MethodWithdrawTo   = "WithdrawTo"
+	MethodRefundTo     = "RefundTo"
+	MethodRollback     = "Rollback"
+	MasterMode         = "master"
+	SlaveMode          = "slave"
+	BtcDB              = "btc.db"
+	WitnessSize        = 380
+	NumberRequiredSigs = 3
 )
 
 var chainIdToName = map[uint8]string{
@@ -644,7 +645,7 @@ func (p *Provider) buildMultisigWallet() (*multisig.MultisigWallet, error) {
 	relayersMultisigInfo := multisig.MultisigInfo{
 		PubKeys:            [][]byte{masterPubKey, slave1PubKey, slave2PubKey},
 		EcPubKeys:          nil,
-		NumberRequiredSigs: 3,
+		NumberRequiredSigs: NumberRequiredSigs,
 		RecoveryPubKey:     masterPubKey,
 		RecoveryLockTime:   uint64(p.cfg.RecoveryLockTime),
 	}

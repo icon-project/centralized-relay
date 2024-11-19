@@ -24,7 +24,7 @@ bitcoin:
     unisat-url: # Unisat API URL
     unisat-key: # Unisat API Key
     unisat-wallet-url: # Unisat OPEN API URL (https://wallet-api.unisat.io for mainnet, https://wallet-api-testnet.unisat.io for testnet)
-    request-timeout: 1000 # Request Timeout (ms)
+    request-timeout: 100 # Request Timeout (seconds)
     network-id: # Bitcoin Network ID (1: Bitcoin Mainnet, 2: Bitcoin Testnet)
     op-code: # Bitcoin OP Code (0x5e: default)
     finality-block: # Bitcoin Finality Block (10: default)
@@ -52,11 +52,11 @@ The mechanism of the Bitcoin relayer is based on the master-slave architecture.
 
 - Since the Bitcoin network does not support smart contracts, the Relayer Multisig Taproot Wallet serves as the wallet to receive BTC/Rune, securely store them, and the logic for sending and receiving BTC/Rune will be based on this wallet.
 
-- The private key of the Relayer Multisig Taproot Wallet is generated from the `relayerPrivKey` in the config.yaml file
+- The private key of the Relayer Multisig Taproot Wallet is generated from the `relayerPrivKey` in all config.yaml file
 
 - This wallet address is derived from three different public keys: the master public key, the slave1 public key, and the slave2 public key.
 
-- To spend tokens from this wallet, it requires signatures from two out of the three public keys: the master public key and one of the slave public keys.
+- To spend tokens from this wallet, it requires signatures from three out of the three public keys: the master public key and two of the slave public keys.
 
 **_Note: The order of the public keys in the wallet address is crucial. It must remain consistent between the order used to generate the Relayer Multisig Taproot Wallet and the order used to sign the transaction_**
 
@@ -104,7 +104,7 @@ type XCallMessage struct {
 ```golang
 bridgeMsg := BridgeDecodedMsg{
 		Message:  XCallMessage{
-			MessageType:  1,
+			MessageType:  1,    //require xcall response the status of the tx in evet log, set it to 0 to ignore
 			Action:       "Deposit",
 			TokenAddress: "0:0",
 			To:           "0x2.icon/hx452e235f9f1fd1006b1941ed1ad19ef51d1192f6",
@@ -112,10 +112,10 @@ bridgeMsg := BridgeDecodedMsg{
 			Amount:       new(big.Int).SetUint64(100000).Bytes(),
 			Data:         []byte(""),
 		},
-		ChainId:  1,
-		Receiver: "cxfc86ee7687e1bf681b5548b2667844485c0e7192",
+		ChainId:  1,     //1 is icon mainnet, 3 is icon testnet
+		Receiver: "cxfc86ee7687e1bf681b5548b2667844485c0e7192", //asset manager contract
 		Connectors: []string{
-			"cx577f5e756abd89cbcba38a58508b60a12754d2f5",
+			"cx577f5e756abd89cbcba38a58508b60a12754d2f5", //connector contract
 		},
 	}
 ```
