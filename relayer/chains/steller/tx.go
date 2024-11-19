@@ -13,7 +13,6 @@ import (
 	evtypes "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	xdr3 "github.com/stellar/go-xdr/xdr3"
-	"github.com/stellar/go/protocols/horizon"
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
@@ -47,7 +46,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		Height: int64(txRes.Ledger),
 		TxHash: txRes.Hash,
 	}
-	if !txRes.Successful {
+	if txRes.Status != "SUCCESS" {
 		cbTxRes.Code = relayertypes.Failed
 		callback(message.MessageKey(), cbTxRes, fmt.Errorf("transaction failed with unknown error"))
 	} else {
@@ -58,7 +57,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 	return nil
 }
 
-func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizon.Transaction, error) {
+func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*sorobanclient.TransactionResponse, error) {
 	p.txmut.Lock()
 	defer p.txmut.Unlock()
 	callOp := txnbuild.InvokeHostFunction{
@@ -170,11 +169,11 @@ func (p *Provider) sendCallTransaction(callArgs xdr.InvokeContractArgs) (*horizo
 	if err != nil {
 		return nil, err
 	}
-	txRes, err := p.client.SubmitTransactionXDR(txe)
+	txRes, err := p.client.SubmitTransactionXDR(context.Background(), txe)
 	if err != nil {
 		return nil, fmt.Errorf("tx failed with tx envelope[%s]: %w", txe, err)
 	}
-	return &txRes, err
+	return txRes, err
 }
 
 func (p *Provider) handleArchivalState(simResult *sorobanclient.TxSimulationResult, sourceAccount txnbuild.Account) error {
@@ -221,7 +220,7 @@ func (p *Provider) handleArchivalState(simResult *sorobanclient.TxSimulationResu
 	if err != nil {
 		return err
 	}
-	_, err = p.client.SubmitTransactionXDR(txe)
+	_, err = p.client.SubmitTransactionXDR(context.Background(), txe)
 	return err
 }
 
@@ -352,14 +351,14 @@ func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayertypes.Receipt, error) {
-	tx, err := p.client.GetTransaction(txHash)
+	tx, err := p.client.GetTransaction(ctx, txHash)
 	if err != nil {
 		return nil, err
 	}
 	return &relayertypes.Receipt{
 		TxHash: txHash,
 		Height: uint64(tx.Ledger),
-		Status: tx.Successful,
+		Status: tx.Status == "SUCCESS",
 	}, nil
 }
 

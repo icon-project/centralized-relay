@@ -22,3 +22,20 @@ type LedgerSeqBatch struct {
 	FromSeq uint64
 	ToSeq   uint64
 }
+
+type GetEventFilter struct {
+	StartLedger uint64     `json:"startLedger"`
+	Pagination  Pagination `json:"pagination"`
+	Filters     []Filter   `json:"filters"`
+}
+
+type Filter struct {
+	Type        string     `json:"type,omitempty"`
+	ContractIDS []string   `json:"contractIds"`
+	Topics      [][]string `json:"topics,omitempty"`
+}
+
+type Pagination struct {
+	Limit  int    `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+}

@@ -11,10 +11,14 @@ import (
 	"reflect"
 	"strconv"
 	"sync/atomic"
+	"time"
+
+	"github.com/icon-project/centralized-relay/relayer/chains/steller/types"
 )
 
 const (
 	jsonRPCVersion = "2.0"
+	successStatus  = "SUCCESS"
 )
 
 type Client struct {
@@ -52,6 +56,14 @@ func (c *Client) SimulateTransaction(txnXdr string, resourceCfg *ResourceConfig)
 	}
 
 	return simResult, nil
+}
+
+func (c *Client) GetEvents(ctx context.Context, eventFilter types.GetEventFilter) (*LedgerEventResponse, error) {
+	ledgerEvents := &LedgerEventResponse{}
+	if err := c.CallContext(ctx, ledgerEvents, "getEvents", eventFilter); err != nil {
+		return nil, err
+	}
+	return ledgerEvents, nil
 }
 
 func (c *Client) GetLatestLedger(ctx context.Context) (*LatestLedgerResponse, error) {
@@ -114,7 +126,6 @@ func (c *Client) doRequest(ctx context.Context, msg interface{}) (io.ReadCloser,
 	}
 	req.ContentLength = int64(len(body))
 	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-
 	req.Header.Set("Content-Type", "application/json")
 
 	// do request
@@ -141,4 +152,47 @@ func (c *Client) doRequest(ctx context.Context, msg interface{}) (io.ReadCloser,
 func (c *Client) nextID() json.RawMessage {
 	id := atomic.AddUint64(&c.idCounter, 1)
 	return strconv.AppendUint(nil, uint64(id), 10)
+}
+
+func (c *Client) GetTransaction(ctx context.Context, txHash string) (*TransactionResponse, error) {
+	txn := &TransactionResponse{}
+	params := make(map[string]string)
+	params["hash"] = txHash
+	if err := c.CallContext(ctx, txn, "getTransaction", params); err != nil {
+		return nil, err
+	}
+	return txn, nil
+
+}
+
+func (c *Client) SubmitTransactionXDR(ctx context.Context, txXDR string) (*TransactionResponse, error) {
+	txn := &TxnCreationResponse{}
+	params := make(map[string]string)
+	params["transaction"] = txXDR
+	if err := c.CallContext(ctx, txn, "sendTransaction", params); err != nil {
+		return nil, err
+	}
+	return c.waitForSuccess(ctx, txn.Hash)
+}
+
+func (c *Client) waitForSuccess(ctx context.Context, txHash string) (*TransactionResponse, error) {
+	cntx, cncl := context.WithTimeout(ctx, time.Second*10)
+	defer cncl()
+	ticker := time.NewTicker(time.Millisecond * 500)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-cntx.Done():
+			return nil, cntx.Err()
+		case <-ticker.C:
+			txnResp, err := c.GetTransaction(cntx, txHash)
+			if err != nil {
+				continue
+			}
+			if txnResp.Status == successStatus {
+				txnResp.Hash = txHash
+				return txnResp, nil
+			}
+		}
+	}
 }
