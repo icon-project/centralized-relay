@@ -132,8 +132,9 @@ func (sn *SolanaRemoteNet) GetRelayConfig(ctx context.Context, rlyHome string, k
 			CpNIDs:            sn.CNids,
 			Dapps: []centralized.Dapp{
 				{
-					Name:      "mock_dapp",
-					ProgramID: sn.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)],
+					Name:         "mock_dapp",
+					ProgramID:    sn.IBCAddresses[fmt.Sprintf("dapp-%s", testcase)],
+					ConfigPrefix: "config",
 				},
 			},
 		},
@@ -457,6 +458,7 @@ func (sn *SolanaRemoteNet) SetupXCall(ctx context.Context) error {
 		}
 		sn.pdaAcs["altAddress"] = *altPkey
 		time.Sleep(30 * time.Second)
+		sn.CNids = append(sn.CNids, "icon.local")
 		return nil
 	}
 
