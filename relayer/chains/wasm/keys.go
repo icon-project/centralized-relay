@@ -35,12 +35,12 @@ func (p *Provider) RestoreKeystore(ctx context.Context) error {
 }
 
 func (p *Provider) NewKeystore(passphrase string) (string, error) {
+	done := p.SetSDKContext()
+	defer done()
 	armor, addr, err := p.client.CreateAccount(p.NID(), passphrase)
 	if err != nil {
 		return "", err
 	}
-	done := p.SetSDKContext()
-	defer done()
 	encryptedArmor, err := p.kms.Encrypt(context.Background(), []byte(armor))
 	if err != nil {
 		return "", err
