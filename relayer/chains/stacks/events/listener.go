@@ -2,33 +2,34 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sync"
+	"strconv"
+	"strings"
 	"time"
 
 	"container/ring"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/gorilla/websocket"
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
+	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
+	"github.com/icon-project/stacks-go-sdk/pkg/websocket"
 	"go.uber.org/zap"
 )
 
 type EventListener struct {
 	wsURL           string
-	conn            *websocket.Conn
+	wsClient        *websocket.Client
 	eventChan       chan *Event
 	processChan     chan *Event
 	backlog         *ring.Ring
 	maxBufferSize   int
-	mu              sync.RWMutex
 	log             *zap.Logger
 	ctx             context.Context
 	cancel          context.CancelFunc
 	contractAddress string
+	client          interfaces.IClient
 }
 
-func NewEventListener(ctx context.Context, wsURL string, bufferSize int, log *zap.Logger, contractAddress string) *EventListener {
+func NewEventListener(ctx context.Context, wsURL string, bufferSize int, log *zap.Logger, contractAddress string, client interfaces.IClient) *EventListener {
 	ctx, cancel := context.WithCancel(ctx)
 	return &EventListener{
 		wsURL:           wsURL,
@@ -40,114 +41,205 @@ func NewEventListener(ctx context.Context, wsURL string, bufferSize int, log *za
 		ctx:             ctx,
 		cancel:          cancel,
 		contractAddress: contractAddress,
+		client:          client,
 	}
 }
 
 func (l *EventListener) Start() error {
-	go l.maintainConnection()
+	var err error
+	l.wsClient, err = websocket.NewClient(l.wsURL)
+	if err != nil {
+		return fmt.Errorf("failed to create websocket client: %w", err)
+	}
+
+	addressTxChan, err := l.wsClient.SubscribeAddressTransactions(l.ctx, l.contractAddress)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to address transactions: %w", err)
+	}
+
+	l.log.Info("Subscribed",
+		zap.String("address", l.contractAddress),
+	)
+
+	go l.handleAddressTransactions(addressTxChan)
 	go l.bufferEvents()
+
+	l.log.Info("EventListener started successfully",
+		zap.String("wsURL", l.wsURL),
+		zap.String("contractAddress", l.contractAddress))
+
 	return nil
 }
 
 func (l *EventListener) Stop() {
 	l.cancel()
-	if l.conn != nil {
-		l.conn.Close()
+	if l.wsClient != nil {
+		l.wsClient.Close()
 	}
 	close(l.eventChan)
 	close(l.processChan)
 }
 
-func (l *EventListener) maintainConnection() {
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = 0 // Retry forever
-
+func (l *EventListener) handleAddressTransactions(txChan <-chan websocket.AddressTxUpdateEvent) {
 	for {
 		select {
 		case <-l.ctx.Done():
 			return
-		default:
-			if err := l.connect(); err != nil {
-				l.log.Error("WebSocket connection failed", zap.Error(err))
-				time.Sleep(b.NextBackOff())
+		case tx := <-txChan:
+			l.log.Debug("Received address transaction event",
+				zap.String("txID", tx.Params.TxID),
+				zap.String("txType", tx.Params.TxType),
+				zap.String("status", tx.Params.TxStatus),
+				zap.String("contractID", tx.Params.Tx.ContractCall.ContractID))
+
+			if tx.Params.TxType != "contract_call" {
+				l.log.Debug("Ignoring non-contract-call transaction")
 				continue
 			}
-			b.Reset()
-			l.readMessages()
+
+			if tx.Params.TxStatus != "success" {
+				l.log.Debug("Ignoring unsuccessful transaction",
+					zap.String("txID", tx.Params.TxID),
+					zap.String("status", tx.Params.TxStatus))
+				continue
+			}
+
+			if err := l.processContractCall(&tx.Params); err != nil {
+				l.log.Error("Failed to process contract call",
+					zap.Error(err),
+					zap.String("txID", tx.Params.TxID))
+				continue
+			}
 		}
 	}
 }
 
-func (l *EventListener) connect() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+func (l *EventListener) processContractCall(tx *websocket.AddressTxUpdate) error {
+	time.Sleep(5 * time.Second) // occasionally the tx is a mempool tx
 
-	if l.conn != nil {
-		l.log.Debug("Closing existing connection")
-		l.conn.Close()
+	l.log.Debug("Processing transaction",
+		zap.String("txID", tx.TxID),
+		zap.String("txType", tx.TxType),
+		zap.Any("contractCall", tx.Tx.ContractCall))
+
+	eventCount := 0
+	if tx.Tx.Events != nil {
+		eventCount = len(tx.Tx.Events)
 	}
+	l.log.Debug("Transaction event details",
+		zap.Int("eventCount", eventCount),
+		zap.Int("txEventCount", tx.Tx.EventCount),
+		zap.Any("tx.Tx.Events", tx.Tx.Events))
 
-	l.log.Info("Attempting WebSocket connection", zap.String("url", l.wsURL))
+	if len(tx.Tx.Events) == 0 {
+		l.log.Debug("Events array is empty, fetching full transaction details")
 
-	conn, resp, err := websocket.DefaultDialer.Dial(l.wsURL, nil)
-	if err != nil {
-		if resp != nil {
-			l.log.Error("WebSocket connection failed",
-				zap.Error(err),
-				zap.Int("status", resp.StatusCode),
-				zap.String("status_text", resp.Status))
-		} else {
-			l.log.Error("WebSocket connection failed with no response",
-				zap.Error(err))
+		fullTx, err := l.client.GetTransactionById(l.ctx, tx.TxID)
+		if err != nil {
+			l.log.Error("Failed to fetch transaction by ID", zap.Error(err), zap.String("txID", tx.TxID))
+			return err
 		}
-		return err
-	}
 
-	l.conn = conn
-	l.log.Info("WebSocket connection established")
+		var contractCallTx *blockchainApiClient.ContractCallTransaction
 
-	for _, eventType := range []string{CallMessageSent, CallMessage, ResponseMessage, RollbackMessage} {
-		if err := l.subscribe(eventType); err != nil {
-			l.conn.Close()
-			return fmt.Errorf("failed to subscribe to %s: %w", eventType, err)
+		if fullTx.GetTransactionList200ResponseResultsInner != nil && fullTx.GetTransactionList200ResponseResultsInner.ContractCallTransaction != nil {
+			contractCallTx = fullTx.GetTransactionList200ResponseResultsInner.ContractCallTransaction
+		}
+
+		if contractCallTx == nil {
+			l.log.Debug("Transaction is not a ContractCallTransaction or events are unavailable", zap.String("txID", tx.TxID))
+			return nil
+		}
+
+		txEvents := contractCallTx.Events
+		if len(txEvents) == 0 {
+			l.log.Debug("No events found in full transaction details", zap.String("txID", tx.TxID))
+			return nil
+		}
+
+		for i, event := range txEvents {
+			l.log.Debug("Processing event from ContractCallTransaction",
+				zap.Int("eventIndex", i),
+				zap.Any("event", event))
+
+			if event.SmartContractLogTransactionEvent != nil {
+				contractLog := event.SmartContractLogTransactionEvent.ContractLog
+				if contractLog.Topic == "print" {
+					repr := contractLog.Value.Repr
+					l.log.Debug("Found print event log",
+						zap.String("repr", repr),
+						zap.String("topic", contractLog.Topic))
+
+					if strings.Contains(repr, "CallMessageSent") {
+						l.log.Debug("Found CallMessageSent event in print log",
+							zap.String("full_event", repr))
+
+						eventData := parseClarityTuple(repr)
+
+						snStr := eventData["sn"].(string)
+						sn, err := strconv.ParseUint(strings.TrimPrefix(snStr, "u"), 10, 64)
+						if err != nil {
+							return fmt.Errorf("failed to parse sn: %w", err)
+						}
+
+						sentData := &CallMessageSentData{
+							From:         eventData["from"].(string),
+							To:           eventData["to"].(string),
+							Sn:           sn,
+							Data:         eventData["data"].(string),
+							Sources:      eventData["sources"].([]string),
+							Destinations: eventData["destinations"].([]string),
+						}
+
+						event := &Event{
+							ID:          fmt.Sprintf("%s-%s-%d", "CallMessageSent", tx.TxID, time.Now().UnixNano()),
+							Type:        "CallMessageSent",
+							Data:        sentData,
+							BlockHeight: uint64(tx.Tx.BlockHeight),
+							Timestamp:   time.Now(),
+							Raw:         []byte(repr),
+						}
+
+						l.eventChan <- event
+						l.log.Debug("Processed and sent event",
+							zap.String("type", event.Type),
+							zap.String("id", event.ID))
+					} else if strings.Contains(repr, "Message") {
+						l.log.Debug("Found Message event in print log",
+							zap.String("full_event", repr))
+
+						eventData := parseClarityTuple(repr)
+						if eventData == nil {
+							return fmt.Errorf("failed to parse Message: %w", err)
+						}
+
+						snStr := eventData["sn"].(string)
+						sn, err := strconv.ParseInt(snStr, 10, 64)
+						if err != nil {
+							return fmt.Errorf("failed to parse sn: %w", err)
+						}
+
+						messageData := &MessageData{
+							From: "stacks_testnet",
+							To:   eventData["to"].(string),
+							Sn:   sn,
+							Data: eventData["msg"].(string),
+						}
+						event := &Event{
+							ID:          fmt.Sprintf("%s-%s-%d", "Message", tx.TxID, time.Now().UnixNano()),
+							Type:        "Message",
+							Data:        messageData,
+							BlockHeight: uint64(tx.Tx.BlockHeight),
+							Timestamp:   time.Now(),
+							Raw:         []byte(repr),
+						}
+						l.eventChan <- event
+					}
+				}
+			}
 		}
 	}
-
 	return nil
-}
-
-func (l *EventListener) readMessages() {
-	for {
-		select {
-		case <-l.ctx.Done():
-			return
-		default:
-			_, message, err := l.conn.ReadMessage()
-			if err != nil {
-				l.log.Error("Failed to read WebSocket message", zap.Error(err))
-				return
-			}
-
-			l.log.Debug("Received WebSocket message", zap.String("message", string(message)))
-
-			event, err := l.parseEvent(message)
-			if err != nil {
-				l.log.Error("Failed to parse event", zap.Error(err))
-				continue
-			}
-
-			if event == nil {
-				continue
-			}
-
-			l.log.Info("Parsed event",
-				zap.String("id", event.ID),
-				zap.String("type", event.Type),
-				zap.Any("data", event.Data))
-
-			l.eventChan <- event
-		}
-	}
 }
 
 func (l *EventListener) bufferEvents() {
@@ -163,134 +255,61 @@ func (l *EventListener) bufferEvents() {
 	}
 }
 
-func (l *EventListener) subscribe(eventType string) error {
-	request := WSRequest{
-		JSONRPC: "2.0",
-		ID:      time.Now().UnixNano(),
-		Method:  "subscribe",
-		Params: map[string]interface{}{
-			"event":   eventType,
-			"address": l.contractAddress,
-		},
-	}
+func parseClarityTuple(repr string) map[string]interface{} {
+	data := make(map[string]interface{})
 
-	l.log.Debug("Subscribing to event",
-		zap.String("type", eventType),
-		zap.Any("request", request))
+	tupleContent := strings.TrimPrefix(strings.TrimSuffix(repr, ")"), "(tuple ")
 
-	data, err := json.Marshal(request)
-	if err != nil {
-		return fmt.Errorf("failed to marshal subscription request: %w", err)
-	}
+	var fields []string
+	var currentField strings.Builder
+	parenthesesCount := 0
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if err := l.conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		return fmt.Errorf("failed to send subscription request: %w", err)
-	}
-
-	_, message, err := l.conn.ReadMessage()
-	if err != nil {
-		return fmt.Errorf("failed to read subscription response: %w", err)
-	}
-
-	var response WSResponse
-	if err := json.Unmarshal(message, &response); err != nil {
-		l.log.Error("Failed to unmarshal subscription response",
-			zap.Error(err),
-			zap.String("response", string(message)))
-		return fmt.Errorf("failed to unmarshal subscription response: %w", err)
-	}
-
-	if response.Error != nil {
-		l.log.Error("Subscription failed",
-			zap.String("type", eventType),
-			zap.String("error", response.Error.Message))
-		return fmt.Errorf("subscription failed: %s", response.Error.Message)
-	}
-
-	l.log.Info("Successfully subscribed to event",
-		zap.String("type", eventType),
-		zap.String("response", string(message)))
-	return nil
-}
-
-func (l *EventListener) parseEvent(message []byte) (*Event, error) {
-	var wsMsg WSMessage
-	if err := json.Unmarshal(message, &wsMsg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal WebSocket message: %w", err)
-	}
-
-	l.log.Debug("Parsed WebSocket message",
-		zap.String("method", wsMsg.Method),
-		zap.String("params", string(wsMsg.Params)))
-
-	if wsMsg.Method != "event" {
-		return nil, nil
-	}
-
-	var smartContractLog SmartContractLogEvent
-	if err := json.Unmarshal(wsMsg.Params, &smartContractLog); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal smart contract log: %w", err)
-	}
-
-	if smartContractLog.EventType != "smart_contract_log" ||
-		smartContractLog.ContractEvent.Topic != "print" {
-		return nil, nil
-	}
-
-	var printValue struct {
-		Event string          `json:"event"`
-		Data  json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(smartContractLog.ContractEvent.Value, &printValue); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal print value: %w", err)
-	}
-
-	var eventData interface{}
-	switch printValue.Event {
-	case CallMessageSent:
-		var data CallMessageSentData
-		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal CallMessageSent data: %w", err)
+	for _, char := range tupleContent {
+		if char == '(' {
+			parenthesesCount++
+		} else if char == ')' {
+			parenthesesCount--
 		}
-		eventData = data
 
-	case CallMessage:
-		var data CallMessageData
-		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal CallMessage data: %w", err)
+		if char == ' ' && parenthesesCount == 0 && currentField.Len() > 0 {
+			fields = append(fields, currentField.String())
+			currentField.Reset()
+		} else {
+			currentField.WriteRune(char)
 		}
-		eventData = data
-
-	case ResponseMessage:
-		var data ResponseMessageData
-		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal ResponseMessage data: %w", err)
-		}
-		eventData = data
-
-	case RollbackMessage:
-		var data RollbackMessageData
-		if err := json.Unmarshal(printValue.Data, &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal RollbackMessage data: %w", err)
-		}
-		eventData = data
-
-	default:
-		l.log.Debug("Ignoring unknown event type", zap.String("type", printValue.Event))
-		return nil, nil
+	}
+	if currentField.Len() > 0 {
+		fields = append(fields, currentField.String())
 	}
 
-	event := &Event{
-		ID:          fmt.Sprintf("%s-%d", printValue.Event, time.Now().UnixNano()),
-		Type:        printValue.Event,
-		Data:        eventData,
-		BlockHeight: smartContractLog.BlockHeight,
-		Timestamp:   time.Now(),
-		Raw:         message,
+	for _, field := range fields {
+		if len(field) == 0 {
+			continue
+		}
+
+		parts := strings.SplitN(field, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.Trim(parts[0], "()")
+		value := strings.Trim(parts[1], "()")
+
+		if strings.HasPrefix(value, "list") {
+			listStr := strings.TrimPrefix(value, "list ")
+			listItems := strings.Split(strings.Trim(listStr, "\""), "\" \"")
+			data[key] = listItems
+			continue
+		}
+
+		if strings.HasPrefix(value, "u") {
+			data[key] = strings.TrimPrefix(value, "u")
+		} else if strings.HasPrefix(value, "0x") {
+			data[key] = value
+		} else {
+			data[key] = strings.Trim(value, "\"'")
+		}
 	}
 
-	return event, nil
+	return data
 }

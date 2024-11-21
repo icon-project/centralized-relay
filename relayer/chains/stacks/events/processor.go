@@ -88,6 +88,9 @@ func (p *EventProcessor) processEvent(event *Event) {
 	case CallMessageSent:
 		p.log.Debug("Processing CallMessageSent event")
 		err = p.handleCallMessageSentEvent(event)
+	case Message:
+		p.log.Debug("Processing Message event")
+		err = p.handleMessageEvent(event)
 	case CallMessage:
 		p.log.Debug("Processing CallMessage event")
 		err = p.handleCallMessageEvent(event)

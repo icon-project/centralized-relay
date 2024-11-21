@@ -7,9 +7,9 @@ chains:
     rpc_uri: https://api.testnet.hiro.so
     contracts_path: "$BASE_PATH/artifacts/stacks"
     config_path: "$BASE_PATH/test/chains/stacks/data"
-    keystore_file: /Users/cyrusvorwald/.centralized-relay/keystore/stacks_testnet/ST1FTM84RHDZ3AB21MNYKA3XQEFB090HZBB81DSFE
+    keystore_file: /Users/cyrusvorwald/.centralized-relay/keystore/stacks_testnet/ST2EKT8YDGKFW2B3HJT4D59VFS8Q2W0RNKTCWR8QY
     keystore_password: changeme
-    relay_wallet: ST1FTM84RHDZ3AB21MNYKA3XQEFB090HZBB81DSFE
+    relay_wallet: ST2EKT8YDGKFW2B3HJT4D59VFS8Q2W0RNKTCWR8QY
     chain_config:
       type: stacks
       name: stacks

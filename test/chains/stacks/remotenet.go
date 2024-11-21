@@ -80,6 +80,7 @@ func (s *StacksLocalnet) Height(ctx context.Context) (uint64, error) {
 func (s *StacksLocalnet) GetRelayConfig(ctx context.Context, rlyHome string, keyName string) ([]byte, error) {
 	contracts := make(map[string]string)
 	contracts["xcall-proxy"] = s.GetContractAddress("xcall-proxy")
+	contracts["xcall"] = s.GetContractAddress("xcall-proxy")
 	contracts["connection"] = s.GetContractAddress("connection")
 
 	config := &centralized.StacksRelayerChainConfig{

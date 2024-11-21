@@ -6,9 +6,13 @@ import (
 )
 
 const (
-	EmitMessage     = "message_event"
-	CallMessage     = "call_message_event"
-	RollbackMessage = "rollback_message_event"
+	EmitMessage      = "Message"
+	CallMessage      = "CallMessage"
+	RollbackMessage  = "RollbackMessage"
+	CallExecuted     = "CallExecuted"
+	CallMessageSent  = "CallMessageSent"
+	ResponseMessage  = "ResponseMessage"
+	RollbackExecuted = "RollbackExecuted"
 )
 
 func (c *Config) eventMap() map[string]providerTypes.EventMap {

@@ -47,7 +47,7 @@ func (s *StacksLocalnet) FindCallMessage(ctx context.Context, startHeight uint64
 			for _, event := range events.Results {
 				if event.SmartContractLogTransactionEvent != nil {
 					log := event.SmartContractLogTransactionEvent.ContractLog
-					if log.Topic == "print" && strings.Contains(log.Value.Repr, "CallMessage") {
+					if log.Topic == "print" && strings.Contains(log.Value.Repr, "Message") {
 						eventSn := extractSnFromEvent(log.Value.Repr)
 						if eventSn == sn {
 							reqId, data := extractCallMessageData(log.Value.Repr)

@@ -109,6 +109,11 @@ func (p *Provider) Config() provider.Config {
 
 func (p *Provider) Init(ctx context.Context, homepath string, kms kms.KMS) error {
 	p.kms = kms
+
+	if err := p.RestoreKeystore(ctx); err != nil {
+		return fmt.Errorf("failed to restore keystore: %w", err)
+	}
+
 	return nil
 }
 

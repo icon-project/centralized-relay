@@ -40,15 +40,15 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 		{"xcall-proxy-trait", "proxy-trait", true, nil},
 
 		{"util", "util", true, nil},
-		{"rlp-encode", "rlp-encode", true, nil},
+		{"rlp-encode-v2", "rlp-encode", true, nil},
 		{"rlp-decode", "rlp-decode", true, nil},
 
 		{"xcall-proxy", "xcall-proxy", true, nil},
 
-		{"centralized-connection", "connection", true, nil},
+		{"centralized-connection-v3", "connection", true, nil},
 
-		{"xcall-impl-v5", "xcall-impl", true, func(proxyAddr string) error {
-			implAddr := senderAddress + ".xcall-impl-v5"
+		{"xcall-impl-v8", "xcall-impl", true, func(proxyAddr string) error {
+			implAddr := senderAddress + ".xcall-impl-v8"
 			implPrincipal, err := clarity.StringToPrincipal(implAddr)
 			if err != nil {
 				return fmt.Errorf("failed to convert implementation address to principal: %w", err)
@@ -120,8 +120,8 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 		}},
 	}
 
-	connectionContractName := "centralized-connection"
-	implContractName := "xcall-impl-v5"
+	connectionContractName := "centralized-connection-v3"
+	implContractName := "xcall-impl-v8"
 	proxyContractName := "xcall-proxy"
 
 	s.IBCAddresses["xcall-proxy"] = senderAddress + "." + proxyContractName
@@ -193,15 +193,15 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 	}
 
 	s.IBCAddresses["xcall-proxy"] = deployedContracts["xcall-proxy"]
-	s.IBCAddresses["xcall-impl"] = deployedContracts["xcall-impl-v5"]
-	s.IBCAddresses["connection"] = deployedContracts["centralized-connection"]
+	s.IBCAddresses["xcall-impl"] = deployedContracts["xcall-impl-v8"]
+	s.IBCAddresses["connection"] = deployedContracts["centralized-connection-v3"]
 
 	return nil
 }
 
 func (s *StacksLocalnet) setDefaultConnection(ctx context.Context, privateKey []byte, senderAddress string) error {
 	nid := "test"
-	connectionAddress := senderAddress + "." + "centralized-connection"
+	connectionAddress := senderAddress + "." + "centralized-connection-v3"
 
 	nidArg, err := clarity.NewStringASCII(nid)
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *StacksLocalnet) setDefaultConnection(ctx context.Context, privateKey []
 		return fmt.Errorf("failed to create connection address argument: %w", err)
 	}
 
-	implAddr := senderAddress + "." + "xcall-impl-v5"
+	implAddr := senderAddress + "." + "xcall-impl-v8"
 	implPrincipal, err := clarity.StringToPrincipal(implAddr)
 	if err != nil {
 		return fmt.Errorf("failed to convert implementation address to principal: %w", err)
@@ -274,7 +274,7 @@ func (s *StacksLocalnet) initializeXCallImpl(ctx context.Context, privateKey []b
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"xcall-impl-v5",
+		"xcall-impl-v8",
 		"init",
 		args,
 		*s.network,
@@ -324,7 +324,7 @@ func (s *StacksLocalnet) setConnectionFees(ctx context.Context, privateKey []byt
 
 		txCall, err := transaction.MakeContractCall(
 			senderAddress,
-			"centralized-connection",
+			"centralized-connection-v3",
 			"set-fee",
 			args,
 			*s.network,
@@ -342,7 +342,7 @@ func (s *StacksLocalnet) setConnectionFees(ctx context.Context, privateKey []byt
 			return fmt.Errorf("failed to broadcast set-fee transaction: %w", err)
 		}
 
-		s.log.Info("Set fee in centralized-connection", zap.String("txID", txID), zap.String("nid", nid))
+		s.log.Info("Set fee in centralized-connection-v3", zap.String("txID", txID), zap.String("nid", nid))
 
 		err = s.waitForTransactionConfirmation(ctx, txID)
 		if err != nil {
@@ -410,7 +410,7 @@ func (s *StacksLocalnet) setAdminXCallImpl(ctx context.Context, privateKey []byt
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"xcall-impl-v5",
+		"xcall-impl-v8",
 		"set-admin",
 		args,
 		*s.network,
@@ -497,7 +497,7 @@ func (s *StacksLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 		return fmt.Errorf("failed to load deployer's private key: %w", err)
 	}
 
-	connectionContractName := "centralized-connection"
+	connectionContractName := "centralized-connection-v3"
 	contractAddress := senderAddress + "." + connectionContractName
 
 	contract, err := s.client.GetContractById(ctx, contractAddress)
@@ -538,7 +538,7 @@ func (s *StacksLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 		return fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	s.log.Info("Deployed centralized-connection contract", zap.String("txID", txID))
+	s.log.Info("Deployed centralized-connection-v3 contract", zap.String("txID", txID))
 	s.IBCAddresses["connection"] = contractAddress
 
 	err = s.waitForTransactionConfirmation(ctx, txID)
@@ -619,7 +619,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"centralized-connection",
+		"centralized-connection-v3",
 		"initialize",
 		args,
 		*s.network,
@@ -637,7 +637,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 		return fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	s.log.Info("Initialized centralized-connection contract", zap.String("txID", txID))
+	s.log.Info("Initialized centralized-connection-v3 contract", zap.String("txID", txID))
 
 	err = s.waitForTransactionConfirmation(ctx, txID)
 	if err != nil {
@@ -650,7 +650,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 func shortenContractName(testcase string) string {
 	// Stacks has a contract name limit defined in SIP-003
 	maxLength := 30
-	prefix := "x-dapp-"
+	prefix := "mock-dapp-"
 
 	cleaned := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {

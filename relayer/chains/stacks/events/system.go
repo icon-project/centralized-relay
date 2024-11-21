@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/stacks/interfaces"
 	"go.uber.org/zap"
@@ -20,7 +21,7 @@ func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger, client i
 	ctx, cancel := context.WithCancel(ctx)
 
 	store := NewMemoryEventStore()
-	listener := NewEventListener(ctx, wsURL, 1000, log, contractAddress)
+	listener := NewEventListener(ctx, wsURL, 1000, log, contractAddress, client)
 	processor := NewEventProcessor(ctx, store, listener.processChan, 5, log, client, senderAddress, senderKey)
 
 	return &EventSystem{
@@ -34,10 +35,15 @@ func NewEventSystem(ctx context.Context, wsURL string, log *zap.Logger, client i
 }
 
 func (s *EventSystem) Start() error {
+	s.log.Info("Starting event system")
+
 	if err := s.listener.Start(); err != nil {
-		return err
+		return fmt.Errorf("failed to start listener: %w", err)
 	}
+
 	s.processor.Start()
+
+	s.log.Info("Event system started successfully")
 	return nil
 }
 

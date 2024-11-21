@@ -324,7 +324,7 @@ func (c *Client) GetReceipt(ctx context.Context, contractAddress string, srcNetw
 	result, err := c.CallReadOnlyFunction(
 		ctx,
 		contractAddress,
-		"centralized-connection",
+		"centralized-connection-v3",
 		"get-receipt",
 		[]string{hexEncodedSrcNetwork, hexEncodedConnSnInArg},
 	)
@@ -347,7 +347,7 @@ func (c *Client) ClaimFee(ctx context.Context, contractAddress string, senderAdd
 	tx, err := c.MakeContractCall(
 		ctx,
 		contractAddress,
-		"centralized-connection",
+		"centralized-connection-v3",
 		"claim-fees",
 		args,
 		senderAddress,
@@ -385,7 +385,7 @@ func (c *Client) SetFee(ctx context.Context, contractAddress string, networkID s
 	tx, err := c.MakeContractCall(
 		ctx,
 		contractAddress,
-		"centralized-connection",
+		"centralized-connection-v3",
 		"set-fee",
 		args,
 		senderAddress,
@@ -424,7 +424,7 @@ func (c *Client) GetFee(ctx context.Context, contractAddress string, networkID s
 	result, err := c.CallReadOnlyFunction(
 		ctx,
 		contractAddress,
-		"centralized-connection",
+		"centralized-connection-v3",
 		"get-fee",
 		[]string{hexEncodedNetworkID, hexEncodedResponseFee},
 	)

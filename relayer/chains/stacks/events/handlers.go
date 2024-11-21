@@ -2,6 +2,7 @@ package events
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"go.uber.org/zap"
@@ -10,7 +11,7 @@ import (
 )
 
 func (p *EventProcessor) handleCallMessageSentEvent(event *Event) error {
-	data, ok := event.Data.(CallMessageSentData)
+	data, ok := event.Data.(*CallMessageSentData)
 	if !ok {
 		return fmt.Errorf("invalid event data type for CallMessageSent")
 	}
@@ -29,6 +30,21 @@ func (p *EventProcessor) handleCallMessageSentEvent(event *Event) error {
 			return err
 		}
 	}
+
+	return nil
+}
+
+func (p *EventProcessor) handleMessageEvent(event *Event) error {
+	data, ok := event.Data.(*MessageData)
+	if !ok {
+		return fmt.Errorf("invalid event data type for Message")
+	}
+
+	p.log.Info("Processing Message event",
+		zap.String("from", data.From),
+		zap.String("to", data.To),
+		zap.Int64("sn", data.Sn),
+	)
 
 	return nil
 }
@@ -85,20 +101,29 @@ func (p *EventProcessor) callSendMessageFunction(sourceContract string, to strin
 	sourceContractAddress := parts[0]
 	sourceContractName := parts[1]
 
+	p.log.Info("Calling send-message on",
+		zap.String("sourceContract", sourceContract),
+	)
+
 	cvTo, err := clarity.NewStringASCII(to)
 	if err != nil {
 		return fmt.Errorf("failed to create to address clarity value: %w", err)
 	}
 
-	cvSn, err := clarity.NewUInt(sn)
+	cvSn, err := clarity.NewInt(big.NewInt(int64(sn)))
 	if err != nil {
 		return fmt.Errorf("failed to create sn clarity value: %w", err)
 	}
 
 	cvBuffer := clarity.NewBuffer([]byte(msg))
+	cvSvc, err := clarity.NewStringASCII("")
+	if err != nil {
+		return fmt.Errorf("failed to create svc clarity value: %w", err)
+	}
 
 	args := []clarity.ClarityValue{
 		cvTo,
+		cvSvc,
 		cvSn,
 		cvBuffer,
 	}

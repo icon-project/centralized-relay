@@ -14,6 +14,16 @@ type Event struct {
 	Raw         []byte
 }
 
+type PrintEventValue struct {
+	Event        string   `json:"event"`
+	From         string   `json:"from"`
+	To           string   `json:"to"`
+	Sn           string   `json:"sn"`
+	Data         string   `json:"data"`
+	Sources      []string `json:"sources"`
+	Destinations []string `json:"destinations"`
+}
+
 type SmartContractLogEvent struct {
 	EventType     string        `json:"event_type"`
 	ContractEvent ContractEvent `json:"contract_event"`
@@ -64,6 +74,13 @@ type CallMessageSentData struct {
 	Destinations []string `json:"destinations"`
 }
 
+type MessageData struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Sn   int64  `json:"sn"`
+	Data string `json:"data"`
+}
+
 type CallMessageData struct {
 	From  string `json:"from"`
 	To    string `json:"to"`
@@ -84,6 +101,7 @@ type RollbackMessageData struct {
 
 const (
 	CallMessageSent = "CallMessageSent"
+	Message         = "Message"
 	CallMessage     = "CallMessage"
 	ResponseMessage = "ResponseMessage"
 	RollbackMessage = "RollbackMessage"
