@@ -105,3 +105,16 @@ checksum:
 release:
   prerelease: auto
   draft: true
+  extra_files:
+    - glob: dist/*.sig
+
+signs:
+  - cmd: cosign
+    stdin: "{{ .Env.COSIGN_PWD }}"
+    args:
+      - "sign-blob"
+      - "--key=env://COSIGN_KEY"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: all

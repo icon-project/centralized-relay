@@ -47,7 +47,7 @@ test-all:
 	@go test -v ./...
 
 PACKAGE_NAME          := github.com/icon-project/centralized-relay
-GOLANG_CROSS_VERSION  ?= v1.22.4
+GOLANG_CROSS_VERSION  ?= v1.23.3
 LIBWASM_VERSION 		 ?= v2.1.0
 
 SYSROOT_DIR     ?= sysroots
@@ -59,6 +59,8 @@ release-dry-run:
 	@docker run \
 		--rm \
 		--env LIBWASM_VERSION=$(LIBWASM_VERSION) \
+		--env COSIGN_PWD \
+		--env COSIGN_KEY \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \
@@ -71,6 +73,8 @@ release:
 		--rm \
 		--env GITHUB_TOKEN \
 		--env LIBWASM_VERSION=$(LIBWASM_VERSION) \
+		--env COSIGN_PWD \
+		--env COSIGN_KEY \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \
