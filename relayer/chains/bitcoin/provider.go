@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 	"runtime"
 	"slices"
@@ -799,20 +798,20 @@ func (p *Provider) decodeWithdrawToMessage(input []byte) (*MessageDecoded, []byt
 	withdrawInfoWrapper := CSMessage{}
 	_, err := codec.RLP.UnmarshalFromBytes(input, &withdrawInfoWrapper)
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, nil, fmt.Errorf("failed to unmarshal withdraw info wrapper: %v", err)
 	}
 
 	// withdraw info data
 	withdrawInfoWrapperV2 := CSMessageRequestV2{}
 	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapper.Payload, &withdrawInfoWrapperV2)
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, nil, fmt.Errorf("failed to unmarshal withdraw info wrapper: %v", err)
 	}
 	// withdraw info
 	withdrawInfo := &MessageDecoded{}
 	_, err = codec.RLP.UnmarshalFromBytes(withdrawInfoWrapperV2.Data, &withdrawInfo)
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, nil, fmt.Errorf("failed to unmarshal withdraw info: %v", err)
 	}
 
 	return withdrawInfo, withdrawInfoWrapperV2.Data, nil
