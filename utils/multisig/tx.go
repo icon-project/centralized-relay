@@ -32,12 +32,10 @@ func TransposeSigs(sigs [][][]byte) [][][]byte {
 }
 
 func ParseTx(data string) (*wire.MsgTx, error) {
-	fmt.Printf("ParseTx data: %v\n", string(data))
 	dataBytes, err := hex.DecodeString(data)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("ParseTx dataBytes: %v\n", string(dataBytes))
 	tx := &wire.MsgTx{}
 	err = tx.Deserialize(strings.NewReader(string(dataBytes)))
 	if err != nil {

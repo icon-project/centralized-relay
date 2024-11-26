@@ -91,6 +91,12 @@ type slaveRequestUpdateRelayMessageStatus struct {
 	TxHash string `json:"txHash"`
 }
 
+type slaveResponse struct {
+	order int
+	sigs  [][]byte
+	err   error
+}
+
 type StoredMessageData struct {
 	OriginalMessage  *relayTypes.Message
 	TxHash           string
@@ -207,10 +213,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 func (p *Provider) CallSlaves(slaveRequestData []byte, path string) [][][]byte {
 	resultChan := make(chan [][][]byte)
 	go func() {
-		responses := make(chan struct {
-			order int
-			sigs  [][]byte
-		}, 2)
+		responses := make(chan slaveResponse, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
 
@@ -224,6 +227,10 @@ func (p *Provider) CallSlaves(slaveRequestData []byte, path string) [][][]byte {
 
 		results := make([][][]byte, 2)
 		for res := range responses {
+			if res.err != nil {
+				p.logger.Error("failed to call slaves", zap.Error(res.err))
+				continue
+			}
 			results[res.order-1] = res.sigs
 		}
 		resultChan <- results
@@ -930,13 +937,15 @@ func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Mess
 
 	if err != nil {
 		p.logger.Error("err combine tx: ", zap.Error(err))
+		return "", err
 	}
 	p.logger.Info("signedMsgTx", zap.Any("transaction", signedMsgTx))
 	var buf bytes.Buffer
 	err = signedMsgTx.Serialize(&buf)
 
 	if err != nil {
-		log.Fatal(err)
+		p.logger.Error("err serialize tx: ", zap.Error(err))
+		return "", err
 	}
 
 	txSize := len(buf.Bytes())
@@ -1371,11 +1380,11 @@ func (p *Provider) getAddressesFromTx(txOut *wire.TxOut, chainParams *chaincfg.P
 
 	scriptClass, addresses, _, err := txscript.ExtractPkScriptAddrs(txOut.PkScript, chainParams)
 	if err != nil {
-		fmt.Printf("  Script: Unable to parse (possibly OP_RETURN)\n")
+		p.logger.Error("Script: Unable to parse (possibly OP_RETURN)", zap.Error(err))
 	} else {
-		fmt.Printf("  Script Class: %s\n", scriptClass)
+		p.logger.Info("Script Class", zap.String("scriptClass", scriptClass.String()))
 		if len(addresses) > 0 {
-			fmt.Printf("  Receiver Address: %s\n", addresses[0].String())
+			p.logger.Info("Receiver Address", zap.String("address", addresses[0].String()))
 			receiverAddresses = append(receiverAddresses, addresses[0].String())
 		}
 	}
