@@ -929,7 +929,12 @@ func (p *Provider) sendTransaction(ctx context.Context, message *relayTypes.Mess
 
 	slaveRequestData, _ := json.Marshal(rsi)
 	slaveSigs := p.CallSlaves(slaveRequestData, "")
+
 	p.logger.Info("Slave signatures", zap.Any("slave sigs", slaveSigs))
+	if len(slaveSigs) < 2 || len(slaveSigs[0]) == 0 || len(slaveSigs[1]) == 0 {
+		return "", fmt.Errorf("slave sigs is empty")
+	}
+
 	totalSigs = append(totalSigs, slaveSigs...)
 
 	// combine sigs

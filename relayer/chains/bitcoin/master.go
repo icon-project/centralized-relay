@@ -55,28 +55,24 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Received message: ", msg)
-
 	// Send a response
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]string{"status": "success", "msg": msg}
-	fmt.Println(response)
 	json.NewEncoder(w).Encode(response)
 }
 
-func requestPartialSign(apiKey string, url string, slaveRequestData []byte, responses chan<- struct {
-	order int
-	sigs  [][]byte
-}, order int, wg *sync.WaitGroup) {
+func requestPartialSign(apiKey string, url string, slaveRequestData []byte, responses chan<- slaveResponse, order int, wg *sync.WaitGroup) {
 	defer wg.Done()
-
+	response := slaveResponse{}
 	client := &http.Client{}
 	payload := bytes.NewBuffer(slaveRequestData)
 	req, err := http.NewRequest("POST", url, payload)
 
 	if err != nil {
-		log.Fatalf("Failed to create request: %v", err)
+		response.err = fmt.Errorf("failed to create request: %v", err)
+		responses <- response
+		return
 	}
 
 	req.Header.Add("x-api-key", apiKey)
@@ -84,22 +80,28 @@ func requestPartialSign(apiKey string, url string, slaveRequestData []byte, resp
 	resp, err := client.Do(req)
 
 	if err != nil {
-		log.Fatalf("Failed to send request: %v", err)
+		response.err = fmt.Errorf("failed to send request: %v", err)
+		responses <- response
+		return
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response: %v", err)
+		response.err = fmt.Errorf("error reading response: %v", err)
+		responses <- response
+		return
 	}
 
 	sigs := [][]byte{}
 	err = json.Unmarshal(body, &sigs)
 	if err != nil {
-		fmt.Println("err Unmarshal: ", err)
+		response.err = fmt.Errorf("err Unmarshal: %v", err)
+		responses <- response
+		return
 	}
 
-	responses <- struct {
-		order int
-		sigs  [][]byte
-	}{order: order, sigs: sigs}
+	response.order = order
+	response.sigs = sigs
+	response.err = nil
+	responses <- response
 }
