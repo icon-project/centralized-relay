@@ -40,7 +40,7 @@ type StacksLocalnet struct {
 }
 
 func NewStacksLocalnet(testName string, log *zap.Logger, chainConfig chains.ChainConfig, testconfig *testconfig.Chain, kms kms.KMS) chains.Chain {
-	network := stacks.NewStacksTestnet()
+	network := stacks.NewStacksLocalnet()
 	client, err := stacksClient.NewClient(log, network)
 	if err != nil {
 		log.Error("Failed to create Stacks client", zap.Error(err))
@@ -107,6 +107,12 @@ func (s *StacksLocalnet) GetContractAddress(key string) string {
 }
 
 func (s *StacksLocalnet) SendPacketXCall(ctx context.Context, keyName, _to string, data, rollback []byte) (context.Context, error) {
+	s.log.Debug("Sending packet",
+		zap.ByteString("data", data),
+		zap.ByteString("rollback", rollback),
+		zap.String("_to", _to),
+		zap.String("keyName", keyName))
+
 	testcase := ctx.Value("testcase").(string)
 	dappKey := fmt.Sprintf("dapp-%s", testcase)
 	dappAddress := s.IBCAddresses[dappKey]
@@ -167,7 +173,10 @@ func (s *StacksLocalnet) SendPacketXCall(ctx context.Context, keyName, _to strin
 		senderAddress,
 		privateKey,
 		nil,
+		// big.NewInt(10000000), // 10 STX
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create contract call transaction: %w", err)

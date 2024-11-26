@@ -2,7 +2,9 @@ package stacks
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/types"
@@ -66,10 +68,22 @@ func (p *Provider) handleEmitMessage(ctx context.Context, message *types.Message
 		return "", fmt.Errorf("failed to create connSn argument: %w", err)
 	}
 
-	msgArg, err := clarity.NewStringASCII(string(message.Data))
+	// Clarity hex encodes buff on emit, so we need to decode twice
+	msgStr := string(message.Data)
+	msgStr = strings.TrimPrefix(msgStr, "0x")
+	firstDecode, err := hex.DecodeString(msgStr)
 	if err != nil {
-		return "", fmt.Errorf("failed to create msg argument: %w", err)
+		return "", fmt.Errorf("first hex decode failed: %w", err)
 	}
+
+	msgStr = string(firstDecode)
+	msgStr = strings.TrimPrefix(msgStr, "0x")
+	msgBytes, err := hex.DecodeString(msgStr)
+	if err != nil {
+		return "", fmt.Errorf("second hex decode failed: %w", err)
+	}
+
+	msgArg := clarity.NewBuffer(msgBytes)
 
 	args := []clarity.ClarityValue{srcNetworkArg, connSnArg, msgArg}
 

@@ -1,6 +1,7 @@
 package events
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -40,10 +41,17 @@ func (p *EventProcessor) handleMessageEvent(event *Event) error {
 		return fmt.Errorf("invalid event data type for Message")
 	}
 
+	msgStr := strings.TrimPrefix(data.Data, "0x")
+	msgBytes, err := hex.DecodeString(msgStr)
+	if err != nil {
+		return fmt.Errorf("hex decode failed: %w", err)
+	}
+
 	p.log.Info("Processing Message event",
 		zap.String("from", data.From),
 		zap.String("to", data.To),
 		zap.Int64("sn", data.Sn),
+		zap.ByteString("data", msgBytes),
 	)
 
 	return nil

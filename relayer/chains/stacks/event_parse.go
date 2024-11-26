@@ -1,6 +1,7 @@
 package stacks
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -53,6 +54,13 @@ func (p *Provider) parseBaseMessage(data interface{}) (*providerTypes.Message, e
 		return nil, fmt.Errorf("failed to unmarshal to MessageData: %w", err)
 	}
 
+	// First layer hex decode for all messages
+	msgStr := strings.TrimPrefix(msgData.Data, "0x")
+	msgBytes, err := hex.DecodeString(msgStr)
+	if err != nil {
+		return nil, fmt.Errorf("hex decode failed: %w", err)
+	}
+
 	sn := new(big.Int).SetInt64(msgData.Sn)
 	dstNetworkID := extractNetworkID(msgData.To)
 
@@ -60,7 +68,7 @@ func (p *Provider) parseBaseMessage(data interface{}) (*providerTypes.Message, e
 		Dst:           dstNetworkID,
 		Src:           p.NID(),
 		Sn:            sn,
-		Data:          []byte(msgData.Data),
+		Data:          msgBytes,
 		MessageHeight: 0, // Set by Listener after parsing
 	}, nil
 }
@@ -70,6 +78,15 @@ func (p *Provider) parseEmitMessageEvent(data interface{}) (*providerTypes.Messa
 	if err != nil {
 		return nil, err
 	}
+
+	// Second layer hex decode only for EmitMessage events
+	msgStr := strings.TrimPrefix(string(msg.Data), "0x")
+	msgBytes, err := hex.DecodeString(msgStr)
+	if err != nil {
+		return nil, fmt.Errorf("second hex decode failed: %w", err)
+	}
+	msg.Data = msgBytes
+
 	msg.EventType = events.EmitMessage
 	return msg, nil
 }

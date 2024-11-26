@@ -46,7 +46,7 @@ func (c *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	if c.NID == "stacks" {
 		network = stacks.NewStacksMainnet()
 	} else if c.NID == "stacks_testnet" {
-		network = stacks.NewStacksTestnet()
+		network = stacks.NewStacksLocalnet()
 	} else {
 		return nil, fmt.Errorf("no network found for nid: %v", c.NID)
 	}

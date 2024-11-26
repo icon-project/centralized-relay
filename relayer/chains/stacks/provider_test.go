@@ -26,7 +26,7 @@ func setupTestProvider(t *testing.T) (*Provider, *mocks.MockClient) {
 			RPCUrl: "https://stacks-node-api.testnet.stacks.co",
 			Contracts: providerTypes.ContractConfigMap{
 				providerTypes.XcallContract:      "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH.xcall-proxy",
-				providerTypes.ConnectionContract: "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH.centralized-connection-v3",
+				providerTypes.ConnectionContract: "ST15C893XJFJ6FSKM020P9JQDB5T7X6MQTXMBPAVH.centralized-connection",
 			},
 			NID:       "stacks_testnet",
 			ChainName: "stacks_testnet",

@@ -188,7 +188,7 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight uint64, toHe
 	errorChan := make(chan error, 1)
 
 	wsURL := p.client.GetWebSocketURL()
-	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST2EKT8YDGKFW2B3HJT4D59VFS8Q2W0RNKTCWR8QY.centralized-connection-v3")
+	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.centralized-connection")
 
 	eventSystem.OnEvent(func(event *events.Event) error {
 		if event.BlockHeight < fromHeight || event.BlockHeight > toHeight {

@@ -10,6 +10,7 @@ import (
 	stacksClient "github.com/icon-project/centralized-relay/relayer/chains/stacks"
 	"github.com/icon-project/centralized-relay/test/chains"
 	"github.com/icon-project/stacks-go-sdk/pkg/clarity"
+	"github.com/icon-project/stacks-go-sdk/pkg/stacks"
 	"github.com/icon-project/stacks-go-sdk/pkg/transaction"
 	"go.uber.org/zap"
 )
@@ -40,15 +41,15 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 		{"xcall-proxy-trait", "proxy-trait", true, nil},
 
 		{"util", "util", true, nil},
-		{"rlp-encode-v2", "rlp-encode", true, nil},
+		{"rlp-encode", "rlp-encode", true, nil},
 		{"rlp-decode", "rlp-decode", true, nil},
 
 		{"xcall-proxy", "xcall-proxy", true, nil},
 
-		{"centralized-connection-v3", "connection", true, nil},
+		{"centralized-connection", "connection", true, nil},
 
-		{"xcall-impl-v8", "xcall-impl", true, func(proxyAddr string) error {
-			implAddr := senderAddress + ".xcall-impl-v8"
+		{"xcall-impl", "xcall-impl", true, func(proxyAddr string) error {
+			implAddr := senderAddress + ".xcall-impl"
 			implPrincipal, err := clarity.StringToPrincipal(implAddr)
 			if err != nil {
 				return fmt.Errorf("failed to convert implementation address to principal: %w", err)
@@ -67,6 +68,8 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 				privateKey,
 				nil,
 				nil,
+				stacks.PostConditionModeAllow,
+				[]transaction.PostCondition{},
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create upgrade transaction: %w", err)
@@ -120,13 +123,79 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 		}},
 	}
 
-	connectionContractName := "centralized-connection-v3"
-	implContractName := "xcall-impl-v8"
+	connectionContractName := "centralized-connection"
+	implContractName := "xcall-impl"
 	proxyContractName := "xcall-proxy"
 
 	s.IBCAddresses["xcall-proxy"] = senderAddress + "." + proxyContractName
 	s.IBCAddresses["xcall-impl"] = senderAddress + "." + implContractName
 	s.IBCAddresses["connection"] = senderAddress + "." + connectionContractName
+
+	implAddr := senderAddress + ".xcall-impl"
+	implPrincipal, err := clarity.StringToPrincipal(implAddr)
+	if err != nil {
+		return fmt.Errorf("failed to convert implementation address to principal: %w", err)
+	}
+
+	upgradeTx, err := transaction.MakeContractCall(
+		senderAddress,
+		"xcall-proxy",
+		"upgrade",
+		[]clarity.ClarityValue{
+			implPrincipal,
+			clarity.NewOptionNone(),
+		},
+		*s.network,
+		senderAddress,
+		privateKey,
+		nil,
+		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create upgrade transaction: %w", err)
+	}
+
+	txID, err := transaction.BroadcastTransaction(upgradeTx, s.network)
+	if err != nil {
+		return fmt.Errorf("failed to broadcast upgrade transaction: %w", err)
+	}
+
+	err = s.waitForTransactionConfirmation(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to confirm upgrade transaction: %w", err)
+	}
+
+	err = s.initializeXCallImpl(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to initialize xcall-impl: %w", err)
+	}
+
+	err = s.setAdminXCallImpl(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set admin for xcall-impl: %w", err)
+	}
+
+	err = s.setDefaultConnection(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set default connection: %w", err)
+	}
+
+	err = s.setProtocolFeeHandler(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set protocol fee handler: %w", err)
+	}
+
+	err = s.setConnectionFees(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set connection fees: %w", err)
+	}
+
+	err = s.setProtocolFee(ctx, privateKey, senderAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set protocol fee: %w", err)
+	}
 
 	deployedContracts := make(map[string]string)
 
@@ -159,11 +228,15 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 		tx, err := transaction.MakeContractDeploy(
 			deployment.name,
 			string(codeBody),
+			stacks.ClarityVersion3,
 			*s.network,
 			senderAddress,
 			privateKey,
+			// big.NewInt(10000000), // 10 STX
 			nil,
 			nil,
+			stacks.PostConditionModeAllow,
+			[]transaction.PostCondition{},
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create contract deploy transaction for %s: %w", deployment.name, err)
@@ -193,15 +266,15 @@ func (s *StacksLocalnet) SetupXCall(ctx context.Context) error {
 	}
 
 	s.IBCAddresses["xcall-proxy"] = deployedContracts["xcall-proxy"]
-	s.IBCAddresses["xcall-impl"] = deployedContracts["xcall-impl-v8"]
-	s.IBCAddresses["connection"] = deployedContracts["centralized-connection-v3"]
+	s.IBCAddresses["xcall-impl"] = deployedContracts["xcall-impl"]
+	s.IBCAddresses["connection"] = deployedContracts["centralized-connection"]
 
 	return nil
 }
 
 func (s *StacksLocalnet) setDefaultConnection(ctx context.Context, privateKey []byte, senderAddress string) error {
 	nid := "test"
-	connectionAddress := senderAddress + "." + "centralized-connection-v3"
+	connectionAddress := senderAddress + "." + "centralized-connection"
 
 	nidArg, err := clarity.NewStringASCII(nid)
 	if err != nil {
@@ -213,7 +286,7 @@ func (s *StacksLocalnet) setDefaultConnection(ctx context.Context, privateKey []
 		return fmt.Errorf("failed to create connection address argument: %w", err)
 	}
 
-	implAddr := senderAddress + "." + "xcall-impl-v8"
+	implAddr := senderAddress + "." + "xcall-impl"
 	implPrincipal, err := clarity.StringToPrincipal(implAddr)
 	if err != nil {
 		return fmt.Errorf("failed to convert implementation address to principal: %w", err)
@@ -235,6 +308,8 @@ func (s *StacksLocalnet) setDefaultConnection(ctx context.Context, privateKey []
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 
 	if err != nil {
@@ -274,7 +349,7 @@ func (s *StacksLocalnet) initializeXCallImpl(ctx context.Context, privateKey []b
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"xcall-impl-v8",
+		"xcall-impl",
 		"init",
 		args,
 		*s.network,
@@ -282,6 +357,8 @@ func (s *StacksLocalnet) initializeXCallImpl(ctx context.Context, privateKey []b
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create init transaction: %w", err)
@@ -324,7 +401,7 @@ func (s *StacksLocalnet) setConnectionFees(ctx context.Context, privateKey []byt
 
 		txCall, err := transaction.MakeContractCall(
 			senderAddress,
-			"centralized-connection-v3",
+			"centralized-connection",
 			"set-fee",
 			args,
 			*s.network,
@@ -332,6 +409,8 @@ func (s *StacksLocalnet) setConnectionFees(ctx context.Context, privateKey []byt
 			privateKey,
 			nil,
 			nil,
+			stacks.PostConditionModeAllow,
+			[]transaction.PostCondition{},
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create set-fee transaction: %w", err)
@@ -342,7 +421,7 @@ func (s *StacksLocalnet) setConnectionFees(ctx context.Context, privateKey []byt
 			return fmt.Errorf("failed to broadcast set-fee transaction: %w", err)
 		}
 
-		s.log.Info("Set fee in centralized-connection-v3", zap.String("txID", txID), zap.String("nid", nid))
+		s.log.Info("Set fee in centralized-connection", zap.String("txID", txID), zap.String("nid", nid))
 
 		err = s.waitForTransactionConfirmation(ctx, txID)
 		if err != nil {
@@ -378,6 +457,8 @@ func (s *StacksLocalnet) setProtocolFee(ctx context.Context, privateKey []byte, 
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create set-protocol-fee transaction: %w", err)
@@ -410,7 +491,7 @@ func (s *StacksLocalnet) setAdminXCallImpl(ctx context.Context, privateKey []byt
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"xcall-impl-v8",
+		"xcall-impl",
 		"set-admin",
 		args,
 		*s.network,
@@ -418,6 +499,8 @@ func (s *StacksLocalnet) setAdminXCallImpl(ctx context.Context, privateKey []byt
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create set-admin transaction: %w", err)
@@ -467,6 +550,8 @@ func (s *StacksLocalnet) setProtocolFeeHandler(ctx context.Context, privateKey [
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create set-protocol-fee-handler transaction: %w", err)
@@ -497,7 +582,7 @@ func (s *StacksLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 		return fmt.Errorf("failed to load deployer's private key: %w", err)
 	}
 
-	connectionContractName := "centralized-connection-v3"
+	connectionContractName := "centralized-connection"
 	contractAddress := senderAddress + "." + connectionContractName
 
 	contract, err := s.client.GetContractById(ctx, contractAddress)
@@ -523,11 +608,15 @@ func (s *StacksLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 	tx, err := transaction.MakeContractDeploy(
 		connectionContractName,
 		string(codeBody),
+		stacks.ClarityVersion3,
 		*s.network,
 		senderAddress,
 		privateKey,
+		// big.NewInt(10000000), // 10 STX
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create contract deploy transaction: %w", err)
@@ -538,7 +627,7 @@ func (s *StacksLocalnet) SetupConnection(ctx context.Context, target chains.Chai
 		return fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	s.log.Info("Deployed centralized-connection-v3 contract", zap.String("txID", txID))
+	s.log.Info("Deployed centralized-connection contract", zap.String("txID", txID))
 	s.IBCAddresses["connection"] = contractAddress
 
 	err = s.waitForTransactionConfirmation(ctx, txID)
@@ -619,7 +708,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 
 	txCall, err := transaction.MakeContractCall(
 		senderAddress,
-		"centralized-connection-v3",
+		"centralized-connection",
 		"initialize",
 		args,
 		*s.network,
@@ -627,6 +716,8 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create contract call transaction: %w", err)
@@ -637,7 +728,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 		return fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	s.log.Info("Initialized centralized-connection-v3 contract", zap.String("txID", txID))
+	s.log.Info("Initialized centralized-connection contract", zap.String("txID", txID))
 
 	err = s.waitForTransactionConfirmation(ctx, txID)
 	if err != nil {
@@ -650,7 +741,7 @@ func (s *StacksLocalnet) initializeConnection(ctx context.Context, privateKey []
 func shortenContractName(testcase string) string {
 	// Stacks has a contract name limit defined in SIP-003
 	maxLength := 30
-	prefix := "mock-dapp-"
+	prefix := "mock-dapp"
 
 	cleaned := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
@@ -709,11 +800,15 @@ func (s *StacksLocalnet) DeployXCallMockApp(ctx context.Context, keyName string,
 	tx, err := transaction.MakeContractDeploy(
 		appContractName,
 		string(codeBody),
+		stacks.ClarityVersion3,
 		*s.network,
 		senderAddress,
 		privateKey,
+		// big.NewInt(10000000), // 10 STX
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create contract deploy transaction: %w", err)
@@ -753,6 +848,8 @@ func (s *StacksLocalnet) DeployXCallMockApp(ctx context.Context, keyName string,
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create contract call transaction: %w", err)
@@ -929,6 +1026,8 @@ func (s *StacksLocalnet) addConnection(ctx context.Context, senderAddress, appCo
 		privateKey,
 		nil,
 		nil,
+		stacks.PostConditionModeAllow,
+		[]transaction.PostCondition{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create contract call transaction: %w", err)

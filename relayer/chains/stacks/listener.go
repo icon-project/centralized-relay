@@ -15,7 +15,7 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx providerTypes.L
 	wsURL := p.client.GetWebSocketURL()
 	p.log.Debug("Using WebSocket URL", zap.String("url", wsURL))
 
-	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST2EKT8YDGKFW2B3HJT4D59VFS8Q2W0RNKTCWR8QY.centralized-connection-v3")
+	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.centralized-connection")
 
 	eventSystem.OnEvent(func(event *events.Event) error {
 		msg, err := p.getRelayMessageFromEvent(event.Type, event.Data)
