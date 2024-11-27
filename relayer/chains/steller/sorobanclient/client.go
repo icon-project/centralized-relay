@@ -176,7 +176,7 @@ func (c *Client) SubmitTransactionXDR(ctx context.Context, txXDR string) (*Trans
 }
 
 func (c *Client) waitForSuccess(ctx context.Context, txHash string) (*TransactionResponse, error) {
-	cntx, cncl := context.WithTimeout(ctx, time.Second*10)
+	cntx, cncl := context.WithTimeout(ctx, time.Second*20)
 	defer cncl()
 	ticker := time.NewTicker(time.Millisecond * 500)
 	defer ticker.Stop()
