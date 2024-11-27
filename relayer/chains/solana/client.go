@@ -266,16 +266,7 @@ func (cl Client) GetTransaction(
 	signature solana.Signature,
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
-	txres, err := cl.rpc.GetTransaction(ctx, signature, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	if txres.Meta != nil && txres.Meta.Err != nil {
-		return nil, fmt.Errorf("txn failed: %v", txres.Meta.Err)
-	}
-
-	return txres, nil
+	return cl.rpc.GetTransaction(ctx, signature, opts)
 }
 
 func (cl Client) GetRecentPriorityFee(

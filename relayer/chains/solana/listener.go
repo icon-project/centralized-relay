@@ -101,6 +101,10 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
 	}
 
+	if txn.Meta != nil && txn.Meta.Err != nil {
+		return fmt.Errorf("failed txn with sign %s: %v", sign, txn.Meta.Err)
+	}
+
 	if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
 		event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
 		messages, err := p.parseMessagesFromEvent(event)
