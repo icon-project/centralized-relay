@@ -19,6 +19,7 @@ import (
 const (
 	jsonRPCVersion = "2.0"
 	successStatus  = "SUCCESS"
+	failedStatus   = "FAILED"
 )
 
 type Client struct {
@@ -188,6 +189,9 @@ func (c *Client) waitForSuccess(ctx context.Context, txHash string) (*Transactio
 			txnResp, err := c.GetTransaction(cntx, txHash)
 			if err != nil {
 				continue
+			}
+			if txnResp.Status == failedStatus {
+				return nil, fmt.Errorf("txn failed with result xdr: %s", txnResp.ResultXdr)
 			}
 			if txnResp.Status == successStatus {
 				txnResp.Hash = txHash
