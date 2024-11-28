@@ -10,7 +10,7 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       actions: write
     steps:
       - name: Delete unnecessary tools folder for space
@@ -30,8 +30,8 @@ jobs:
       - name: release publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COSIGN_PWD: ${{ secrets.COSIGN_PWD }}
-          COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: make release
 
       - name: Trigger relayer-docker build
