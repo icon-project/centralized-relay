@@ -92,6 +92,10 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relay
 		return nil, fmt.Errorf("failed to get txn with sign %s: %w", signature, err)
 	}
 
+	if txn.Meta != nil && txn.Meta.Err != nil {
+		return nil, fmt.Errorf("failed txn with sign %s: %v", txHash, txn.Meta.Err)
+	}
+
 	event := types.SolEvent{
 		Slot:      txn.Slot,
 		Signature: signature,
@@ -111,6 +115,9 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 		}
 
 		for _, txn := range blockRes.Transactions {
+			if txn.Meta != nil && txn.Meta.Err != nil {
+				continue
+			}
 			event := types.SolEvent{
 				Slot:      txn.Slot,
 				Signature: txn.MustGetTransaction().Signatures[0],
