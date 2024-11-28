@@ -1,4 +1,4 @@
-name: "Release"
+name: Release
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
     steps:
       - name: Delete unnecessary tools folder for space
         run: rm -rf /opt/hostedtoolcache
@@ -30,3 +33,12 @@ jobs:
           COSIGN_PWD: ${{ secrets.COSIGN_PWD }}
           COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
         run: make release
+
+      - name: Trigger relayer-docker build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X POST -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          https://api.github.com/repos/icon-project/relayer-docker/dispatches \
+          -d '{"event_type":"trigger-build","client_payload":{"tag":"${GITHUB_REF#refs/tags/}"}}'

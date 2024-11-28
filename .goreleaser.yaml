@@ -104,7 +104,7 @@ checksum:
 
 release:
   prerelease: auto
-  draft: true
+  draft: false
   extra_files:
     - glob: dist/*.sig
 
