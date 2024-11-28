@@ -224,7 +224,7 @@ func (p *Provider) ClusterMessageReceived(ctx context.Context, message *provider
 
 // ClusterMessageAcknowledged checks if the message is acknowledged or not
 func (p *Provider) ClusterMessageAcknowledged(ctx context.Context, message *providerTypes.Message) (bool, error) {
-	callParam := p.prepareCallParams(MethodClusterMsgReceived, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
+	callParam := p.prepareCallParams(MethodPacketAcknowledged, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
 		"srcNetwork":         message.Src,
 		"srcContractAddress": message.SrcConnAddress,
 		"srcSn":              types.NewHexInt(message.Sn.Int64()),
