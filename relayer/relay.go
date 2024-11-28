@@ -628,6 +628,16 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 	var messages []*types.Message
 	var err error
 	if clusterProvider, ok := iconChain.Provider.(provider.ClusterChainProvider); ok {
+		msgAcknowledged, err := clusterProvider.ClusterMessageAcknowledged(ctx, message.Message)
+		if err != nil {
+			dst.log.Error("error occured when checking cluster message acknowledged", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))
+			message.ToggleProcessing()
+			return
+		}
+		if msgAcknowledged {
+			return
+		}
+
 		msgReceived, err := clusterProvider.ClusterMessageReceived(ctx, message.Message)
 		if err != nil {
 			dst.log.Error("error occured when checking cluster message received", zap.String("src", message.Src), zap.Uint64("sn", message.Sn.Uint64()), zap.Error(err))

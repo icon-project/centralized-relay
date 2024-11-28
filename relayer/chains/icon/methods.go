@@ -18,5 +18,6 @@ var (
 	// Cluster Methods
 	MethodSubmitPacket             = "submitPacket"
 	MethodClusterMsgReceived       = "packetSubmitted"
+	MethodPacketAcknowledged       = "packetAcknowledged"
 	MethodRecvMessageWithSignature = "recvMessageWithSignatures"
 )
