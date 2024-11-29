@@ -36,7 +36,6 @@ import (
 )
 
 var (
-	BTCToken           = "0:0"
 	MethodDeposit      = "Deposit"
 	MethodWithdrawTo   = "WithdrawTo"
 	MethodRefundTo     = "RefundTo"
@@ -149,6 +148,7 @@ type Config struct {
 	RelayerPrivKey        string   `json:"relayerPrivKey" yaml:"relayerPrivKey"`
 	RecoveryLockTime      int      `json:"recoveryLockTime" yaml:"recoveryLockTime"`
 	Connections           []string `json:"connections" yaml:"connections"`
+	BTCToken              string   `json:"btc-token" yaml:"btc-token"`
 }
 
 // NewProvider returns new Icon provider
@@ -445,7 +445,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 	// add withdraw output
 	amount := new(big.Int).SetBytes(decodedData.Amount)
 	if decodedData.Action == MethodWithdrawTo || decodedData.Action == MethodDeposit || decodedData.Action == MethodRollback {
-		if decodedData.TokenAddress == BTCToken {
+		if decodedData.TokenAddress == p.cfg.BTCToken {
 			// transfer btc
 			bitcoinAmountRequired = amount.Int64()
 			outputs = []*wire.TxOut{
@@ -499,7 +499,7 @@ func (p *Provider) CreateBitcoinMultisigTx(
 			bitcoinAmountRequired = multisig.RUNE_DUST_UTXO_AMOUNT * 2
 		}
 	} else if decodedData.Action == MethodRefundTo {
-		if decodedData.TokenAddress != BTCToken {
+		if decodedData.TokenAddress != p.cfg.BTCToken {
 			return nil, nil, fmt.Errorf("refund is only supported for btc token, current token: %s", decodedData.TokenAddress)
 		}
 		uintAmount := amount.Uint64()
@@ -884,7 +884,7 @@ func (p *Provider) buildTxMessage(message *relayTypes.Message, feeRate int64, ms
 			p.logger.Error("failed to get decode data: %v", zap.Error(err))
 			return nil, nil, err
 		}
-		if messageDecoded.TokenAddress != BTCToken {
+		if messageDecoded.TokenAddress != p.cfg.BTCToken {
 			return nil, nil, fmt.Errorf("only support refund for BTC")
 		}
 		decodedData = messageDecoded
@@ -1264,7 +1264,7 @@ func (p *Provider) verifyBridgeTx(tx *TxSearchRes, messageInfo *multisig.XCallMe
 			continue
 		}
 
-		if messageInfo.TokenAddress == BTCToken {
+		if messageInfo.TokenAddress == p.cfg.BTCToken {
 			verified = true
 			btcAmount := big.NewInt(out.Value)
 			if amount.Cmp(btcAmount) == 0 {

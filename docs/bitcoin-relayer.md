@@ -41,7 +41,6 @@ bitcoin:
     slave1PubKey: # Slave 1 Public Key (public key of the slave wallet 1)
     slave2PubKey: # Slave 2 Public Key (public key of the slave wallet 2)
     relayerPrivKey: # Relayer Private Key (private key of the relayer it depends the deployed server that which start for master/slave1/slave2 server)
-
 ```
 
 # How it works
@@ -210,7 +209,8 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
   - https://mempool.space/address/bc1p2sdwgq7j32j250w8h47fe9v3hyc8fl2rdftwhxp0r7ww89mcwrns5reskh
 
 ##### Deposit BTC with wrong amount, and got refund
-*The refund amount does not include the transaction fee. If the transfer amount cannot cover the transaction fee, the refund transaction will be ignored.*
+
+_The refund amount does not include the transaction fee. If the transfer amount cannot cover the transaction fee, the refund transaction will be ignored._
 
 - Request tx:
   - https://mempool.space/tx/50aa0c67d8a533d3766bd2076a2bc57bb67de7d61e9f503db271e915f0f75bae
@@ -240,3 +240,218 @@ RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
 ### How to build transaction
 
 To build a transaction, please refer to this file relayer/chains/bitcoin/provider_mainnet_test.go for detailed instructions and guidelines.
+
+### Config to run the relayers on testnet and build Bitcoin transactions
+
+#### Start command:
+
+```bash
+RELAY_HOME="YOUR_SOURCE_CODE_PATH" go run main.go start
+```
+
+**_Note: Run Slave Relayers before Master Relayer_**
+
+#### Slave 1 Relayer
+
+```yaml
+global:
+  timeout: 10s
+  kms-key-id: YOUR_KMS_KEY_ID
+chains:
+  icon:
+    type: icon
+    value:
+      rpc-url: https://lisbon.net.solidwallet.io/api/v3/
+      address: hx620fb6cf1b6ad1988ee246a636e61b54a7c139d8
+      start-height: 44139420 # should set to the latest height of the icon lisbon testnet
+      step-min: 1
+      step-limit: 2000000000000000000
+      contracts:
+        xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
+        connection: cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      network-id: 2
+      finality-block: 10
+      nid: 0x2.icon
+
+  bitcoin:
+    type: bitcoin
+    value:
+      rpc-url: Your_Bitcoin_Testnet_RPC_URL # we use Quicknode for testnet
+      rpc-user: Your_Bitcoin_Testnet_RPC_User # if you use Quicknode set it to any value
+      rpc-password: Your_Bitcoin_Testnet_RPC_Password # if you use Quicknode set it to any value
+      address: tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk
+      connections:
+        - cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      unisat-url: https://open-api-testnet.unisat.io
+      unisat-key: Your_Unisat_Testnet_API_Key # Your Unisat Testnet API Key
+      unisat-wallet-url: https://wallet-api-testnet.unisat.io
+      request-timeout: 1000
+      mempool-url: https://mempool.space/testnet/api/tx
+      start-height: 3004578 # should set to the latest height of the bitcoin testnet
+      network-id: 2
+      op-code: 0x5e
+      finality-block: 10
+      nid: 0x2.btc
+      chain-name: bitcoin
+      mode: slave
+      slave-server-1: Your_Slave_Server_1_URL
+      slave-server-2: Your_Slave_Server_2_URL
+      port: 8081 # Slave 1 Port
+      api-key: YOUR_API_KEY
+      masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
+      slave1PubKey: 0230edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052
+      slave2PubKey: 021e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833
+      relayerPrivKey: cRfK7N7cPZ1BZi6MpsNBuz7k3LiMMA7jreHMx3KUBjRV4KAQT9ou # private key of the slave1 wallet
+      recoveryLockTime: 1234
+      btc-token: 0:1
+```
+
+#### Slave 2 Relayer
+
+```yaml
+global:
+  timeout: 10s
+  kms-key-id: YOUR_KMS_KEY_ID
+chains:
+  icon:
+    type: icon
+    value:
+      rpc-url: https://lisbon.net.solidwallet.io/api/v3/
+      address: hx620fb6cf1b6ad1988ee246a636e61b54a7c139d8
+      start-height: 44139420 # should set to the latest height of the icon lisbon testnet
+      step-min: 1
+      step-limit: 2000000000000000000
+      contracts:
+        xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
+        connection: cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      network-id: 2
+      finality-block: 10
+      nid: 0x2.icon
+
+  bitcoin:
+    type: bitcoin
+    value:
+      rpc-url: Your_Bitcoin_Testnet_RPC_URL # we use Quicknode for testnet
+      rpc-user: Your_Bitcoin_Testnet_RPC_User # if you use Quicknode set it to any value
+      rpc-password: Your_Bitcoin_Testnet_RPC_Password # if you use Quicknode set it to any value
+      address: tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk
+      connections:
+        - cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      unisat-url: https://open-api-testnet.unisat.io
+      unisat-key: Your_Unisat_Testnet_API_Key
+      unisat-wallet-url: https://wallet-api-testnet.unisat.io
+      request-timeout: 1000
+      mempool-url: https://mempool.space/testnet/api/tx
+      start-height: 3004578
+      network-id: 2
+      op-code: 0x5e
+      finality-block: 10
+      nid: 0x2.btc
+      chain-name: bitcoin
+      mode: slave
+      slave-server-1: Your_Slave_Server_1_URL
+      slave-server-2: Your_Slave_Server_2_URL
+      port: 8082 # Slave 2 Port
+      api-key: YOUR_API_KEY
+      masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
+      slave1PubKey: 0230edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052
+      slave2PubKey: 021e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833
+      relayerPrivKey: cU8TYnj3fp9t6hVcAz1rNm2GNLoLL2PFHpiCbkXmBCN6F1GZccxf # private key of the slave2 wallet
+      recoveryLockTime: 1234
+      btc-token: 0:1
+```
+
+#### Master Relayer
+
+```yaml
+global:
+  timeout: 10s
+  kms-key-id: YOUR_KMS_KEY_ID
+chains:
+  icon:
+    type: icon
+    value:
+      rpc-url: https://lisbon.net.solidwallet.io/api/v3/
+      address: hx620fb6cf1b6ad1988ee246a636e61b54a7c139d8
+      start-height: 44139420 # should set to the latest height of the icon lisbon testnet
+      step-min: 1
+      step-limit: 2000000000000000000
+      contracts:
+        xcall: cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83
+        connection: cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      network-id: 2
+      finality-block: 10
+      nid: 0x2.icon
+
+  bitcoin:
+    type: bitcoin
+    value:
+      rpc-url: Your_Bitcoin_Testnet_RPC_URL # we use Quicknode for testnet
+      rpc-user: Your_Bitcoin_Testnet_RPC_User # if you use Quicknode set it to any value
+      rpc-password: Your_Bitcoin_Testnet_RPC_Password # if you use Quicknode set it to any value
+      address: tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk
+      connections:
+        - cxc7a77b874eddfe3fb5434effaf35375b697496ca
+      unisat-url: https://open-api-testnet.unisat.io
+      unisat-key: Your_Unisat_Testnet_API_Key
+      unisat-wallet-url: https://wallet-api-testnet.unisat.io
+      request-timeout: 1000
+      mempool-url: https://mempool.space/testnet/api/tx
+      start-height: 3004578 # should set to the latest height of the bitcoin testnet
+      network-id: 2
+      op-code: 0x5e
+      finality-block: 10
+      nid: 0x2.btc
+      chain-name: bitcoin
+      mode: master
+      slave-server-1: Your_Slave_Server_1_URL
+      slave-server-2: Your_Slave_Server_2_URL
+      port: 8080
+      api-key: YOUR_API_KEY
+      masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
+      slave1PubKey: 0230edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052
+      slave2PubKey: 021e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833
+      relayerPrivKey: cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy # private key of the master wallet
+      recoveryLockTime: 1234
+      btc-token: 0:1
+```
+
+### Contract Addresseses
+
+| Contract Name           | Address                                    | TokenId              |
+| ----------------------- | ------------------------------------------ | -------------------- |
+| XCall                   | cx15a339fa60bd86225050b22ea8cd4a9d7cd8bb83 |                      |
+| Access Manager          | cx8c9a213cd5dcebfb539c30e1af6d77990b200ca4 |                      |
+| Bitcoin address (dec 8) | cx76c9b35b11bb85990ea2557fc7e0bde74a370f1d | 0x2.btc/0:1          |
+| LYDIALABS TOKEN( dec 0) | cx925ad1194a69b7fd8733196e93c15542884b9600 | 0x2.btc/2904354:3119 |
+| Access Manager          | cx8c9a213cd5dcebfb539c30e1af6d77990b200ca4 |                      |
+
+- Connection Contract: `cxc7a77b874eddfe3fb5434effaf35375b697496ca`
+- Admin Wallet's Connection Contract: `hx620fb6cf1b6ad1988ee246a636e61b54a7c139d8`
+- Admin Wallet's Private Key: `3dd1c874c61a2308374cfa91601edd2d44977b7fbb5765496166164c8daadab3`
+- Multisig Relayer Bitcoin Address: `tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk`
+
+#### After the relayer is started you can try to build a transaction by yourself please follow the testcase in the file below:
+
+- [Build Bitcoin transactions](https://github.com/lydialabs/centralized-relay/blob/feat/bitcoin-relayer/relayer/chains/bitcoin/provider_test.go)
+
+#### Check available UTXOs
+
+- [BITCOIN UTXO](https://docs.unisat.io/dev/unisat-developer-center/bitcoin/general/addresses/get-btc-utxo)
+- [RUNE UTXO](https://docs.unisat.io/dev/unisat-developer-center/bitcoin/runes/get-address-runes-utxo)
+
+#### Testcases
+
+**_Note: please change the input transaction before you run the testcases, the data you can get from unisat API_**
+
+```go
+inputs := []*multisig.Input{}
+```
+
+- Testcase 1: [Deposit BTC Successfully](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L297)
+- Testcase 2: [Deposit RUNE Successfully](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L427)
+- Testcase 3: [Deposit BTC Failed](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L363)
+- Testcase 4: [Deposit RUNE Failed](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L500C6-L500C38)
+- Testcase 5: [Deposit BTC with wrong amount, and got refund](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L224)
+- Testcase 6: Withdraw BTC Successfully => Should be called on ICON chain by your wallet that received token by deposit testcase above
+- Testcase 7: Withdraw RUNE Successfully => Should be called on ICON chain by your wallet that received token by deposit testcase above

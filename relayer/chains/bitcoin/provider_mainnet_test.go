@@ -221,7 +221,7 @@ func TestBuildWithdrawRunesTxMessageMainnet(t *testing.T) {
 	btcProvider.logger.Info("txHash", zap.String("transaction_hash", txHash))
 }
 
-func TestBuildRollbackBtcTxMessageMainnet(t *testing.T) {
+func TestBuildRefundBtcTxMessageMainnet(t *testing.T) {
 	// Create a mock Provider
 	btcProvider, termpDir := initBtcProviderMainnet()
 	defer os.Remove(termpDir)

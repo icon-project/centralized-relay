@@ -24,12 +24,15 @@ import (
 
 const (
 	// TESTNET
-	TESTNET_USER_WALLET_ADDRESS         = ""
-	TESTNET_RELAYER_ADDRESS             = ""
-	TESTNET_ASSET_MANAGER_ADDRESS       = ""
-	TESTNET_ASSET_MANAGER_ADDRESS_WRONG = ""
-	TESTNET_CONNECTION_ADDRESS          = ""
+	TESTNET_USER_WALLET_ADDRESS         = "tb1pgzx880yfr7q8dgz8dqhw50sncu4f4hmw5cn3800354tuzcy9jx5shvv7su"
+	TESTNET_RELAYER_ADDRESS             = "tb1pf0atpt2d3zel6udws38pkrh2e49vqd3c5jcud3a82srphnmpe55q0ecrzk"
+	TESTNET_ASSET_MANAGER_ADDRESS       = "cx8c9a213cd5dcebfb539c30e1af6d77990b200ca4"
+	TESTNET_ASSET_MANAGER_ADDRESS_WRONG = "cx8c9a213cd5dcebfb539c30e1af6d77990b200ca5"
+	TESTNET_CONNECTION_ADDRESS          = "cxc7a77b874eddfe3fb5434effaf35375b697496ca"
 	TESTNET_TX_FEE                      = 20000
+	TESTNET_BTCTOKEN                    = "0:1"
+	TESTNET_RUNETOKEN                   = "2904354:3119"
+	TESTNET_ICON_RECEIVER_ADDRESS       = "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800"
 )
 
 func initBtcProviderTestnet() (*Provider, string) {
@@ -43,13 +46,13 @@ func initBtcProviderTestnet() (*Provider, string) {
 	config := &Config{}
 	config = &Config{
 		UniSatURL: "https://open-api.unisat.io",
-		UniSatKey: "",
+		UniSatKey: "YOUR_UNISAT_API_KEY",
 
-		MasterPubKey:     "",
-		Slave1PubKey:     "",
-		Slave2PubKey:     "",
-		RelayerPrivKey:   "",
-		RecoveryLockTime: 0,
+		MasterPubKey:     "02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2",
+		Slave1PubKey:     "0230edd881db1bc32b94f83ea5799c2e959854e0f99427d07c211206abd876d052",
+		Slave2PubKey:     "021e83d56728fde393b41b74f2b859381661025f2ecec567cf392da7372de47833",
+		RelayerPrivKey:   "cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy",
+		RecoveryLockTime: 1234,
 		OpCode:           0x5e,
 		MempoolURL:       "https://mempool.space/api/v1",
 		SlaveServer1:     "http://localhost:8081",
@@ -93,7 +96,7 @@ func initBtcProviderTestnet() (*Provider, string) {
 }
 
 func buildUserMultisigWalletTestnet(chainParam *chaincfg.Params) ([]string, *multisig.MultisigWallet, error) {
-	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 1}, 1, 1)
+	userPrivKeys, userMultisigInfo := multisig.RandomMultisigInfo(2, 2, chainParam, []int{0, 3}, 1, 1)
 	userMultisigWallet, _ := multisig.BuildMultisigWallet(userMultisigInfo)
 	return userPrivKeys, userMultisigWallet, nil
 }
@@ -221,7 +224,7 @@ func TestBuildWithdrawRunesTxMessageTestnet(t *testing.T) {
 	btcProvider.logger.Info("txHash", zap.String("transaction_hash", txHash))
 }
 
-func TestBuildRollbackBtcTxMessageTestnet(t *testing.T) {
+func TestBuildRefundBtcTxMessageTestnet(t *testing.T) {
 	// Create a mock Provider
 	btcProvider, termpDir := initBtcProviderTestnet()
 	defer os.Remove(termpDir)
@@ -235,9 +238,9 @@ func TestBuildRollbackBtcTxMessageTestnet(t *testing.T) {
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800", // user icon address
-			From:         TESTNET_USER_WALLET_ADDRESS,                           // user bitcoin address
+			TokenAddress: TESTNET_BTCTOKEN,
+			To:           TESTNET_ICON_RECEIVER_ADDRESS, // user icon address
+			From:         TESTNET_USER_WALLET_ADDRESS,   // user bitcoin address
 			Amount:       new(big.Int).SetUint64(5000).Bytes(),
 			Data:         []byte(""),
 		},
@@ -307,8 +310,8 @@ func TestDepositBitcoinToIconTestnet(t *testing.T) {
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			TokenAddress: TESTNET_BTCTOKEN,
+			To:           TESTNET_ICON_RECEIVER_ADDRESS,
 			From:         TESTNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1000).Bytes(),
 			Data:         []byte(""),
@@ -373,8 +376,8 @@ func TestDepositBitcoinToIconFailTestnet(t *testing.T) {
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "0:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			TokenAddress: TESTNET_BTCTOKEN,
+			To:           TESTNET_ICON_RECEIVER_ADDRESS,
 			From:         TESTNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(3000).Bytes(),
 			Data:         []byte(""),
@@ -437,8 +440,8 @@ func TestDepositRuneToIconTestnet(t *testing.T) {
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "1:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			TokenAddress: TESTNET_RUNETOKEN,
+			To:           TESTNET_ICON_RECEIVER_ADDRESS,
 			From:         TESTNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1).Bytes(),
 			Data:         []byte(""),
@@ -510,8 +513,8 @@ func TestDepositRuneToIconFailTestnet(t *testing.T) {
 		Message: &multisig.XCallMessage{
 			MessageType:  1,
 			Action:       "Deposit",
-			TokenAddress: "1:0",
-			To:           "0x2.icon/hx1493794ba31fa3372bf7903f04030497e7d14800",
+			TokenAddress: TESTNET_RUNETOKEN,
+			To:           TESTNET_ICON_RECEIVER_ADDRESS,
 			From:         TESTNET_USER_WALLET_ADDRESS,
 			Amount:       new(big.Int).SetUint64(1).Bytes(),
 			Data:         []byte(""),
@@ -569,6 +572,7 @@ func TestDepositRuneToIconFailTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
+// Run to build Relayer Multisig Wallet
 func TestBuildRelayerMultisigWalletTestnet(t *testing.T) {
 	btcProvider, termpDir := initBtcProviderTestnet()
 	defer os.Remove(termpDir)
@@ -584,6 +588,7 @@ func TestBuildRelayerMultisigWalletTestnet(t *testing.T) {
 	fmt.Println("err: ", err)
 }
 
+// Run to build User Multisig Wallet
 func TestBuildUserMultisigWalletTestnet(t *testing.T) {
 	btcProvider, termpDir := initBtcProviderTestnet()
 	defer os.Remove(termpDir)
