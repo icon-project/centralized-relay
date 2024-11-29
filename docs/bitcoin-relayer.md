@@ -294,8 +294,8 @@ chains:
       nid: 0x2.btc
       chain-name: bitcoin
       mode: slave
-      slave-server-1: Your_Slave_Server_1_URL
-      slave-server-2: Your_Slave_Server_2_URL
+      slave-server-1: Your_Slave_Server_1_URL # http://localhost:8081
+      slave-server-2: Your_Slave_Server_2_URL # http://localhost:8082
       port: 8081 # Slave 1 Port
       api-key: YOUR_API_KEY
       masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
@@ -349,8 +349,8 @@ chains:
       nid: 0x2.btc
       chain-name: bitcoin
       mode: slave
-      slave-server-1: Your_Slave_Server_1_URL
-      slave-server-2: Your_Slave_Server_2_URL
+      slave-server-1: Your_Slave_Server_1_URL # http://localhost:8081
+      slave-server-2: Your_Slave_Server_2_URL # http://localhost:8082
       port: 8082 # Slave 2 Port
       api-key: YOUR_API_KEY
       masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
@@ -404,8 +404,8 @@ chains:
       nid: 0x2.btc
       chain-name: bitcoin
       mode: master
-      slave-server-1: Your_Slave_Server_1_URL
-      slave-server-2: Your_Slave_Server_2_URL
+      slave-server-1: Your_Slave_Server_1_URL # http://localhost:8081
+      slave-server-2: Your_Slave_Server_2_URL # http://localhost:8082
       port: 8080
       api-key: YOUR_API_KEY
       masterPubKey: 02fe44ec9f26b97ed30bd33898cf22de726e05389bde632d3aa6ad6746e15221d2
@@ -442,16 +442,17 @@ chains:
 
 #### Testcases
 
-**_Note: please change the input transaction before you run the testcases, the data you can get from unisat API_**
+**_Note: please change the input transaction and UniSatKey before you run the testcases, the input transaction you can get from unisat API_**
 
 ```go
+UniSatKey: "YOUR_UNISAT_API_KEY",
 inputs := []*multisig.Input{}
 ```
 
-- Testcase 1: [Deposit BTC Successfully](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L297)
-- Testcase 2: [Deposit RUNE Successfully](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L427)
-- Testcase 3: [Deposit BTC Failed](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L363)
-- Testcase 4: [Deposit RUNE Failed](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L500C6-L500C38)
-- Testcase 5: [Deposit BTC with wrong amount, and got refund](https://github.com/lydialabs/centralized-relay/blob/1db133de5250e91f081406e9514f16ff624d3eab/relayer/chains/bitcoin/provider_test.go#L224)
+- Testcase 1: [Deposit BTC Successfully](https://github.com/lydialabs/centralized-relay/blob/7c41ba0113eb7a218164cb150daff86835cf4378/relayer/chains/bitcoin/provider_test.go#L300)
+- Testcase 2: [Deposit RUNE Successfully](https://github.com/lydialabs/centralized-relay/blob/7c41ba0113eb7a218164cb150daff86835cf4378/relayer/chains/bitcoin/provider_test.go#L430)
+- Testcase 3: [Deposit BTC Failed](https://github.com/lydialabs/centralized-relay/blob/7c41ba0113eb7a218164cb150daff86835cf4378/relayer/chains/bitcoin/provider_test.go#L366)
+- Testcase 4: [Deposit RUNE Failed](https://github.com/lydialabs/centralized-relay/blob/7c41ba0113eb7a218164cb150daff86835cf4378/relayer/chains/bitcoin/provider_test.go#L503)
+- Testcase 5: [Deposit BTC with wrong amount, and got refund](https://github.com/lydialabs/centralized-relay/blob/7c41ba0113eb7a218164cb150daff86835cf4378/relayer/chains/bitcoin/provider_test.go#L227)
 - Testcase 6: Withdraw BTC Successfully => Should be called on ICON chain by your wallet that received token by deposit testcase above
 - Testcase 7: Withdraw RUNE Successfully => Should be called on ICON chain by your wallet that received token by deposit testcase above
