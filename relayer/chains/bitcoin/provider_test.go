@@ -54,7 +54,7 @@ func initBtcProviderTestnet() (*Provider, string) {
 		RelayerPrivKey:   "cTYRscQxVhtsGjHeV59RHQJbzNnJHbf3FX4eyX5JkpDhqKdhtRvy",
 		RecoveryLockTime: 1234,
 		OpCode:           0x5e,
-		MempoolURL:       "https://mempool.space/api/v1",
+		MempoolURL:       "https://mempool.space/testnet/api/tx",
 		SlaveServer1:     "http://localhost:8081",
 		SlaveServer2:     "http://localhost:8082",
 		Port:             "8080",
