@@ -237,6 +237,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 	for _, src := range r.chains {
 		for _, message := range src.MessageCache.Messages {
 			dst, err := r.FindChainRuntime(message.Dst)
+
 			if err != nil {
 				r.log.Error("dst chain nid not found", zap.String("nid", message.Dst))
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
