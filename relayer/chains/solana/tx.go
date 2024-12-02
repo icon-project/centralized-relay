@@ -35,6 +35,8 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
+	return nil
+
 	instructions, signers, err := p.makeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
@@ -1095,6 +1097,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	default:
 		return true, fmt.Errorf("unknown event type")
 	case relayerevents.CallMessage, relayerevents.RollbackMessage:
+		time.Sleep(2 * time.Second)
 		return false, nil
 	case relayerevents.EmitMessage:
 		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))

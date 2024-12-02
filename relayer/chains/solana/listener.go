@@ -85,7 +85,7 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				sign := txSigns[i].Signature
-				time.Sleep(1 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				if err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
 					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
 				}
@@ -96,7 +96,9 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 
 func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
 	txVersion := uint64(0)
-	txn, err := p.client.GetTransaction(ctx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
+	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	txn, err := p.client.GetTransaction(timeoutCtx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
 		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
 	}
@@ -271,18 +273,22 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			txSigns, err := p.client.GetSignaturesForAddress(context.Background(), progId, opts)
+			timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			txSigns, err := p.client.GetSignaturesForAddress(timeoutCtx, progId, opts)
 			if err != nil {
 				p.log.Error("failed to get signatures for address",
 					zap.String("account", progId.String()),
 					zap.String("before", opts.Before.String()),
 					zap.String("until", opts.Until.String()),
+					zap.Error(err),
 				)
 				break
 			}
 
-			p.log.Debug("signature query successful",
+			p.log.Info("signature query successful",
 				zap.Int("received-count", len(txSigns)),
+				zap.Any("tx-signatures", txSigns),
 				zap.String("account", progId.String()),
 				zap.String("before", opts.Before.String()),
 				zap.String("until", opts.Until.String()),
