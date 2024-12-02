@@ -51,10 +51,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            - RELAYER_VERSION=${{ github.ref }}
+            - RELAYER_VERSION=${{ github.ref_name }}
           tags: |
             iconcommunity/centralized-relay:latest
-            iconcommunity/centralized-relay:${{ github.ref }}
+            iconcommunity/centralized-relay:${{ github.ref_name }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
@@ -65,4 +65,4 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
           cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:latest
-          cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:${{ github.ref }}
+          cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:${{ github.ref_name }}

@@ -1095,6 +1095,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 	default:
 		return true, fmt.Errorf("unknown event type")
 	case relayerevents.CallMessage, relayerevents.RollbackMessage:
+		time.Sleep(2 * time.Second)
 		return false, nil
 	case relayerevents.EmitMessage:
 		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))
