@@ -44,13 +44,12 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 		pollInterval = p.cfg.PollInterval
 	}
 	ticker := time.NewTicker(pollInterval)
-	var cursor string
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			eventFilter := p.getEventFilter(startSeq, cursor)
+			eventFilter := p.getEventFilter(startSeq, "")
 			response, err := p.client.GetEvents(ctx, eventFilter)
 			if err != nil {
 				p.log.Warn("error occurred while fetching transactions", zap.Error(err))
@@ -63,7 +62,6 @@ func (p *Provider) Listener(ctx context.Context, lastProcessedTx relayertypes.La
 						Height: msg.MessageHeight, Messages: []*relayertypes.Message{msg},
 					}
 				}
-				cursor = ev.PagingToken
 			}
 			startSeq = response.LatestLedger
 		}
