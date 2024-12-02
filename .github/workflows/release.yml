@@ -63,6 +63,7 @@ jobs:
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          COSIGN_YES: true
         run: |
           cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:latest
           cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:${{ github.ref_name }}
