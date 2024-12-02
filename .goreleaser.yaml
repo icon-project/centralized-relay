@@ -1,6 +1,7 @@
 project_name: centralized-relay
 env:
   - CGO_ENABLED=1
+  - COSIGN_YES=true
 builds:
   - id: darwin-amd64
     main: ./main.go
@@ -105,8 +106,9 @@ checksum:
 release:
   prerelease: auto
   draft: false
+  make_latest: true
   extra_files:
-    - glob: dist/*.sig
+    - glob: "./release/cosign.pub"
 
 signs:
   - cmd: cosign
