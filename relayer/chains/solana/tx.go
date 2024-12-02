@@ -35,8 +35,6 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		zap.String("data", hex.EncodeToString(message.Data)),
 	)
 
-	return nil
-
 	instructions, signers, err := p.makeCallInstructions(message)
 	if err != nil {
 		return fmt.Errorf("failed to create call instructions: %w", err)
