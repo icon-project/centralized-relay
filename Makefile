@@ -56,11 +56,12 @@ SYSROOT_ARCHIVE ?= sysroots.tar.bz2
 
 .PHONY: release-dry-run
 release-dry-run:
+	@echo "dry-run release..."
 	@docker run \
 		--rm \
 		--env LIBWASM_VERSION=$(LIBWASM_VERSION) \
-		--env COSIGN_PASSWORD \
-		--env COSIGN_PRIVATE_KEY \
+		--env COSIGN_PASSWORD=$(COSIGN_PASSWORD) \
+		--env COSIGN_PRIVATE_KEY=$(COSIGN_PRIVATE_KEY) \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \
@@ -68,13 +69,12 @@ release-dry-run:
 		--clean --auto-snapshot
 
 .PHONY: release
-release:
 	docker run \
 		--rm \
 		--env GITHUB_TOKEN \
 		--env LIBWASM_VERSION=$(LIBWASM_VERSION) \
-		--env COSIGN_PASSWORD \
-		--env COSIGN_PRIVATE_KEY \
+		--env COSIGN_PASSWORD=(env COSIGN_PASSWORD) \
+		--env COSIGN_PRIVATE_KEY(env COSIGN_PRIVATE_KEY) \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v `pwd`:/go/src/$(PACKAGE_NAME) \
 		-w /go/src/$(PACKAGE_NAME) \

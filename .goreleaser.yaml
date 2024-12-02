@@ -110,11 +110,11 @@ release:
 
 signs:
   - cmd: cosign
-    stdin: "{{ .Env.COSIGN_PWD }}"
+    stdin: "{{ .Env.COSIGN_PASSWORD }}"
     args:
       - "sign-blob"
-      - "--key=env://COSIGN_KEY"
-      - "--output-signature=${signature}"
       - "${artifact}"
+      - "--key=env://COSIGN_PRIVATE_KEY"
+      - "--output-signature=${signature}"
       - "--yes"
     artifacts: all
