@@ -303,6 +303,13 @@ func (c *Client) SetAdmin(ctx context.Context, contractAddress string, newAdmin 
 }
 
 func (c *Client) GetReceipt(ctx context.Context, contractAddress string, srcNetwork string, connSnIn *big.Int) (bool, error) {
+	parts := strings.Split(contractAddress, ".")
+	if len(parts) != 2 {
+		return false, fmt.Errorf("invalid contract address format: %s", contractAddress)
+	}
+	principalAddress := parts[0]
+	contractName := parts[1]
+
 	srcNetworkArg, err := clarity.NewStringASCII(srcNetwork)
 	if err != nil {
 		return false, fmt.Errorf("failed to create srcNetwork argument: %w", err)
@@ -325,8 +332,8 @@ func (c *Client) GetReceipt(ctx context.Context, contractAddress string, srcNetw
 
 	result, err := c.CallReadOnlyFunction(
 		ctx,
-		contractAddress,
-		"centralized-connection",
+		principalAddress,
+		contractName,
 		"get-receipt",
 		[]string{hexEncodedSrcNetwork, hexEncodedConnSnInArg},
 	)
@@ -334,14 +341,28 @@ func (c *Client) GetReceipt(ctx context.Context, contractAddress string, srcNetw
 		return false, fmt.Errorf("failed to call get-receipt: %w", err)
 	}
 
-	var response struct {
-		Ok bool `json:"ok"`
-	}
-	if err := json.Unmarshal([]byte(*result), &response); err != nil {
-		return false, fmt.Errorf("failed to parse get-receipt response: %w", err)
+	hexResult := strings.TrimPrefix(*result, "0x")
+	bytes, err := hex.DecodeString(hexResult)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode hex result: %w", err)
 	}
 
-	return response.Ok, nil
+	clarityValue, err := clarity.DeserializeClarityValue(bytes)
+	if err != nil {
+		return false, fmt.Errorf("failed to deserialize clarity value: %w", err)
+	}
+
+	responseOk, ok := clarityValue.(*clarity.ResponseOk)
+	if !ok {
+		return false, fmt.Errorf("unexpected response type: expected ResponseOk, got %T", clarityValue)
+	}
+
+	boolValue, ok := responseOk.Value.(clarity.Bool)
+	if !ok {
+		return false, fmt.Errorf("unexpected value type: expected Bool, got %T", responseOk.Value)
+	}
+
+	return bool(boolValue), nil
 }
 
 func (c *Client) ClaimFee(ctx context.Context, contractAddress string, senderAddress string, senderKey []byte) (string, error) {
@@ -450,6 +471,35 @@ func (c *Client) SendCallMessage(ctx context.Context, contractAddress string, ar
 		contractAddress,
 		"xcall-proxy",
 		"send-call-message",
+		args,
+		senderAddress,
+		senderKey,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	txID, err := c.BroadcastTransaction(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+
+	return txID, nil
+}
+
+func (c *Client) RecvMessage(ctx context.Context, contractAddress string, args []clarity.ClarityValue, senderAddress string, senderKey []byte) (string, error) {
+	parts := strings.Split(contractAddress, ".")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid contract address format: %s", contractAddress)
+	}
+	principalAddress := parts[0]
+	contractName := parts[1]
+
+	tx, err := c.MakeContractCall(
+		ctx,
+		principalAddress,
+		contractName,
+		"recv-message",
 		args,
 		senderAddress,
 		senderKey,

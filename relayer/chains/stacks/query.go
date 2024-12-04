@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/icon-project/centralized-relay/relayer/chains/stacks/events"
+	stacksEvents "github.com/icon-project/centralized-relay/relayer/chains/stacks/events"
+	"github.com/icon-project/centralized-relay/relayer/events"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	blockchainApiClient "github.com/icon-project/stacks-go-sdk/pkg/stacks_blockchain_api_client"
 	"go.uber.org/zap"
@@ -21,13 +22,15 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, message *providerTypes
 
 func (p *Provider) MessageReceived(ctx context.Context, key *providerTypes.MessageKey) (bool, error) {
 	switch key.EventType {
-	case events.CallMessageSent:
+	case stacksEvents.CallMessageSent:
 		return p.client.GetReceipt(ctx, p.cfg.Contracts[providerTypes.ConnectionContract], key.Src, key.Sn)
-	case events.CallMessage:
+	case events.EmitMessage:
+		return p.client.GetReceipt(ctx, p.cfg.Contracts[providerTypes.ConnectionContract], key.Src, key.Sn)
+	case stacksEvents.CallMessage:
 		return false, nil
-	case events.ResponseMessage:
+	case stacksEvents.ResponseMessage:
 		return false, nil
-	case events.RollbackMessage:
+	case stacksEvents.RollbackMessage:
 		return false, nil
 	default:
 		return true, fmt.Errorf("unknown event type")
@@ -72,40 +75,65 @@ func (p *Provider) QueryLatestHeight(ctx context.Context) (uint64, error) {
 }
 
 func GetReceipt(tx interface{}) (*providerTypes.Receipt, error) {
+	if mempool, ok := tx.(*blockchainApiClient.GetMempoolTransactionList200ResponseResultsInner); ok {
+		if mempool.ContractCallMempoolTransaction1 != nil {
+			txStatus := mempool.ContractCallMempoolTransaction1.TxStatus.String
+			if txStatus == nil {
+				return nil, fmt.Errorf("nil tx status for contract call mempool transaction")
+			}
+			return &providerTypes.Receipt{
+				TxHash: mempool.ContractCallMempoolTransaction1.TxId,
+				Height: 0,
+				Status: *txStatus == "success",
+			}, nil
+		}
+
+		if mempool.SmartContractMempoolTransaction1 != nil {
+			txStatus := mempool.SmartContractMempoolTransaction1.TxStatus.String
+			if txStatus == nil {
+				return nil, fmt.Errorf("nil tx status for smart contract mempool transaction")
+			}
+			return &providerTypes.Receipt{
+				TxHash: mempool.SmartContractMempoolTransaction1.TxId,
+				Height: 0,
+				Status: *txStatus == "success",
+			}, nil
+		}
+
+		return nil, fmt.Errorf("unsupported mempool transaction type")
+	}
+
 	if response, ok := tx.(*blockchainApiClient.GetTransactionById200Response); ok {
 		if mempool := response.GetMempoolTransactionList200ResponseResultsInner; mempool != nil {
-			if mempool.ContractCallMempoolTransaction1 != nil {
-				txStatus := mempool.ContractCallMempoolTransaction1.TxStatus.String
-				if txStatus == nil {
-					return nil, fmt.Errorf("nil tx status for contract call mempool transaction")
-				}
-
-				return &providerTypes.Receipt{
-					TxHash: mempool.ContractCallMempoolTransaction1.TxId,
-					Height: 0,
-					Status: *txStatus == "success",
-				}, nil
-			}
-			if mempool.SmartContractMempoolTransaction1 != nil {
-				txStatus := mempool.SmartContractMempoolTransaction1.TxStatus.String
-				if txStatus == nil {
-					return nil, fmt.Errorf("nil tx status for smart contract mempool transaction")
-				}
-
-				return &providerTypes.Receipt{
-					TxHash: mempool.SmartContractMempoolTransaction1.TxId,
-					Height: 0,
-					Status: *txStatus == "success",
-				}, nil
-			}
+			return GetReceipt(mempool)
 		}
 
 		if confirmed := response.GetTransactionList200ResponseResultsInner; confirmed != nil {
+			if confirmed.ContractCallTransaction != nil {
+				return &providerTypes.Receipt{
+					TxHash: confirmed.ContractCallTransaction.TxId,
+					Height: uint64(confirmed.ContractCallTransaction.BlockHeight),
+					Status: confirmed.ContractCallTransaction.TxStatus.String != nil &&
+						*confirmed.ContractCallTransaction.TxStatus.String == "success",
+				}, nil
+			}
 			return getConfirmedReceipt(confirmed)
 		}
 	}
 
-	return nil, fmt.Errorf("unsupported transaction response type")
+	if confirmed, ok := tx.(*blockchainApiClient.GetTransactionList200ResponseResultsInner); ok {
+		if confirmed.ContractCallTransaction != nil {
+			return &providerTypes.Receipt{
+				TxHash: confirmed.ContractCallTransaction.TxId,
+				Height: uint64(confirmed.ContractCallTransaction.BlockHeight),
+				Status: confirmed.ContractCallTransaction.TxStatus.String != nil &&
+					*confirmed.ContractCallTransaction.TxStatus.String == "success",
+			}, nil
+		}
+		return getConfirmedReceipt(confirmed)
+	}
+
+	return nil, fmt.Errorf("unsupported transaction response type: %T", tx)
 }
 
 func getConfirmedReceipt(tx interface{}) (*providerTypes.Receipt, error) {
@@ -188,9 +216,9 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight uint64, toHe
 	errorChan := make(chan error, 1)
 
 	wsURL := p.client.GetWebSocketURL()
-	eventSystem := events.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.centralized-connection")
+	eventSystem := stacksEvents.NewEventSystem(ctx, wsURL, p.log, p.client, p.cfg.GetWallet(), p.privateKey, "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.centralized-connection")
 
-	eventSystem.OnEvent(func(event *events.Event) error {
+	eventSystem.OnEvent(func(event *stacksEvents.Event) error {
 		if event.BlockHeight < fromHeight || event.BlockHeight > toHeight {
 			return nil
 		}

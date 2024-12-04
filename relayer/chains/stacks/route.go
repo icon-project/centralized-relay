@@ -57,39 +57,74 @@ func (p *Provider) Route(ctx context.Context, message *types.Message, callback t
 
 func (p *Provider) handleEmitMessage(ctx context.Context, message *types.Message) (string, error) {
 	contractAddress := p.cfg.Contracts[types.ConnectionContract]
+	proxyAddress := p.cfg.Contracts[types.XcallContract]
+
+	result, err := p.client.CallReadOnlyFunction(
+		ctx,
+		strings.Split(proxyAddress, ".")[0],
+		"xcall-proxy",
+		"get-current-implementation",
+		[]string{},
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get current implementation: %w", err)
+	}
+
+	implBytes, err := hex.DecodeString(strings.TrimPrefix(*result, "0x"))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode implementation response: %w", err)
+	}
+
+	implValue, err := clarity.DeserializeClarityValue(implBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to deserialize implementation response: %w", err)
+	}
+
+	responseOk, ok := implValue.(*clarity.ResponseOk)
+	if !ok {
+		return "", fmt.Errorf("unexpected response type: expected ResponseOk, got %T", implValue)
+	}
+
+	implPrincipal := responseOk.Value
 
 	srcNetworkArg, err := clarity.NewStringASCII(message.Src)
 	if err != nil {
 		return "", fmt.Errorf("failed to create srcNetwork argument: %w", err)
 	}
 
-	connSnArg, err := clarity.NewUInt(message.Sn.String())
+	connSnArg, err := clarity.NewInt(message.Sn.String())
 	if err != nil {
 		return "", fmt.Errorf("failed to create connSn argument: %w", err)
 	}
 
-	// Clarity hex encodes buff on emit, so we need to decode twice
-	msgStr := string(message.Data)
-	msgStr = strings.TrimPrefix(msgStr, "0x")
-	firstDecode, err := hex.DecodeString(msgStr)
-	if err != nil {
-		return "", fmt.Errorf("first hex decode failed: %w", err)
-	}
-
-	msgStr = string(firstDecode)
-	msgStr = strings.TrimPrefix(msgStr, "0x")
-	msgBytes, err := hex.DecodeString(msgStr)
-	if err != nil {
-		return "", fmt.Errorf("second hex decode failed: %w", err)
-	}
+	var msgBytes []byte
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				msgBytes = message.Data
+			}
+		}()
+		msgStr := string(message.Data)
+		msgStr = strings.TrimPrefix(msgStr, "0x")
+		firstDecode, err := hex.DecodeString(msgStr)
+		if err != nil {
+			panic(err)
+		}
+		msgStr = string(firstDecode)
+		msgStr = strings.TrimPrefix(msgStr, "0x")
+		msgBytes, err = hex.DecodeString(msgStr)
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	msgArg := clarity.NewBuffer(msgBytes)
 
-	args := []clarity.ClarityValue{srcNetworkArg, connSnArg, msgArg}
+	args := []clarity.ClarityValue{srcNetworkArg, connSnArg, msgArg, implPrincipal}
 
-	txID, err := p.client.SendCallMessage(ctx, contractAddress, args, p.cfg.Address, p.privateKey)
+	txID, err := p.client.RecvMessage(ctx, contractAddress, args, p.cfg.Address, p.privateKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to send message: %w", err)
+		return "", fmt.Errorf("failed to receive message: %w", err)
 	}
 
 	return txID, nil

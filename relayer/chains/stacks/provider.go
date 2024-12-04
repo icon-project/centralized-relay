@@ -16,7 +16,7 @@ import (
 )
 
 const BLOCK_TIME = 5 * time.Second
-const MAX_WAIT_TIME = 3 * BLOCK_TIME
+const MAX_WAIT_TIME = 10 * BLOCK_TIME
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`

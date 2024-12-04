@@ -28,6 +28,7 @@ type IClient interface {
 	CallReadOnlyFunction(ctx context.Context, contractAddress string, contractName string, functionName string, functionArgs []string) (*string, error)
 	BroadcastTransaction(ctx context.Context, tx transaction.StacksTransaction) (string, error)
 	MakeContractCall(context.Context, string, string, string, []clarity.ClarityValue, string, []byte) (*transaction.ContractCallTransaction, error)
+	RecvMessage(ctx context.Context, contractAddress string, args []clarity.ClarityValue, senderAddress string, senderKey []byte) (string, error)
 	GetContractEvents(ctx context.Context, contractId string, limit, offset int32) (*blockchainApiClient.GetContractEventsById200Response, error)
 	GetWebSocketURL() string
 	Log() *zap.Logger
