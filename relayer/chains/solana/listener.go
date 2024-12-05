@@ -56,14 +56,18 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 	ticker := time.NewTicker(3 * time.Second)
 
 	startSignature := fromSignature
+	var startSignatureSlot uint64
 
 	if startSignature != "" {
 		fromSign, err := solana.SignatureFromBase58(startSignature)
 		if err != nil {
 			return err
 		}
-		if err := p.processTxSignature(ctx, fromSign, blockInfo); err != nil {
+		txn, err := p.processTxSignature(ctx, fromSign, blockInfo)
+		if err != nil {
 			p.log.Error("failed to process tx signature", zap.String("signature", fromSign.String()), zap.Error(err))
+		} else {
+			startSignatureSlot = txn.Slot
 		}
 	}
 
@@ -80,13 +84,20 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 			}
 			if len(txSigns) > 0 {
 				//next query start from most recent signature.
-				startSignature = txSigns[0].Signature.String()
+				if txSigns[0].Slot > startSignatureSlot {
+					startSignature = txSigns[0].Signature.String()
+					startSignatureSlot = txSigns[0].Slot
+				}
 			}
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
+				// do not process signature that are older than the start tx signature slot
+				if txSigns[i].Slot < startSignatureSlot {
+					continue
+				}
 				sign := txSigns[i].Signature
 				time.Sleep(500 * time.Millisecond)
-				if err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
+				if _, err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
 					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
 				}
 			}
@@ -94,24 +105,24 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 	}
 }
 
-func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) (*solrpc.GetTransactionResult, error) {
 	txVersion := uint64(0)
 	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	txn, err := p.client.GetTransaction(timeoutCtx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
-		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
+		return nil, fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
 	}
 
 	if txn.Meta != nil && txn.Meta.Err != nil {
-		return fmt.Errorf("failed txn with sign %s: %v", sign, txn.Meta.Err)
+		return nil, fmt.Errorf("failed txn with sign %s: %v", sign, txn.Meta.Err)
 	}
 
 	if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
 		event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
 		messages, err := p.parseMessagesFromEvent(event)
 		if err != nil {
-			return fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+			return txn, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
 		}
 		if len(messages) > 0 {
 			for _, msg := range messages {
@@ -131,7 +142,7 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 			}
 		}
 	}
-	return nil
+	return txn, nil
 }
 
 func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
