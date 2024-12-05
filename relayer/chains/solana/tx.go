@@ -1098,7 +1098,7 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		time.Sleep(2 * time.Second)
 		return false, nil
 	case relayerevents.EmitMessage:
-		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress(key.Sn.FillBytes(make([]byte, 16)))
+		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress([]byte(key.Src), key.Sn.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return false, err
 		}
