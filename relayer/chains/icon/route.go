@@ -111,6 +111,7 @@ func (p *Provider) MakeIconMessage(message *providerTypes.Message) (*IconMessage
 			SrcNID:     message.Src,
 			ConnSn:     types.NewHexInt(message.Sn.Int64()),
 			Msg:        types.NewHexBytes(message.Data),
+			DstNID:     message.Dst,
 			Signatures: sigs,
 		}
 		return p.NewIconMessage(p.GetAddressByEventType(events.EmitMessage), msg, MethodRecvMessageWithSignature), nil
