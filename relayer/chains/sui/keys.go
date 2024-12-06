@@ -83,7 +83,7 @@ func (p *Provider) ImportKeystore(ctx context.Context, keyPath, passphrase strin
 	if err != nil {
 		return "", fmt.Errorf("error importing key: %w", err)
 	}
-	//decode base64 for first key
+	// decode base64 for first key
 	firstKeyPairString := string(ksData[0])
 	keyPair, err := fetchKeyPair(firstKeyPairString)
 	if err != nil {

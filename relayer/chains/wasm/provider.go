@@ -199,6 +199,8 @@ func (p *Provider) call(ctx context.Context, message *relayTypes.Message) (*sdkT
 		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	case events.CallMessage, events.RollbackMessage:
 		contract = p.cfg.Contracts[relayTypes.XcallContract]
+	case events.PacketAcknowledged:
+		contract = p.cfg.Contracts[relayTypes.ConnectionContract]
 	default:
 		return nil, fmt.Errorf("unknown event type: %s ", message.EventType)
 	}
@@ -772,6 +774,9 @@ func (p *Provider) getRawContractMessage(message *relayTypes.Message) (wasmTypes
 	case events.EmitMessage:
 		rcvMsg := types.NewExecRecvMsg(message)
 		return jsoniter.Marshal(rcvMsg)
+	case events.PacketAcknowledged:
+		clusterRcvMsg := types.NewExecClusterRecvMsg(message)
+		return jsoniter.Marshal(clusterRcvMsg)
 	case events.CallMessage:
 		execMsg := types.NewExecExecMsg(message)
 		return jsoniter.Marshal(execMsg)
@@ -861,6 +866,9 @@ func (p *Provider) SubscribeMessageEvents(ctx context.Context, blockInfoChan cha
 			}
 			var messages []*relayTypes.Message
 			msgs, err := p.ParseMessageFromEvents(res.Result.Events)
+			for _, msg := range msgs {
+				msg.MessageHeight = uint64(res.Height)
+			}
 			if err != nil {
 				p.logger.Error("failed to parse message from events", zap.Error(err))
 				continue
