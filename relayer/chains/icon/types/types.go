@@ -401,6 +401,5 @@ type RecvMessageWithSignature struct {
 	SrcNID     string     `json:"srcNetwork"`
 	ConnSn     HexInt     `json:"_connSn"`
 	Msg        HexBytes   `json:"msg"`
-	DstNID     string     `json:"dstNetwork"`
 	Signatures []HexBytes `json:"signatures"`
 }
