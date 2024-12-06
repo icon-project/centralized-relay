@@ -212,10 +212,14 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerType
 // ClusterMessageReceived checks if the message is received
 func (p *Provider) ClusterMessageReceived(ctx context.Context, message *providerTypes.Message) (bool, error) {
 	callParam := p.prepareCallParams(MethodClusterMsgReceived, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
+		"relayer":            p.cfg.GetWallet(),
 		"srcNetwork":         message.Src,
 		"srcContractAddress": message.SrcConnAddress,
 		"srcSn":              types.NewHexInt(message.Sn.Int64()),
-		"relayer":            p.cfg.GetWallet(),
+		"srcHeight":          types.NewHexInt(message.WrappedSourceHeight.Int64()),
+		"dstNetwork":         message.Dst,
+		"dstContractAddress": message.DstConnAddress,
+		"data":               types.NewHexBytes(message.Data),
 	})
 	var status types.HexInt
 	err := p.client.Call(callParam, &status)
@@ -228,6 +232,10 @@ func (p *Provider) ClusterMessageAcknowledged(ctx context.Context, message *prov
 		"srcNetwork":         message.Src,
 		"srcContractAddress": message.SrcConnAddress,
 		"srcSn":              types.NewHexInt(message.Sn.Int64()),
+		"srcHeight":          types.NewHexInt(message.WrappedSourceHeight.Int64()),
+		"dstNetwork":         message.Dst,
+		"dstContractAddress": message.DstConnAddress,
+		"data":               types.NewHexBytes(message.Data),
 	})
 	var status types.HexInt
 	err := p.client.Call(callParam, &status)

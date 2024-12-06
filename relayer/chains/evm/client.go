@@ -125,7 +125,7 @@ type IClient interface {
 	ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
-	ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, sigatures [][]byte) (*ethTypes.Transaction, error)
+	ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, dstNID string, sigatures [][]byte) (*ethTypes.Transaction, error)
 }
 
 func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
@@ -199,8 +199,8 @@ func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.
 	return c.connection.RecvMessage(opts, srcNID, sn, msg)
 }
 
-func (c *Client) ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, signatures [][]byte) (*ethTypes.Transaction, error) {
-	return c.clusterConnection.RecvMessageWithSignatures(opts, srcNID, sn, msg, signatures)
+func (c *Client) ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, dstNID string, signatures [][]byte) (*ethTypes.Transaction, error) {
+	return c.clusterConnection.RecvMessageWithSignatures(opts, srcNID, sn, msg, dstNID, signatures)
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {

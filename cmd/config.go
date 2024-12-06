@@ -171,6 +171,7 @@ func (ClusterConfig) rlpEncodeData(msg *relayertypes.Message) []byte {
 	stream.WriteString(msg.Src)
 	stream.WriteBigInt(msg.Sn)
 	stream.WriteBytes(msg.Data)
+	stream.WriteString(msg.Dst)
 	stream.ListEnd(index)
 	encodedData := stream.ToBytes()
 	return encodedData
