@@ -27,7 +27,6 @@ type ClusterReceiveMessage struct {
 	SrcNetwork string           `json:"src_network"`
 	ConnSn     string           `json:"conn_sn"`
 	Msg        hexstr.HexString `json:"msg"`
-	DstNetwork string           `json:"dst_network"`
 	Signatures [][]int          `json:"signatures"`
 }
 
@@ -81,7 +80,6 @@ func NewExecClusterRecvMsg(message *relayTypes.Message) *ExecClusterRecvMsg {
 			SrcNetwork: message.Src,
 			ConnSn:     message.Sn.String(),
 			Msg:        hexstr.NewFromByte(message.Data),
-			DstNetwork: message.Dst,
 			Signatures: intSignatures,
 		},
 	}
