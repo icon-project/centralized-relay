@@ -304,7 +304,7 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 				break
 			}
 
-			p.log.Info("signature query successful",
+			p.log.Debug("signature query successful",
 				zap.Int("received-count", len(txSigns)),
 				zap.Any("tx-signatures", txSigns),
 				zap.String("account", progId.String()),
