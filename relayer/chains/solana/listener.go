@@ -14,6 +14,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 )
@@ -82,6 +83,12 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 				p.log.Error("failed to get signatures", zap.Error(err))
 				break
 			}
+
+			// sort tx signatures in descending order
+			sorter.Sort(txSigns, func(s1, s2 *solrpc.TransactionSignature) bool {
+				return s1.Slot > s2.Slot
+			})
+
 			if len(txSigns) > 0 {
 				//next query start from most recent signature.
 				if txSigns[0].Slot > startSignatureSlot {
