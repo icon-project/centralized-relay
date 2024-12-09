@@ -1105,13 +1105,13 @@ func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Messag
 		xcallProxyReqAcc := types.ProxyRequestAccount{}
 		if err := p.client.GetAccountInfo(context.Background(), xcallProxyReqAddr, &xcallProxyReqAcc); err != nil {
 			if strings.Contains(err.Error(), "not found") {
-				return false, nil
+				return true, nil
 			} else {
 				return false, err
 			}
 		}
 
-		return true, nil
+		return false, nil
 	case relayerevents.RollbackMessage:
 		xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(msg.XcallSn.FillBytes(make([]byte, 16)))
 		if err != nil {
@@ -1121,13 +1121,13 @@ func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Messag
 		xcallRollbackAcc := types.XcallRollbackAccount{}
 		if err := p.client.GetAccountInfo(context.Background(), xcallRollbackAddr, &xcallRollbackAcc); err != nil {
 			if strings.Contains(err.Error(), "not found") {
-				return false, nil
+				return true, nil
 			} else {
 				return false, err
 			}
 		}
 
-		return true, nil
+		return false, nil
 	case relayerevents.EmitMessage:
 		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress([]byte(msg.Src), msg.Sn.FillBytes(make([]byte, 16)))
 		if err != nil {
