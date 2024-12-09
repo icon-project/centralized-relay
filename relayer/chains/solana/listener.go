@@ -100,6 +100,13 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				// do not process signature that are older than the start tx signature slot
 				if txSigns[i].Slot < startSignatureSlot {
+					p.log.Error(
+						"found tx signature older than the current start signature slot",
+						zap.String("signature", txSigns[i].Signature.String()),
+						zap.Uint64("slot", txSigns[i].Slot),
+						zap.String("start-signature", startSignature),
+						zap.Uint64("start-signature-slot", startSignatureSlot),
+						zap.Error(err))
 					continue
 				}
 				sign := txSigns[i].Signature
