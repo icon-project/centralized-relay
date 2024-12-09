@@ -87,6 +87,7 @@ func (m *Message) SignableMsg() []byte {
 	stream.WriteString(m.Src)
 	stream.WriteBigInt(m.Sn)
 	stream.WriteBytes(m.Data)
+	stream.WriteString(m.Dst)
 
 	stream.ListEnd(index)
 

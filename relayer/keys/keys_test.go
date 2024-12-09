@@ -29,11 +29,13 @@ func TestSigVerification(t *testing.T) {
 	assert.NoError(t, err)
 
 	srcNetwork := "0x2.icon"
+	dstNetwork := "archway"
 	sn := new(big.Int).SetUint64(456456)
 	data := []byte("hello")
 
 	msg := types.Message{
 		Src:  srcNetwork,
+		Dst:  dstNetwork,
 		Sn:   sn,
 		Data: data,
 	}
@@ -51,7 +53,6 @@ func TestSigVerification(t *testing.T) {
 
 	fmt.Println("65 Bytes Signature: ", hex.EncodeToString(rsvSig))
 	fmt.Println("Public key: ", kp.PublicKey().String())
-	fmt.Println("Recovery param: ", recoveryKey)
 
 	_, err = kp.VerifySignature(msgHash, signature)
 	assert.NoError(t, err)
