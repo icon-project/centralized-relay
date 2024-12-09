@@ -252,7 +252,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 
 			// if message reached delete the message
 
-			messageReceived, err := dst.Provider.MessageReceived(ctx, message.MessageKey())
+			messageReceived, err := dst.Provider.MessageReceived(ctx, message.Message)
 			if err != nil {
 				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Any("sn", message.Sn), zap.Error(err))
 				message.ToggleProcessing()
@@ -261,7 +261,12 @@ func (r *Relayer) processMessages(ctx context.Context) {
 
 			// if message is received we can remove the message from db
 			if messageReceived {
-				dst.log.Info("message already received", zap.String("src", message.Src), zap.Any("sn", message.Sn))
+				dst.log.Info("message already received",
+					zap.String("src", message.Src),
+					zap.Any("sn", message.Sn),
+					zap.Any("req_id", message.ReqID),
+					zap.Any("event_type", message.EventType),
+				)
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
