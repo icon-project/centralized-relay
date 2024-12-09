@@ -89,23 +89,31 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 				return s1.Slot > s2.Slot
 			})
 
-			if len(txSigns) > 0 {
-				//next query start from most recent signature.
-				if txSigns[0].Slot > startSignatureSlot {
-					startSignature = txSigns[0].Signature.String()
-					startSignatureSlot = txSigns[0].Slot
-				}
-			}
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
 				// do not process signature that are older than the start tx signature slot
 				if txSigns[i].Slot < startSignatureSlot {
+					p.log.Error(
+						"found tx signature older than the current start signature slot",
+						zap.String("signature", txSigns[i].Signature.String()),
+						zap.Uint64("slot", txSigns[i].Slot),
+						zap.String("start-signature", startSignature),
+						zap.Uint64("start-signature-slot", startSignatureSlot),
+						zap.Error(err))
 					continue
 				}
 				sign := txSigns[i].Signature
 				time.Sleep(500 * time.Millisecond)
 				if _, err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
 					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
+				}
+			}
+
+			if len(txSigns) > 0 {
+				//next query start from most recent signature.
+				if txSigns[0].Slot > startSignatureSlot {
+					startSignature = txSigns[0].Signature.String()
+					startSignatureSlot = txSigns[0].Slot
 				}
 			}
 		}
