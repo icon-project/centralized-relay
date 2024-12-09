@@ -100,6 +100,7 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 						zap.String("start-signature", startSignature),
 						zap.Uint64("start-signature-slot", startSignatureSlot),
 						zap.Error(err))
+					continue
 				}
 				sign := txSigns[i].Signature
 				time.Sleep(500 * time.Millisecond)
