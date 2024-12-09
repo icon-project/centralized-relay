@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/test/chains/cosmos"
 	"github.com/icon-project/centralized-relay/test/chains/evm"
 	"github.com/icon-project/centralized-relay/test/chains/icon"
 	"github.com/icon-project/centralized-relay/test/chains/solana"
+	"github.com/icon-project/centralized-relay/test/chains/stacks"
 	"github.com/icon-project/centralized-relay/test/chains/stellar"
 	"github.com/icon-project/centralized-relay/test/chains/sui"
 	"github.com/icon-project/centralized-relay/test/interchaintest"
@@ -283,6 +285,10 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 	var (
 		chain chains.Chain
 	)
+	kmsProvider, err := kms.NewKMSConfig(context.Background(), &s.cfg.RelayerConfig.KMS_ID)
+	if err != nil {
+		fmt.Println("error getting kms", err)
+	}
 	switch cfg.ChainConfig.Type {
 	case "icon":
 		chain = icon.NewIconRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
@@ -301,6 +307,9 @@ func buildChain(log *zap.Logger, testName string, s *E2ETestSuite, cfg *testconf
 		return chain, nil
 	case "stellar":
 		chain := stellar.NewStellarRemotenet(testName, log, cfg.ChainConfig, s.DockerClient, s.network, cfg)
+		return chain, nil
+	case "stacks":
+		chain := stacks.NewStacksLocalnet(testName, log, cfg.ChainConfig, cfg, kmsProvider)
 		return chain, nil
 	default:
 		return nil, fmt.Errorf("unexpected error, unknown chain type: %s for chain: %s", cfg.ChainConfig.Type, cfg.Name)

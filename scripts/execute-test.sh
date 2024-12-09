@@ -29,6 +29,7 @@ clean_contracts() {
   find artifacts/archway -type f -exec rm {} \;
   find artifacts/evm -type f -exec rm {} \;
   find artifacts/sui -type f -exec rm {} \;
+  find artifacts/stacks -type f -exec rm {} \;
 }
 
 e2e_test() {

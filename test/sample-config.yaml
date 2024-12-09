@@ -1,38 +1,78 @@
 chains:
-  
-  - name: stellar
+
+  - name: stacks
+    nid: stacks_testnet
     version: "3"
     environment: remote
-    rpc_uri: https://tt.net.solidwallet.io/stellar-rpc/rpc
-    websocket_uri: https://tt.net.solidwallet.io/stellar-rpc
-    relay_wallet : GCX3TODZ2KEHYGD6HOQDRZVOUWNSQWP6OLYBIQ3XNPFKQ47G42H7WCGA
-    keystore_password: "Standalone Network ; February 2017"
-    keystore_file: SDFOICJI3PHUWHFARICCQS2A3W6BNGQVWQ6JDNYPH62VW6GWDBHDH7GE
-    contracts_path: "$BASE_PATH/artifacts/stellar"
+    rpc_uri: https://api.testnet.hiro.so
+    contracts_path: "$BASE_PATH/artifacts/stacks"
+    config_path: "$BASE_PATH/test/chains/stacks/data"
+    keystore_file: /Users/cyrusvorwald/.centralized-relay/keystore/stacks_testnet/ST1FTM84RHDZ3AB21MNYKA3XQEFB090HZBB81DSFE
+    keystore_password: changeme
+    relay_wallet: ST1FTM84RHDZ3AB21MNYKA3XQEFB090HZBB81DSFE
     chain_config:
-      type: stellar
-      name: stellar
-      chain_id: stellar.local
+      type: stacks
+      name: stacks
+      chain_id: stacks_testnet
+      nid: stacks_testnet
       image:
-        repository: esteblock/soroban-preview
-        version: 21.0.1
+        repository: blockstack/stacks-blockchain
+        version: latest
         uid_gid: ""
-      bin: soroban
-      bech32_prefix: 0x
-      denom: xlm
-      coin_type: 118
-      gas_prices: 0.001xlm
+      bin: stx
+      bech32_prefix: ST
+      denom: stx
+      coin_type: 5757
+      gas_prices: 0.001stx
       gas_adjustment: 1.3
       trusting_period: 508h
       no_host_mount: false
     contracts:
-      xcall: "$BASE_PATH/artifacts/stellar/xcall.wasm"
-      connection: "$BASE_PATH/artifacts/stellar/centralized_connection.wasm"
-      dapp: "$BASE_PATH/artifacts/stellar/mock_dapp_multi.wasm"
+      xcall-proxy: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-proxy.clar"
+      connection: "$BASE_PATH/artifacts/stacks/contracts/connections/centralized-connection.clar"
+      dapp: "$BASE_PATH/artifacts/stacks/tests/mocks/mock-dapp.clar"
+      common-trait: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-common-trait.clar"
+      receiver-trait: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-receiver-trait.clar"
+      impl-trait: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-impl-trait.clar"
+      proxy-trait: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-proxy-trait.clar"
+      util: "$BASE_PATH/artifacts/stacks/contracts/util.clar"
+      rlp-encode: "$BASE_PATH/artifacts/stacks/lib/rlp/rlp-encode.clar"
+      rlp-decode: "$BASE_PATH/artifacts/stacks/lib/rlp/rlp-decode.clar"
+      xcall-impl: "$BASE_PATH/artifacts/stacks/contracts/xcall/xcall-impl.clar"
+  
+  # - name: stellar
+  #   version: "3"
+  #   environment: remote
+  #   rpc_uri: https://tt.net.solidwallet.io/stellar-rpc/rpc
+  #   websocket_uri: https://tt.net.solidwallet.io/stellar-rpc
+  #   relay_wallet : GCX3TODZ2KEHYGD6HOQDRZVOUWNSQWP6OLYBIQ3XNPFKQ47G42H7WCGA
+  #   keystore_password: "Standalone Network ; February 2017"
+  #   keystore_file: SDFOICJI3PHUWHFARICCQS2A3W6BNGQVWQ6JDNYPH62VW6GWDBHDH7GE
+  #   contracts_path: "$BASE_PATH/artifacts/stellar"
+  #   chain_config:
+  #     type: stellar
+  #     name: stellar
+  #     chain_id: stellar.local
+  #     image:
+  #       repository: esteblock/soroban-preview
+  #       version: 21.0.1
+  #       uid_gid: ""
+  #     bin: soroban
+  #     bech32_prefix: 0x
+  #     denom: xlm
+  #     coin_type: 118
+  #     gas_prices: 0.001xlm
+  #     gas_adjustment: 1.3
+  #     trusting_period: 508h
+  #     no_host_mount: false
+  #   contracts:
+  #     xcall: "$BASE_PATH/artifacts/stellar/xcall.wasm"
+  #     connection: "$BASE_PATH/artifacts/stellar/centralized_connection.wasm"
+  #     dapp: "$BASE_PATH/artifacts/stellar/mock_dapp_multi.wasm"
   - name: icon
     version: "3"
     environment: remote
-    rpc_uri: https://tt.net.solidwallet.io/jvm-rpc/api/v3/ 
+    rpc_uri: https://lisbon.net.solidwallet.io/api/v3/
     keystore_file: godwallet.json
     keystore_password: gochain
     relay_wallet : hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
@@ -43,7 +83,7 @@ chains:
     chain_config:
       type: icon
       name: icon
-      chain_id: icon.local
+      chain_id: test
       bech32_prefix: hx
       bin: "/goloop/bin/goloop"
       image:
@@ -54,124 +94,124 @@ chains:
       xcall: "$BASE_PATH/artifacts/icon/xcall-latest.jar"
       connection: "$BASE_PATH/artifacts/icon/centralized-connection-latest.jar"
       dapp: "$BASE_PATH/artifacts/icon/dapp-multi-protocol-latest.jar"
-  - name: foundry
-    version: "3"
-    environment: remote
-    rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
-    websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
-    relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-    keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-    chain_config:
-      type: evm
-      name: foundry
-      chain_id: emv.local
-      image:
-        repository: ghcr.io/foundry-rs/foundry
-        version: latest
-        uid_gid: ""
-      bin: cast
-      bech32_prefix: 0x
-      denom: gwei
-      coin_type: 118
-      gas_prices: 0.001gwei
-      gas_adjustment: 1.3
-      trusting_period: 508h
-      no_host_mount: false
-    contracts:
-      xcall: "$BASE_PATH/artifacts/evm/CallService"
-      connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
-      dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
-  - name: sui
-    version: "3"
-    environment: remote
-    rpc_uri: https://tt.net.solidwallet.io:443/sui-rpc
-    websocket_uri: ws://tt.net.solidwallet.io:443
-    relay_wallet : 0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21
-    keystore_password: ALWS4mKTtggWc8gH+a5bFLFQ0AeNbZpUdDI//3OpAVys
-    contracts_path: "$BASE_PATH/artifacts/sui/xcall/contracts/sui"
-    config_path: "$BASE_PATH/test/chains/sui/data"
-    chain_config:
-      type: sui
-      name: sui
-      chain_id: sui
-      image:
-        repository: mysten/sui-tools-w-git
-        version: devnet
-        uid_gid: ""
-      bin: sui
-      bech32_prefix: 0x
-      denom: arch
-      coin_type: 118
-      gas_prices: 0.001sui
-      gas_adjustment: 1.3
-      trusting_period: 508h
-      no_host_mount: false
-    contracts:
-      xcall: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/xcall"      
-      sui_rlp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/libs/sui_rlp" 
-      dapp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/mock_dapp"
+  # - name: foundry
+  #   version: "3"
+  #   environment: remote
+  #   rpc_uri: https://tt.net.solidwallet.io/hardhat-rpc
+  #   websocket_uri: wss://tt.net.solidwallet.io/hardhat-rpc
+  #   relay_wallet : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  #   keystore_password: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  #   chain_config:
+  #     type: evm
+  #     name: foundry
+  #     chain_id: emv.local
+  #     image:
+  #       repository: ghcr.io/foundry-rs/foundry
+  #       version: latest
+  #       uid_gid: ""
+  #     bin: cast
+  #     bech32_prefix: 0x
+  #     denom: gwei
+  #     coin_type: 118
+  #     gas_prices: 0.001gwei
+  #     gas_adjustment: 1.3
+  #     trusting_period: 508h
+  #     no_host_mount: false
+  #   contracts:
+  #     xcall: "$BASE_PATH/artifacts/evm/CallService"
+  #     connection: "$BASE_PATH/artifacts/evm/CentralizedConnection"
+  #     dapp: "$BASE_PATH/artifacts/evm/MultiProtocolSampleDapp"
+  # - name: sui
+  #   version: "3"
+  #   environment: remote
+  #   rpc_uri: https://tt.net.solidwallet.io:443/sui-rpc
+  #   websocket_uri: ws://tt.net.solidwallet.io:443
+  #   relay_wallet : 0xe847098636459aa93f4da105414edca4790619b291ffdac49419f5adc19c4d21
+  #   keystore_password: ALWS4mKTtggWc8gH+a5bFLFQ0AeNbZpUdDI//3OpAVys
+  #   contracts_path: "$BASE_PATH/artifacts/sui/xcall/contracts/sui"
+  #   config_path: "$BASE_PATH/test/chains/sui/data"
+  #   chain_config:
+  #     type: sui
+  #     name: sui
+  #     chain_id: sui
+  #     image:
+  #       repository: mysten/sui-tools-w-git
+  #       version: devnet
+  #       uid_gid: ""
+  #     bin: sui
+  #     bech32_prefix: 0x
+  #     denom: arch
+  #     coin_type: 118
+  #     gas_prices: 0.001sui
+  #     gas_adjustment: 1.3
+  #     trusting_period: 508h
+  #     no_host_mount: false
+  #   contracts:
+  #     xcall: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/xcall"      
+  #     sui_rlp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/libs/sui_rlp" 
+  #     dapp: "$BASE_PATH/artifacts/sui/xcall/contracts/sui/mock_dapp"
   
-  - name: archway
-    version: "3"
-    environment: remote
-    contracts_path: "$BASE_PATH/artifacts/archway"
-    config_path: "$BASE_PATH/test/chains/cosmos/data"
-    rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc
-    relay_wallet: archway1x394ype3x8nt9wz0j78m8c8kcezpslrcnvs6ef
-    grpc_uri: tt.net.solidwallet.io:443
-    # for testing with local chains with self signed certs
-    # cert_path: /Users/home/centralized-relay/rootCA/
-    keystore_file: relayer
-    chain_config:
-      type: wasm
-      name: archway
-      chain_id: localnet-1
-      bin: archwayd
-      image:
-        repository: ghcr.io/archway-network/archwayd-dev
-        version: v6.0.1-amd64
-        uid_gid: ""
-      bech32_prefix: archway
-      denom: arch
-      coin_type: 118
-      gas_prices: 0.000arch
-      gas_adjustment: 1.3
-      trusting_period: 508h
-      no_host_mount: false
-      nid: localnet-1
-    contracts:
-      xcall: "$BASE_PATH/artifacts/archway/cw_xcall_latest.wasm"
-      connection: "$BASE_PATH/artifacts/archway/cw_centralized_connection.wasm"
-      dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
+  # - name: archway
+  #   version: "3"
+  #   environment: remote
+  #   contracts_path: "$BASE_PATH/artifacts/archway"
+  #   config_path: "$BASE_PATH/test/chains/cosmos/data"
+  #   rpc_uri: https://tt.net.solidwallet.io:443/archway-rpc
+  #   relay_wallet: archway1x394ype3x8nt9wz0j78m8c8kcezpslrcnvs6ef
+  #   grpc_uri: tt.net.solidwallet.io:443
+  #   # for testing with local chains with self signed certs
+  #   # cert_path: /Users/home/centralized-relay/rootCA/
+  #   keystore_file: relayer
+  #   chain_config:
+  #     type: wasm
+  #     name: archway
+  #     chain_id: localnet-1
+  #     bin: archwayd
+  #     image:
+  #       repository: ghcr.io/archway-network/archwayd-dev
+  #       version: v6.0.1-amd64
+  #       uid_gid: ""
+  #     bech32_prefix: archway
+  #     denom: arch
+  #     coin_type: 118
+  #     gas_prices: 0.000arch
+  #     gas_adjustment: 1.3
+  #     trusting_period: 508h
+  #     no_host_mount: false
+  #     nid: localnet-1
+  #   contracts:
+  #     xcall: "$BASE_PATH/artifacts/archway/cw_xcall_latest.wasm"
+  #     connection: "$BASE_PATH/artifacts/archway/cw_centralized_connection.wasm"
+  #     dapp: "$BASE_PATH/artifacts/archway/cw_mock_dapp_multi.wasm"    
 
-  - name: solana
-    version: "3"
-    environment: remote
-    rpc_uri: https://solana-rpc.venture23.xyz
-    relay_wallet : 2V6UQFu9BZL6eKj2EFjtbCvtS1poXJNyJoWogk6gbGsS
-    keystore_file: id.json
-    contracts_path: "$BASE_PATH/artifacts/solana/xcall/contracts/solana"
-    config_path: "$BASE_PATH/test/chains/solana/data/"
-    chain_config:
-      type: solana
-      name: solana
-      chain_id: solana.local
-      image:
-        repository: backpackapp/build
-        version: v0.30.1
-        uid_gid: ""
-      bin: anchor
-      bech32_prefix: 0x
-      denom: sol
-      coin_type: 118
-      gas_prices: 0.001sol
-      gas_adjustment: 1.3
-      trusting_period: 508h
-      no_host_mount: false
-    contracts:
-      xcall: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/programs/xcall"      
-      sui_rlp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/centralized-connection" 
-      dapp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/mock-dapp-multi"
+  # - name: solana
+  #   version: "3"
+  #   environment: remote
+  #   rpc_uri: https://solana-rpc.venture23.xyz
+  #   relay_wallet : 2V6UQFu9BZL6eKj2EFjtbCvtS1poXJNyJoWogk6gbGsS
+  #   keystore_file: id.json
+  #   contracts_path: "$BASE_PATH/artifacts/solana/xcall/contracts/solana"
+  #   config_path: "$BASE_PATH/test/chains/solana/data/"
+  #   chain_config:
+  #     type: solana
+  #     name: solana
+  #     chain_id: solana.local
+  #     image:
+  #       repository: backpackapp/build
+  #       version: v0.30.1
+  #       uid_gid: ""
+  #     bin: anchor
+  #     bech32_prefix: 0x
+  #     denom: sol
+  #     coin_type: 118
+  #     gas_prices: 0.001sol
+  #     gas_adjustment: 1.3
+  #     trusting_period: 508h
+  #     no_host_mount: false
+  #   contracts:
+  #     xcall: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/programs/xcall"      
+  #     sui_rlp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/centralized-connection" 
+  #     dapp: "$BASE_PATH/artifacts/solana/xcall/contracts/solana/mock-dapp-multi"
 relayer:
     image: centralized-relay
     tag: stellar-dev-amd
