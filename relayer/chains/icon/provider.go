@@ -211,12 +211,16 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerType
 
 // ClusterMessageReceived checks if the message is received
 func (p *Provider) ClusterMessageReceived(ctx context.Context, message *providerTypes.Message) (bool, error) {
+	srcHeight := message.WrappedSourceHeight
+	if srcHeight == nil {
+		srcHeight = big.NewInt(int64(message.MessageHeight))
+	}
 	callParam := p.prepareCallParams(MethodClusterMsgReceived, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
 		"relayer":            p.cfg.GetWallet(),
 		"srcNetwork":         message.Src,
 		"srcContractAddress": message.SrcConnAddress,
 		"srcSn":              types.NewHexInt(message.Sn.Int64()),
-		"srcHeight":          types.NewHexInt(message.WrappedSourceHeight.Int64()),
+		"srcHeight":          srcHeight,
 		"dstNetwork":         message.Dst,
 		"dstContractAddress": message.DstConnAddress,
 		"data":               types.NewHexBytes(message.Data),
