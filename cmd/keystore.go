@@ -1,10 +1,16 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	ecr "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/spf13/cobra"
@@ -37,7 +43,7 @@ func keystoreCmd(a *appState) *cobra.Command {
 		panic(err)
 	}
 
-	ks.AddCommand(state.init(a), state.new(a), state.list(a), state.importKey(a), state.use(a))
+	ks.AddCommand(state.init(a), state.new(a), state.list(a), state.importKey(a), state.use(a), state.generateClusterKey(a), state.getClusterKey(a))
 
 	return ks
 }
@@ -62,6 +68,57 @@ func (k *keystoreState) init(a *appState) *cobra.Command {
 	return init
 }
 
+// generate ecdsa private key
+func (k *keystoreState) generateClusterKey(a *appState) *cobra.Command {
+	generate := &cobra.Command{
+		Use:   "gen-cluster-key",
+		Short: "generate cluster key",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			priv, err := ecdsa.GenerateKey(ecr.S256(), rand.Reader)
+			if err != nil {
+				return err
+			}
+			privBytes, err := a.kms.Encrypt(cmd.Context(), priv.D.Bytes())
+			if err != nil {
+				return err
+			}
+			privKeyPath := filepath.Join(a.homePath, "keystore", "cluster")
+			if err := os.MkdirAll(privKeyPath, 0o755); err != nil {
+				return err
+			}
+			pubKeyBytes := crypto.FromECDSAPub(&priv.PublicKey)
+			pubKey := hex.EncodeToString(pubKeyBytes)
+			if err := os.WriteFile(filepath.Join(privKeyPath, pubKey), privBytes, 0o600); err != nil {
+				return err
+			}
+			a.config.Global.ClusterMode.Key = pubKey
+			a.config.Global.ClusterMode.Enabled = true
+			if err := a.config.Save(a.configPath); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stdout, "Cluster key created and encrypted: %s\n", a.config.Global.ClusterMode.Key)
+			return nil
+		},
+	}
+	return generate
+}
+
+// get cluster public key
+func (k *keystoreState) getClusterKey(a *appState) *cobra.Command {
+	get := &cobra.Command{
+		Use:   "get-cluster-key",
+		Short: "get cluster key",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !a.config.Global.ClusterMode.Enabled {
+				return fmt.Errorf("cluster mode not enabled")
+			}
+			fmt.Fprintf(os.Stdout, "Cluster key: %s\n", a.config.Global.ClusterMode.Key)
+			return nil
+		},
+	}
+	return get
+}
+
 func (k *keystoreState) new(a *appState) *cobra.Command {
 	new := &cobra.Command{
 		Use:   "new",
@@ -71,7 +128,7 @@ func (k *keystoreState) new(a *appState) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("chain not found")
 			}
-			kestorePath := filepath.Join(a.homePath, "keystore", k.chain)
+			kestorePath := filepath.Join(a.homePath, "keystore", "wallets", k.chain)
 			if err := os.MkdirAll(kestorePath, 0o755); err != nil {
 				return err
 			}

@@ -94,6 +94,10 @@ func (pc *Config) Enabled() bool {
 	return !pc.Disabled
 }
 
+func (pc *Config) GetConnContract() string {
+	return pc.ConnectionProgram
+}
+
 func (pc *Config) ContractsAddress() relayertypes.ContractConfigMap {
 	addresses := relayertypes.ContractConfigMap{
 		relayertypes.ConnectionContract: pc.ConnectionProgram,

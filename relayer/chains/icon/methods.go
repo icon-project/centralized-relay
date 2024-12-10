@@ -14,4 +14,10 @@ var (
 	// XCALL Methods
 	MethodExecuteCall     = "executeCall"
 	MethodExecuteRollback = "executeRollback"
+
+	// Cluster Methods
+	MethodSubmitPacket             = "submitPacket"
+	MethodClusterMsgReceived       = "packetSubmitted"
+	MethodPacketAcknowledged       = "packetAcknowledged"
+	MethodRecvMessageWithSignature = "recvMessageWithSignatures"
 )

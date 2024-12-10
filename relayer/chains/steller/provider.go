@@ -208,3 +208,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 	p.LastSavedHeightFunc = f
 }
+
+func (p *Config) GetConnContract() string {
+	return p.Contracts[relayertypes.ConnectionContract]
+}
