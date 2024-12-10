@@ -686,9 +686,17 @@ func (an *EVMRemotenet) DeployNSetupClusterContracts(ctx context.Context, chains
 	}
 
 	//update validators
-	validators := []common.Address{
-		common.HexToAddress(an.testconfig.ClusterKey),
-		common.HexToAddress(an.testconfig.FollowerClusterKey),
+	leaderKey, err := hex.DecodeString(an.testconfig.ClusterKey)
+	if err != nil {
+		return err
+	}
+	followerKey, err := hex.DecodeString(an.testconfig.FollowerClusterKey)
+	if err != nil {
+		return err
+	}
+	validators := [][]byte{
+		leaderKey,
+		followerKey,
 	}
 	_, err = an.ExecCallTx(ctx, connection.Hex(), "updateValidators", an.testconfig.KeystorePassword,
 		validators, uint8(2))
