@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -181,9 +180,7 @@ func (ClusterConfig) rlpEncodeData(msg *relayertypes.Message) []byte {
 func (ClusterConfig) uft8EncodeData(msg *relayertypes.Message) []byte {
 	encodedBytes := []byte(msg.Src)
 	encodedBytes = append(encodedBytes, []byte(msg.Sn.String())...)
-
-	dataHexStr := hex.EncodeToString(msg.Data)
-	encodedBytes = append(encodedBytes, []byte(dataHexStr)...)
+	encodedBytes = append(encodedBytes, msg.Data...)
 	encodedBytes = append(encodedBytes, msg.Dst...)
 
 	return encodedBytes
