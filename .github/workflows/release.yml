@@ -6,9 +6,17 @@ on:
       - "v*.*.*" # run on semver tags
       - "v*.*.*-*" # run on pre-release tags
 
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to stable release'
+        required: true
+        default: 'v0.0.0'
+
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     steps:
       - name: Delete unnecessary tools folder for space
         run: rm -rf /opt/hostedtoolcache
@@ -52,8 +60,8 @@ jobs:
           push: true
           build-args: |
             - RELAYER_VERSION=${{ github.ref_name }}
-          tags: |
-            iconcommunity/centralized-relay:latest
+          tags:
+            iconcommunity/centralized-relay:unstable
             iconcommunity/centralized-relay:${{ github.ref_name }}
 
       - name: Install cosign
@@ -65,5 +73,38 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           COSIGN_YES: true
         run: |
-          cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:latest
+          cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:unstable
           cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:${{ github.ref_name }}
+
+  release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull relayer image
+        run: docker pull iconcommunity/centralized-relay:${{ github.event.inputs.tag }}
+
+      - name: Tag with stable
+        run: docker tag iconcommunity/centralized-relay:${{ github.event.inputs.tag }} iconcommunity/centralized-relay:stable
+
+      - name: Push relayer image
+        run: docker push iconcommunity/centralized-relay:stable
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign relayer image
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          COSIGN_YES: true
+        run: |
+          cosign sign --key env://COSIGN_PRIVATE_KEY iconcommunity/centralized-relay:stable
