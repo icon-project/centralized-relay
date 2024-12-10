@@ -557,3 +557,7 @@ func (p *Provider) queryRevertMessageAccounts(
 
 	return &acRes, nil
 }
+
+func (p *Provider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}

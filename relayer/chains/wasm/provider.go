@@ -927,3 +927,7 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 	}
 	return messages, nil
 }
+
+func (p *Provider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}
