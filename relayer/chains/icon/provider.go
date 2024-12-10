@@ -220,7 +220,7 @@ func (p *Provider) ClusterMessageReceived(ctx context.Context, message *provider
 		"srcNetwork":         message.Src,
 		"srcContractAddress": message.SrcConnAddress,
 		"srcSn":              types.NewHexInt(message.Sn.Int64()),
-		"srcHeight":          srcHeight,
+		"srcHeight":          types.NewHexInt(srcHeight.Int64()),
 		"dstNetwork":         message.Dst,
 		"dstContractAddress": message.DstConnAddress,
 		"data":               types.NewHexBytes(message.Data),
