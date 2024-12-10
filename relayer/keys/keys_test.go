@@ -30,7 +30,7 @@ func TestSigVerification(t *testing.T) {
 
 	srcNetwork := "0x2.icon"
 	dstNetwork := "archway"
-	sn := new(big.Int).SetUint64(456456)
+	sn := new(big.Int).SetUint64(128)
 	data := []byte("hello")
 
 	msg := types.Message{
@@ -40,7 +40,9 @@ func TestSigVerification(t *testing.T) {
 		Data: data,
 	}
 
-	msgBytes := msg.SignableMsg()
+	msgBytes := msg.SignableMsgV1()
+
+	fmt.Println("String encoded bytes: ", hex.EncodeToString(msgBytes))
 
 	msgHash := Keccak256Hash(msgBytes)
 	signature := kp.Sign(msgHash)
@@ -56,4 +58,9 @@ func TestSigVerification(t *testing.T) {
 
 	_, err = kp.VerifySignature(msgHash, signature)
 	assert.NoError(t, err)
+}
+
+func TestIntToString(t *testing.T) {
+	val := big.NewInt(128)
+	fmt.Println("String val: ", val.String())
 }

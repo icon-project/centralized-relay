@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
@@ -94,6 +95,17 @@ func (m *Message) SignableMsg() []byte {
 	encoded := stream.ToBytes()
 
 	return encoded
+}
+
+func (m *Message) SignableMsgV1() []byte {
+	encodedBytes := []byte(m.Src)
+	encodedBytes = append(encodedBytes, []byte(m.Sn.String())...)
+
+	dataHexStr := hex.EncodeToString(m.Data)
+	encodedBytes = append(encodedBytes, []byte(dataHexStr)...)
+	encodedBytes = append(encodedBytes, m.Dst...)
+
+	return encodedBytes
 }
 
 type RouteMessage struct {
