@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -158,7 +159,7 @@ func (c ClusterConfig) SignMessage(msg *relayertypes.Message) ([]byte, error) {
 	if c.privateKey == nil {
 		return nil, errors.New("private key is nil")
 	}
-	encodedData := c.rlpEncodeData(msg)
+	encodedData := c.uft8EncodeData(msg)
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(encodedData)
 	msgHash := hash.Sum(nil)
@@ -175,6 +176,17 @@ func (ClusterConfig) rlpEncodeData(msg *relayertypes.Message) []byte {
 	stream.ListEnd(index)
 	encodedData := stream.ToBytes()
 	return encodedData
+}
+
+func (ClusterConfig) uft8EncodeData(msg *relayertypes.Message) []byte {
+	encodedBytes := []byte(msg.Src)
+	encodedBytes = append(encodedBytes, []byte(msg.Sn.String())...)
+
+	dataHexStr := hex.EncodeToString(msg.Data)
+	encodedBytes = append(encodedBytes, []byte(dataHexStr)...)
+	encodedBytes = append(encodedBytes, msg.Dst...)
+
+	return encodedBytes
 }
 
 func (c ClusterConfig) VerifySignature(msg, sig []byte) error {
