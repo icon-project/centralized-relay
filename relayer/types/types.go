@@ -17,7 +17,7 @@ var (
 	ConnectionContract        = "connection"
 	AggregationContract       = "aggregation"
 	SupportedContracts        = []string{XcallContract, ConnectionContract}
-	RetryInterval             = 3*time.Second + RouteDuration
+	RetryInterval             = 2*time.Second + RouteDuration
 	DefaultCoinDecimals       = 18
 )
 
@@ -111,7 +111,8 @@ func (r *RouteMessage) GetRetry() uint8 {
 
 // ResetLastTry resets the last try time to the current time plus the retry interval
 func (r *RouteMessage) AddNextTry() {
-	r.LastTry = time.Now().Add(RetryInterval * time.Duration(math.Pow(2, float64(r.Retry)))) // exponential backoff
+	pf := r.Retry - 1
+	r.LastTry = time.Now().Add(RetryInterval * time.Duration(math.Pow(2, float64(pf)))) // exponential backoff
 }
 
 func (r *RouteMessage) IsProcessing() bool {

@@ -14,6 +14,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/chains/solana/types"
 	relayerevents "github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 )
@@ -56,14 +57,18 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 	ticker := time.NewTicker(3 * time.Second)
 
 	startSignature := fromSignature
+	var startSignatureSlot uint64
 
 	if startSignature != "" {
 		fromSign, err := solana.SignatureFromBase58(startSignature)
 		if err != nil {
 			return err
 		}
-		if err := p.processTxSignature(ctx, fromSign, blockInfo); err != nil {
+		txn, err := p.processTxSignature(ctx, fromSign, blockInfo)
+		if err != nil {
 			p.log.Error("failed to process tx signature", zap.String("signature", fromSign.String()), zap.Error(err))
+		} else {
+			startSignatureSlot = txn.Slot
 		}
 	}
 
@@ -78,34 +83,61 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 				p.log.Error("failed to get signatures", zap.Error(err))
 				break
 			}
-			if len(txSigns) > 0 {
-				//next query start from most recent signature.
-				startSignature = txSigns[0].Signature.String()
-			}
+
+			// sort tx signatures in descending order
+			sorter.Sort(txSigns, func(s1, s2 *solrpc.TransactionSignature) bool {
+				return s1.Slot > s2.Slot
+			})
+
 			//start processing from last index i.e oldest signature
 			for i := len(txSigns) - 1; i >= 0; i-- {
+				// do not process signature that are older than the start tx signature slot
+				if txSigns[i].Slot < startSignatureSlot {
+					p.log.Error(
+						"found tx signature older than the current start signature slot",
+						zap.String("signature", txSigns[i].Signature.String()),
+						zap.Uint64("slot", txSigns[i].Slot),
+						zap.String("start-signature", startSignature),
+						zap.Uint64("start-signature-slot", startSignatureSlot),
+						zap.Error(err))
+					continue
+				}
 				sign := txSigns[i].Signature
-				time.Sleep(1 * time.Second)
-				if err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
+				time.Sleep(500 * time.Millisecond)
+				if _, err := p.processTxSignature(ctx, sign, blockInfo); err != nil {
 					p.log.Error("failed to process tx signature", zap.String("signature", sign.String()), zap.Error(err))
+				}
+			}
+
+			if len(txSigns) > 0 {
+				//next query start from most recent signature.
+				if txSigns[0].Slot > startSignatureSlot {
+					startSignature = txSigns[0].Signature.String()
+					startSignatureSlot = txSigns[0].Slot
 				}
 			}
 		}
 	}
 }
 
-func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) error {
+func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) (*solrpc.GetTransactionResult, error) {
 	txVersion := uint64(0)
-	txn, err := p.client.GetTransaction(ctx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
+	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	txn, err := p.client.GetTransaction(timeoutCtx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
-		return fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
+		return nil, fmt.Errorf("failed to get txn with sign %s: %w", sign, err)
+	}
+
+	if txn.Meta != nil && txn.Meta.Err != nil {
+		return nil, fmt.Errorf("failed txn with sign %s: %v", sign, txn.Meta.Err)
 	}
 
 	if txn.Meta != nil && len(txn.Meta.LogMessages) > 0 {
 		event := types.SolEvent{Slot: txn.Slot, Signature: sign, Logs: txn.Meta.LogMessages}
 		messages, err := p.parseMessagesFromEvent(event)
 		if err != nil {
-			return fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+			return txn, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
 		}
 		if len(messages) > 0 {
 			for _, msg := range messages {
@@ -125,7 +157,7 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 			}
 		}
 	}
-	return nil
+	return txn, nil
 }
 
 func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
@@ -267,18 +299,22 @@ func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			txSigns, err := p.client.GetSignaturesForAddress(context.Background(), progId, opts)
+			timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			txSigns, err := p.client.GetSignaturesForAddress(timeoutCtx, progId, opts)
 			if err != nil {
 				p.log.Error("failed to get signatures for address",
 					zap.String("account", progId.String()),
 					zap.String("before", opts.Before.String()),
 					zap.String("until", opts.Until.String()),
+					zap.Error(err),
 				)
 				break
 			}
 
 			p.log.Debug("signature query successful",
 				zap.Int("received-count", len(txSigns)),
+				zap.Any("tx-signatures", txSigns),
 				zap.String("account", progId.String()),
 				zap.String("before", opts.Before.String()),
 				zap.String("until", opts.Until.String()),

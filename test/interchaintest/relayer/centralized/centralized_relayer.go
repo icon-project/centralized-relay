@@ -134,8 +134,10 @@ type CosmosRelayerChainConfigValue struct {
 	FinalityBlock          uint64            `yaml:"finality-block"`
 }
 type Dapp struct {
-	Name      string `yaml:"name"`
-	ProgramID string `yaml:"program-id"`
+	Name         string   `yaml:"name"`
+	ProgramID    string   `yaml:"program-id"`
+	ConfigPrefix string   `yaml:"config-prefix"`
+	OtherPrefix  []string `yaml:"other-prefix"`
 }
 type SolanaRelayerChainConfigValue struct {
 	Disabled          bool     `yaml:"disabled" json:"disabled"`

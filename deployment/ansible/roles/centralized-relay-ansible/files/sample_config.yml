@@ -1,0 +1,37 @@
+global:
+    api-listen-addr: 5183
+    timeout: 10s
+    memo: ""
+    light-cache-size: 20
+    kms-key-id: 5ef77041-d1e6-4af1-9a41-e49a4b45efb6
+chains:
+    icon.local:
+        type: icon
+        value:
+            address: hxb6b5791be0b5ef67063b3c10b840fb81514db2fd
+            block-interval: 6s
+            contracts:
+                connection: cxbaba0d9bcb7b658eea78498c3e1585d8cbfc30af
+                xcall: cx146d77444bedec6e82d59d1da74afd45adc2693a
+            finality-block: 10
+            network-id: 3
+            nid: icon.local
+            rpc-url: https://tt.net.solidwallet.io/jvm-rpc/api/v3/
+            start-height: 0
+            step-limit: 2500000
+            step-min: 25000
+    emv.local:
+        type: evm
+        value:
+            address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+            block-interval: 6s
+            contracts:
+                connection: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+                xcall: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+            finality-block: 10
+            gas-limit: 20000000
+            gas-price: 10000000
+            nid: emv.local
+            rpc-url: https://tt.net.solidwallet.io/hardhat-rpc
+            start-height: 0
+            websocket-url: wss://tt.net.solidwallet.io/hardhat-rpc/
