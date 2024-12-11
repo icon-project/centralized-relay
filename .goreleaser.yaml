@@ -106,7 +106,7 @@ checksum:
 release:
   prerelease: auto
   draft: false
-  make_latest: true
+  make_latest: false
   extra_files:
     - glob: "./release/cosign.pub"
 
