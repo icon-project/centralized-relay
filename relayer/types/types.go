@@ -15,6 +15,7 @@ var (
 	RouteDuration             = 3 * time.Second
 	XcallContract             = "xcall"
 	ConnectionContract        = "connection"
+	AggregationContract       = "aggregation"
 	SupportedContracts        = []string{XcallContract, ConnectionContract}
 	RetryInterval             = 2*time.Second + RouteDuration
 	DefaultCoinDecimals       = 18
@@ -26,16 +27,20 @@ type BlockInfo struct {
 }
 
 type Message struct {
-	Dst             string   `json:"dst"`
-	Src             string   `json:"src"`
-	Sn              *big.Int `json:"sn"`
-	XcallSn         *big.Int `json:"xcallSN,omitempty"`
-	Data            []byte   `json:"data"`
-	MessageHeight   uint64   `json:"messageHeight"`
-	EventType       string   `json:"eventType"`
-	ReqID           *big.Int `json:"reqID,omitempty"`
-	DappModuleCapID string   `json:"dappModuleCapID,omitempty"`
-	DstConnAddress  string   `json:"dstConnAddress,omitempty"`
+	Dst                 string   `json:"dst"`
+	Src                 string   `json:"src"`
+	Sn                  *big.Int `json:"sn"`
+	Data                []byte   `json:"data"`
+	MessageHeight       uint64   `json:"messageHeight"`
+	EventType           string   `json:"eventType"`
+	ReqID               *big.Int `json:"reqID,omitempty"`
+	DappModuleCapID     string   `json:"dappModuleCapID,omitempty"`
+	WrappedSourceHeight *big.Int `json:"height"`
+	SrcConnAddress      string   `json:"src-conn-addr"`
+	DstConnAddress      string   `json:"conn-addr"`
+	SignedData          []byte   `json:"signedData"`
+	Signatures          [][]byte `json:"signatures"`
+	XcallSn             *big.Int `json:"xcallSN,omitempty"`
 
 	TxInfo []byte `json:"-"`
 }

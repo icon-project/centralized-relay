@@ -48,6 +48,7 @@ type IClient interface {
 	Unsubscribe(ctx context.Context, _, query string) error
 	GetFee(ctx context.Context, addr string, queryData []byte) (uint64, error)
 	GetNetworkInfo(ctx context.Context) (*coretypes.ResultStatus, error)
+	SignMessage(uid string, message []byte) []byte
 }
 
 type Client struct {
@@ -254,4 +255,10 @@ func (c *Client) Reconnect() error {
 	}
 	c.ctx.Client = client
 	return nil
+}
+
+// Signs the message with private key
+// TODO: not sure if this is the right way to sign the message
+func (c *Client) SignMessage(uid string, message []byte) []byte {
+	return message
 }
