@@ -102,3 +102,13 @@ func (pair *secp256k1Keypair) VerifySignature(msg []byte, signature []byte) (pub
 
 	return publicKey.SerializeUncompressed(), nil
 }
+
+func VerifySignaturee(msg []byte, signature []byte) error {
+	publicKey, _, err := ecdsa.RecoverCompact(signature, msg)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("PUbKey: ", hex.EncodeToString(publicKey.SerializeUncompressed()))
+	return nil
+}
