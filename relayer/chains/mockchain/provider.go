@@ -226,3 +226,7 @@ func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64,
 func (p *MockProvider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*types.Message, error) {
 	return nil, nil
 }
+
+func (p *MockProvider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}

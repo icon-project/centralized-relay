@@ -72,9 +72,38 @@ func debugCmd(a *appState) *cobra.Command {
 	queryCmd.Flags().Uint64Var(&state.fromHeight, "from_height", 0, "From Height")
 	queryCmd.Flags().Uint64Var(&state.toHeight, "to_height", 0, "To height")
 	queryCmd.MarkFlagsRequiredTogether("chain", "from_height", "to_height")
-	debug.AddCommand(heightCmd, blockCmd, queryCmd)
+	debug.AddCommand(heightCmd, blockCmd, queryCmd, state.getSuggestedGasCap(a))
 
 	return debug
+}
+
+func (c *DebugState) getSuggestedGasCap(app *appState) *cobra.Command {
+	getSuggestedGasCap := &cobra.Command{
+		Use:     "gas-cap",
+		Short:   "Get the suggested gas cap for evm chains",
+		Aliases: []string{"g"},
+		Example: strings.TrimSpace(fmt.Sprintf(`$ %s dbg gas --chain [chain-id]`, appName)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := c.getSocket(app)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+			if c.server != nil {
+				defer c.server.Close()
+			}
+			res, err := client.GetGasCap(c.chain)
+			if err != nil {
+				return err
+			}
+			printLabels("Chain", "Suggested Gas Cap")
+			printValues(c.chain, res.Cap)
+			return nil
+		},
+	}
+	getSuggestedGasCap.Flags().StringVar(&c.chain, "chain", "", "Chain ID")
+	getSuggestedGasCap.MarkFlagRequired("chain")
+	return getSuggestedGasCap
 }
 
 func (c *DebugState) getLatestHeight(app *appState) *cobra.Command {
