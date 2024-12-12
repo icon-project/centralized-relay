@@ -351,10 +351,10 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 	return receipt, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes.MessageKey) (bool, error) {
-	switch messageKey.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Message) (bool, error) {
+	switch msg.EventType {
 	case events.EmitMessage:
-		snU128, err := bcs.NewUint128FromBigInt(messageKey.Sn)
+		snU128, err := bcs.NewUint128FromBigInt(msg.Sn)
 		if err != nil {
 			return false, err
 		}
@@ -364,7 +364,7 @@ func (p *Provider) MessageReceived(ctx context.Context, messageKey *relayertypes
 			callArgs = append(callArgs, SuiCallArg{Type: CallArgPure, Val: p.cfg.ConnectionID})
 		}
 		callArgs = append(callArgs, []SuiCallArg{
-			{Type: CallArgPure, Val: messageKey.Src},
+			{Type: CallArgPure, Val: msg.Src},
 			{Type: CallArgPure, Val: snU128},
 		}...)
 
