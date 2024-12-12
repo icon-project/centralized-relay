@@ -241,6 +241,21 @@ func (p *Provider) newContractCallArgs(msg relayertypes.Message) (*xdr.InvokeCon
 				stellerMsg.ScvData(),
 			},
 		}, nil
+	case evtypes.PacketAcknowledged:
+		scConnAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
+		if err != nil {
+			return nil, err
+		}
+		return &xdr.InvokeContractArgs{
+			ContractAddress: *scConnAddr,
+			FunctionName:    xdr.ScSymbol("recv_message_with_signatures"),
+			Args: []xdr.ScVal{
+				stellerMsg.ScvSrc(),
+				stellerMsg.ScvSn(),
+				stellerMsg.ScvData(),
+				stellerMsg.ScvSignatures(),
+			},
+		}, nil
 	case evtypes.CallMessage:
 		scXcallAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.XcallContract])
 		if err != nil {
