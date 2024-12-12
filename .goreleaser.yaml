@@ -3,46 +3,6 @@ env:
   - CGO_ENABLED=1
   - COSIGN_YES=true
 builds:
-  - id: darwin-amd64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
-    goos:
-      - darwin
-    goarch:
-      - amd64
-    env:
-      - CC=o64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
-  - id: darwin-arm64
-    main: ./main.go
-    hooks:
-      pre:
-        - wget https://github.com/CosmWasm/wasmvm/releases/download/{{ .Env.LIBWASM_VERSION }}/libwasmvmstatic_darwin.a -P /lib
-    goos:
-      - darwin
-    goarch:
-      - arm64
-    env:
-      - CC=oa64-clang
-      - CGO_LDFLAGS=-L/lib
-    flags:
-      - -mod=readonly
-      - -trimpath
-    ldflags:
-      - -s -w -X github.com/icon-project/centralized-relay/relayer.Version={{ .Tag }}
-      - -linkmode=external
-    tags:
-      - static_wasm
   - id: linux-amd64
     main: ./main.go
     hooks:
@@ -91,8 +51,6 @@ builds:
 archives:
   - id: golang-cross
     builds:
-      - darwin-amd64
-      - darwin-arm64
       - linux-amd64
       - linux-arm64
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
