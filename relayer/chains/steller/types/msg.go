@@ -67,6 +67,6 @@ func (m StellerMsg) ScvSignatures() xdr.ScVal {
 		scSignatures = append(scSignatures, scVal)
 	}
 
-	scValSignatures, _ := xdr.NewScVal(xdr.ScValTypeScvVec, xdr.ScVec(scSignatures))
+	scValSignatures, _ := xdr.NewScVal(xdr.ScValTypeScvVec, &scSignatures)
 	return scValSignatures
 }
