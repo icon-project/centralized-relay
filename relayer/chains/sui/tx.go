@@ -84,6 +84,36 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 		}
 
 		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodRecvMessage), nil
+	case events.PacketAcknowledged:
+		snU128, err := bcs.NewUint128FromBigInt(message.Sn)
+		if err != nil {
+			return nil, err
+		}
+
+		callParams := []SuiCallArg{
+			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
+			{Type: CallArgPure, Val: message.Src},
+			{Type: CallArgPure, Val: snU128},
+			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+			{Type: CallArgPure, Val: message.Signatures},
+		}
+
+		typeArgs, _, err := p.getRecvParams(context.Background(), message, p.cfg.XcallPkgID, p.cfg.ConnectionModule)
+		if err == nil {
+			callParams = []SuiCallArg{
+				{Type: CallArgObject, Val: p.cfg.XcallStorageID},
+				{Type: CallArgPure, Val: message.Src},
+				{Type: CallArgPure, Val: snU128},
+				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
+				{Type: CallArgPure, Val: message.Signatures},
+			}
+		} else {
+			typeArgs = []string{}
+		}
+
+		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodRecvMessage), nil
+
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
 			return nil, err
