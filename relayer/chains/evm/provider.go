@@ -201,11 +201,7 @@ func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction)
 
 			// handle txn not found case:
 			if time.Since(startTime) > DefaultTxConfirmationTimeout {
-				if err != nil {
-					return txReceipt, err
-				} else {
-					return txReceipt, fmt.Errorf("tx confirmation timed out [tx hash: %s]", tx.Hash())
-				}
+				return txReceipt, fmt.Errorf("tx confirmation timed out [tx hash: %s]", tx.Hash())
 			}
 		}
 	}
