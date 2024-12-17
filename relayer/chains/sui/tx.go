@@ -112,7 +112,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			typeArgs = []string{}
 		}
 
-		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodRecvMessage), nil
+		return p.NewSuiMessage(typeArgs, callParams, p.cfg.XcallPkgID, p.cfg.ConnectionModule, MethodRecvMessageWithSignatures), nil
 
 	case events.CallMessage:
 		if _, err := p.Wallet(); err != nil {
