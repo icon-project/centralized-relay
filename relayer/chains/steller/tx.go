@@ -362,8 +362,8 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 	}, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	switch key.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Message) (bool, error) {
+	switch msg.EventType {
 	case evtypes.EmitMessage:
 		connAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
 		if err != nil {
@@ -371,8 +371,8 @@ func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.Messag
 		}
 		stellerMsg := types.StellerMsg{
 			Message: relayertypes.Message{
-				Sn:  key.Sn,
-				Src: key.Src,
+				Sn:  msg.Sn,
+				Src: msg.Src,
 			},
 		}
 		callArgs := xdr.InvokeContractArgs{

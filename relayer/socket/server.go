@@ -322,7 +322,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		if err != nil {
 			return response.SetError(err)
 		}
-		key := &types.MessageKey{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}
+		key := &types.Message{Src: req.Chain, Sn: new(big.Int).SetUint64(req.Sn)}
 		received, err := chain.Provider.MessageReceived(context.Background(), key)
 		if err != nil {
 			return response.SetError(err)
@@ -343,8 +343,7 @@ func (s *Server) parseEvent(msg *Request) *Response {
 		for _, chain := range s.rly.GetAllChainsRuntime() {
 			msgs, _ := chain.Provider.FetchTxMessages(ctx, req.TxHash)
 			for _, msg := range msgs {
-				msgKey := types.NewMessageKey(msg.Sn, msg.Src, msg.Dst, msg.EventType)
-				received, err := chain.Provider.MessageReceived(ctx, msgKey)
+				received, err := chain.Provider.MessageReceived(ctx, msg)
 				if err != nil {
 					return response.SetError(err)
 				}
