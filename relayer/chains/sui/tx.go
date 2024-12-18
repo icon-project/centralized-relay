@@ -90,13 +90,18 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 			return nil, err
 		}
 
+		var signatures []string
+		for _, sign := range message.Signatures {
+			signatures = append(signatures, "0x"+hex.EncodeToString(sign))
+		}
+
 		callParams := []SuiCallArg{
 			{Type: CallArgObject, Val: p.cfg.XcallStorageID},
 			{Type: CallArgObject, Val: p.cfg.ConnectionCapID},
 			{Type: CallArgPure, Val: message.Src},
 			{Type: CallArgPure, Val: snU128},
 			{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-			{Type: CallArgPure, Val: message.Signatures},
+			{Type: CallArgPure, Val: signatures},
 		}
 
 		typeArgs, _, err := p.getRecvParams(context.Background(), message, p.cfg.XcallPkgID, p.cfg.ConnectionModule)
@@ -106,7 +111,7 @@ func (p *Provider) MakeSuiMessage(message *relayertypes.Message) (*SuiMessage, e
 				{Type: CallArgPure, Val: message.Src},
 				{Type: CallArgPure, Val: snU128},
 				{Type: CallArgPure, Val: "0x" + hex.EncodeToString(message.Data)},
-				{Type: CallArgPure, Val: message.Signatures},
+				{Type: CallArgPure, Val: signatures},
 			}
 		} else {
 			typeArgs = []string{}
