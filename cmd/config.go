@@ -10,6 +10,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/icon-project/centralized-relay/relayer/chains/solana"
+	"github.com/icon-project/centralized-relay/relayer/chains/stacks"
 	"github.com/icon-project/centralized-relay/relayer/chains/steller"
 	"github.com/icon-project/centralized-relay/relayer/chains/sui"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm"
@@ -266,6 +267,8 @@ func (iw *ProviderConfigYAMLWrapper) UnmarshalYAML(n *yaml.Node) error {
 		iw.Value = new(steller.Config)
 	case "sui":
 		iw.Value = new(sui.Config)
+	case "stacks":
+		iw.Value = new(stacks.Config)
 	default:
 		return fmt.Errorf("%s is an invalid chain type, check your config file", iw.Type)
 	}
@@ -280,6 +283,7 @@ func UnmarshalJSONProviderConfig(data []byte, customTypes map[string]reflect.Typ
 		"evm":    reflect.TypeOf(evm.Config{}),
 		"cosmos": reflect.TypeOf(wasm.Config{}),
 		"sui":    reflect.TypeOf(sui.Config{}),
+		"stacks": reflect.TypeOf(stacks.Config{}),
 	}
 	if err := jsoniter.Unmarshal(data, &m); err != nil {
 		return nil, err
