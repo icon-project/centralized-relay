@@ -333,3 +333,7 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
 }
+
+func (p *Provider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}

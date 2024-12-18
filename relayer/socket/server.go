@@ -368,6 +368,17 @@ func (s *Server) parseEvent(msg *Request) *Response {
 			}
 		}
 		return response.SetData(events)
+	case EventGetGasCap:
+		req := new(ReqChainGasCap)
+		if err := jsoniter.Unmarshal(data, req); err != nil {
+			return response.SetError(err)
+		}
+		chain, err := s.rly.FindChainRuntime(req.Chain)
+		if err != nil {
+			return response.SetError(err)
+		}
+		gasCap := chain.Provider.QueryGasTip(context.Background())
+		return response.SetData(&ResChainGasCap{Chain: req.Chain, Cap: gasCap})
 	default:
 		return response.SetError(fmt.Errorf("unknown event %s", msg.Event))
 	}

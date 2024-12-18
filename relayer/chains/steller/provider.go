@@ -208,3 +208,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *relayertyp
 func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 	p.LastSavedHeightFunc = f
 }
+
+func (p *Provider) QueryGasTip(context.Context) *big.Int {
+	return nil
+}

@@ -519,3 +519,12 @@ func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight 
 	}
 	return messages, nil
 }
+
+func (p *Provider) QueryGasTip(ctx context.Context) *big.Int {
+	gasPrice, err := p.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil
+	}
+	return gasPrice
+
+}

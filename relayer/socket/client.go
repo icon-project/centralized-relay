@@ -29,6 +29,7 @@ const (
 	EventRelayerInfo       Event = "RelayerInfo"
 	EventMessageReceived   Event = "MessageReceived"
 	EventGetBlockEvents    Event = "GetBlockEvents"
+	EventGetGasCap         Event = "EventGetGasTip"
 )
 
 var (
@@ -309,4 +310,22 @@ func parseResData(data any, dest interface{}) error {
 	}
 
 	return nil
+}
+
+func (c *Client) GetGasCap(chain string) (*ResChainGasCap, error) {
+	req := &ReqChainGasCap{Chain: chain}
+	if err := c.send(&Request{Event: EventGetGasCap, Data: req}); err != nil {
+		return nil, err
+	}
+	res, err := c.read()
+	if err != nil {
+		return nil, err
+	}
+
+	resData := new(ResChainGasCap)
+	if err := parseResData(res.Data, &resData); err != nil {
+		return nil, err
+	}
+
+	return resData, nil
 }

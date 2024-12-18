@@ -231,3 +231,12 @@ type ResGetBlockEvents struct {
 type ChainProviderError struct {
 	Message string
 }
+
+type ReqChainGasCap struct {
+	Chain string `json:"chain"`
+}
+
+type ResChainGasCap struct {
+	Chain string   `json:"chain"`
+	Cap   *big.Int `json:"cap"`
+}

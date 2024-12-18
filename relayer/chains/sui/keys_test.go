@@ -18,4 +18,5 @@ func TestRestoreKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAddr, key.Address)
 	assert.Equal(t, expectedPrivKey, hex.EncodeToString(key.KeyPair.PrivateKey()[:32]))
+
 }
