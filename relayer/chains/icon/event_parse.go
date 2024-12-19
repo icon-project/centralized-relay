@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/icon-project/centralized-relay/relayer/chains/icon/types"
 	providerTypes "github.com/icon-project/centralized-relay/relayer/types"
 	"go.uber.org/zap"
@@ -111,6 +112,10 @@ func (p *Provider) parseMessageFromEventLog(height uint64, event *types.EventNot
 		return p.parseCallMessageEvent(height, event)
 	case RollbackMessage:
 		return p.parseRollbackMessageEvent(height, event)
+	case PacketRegistered:
+		return p.parsePacketRegisteredEvent(height, event)
+	case PacketAcknowledged:
+		return p.parsePacketAcknowledgedEvent(height, event)
 	default:
 		return nil, fmt.Errorf("invalid event: %s", event.Indexed[0])
 	}
@@ -188,5 +193,79 @@ func (p *Provider) parseRollbackMessageEvent(height uint64, e *types.EventNotifi
 		Dst:           p.NID(),
 		Src:           p.NID(),
 		Sn:            sn,
+	}, nil
+}
+
+func (p *Provider) parsePacketRegisteredEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
+		return nil, fmt.Errorf("expected indexed: 3 got: %d indexed", indexdedLen)
+	}
+	wrappedSource := e.Indexed[1]
+	srcConnAddress := e.Indexed[2]
+	sn, err := types.HexInt(e.Data[0]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
+	}
+
+	wrappedHt, err := types.HexInt(e.Data[1]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Data[1])
+	}
+
+	wrappedDestination := e.Data[2]
+	data, err := types.HexBytes(e.Data[4]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
+	}
+	dstConnAddress := e.Data[3]
+
+	return &providerTypes.Message{
+		MessageHeight:       height,
+		EventType:           p.GetEventName(e.Indexed[0]),
+		Src:                 wrappedSource,
+		Dst:                 wrappedDestination,
+		Sn:                  sn,
+		WrappedSourceHeight: wrappedHt,
+		Data:                data,
+		SrcConnAddress:      srcConnAddress,
+		DstConnAddress:      dstConnAddress,
+	}, nil
+}
+
+func (p *Provider) parsePacketAcknowledgedEvent(height uint64, e *types.EventNotificationLog) (*providerTypes.Message, error) {
+	if indexdedLen := len(e.Indexed); indexdedLen != 3 {
+		return nil, fmt.Errorf("expected indexed: 3, got: %d indexed", indexdedLen)
+	}
+	wrappedSource := e.Indexed[1]
+	srcConnAddress := e.Indexed[2]
+	sn, err := types.HexInt(e.Data[0]).BigInt()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sn: %s", e.Indexed[1])
+	}
+	wrappedDestination := e.Data[2]
+	data, err := types.HexBytes(e.Data[4]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse data: %s", e.Data[4])
+	}
+	signaturesRlp, err := types.HexBytes(e.Data[5]).Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse signatures: %s", e.Data[5])
+	}
+	var signatures [][]byte
+	if err := rlp.DecodeBytes(signaturesRlp, &signatures); err != nil {
+		fmt.Println(err)
+		return nil, fmt.Errorf("failed to parse rlp signatures: %s", e.Data[5])
+	}
+	dstConnAddress := e.Data[3]
+	return &providerTypes.Message{
+		MessageHeight:  height,
+		EventType:      p.GetEventName(e.Indexed[0]),
+		Dst:            wrappedDestination,
+		Src:            wrappedSource,
+		Sn:             sn,
+		Data:           data,
+		SrcConnAddress: srcConnAddress,
+		DstConnAddress: dstConnAddress,
+		Signatures:     signatures,
 	}, nil
 }

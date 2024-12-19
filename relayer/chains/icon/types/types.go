@@ -385,3 +385,21 @@ type SetFee struct {
 type ExecuteRollback struct {
 	Sn HexInt `json:"_sn"`
 }
+
+type SubmitPacket struct {
+	Data           HexBytes `json:"data"`
+	Sn             HexInt   `json:"srcSn"`
+	Height         HexInt   `json:"srcHeight"`
+	Source         string   `json:"srcNetwork"`
+	Destination    string   `json:"dstNetwork"`
+	DstConnAddress string   `json:"dstContractAddress"`
+	SrcConnAddress string   `json:"srcContractAddress"`
+	SignedBytes    HexBytes `json:"signature"`
+}
+
+type RecvMessageWithSignature struct {
+	SrcNID     string     `json:"srcNetwork"`
+	ConnSn     HexInt     `json:"_connSn"`
+	Msg        HexBytes   `json:"msg"`
+	Signatures []HexBytes `json:"signatures"`
+}

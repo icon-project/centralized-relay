@@ -11,4 +11,8 @@ const (
 	GetFee        = "getFee"
 	SetFee        = "setFee"
 	ClaimFee      = "claimFee"
+
+	// Cluster event types
+	PacketRegistered   = "packetRegistered"
+	PacketAcknowledged = "packetAcknowledged"
 )

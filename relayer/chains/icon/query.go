@@ -80,7 +80,11 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*provi
 
 	connectionContract := types.Address(p.cfg.Contracts[providerTypes.ConnectionContract])
 	xcallContract := types.Address(p.cfg.Contracts[providerTypes.XcallContract])
+
 	allowedAddresses := []types.Address{connectionContract, xcallContract}
+	if val, ok := p.cfg.Contracts[providerTypes.AggregationContract]; ok {
+		allowedAddresses = append(allowedAddresses, types.Address(val))
+	}
 
 	messages := []*providerTypes.Message{}
 	for _, log := range txResult.EventLogs {

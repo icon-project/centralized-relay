@@ -164,12 +164,12 @@ func (p *Provider) FetchTxMessages(ctx context.Context, txHash string) ([]*relay
 
 // SetAdmin transfers the ownership of sui connection module to new address
 func (p *Provider) SetAdmin(ctx context.Context, adminAddr string) error {
-	//implementation not needed in sui
+	// implementation not needed in sui
 	return fmt.Errorf("set_admin is not implmented in sui contract")
 }
 
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
-	//implementation not needed in sui
+	// implementation not needed in sui
 	return fmt.Errorf("revert_message is not implemented in sui contract")
 }
 

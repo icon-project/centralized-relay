@@ -16,12 +16,28 @@ type Config interface {
 	GetWallet() string
 	Validate() error
 	Enabled() bool
+	GetConnContract() string
 	ContractsAddress() types.ContractConfigMap
+}
+
+type ClusterConfig interface {
+	SetClusterMode(bool)
+	GetClusterMode() bool
 }
 
 type ChainQuery interface {
 	QueryLatestHeight(ctx context.Context) (uint64, error)
 	QueryTransactionReceipt(ctx context.Context, txHash string) (*types.Receipt, error)
+}
+
+type ClusterChainProvider interface {
+	SubmitClusterMessage(ctx context.Context, message *types.Message, callback types.TxResponseFunc) error
+	ClusterMessageReceived(ctx context.Context, message *types.Message) (bool, error)
+	ClusterMessageAcknowledged(ctx context.Context, message *types.Message) (bool, error)
+}
+
+type ClusterChainVerifier interface {
+	VerifyMessage(ctx context.Context, messageKey *types.MessageKeyWithMessageHeight) ([]*types.Message, error)
 }
 
 type ChainProvider interface {
@@ -65,6 +81,7 @@ type CommonConfig struct {
 	Decimals      int                     `json:"decimals" yaml:"decimals"`
 	HomeDir       string                  `json:"-" yaml:"-"`
 	Disabled      bool                    `json:"disabled" yaml:"disabled"`
+	ClusterMode   bool                    `yaml:"cluster-mode" json:"cluster-mode"`
 }
 
 // Enabled returns true if the provider is enabled
@@ -89,6 +106,14 @@ func (pc *CommonConfig) Validate() error {
 		return fmt.Errorf("home-dir cannot be empty")
 	}
 	return nil
+}
+
+func (c *CommonConfig) SetClusterMode(mode bool) {
+	c.ClusterMode = mode
+}
+
+func (c *CommonConfig) GetClusterMode() bool {
+	return c.ClusterMode
 }
 
 func (pc *CommonConfig) ContractsAddress() types.ContractConfigMap {

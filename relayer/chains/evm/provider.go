@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
@@ -30,12 +29,13 @@ var _ provider.Config = (*Config)(nil)
 
 var (
 	// Connection contract
-	MethodRecvMessage   = "recvMessage"
-	MethodSetAdmin      = "setAdmin"
-	MethodRevertMessage = "revertMessage"
-	MethodClaimFees     = "claimFees"
-	MethodSetFee        = "setFee"
-	MethodGetFee        = "getFee"
+	MethodRecvMessage               = "recvMessage"
+	MethodRecvMessageWithSignatures = "recvMessageWithSignatures"
+	MethodSetAdmin                  = "setAdmin"
+	MethodRevertMessage             = "revertMessage"
+	MethodClaimFees                 = "claimFees"
+	MethodSetFee                    = "setFee"
+	MethodGetFee                    = "getFee"
 
 	// Xcall contract
 	MethodExecuteCall     = "executeCall"
@@ -76,27 +76,17 @@ func (p *Config) NewProvider(ctx context.Context, log *zap.Logger, homepath stri
 	p.HomeDir = homepath
 	p.ChainName = chainName
 
-	connectionContract := common.HexToAddress(p.Contracts[providerTypes.ConnectionContract])
-	xcallContract := common.HexToAddress(p.Contracts[providerTypes.XcallContract])
-
-	client, err := newClient(ctx, connectionContract, xcallContract, p.RPCUrl, p.WebsocketUrl, log)
-	if err != nil {
-		return nil, fmt.Errorf("error occured when creating client: %v", err)
-	}
-
 	// setting default finality block
 	if p.FinalityBlock == 0 {
 		p.FinalityBlock = DefaultFinalityBlock
 	}
 
 	return &Provider{
-		cfg:          p,
-		log:          log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
-		client:       client,
-		blockReq:     p.GetMonitorEventFilters(),
-		contracts:    p.eventMap(),
-		NonceTracker: types.NewNonceTracker(client.PendingNonceAt),
-		routerMutex:  new(sync.Mutex),
+		cfg:         p,
+		log:         log.With(zap.Stringp("nid", &p.NID), zap.Stringp("name", &p.ChainName)),
+		blockReq:    p.GetMonitorEventFilters(),
+		contracts:   p.eventMap(),
+		routerMutex: new(sync.Mutex),
 	}, nil
 }
 
@@ -142,6 +132,16 @@ func (c *Config) Enabled() bool {
 }
 
 func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error {
+	connectionContract := common.HexToAddress(p.cfg.Contracts[providerTypes.ConnectionContract])
+	xcallContract := common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
+
+	client, err := newClient(ctx, connectionContract, xcallContract, p.cfg.RPCUrl,
+		p.cfg.WebsocketUrl, p.log, p.cfg.GetClusterMode())
+	if err != nil {
+		return fmt.Errorf("error occured when creating client: %v", err)
+	}
+	p.client = client
+	p.NonceTracker = types.NewNonceTracker(client.PendingNonceAt)
 	p.kms = kms
 	return nil
 }
@@ -177,7 +177,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 	return p.cfg.FinalityBlock
 }
 
-func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*coreTypes.Receipt, error) {
+func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	startTime := time.Now()
@@ -478,6 +478,16 @@ func (p *Provider) EstimateGas(ctx context.Context, message *providerTypes.Messa
 		}
 		msg.Data = data
 		contract = common.HexToAddress(p.cfg.Contracts[providerTypes.XcallContract])
+	case events.PacketAcknowledged:
+		abi, err := bridgeContract.ClusterConnectionMetaData.GetAbi()
+		if err != nil {
+			return 0, err
+		}
+		data, err := abi.Pack(MethodRecvMessageWithSignatures, message.Src, message.Sn, message.Data, message.Signatures)
+		if err != nil {
+			return 0, err
+		}
+		msg.Data = data
 	}
 	return p.client.EstimateGas(ctx, msg)
 }
@@ -490,6 +500,10 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Config) GetConnContract() string {
+	return p.Contracts[providerTypes.ConnectionContract]
 }
 
 func (p *Provider) QueryBlockMessages(ctx context.Context, fromHeight, toHeight uint64) ([]*providerTypes.Message, error) {

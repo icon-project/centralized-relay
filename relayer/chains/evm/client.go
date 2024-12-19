@@ -21,7 +21,8 @@ const (
 	DefaultCreateTimeout         = time.Second * 10
 )
 
-func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl, websocketUrl string, l *zap.Logger) (IClient, error) {
+func newClient(ctx context.Context, connectionContract, XcallContract common.Address, rpcUrl,
+	websocketUrl string, l *zap.Logger, clusterMode bool) (IClient, error) {
 	createCtx, cancel := context.WithTimeout(ctx, DefaultCreateTimeout)
 	defer cancel()
 	rpc, err := ethclient.DialContext(createCtx, rpcUrl)
@@ -46,7 +47,23 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 		return nil, err
 	}
 	reconnectFunc := func() (IClient, error) {
-		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l)
+		return newClient(ctx, connectionContract, XcallContract, rpcUrl, websocketUrl, l, clusterMode)
+	}
+	if clusterMode {
+		clusterConnection, err := bridgeContract.NewClusterConnection(connectionContract, ws)
+		if err != nil {
+			return nil, fmt.Errorf("error occured when creating connection cobtract: %v ", err)
+		}
+		return &Client{
+			log:               l,
+			eth:               ws,
+			ethRpc:            rpc,
+			EVMChainID:        evmChainId,
+			connection:        connection,
+			clusterConnection: clusterConnection,
+			xcall:             xcall,
+			reconnect:         reconnectFunc,
+		}, nil
 	}
 
 	return &Client{
@@ -62,13 +79,14 @@ func newClient(ctx context.Context, connectionContract, XcallContract common.Add
 
 // grouped rpc api clients
 type Client struct {
-	log        *zap.Logger
-	eth        *ethclient.Client
-	ethRpc     *ethclient.Client
-	EVMChainID *big.Int
-	connection *bridgeContract.Connection
-	xcall      *bridgeContract.Xcall
-	reconnect  func() (IClient, error)
+	log               *zap.Logger
+	eth               *ethclient.Client
+	ethRpc            *ethclient.Client
+	EVMChainID        *big.Int
+	connection        *bridgeContract.Connection
+	xcall             *bridgeContract.Xcall
+	clusterConnection *bridgeContract.ClusterConnection
+	reconnect         func() (IClient, error)
 }
 
 type IClient interface {
@@ -106,6 +124,7 @@ type IClient interface {
 	ParseRollbackMessage(log ethTypes.Log) (*bridgeContract.XcallRollbackMessage, error)
 	ExecuteCall(opts *bind.TransactOpts, reqID *big.Int, data []byte) (*ethTypes.Transaction, error)
 	ExecuteRollback(opts *bind.TransactOpts, sn *big.Int) (*ethTypes.Transaction, error)
+	ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, sigatures [][]byte) (*ethTypes.Transaction, error)
 }
 
 func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
@@ -177,6 +196,10 @@ func (c *Client) SendMessage(opts *bind.TransactOpts, _to string, _svc string, _
 
 func (c *Client) ReceiveMessage(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte) (*ethTypes.Transaction, error) {
 	return c.connection.RecvMessage(opts, srcNID, sn, msg)
+}
+
+func (c *Client) ReceiveMessageWithSignature(opts *bind.TransactOpts, srcNID string, sn *big.Int, msg []byte, signatures [][]byte) (*ethTypes.Transaction, error) {
+	return c.clusterConnection.RecvMessageWithSignatures(opts, srcNID, sn, msg, signatures)
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error {

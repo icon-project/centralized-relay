@@ -209,6 +209,47 @@ func (p *Provider) MessageReceived(ctx context.Context, msg *providerTypes.Messa
 	}
 }
 
+// ClusterMessageReceived checks if the message is received
+func (p *Provider) ClusterMessageReceived(ctx context.Context, message *providerTypes.Message) (bool, error) {
+	srcHeight := message.WrappedSourceHeight
+	if srcHeight == nil {
+		srcHeight = big.NewInt(int64(message.MessageHeight))
+	}
+	callParam := p.prepareCallParams(MethodClusterMsgReceived, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
+		"relayer":            p.cfg.GetWallet(),
+		"srcNetwork":         message.Src,
+		"srcContractAddress": message.SrcConnAddress,
+		"srcSn":              types.NewHexInt(message.Sn.Int64()),
+		"srcHeight":          types.NewHexInt(srcHeight.Int64()),
+		"dstNetwork":         message.Dst,
+		"dstContractAddress": message.DstConnAddress,
+		"data":               types.NewHexBytes(message.Data),
+	})
+	var status types.HexInt
+	err := p.client.Call(callParam, &status)
+	return status == types.NewHexInt(1), err
+}
+
+// ClusterMessageAcknowledged checks if the message is acknowledged or not
+func (p *Provider) ClusterMessageAcknowledged(ctx context.Context, message *providerTypes.Message) (bool, error) {
+	srcHeight := message.WrappedSourceHeight
+	if srcHeight == nil {
+		srcHeight = big.NewInt(int64(message.MessageHeight))
+	}
+	callParam := p.prepareCallParams(MethodPacketAcknowledged, p.cfg.Contracts[providerTypes.AggregationContract], map[string]interface{}{
+		"srcNetwork":         message.Src,
+		"srcContractAddress": message.SrcConnAddress,
+		"srcSn":              types.NewHexInt(message.Sn.Int64()),
+		"srcHeight":          types.NewHexInt(srcHeight.Int64()),
+		"dstNetwork":         message.Dst,
+		"dstContractAddress": message.DstConnAddress,
+		"data":               types.NewHexBytes(message.Data),
+	})
+	var status types.HexInt
+	err := p.client.Call(callParam, &status)
+	return status == types.NewHexInt(1), err
+}
+
 // ReverseMessage reverts a message
 func (p *Provider) RevertMessage(ctx context.Context, sn *big.Int) error {
 	params := map[string]interface{}{"sn": types.NewHexInt(sn.Int64())}
@@ -332,4 +373,8 @@ func (p *Provider) SetLastSavedHeightFunc(f func() uint64) {
 // GetLastSavedBlockHeight returns the last saved block height
 func (p *Provider) GetLastSavedBlockHeight() uint64 {
 	return p.LastSavedHeightFunc()
+}
+
+func (p *Config) GetConnContract() string {
+	return p.Contracts[providerTypes.ConnectionContract]
 }

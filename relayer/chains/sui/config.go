@@ -14,6 +14,7 @@ import (
 )
 
 type Config struct {
+	provider.CommonConfig
 	ChainName string `yaml:"-" json:"-"`
 	ChainID   string `yaml:"chain-id" json:"chain-id"`
 	RPCUrl    string `yaml:"rpc-url" json:"rpc-url"`
@@ -93,6 +94,10 @@ func (pc *Config) Validate() error {
 // Enabled returns true if the chain is enabled
 func (c *Config) Enabled() bool {
 	return !c.Disabled
+}
+
+func (pc *Config) GetConnContract() string {
+	return pc.ConnectionID
 }
 
 func (c *Config) ContractsAddress() types.ContractConfigMap {

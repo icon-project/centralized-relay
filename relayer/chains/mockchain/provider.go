@@ -192,9 +192,11 @@ func (p *MockProvider) GetFee(context.Context, string, bool) (uint64, error) {
 func (p *MockProvider) NewKeystore(string) (string, error) {
 	return "", nil
 }
+
 func (p *MockProvider) RestoreKeystore(context.Context) error {
 	return nil
 }
+
 func (p *MockProvider) ImportKeystore(context.Context, string, string) (string, error) {
 	return "", nil
 }
@@ -216,7 +218,10 @@ func (p *MockProvider) SetFee(context.Context, string, *big.Int, *big.Int) error
 }
 
 func (p *MockProvider) SetLastSavedHeightFunc(func() uint64) {
+}
 
+func (p *MockProviderConfig) GetConnContract() string {
+	return ""
 }
 
 func (p *MockProvider) GetLastProcessedBlockHeight(ctx context.Context) (uint64, error) {

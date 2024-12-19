@@ -41,7 +41,7 @@ func startCmd(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rly, err := relayer.NewRelayer(a.log, db, chains, fresh)
+			rly, err := relayer.NewRelayer(a.log, db, chains, fresh, a.cluster)
 			if err != nil {
 				return fmt.Errorf("error creating new relayer %v", err)
 			}

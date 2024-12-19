@@ -100,6 +100,8 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.SetFee(opts, message.Src, message.Sn, message.ReqID)
 	case events.RollbackMessage:
 		tx, err = p.client.ExecuteRollback(opts, message.Sn)
+	case events.PacketAcknowledged:
+		tx, err = p.client.ReceiveMessageWithSignature(opts, message.Src, message.Sn, message.Data, message.Signatures)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
 	}
