@@ -17,19 +17,20 @@ import (
 )
 
 var (
-	MethodClaimFee                 = "claim_fees"
-	MethodGetReceipt               = "get_receipt"
-	MethodSetFee                   = "set_fee"
-	MethodGetFee                   = "get_fee"
-	MethodRevertMessage            = "revert_message"
-	MethodSetAdmin                 = "set_admin"
-	MethodGetAdmin                 = "get_admin"
-	MethodRecvMessage              = "receive_message"
-	MethodExecuteCall              = "execute_call"
-	MethodExecuteRollback          = "execute_rollback"
-	MethodGetWithdrawTokentype     = "get_withdraw_token_type"
-	MethodGetExecuteCallParams     = "get_execute_params"
-	MethodGetExecuteRollbackParams = "get_rollback_params"
+	MethodClaimFee                  = "claim_fees"
+	MethodGetReceipt                = "get_receipt"
+	MethodSetFee                    = "set_fee"
+	MethodGetFee                    = "get_fee"
+	MethodRevertMessage             = "revert_message"
+	MethodSetAdmin                  = "set_admin"
+	MethodGetAdmin                  = "get_admin"
+	MethodRecvMessage               = "receive_message"
+	MethodRecvMessageWithSignatures = "recieve_message_with_signatures"
+	MethodExecuteCall               = "execute_call"
+	MethodExecuteRollback           = "execute_rollback"
+	MethodGetWithdrawTokentype      = "get_withdraw_token_type"
+	MethodGetExecuteCallParams      = "get_execute_params"
+	MethodGetExecuteRollbackParams  = "get_rollback_params"
 
 	suiCurrencyDenom = "SUI"
 	suiBaseFee       = 1000

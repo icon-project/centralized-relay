@@ -378,7 +378,7 @@ func (p *Provider) initStaticAlts() error {
 
 func (p *Provider) makeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
 	switch msg.EventType {
-	case relayerevents.EmitMessage:
+	case relayerevents.EmitMessage, relayerevents.PacketAcknowledged:
 		instructions, signers, err := p.getRecvMessageIntruction(msg)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get recv message instructions: %w", err)
@@ -443,6 +443,14 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	instructionData = append(instructionData, connSnArg...)
 	instructionData = append(instructionData, dataArg...)
 	instructionData = append(instructionData, snArg...)
+
+	if msg.EventType == relayerevents.PacketAcknowledged {
+		signaturesArg, err := borsh.Serialize(msg.Signatures)
+		if err != nil {
+			return nil, nil, err
+		}
+		instructionData = append(instructionData, signaturesArg...)
+	}
 
 	accounts := solana.AccountMetaSlice{
 		&solana.AccountMeta{
