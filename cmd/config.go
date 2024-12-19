@@ -244,6 +244,10 @@ func (c *ConfigInputWrapper) RuntimeConfig(ctx context.Context, a *appState) (*C
 	if err != nil {
 		return nil, err
 	}
+
+	if c.Global.ClusterMode == nil {
+		c.Global.ClusterMode = &ClusterConfig{}
+	}
 	if c.Global.ClusterMode.Enabled && c.Global.ClusterMode.Key != "" {
 		path := a.homePath + "/keystore/cluster/" + c.Global.ClusterMode.Key
 		if _, err := os.Stat(path); err != nil {
