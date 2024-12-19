@@ -1090,15 +1090,46 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txSign string) (
 	}, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, key *relayertypes.MessageKey) (bool, error) {
-	switch key.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Message) (bool, error) {
+	switch msg.EventType {
 	default:
 		return true, fmt.Errorf("unknown event type")
-	case relayerevents.CallMessage, relayerevents.RollbackMessage:
-		time.Sleep(2 * time.Second)
+	case relayerevents.CallMessage:
+		connProgPubKey := solana.MustPublicKeyFromBase58(msg.DstConnAddress)
+
+		xcallProxyReqAddr, err := p.pdaRegistry.XcallProxyRequest.GetAddress([]byte(msg.Src), msg.Sn.FillBytes(make([]byte, 16)), connProgPubKey[:])
+		if err != nil {
+			return false, err
+		}
+
+		xcallProxyReqAcc := types.ProxyRequestAccount{}
+		if err := p.client.GetAccountInfo(context.Background(), xcallProxyReqAddr, &xcallProxyReqAcc); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return true, nil
+			} else {
+				return false, err
+			}
+		}
+
+		return false, nil
+	case relayerevents.RollbackMessage:
+		xcallRollbackAddr, err := p.pdaRegistry.XcallRollback.GetAddress(msg.XcallSn.FillBytes(make([]byte, 16)))
+		if err != nil {
+			return false, err
+		}
+
+		xcallRollbackAcc := types.XcallRollbackAccount{}
+		if err := p.client.GetAccountInfo(context.Background(), xcallRollbackAddr, &xcallRollbackAcc); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return true, nil
+			} else {
+				return false, err
+			}
+		}
+
 		return false, nil
 	case relayerevents.EmitMessage:
-		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress([]byte(key.Src), key.Sn.FillBytes(make([]byte, 16)))
+		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress([]byte(msg.Src), msg.Sn.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return false, err
 		}

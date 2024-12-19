@@ -52,7 +52,7 @@ type ChainProvider interface {
 	ShouldReceiveMessage(ctx context.Context, message *types.Message) (bool, error)
 	ShouldSendMessage(ctx context.Context, message *types.Message) (bool, error)
 	SetLastSavedHeightFunc(func() uint64)
-	MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error)
+	MessageReceived(ctx context.Context, key *types.Message) (bool, error)
 	SetAdmin(context.Context, string) error
 
 	FinalityBlock(ctx context.Context) uint64

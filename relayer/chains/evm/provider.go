@@ -178,26 +178,31 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
-	ticker := time.NewTicker(DefaultPollingInterval)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
-	counter := 0
+	startTime := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			if counter >= MaximumPollTry {
-				return nil, fmt.Errorf("failed to get receipt after %d tries", counter)
+			txReceipt, err := p.client.TransactionReceipt(ctx, tx.Hash())
+			if err != nil && !errors.Is(err, ethereum.NotFound) {
+				return txReceipt, err
 			}
-			counter++
-			txr, err := p.client.TransactionReceipt(ctx, tx.Hash())
-			if err == nil {
-				return txr, nil
+
+			if txReceipt != nil {
+				if txReceipt.Status == ethTypes.ReceiptStatusFailed {
+					return txReceipt, fmt.Errorf("txn failed [tx hash: %s]", tx.Hash())
+				} else {
+					return txReceipt, nil
+				}
 			}
-			if errors.Is(err, ethereum.NotFound) {
-				continue
+
+			// handle txn not found case:
+			if time.Since(startTime) > DefaultTxConfirmationTimeout {
+				return txReceipt, fmt.Errorf("tx confirmation timed out [tx hash: %s]", tx.Hash())
 			}
-			return txr, err
 		}
 	}
 }
