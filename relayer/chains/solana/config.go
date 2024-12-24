@@ -14,6 +14,7 @@ import (
 )
 
 type Config struct {
+	provider.CommonConfig
 	Disabled  bool   `yaml:"disabled" json:"disabled"`
 	ChainName string `yaml:"-"`
 

@@ -191,12 +191,12 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 // MessageReceived checks if the message is received
-func (p *Provider) MessageReceived(ctx context.Context, messageKey *providerTypes.MessageKey) (bool, error) {
-	switch messageKey.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *providerTypes.Message) (bool, error) {
+	switch msg.EventType {
 	case events.EmitMessage:
 		callParam := p.prepareCallParams(MethodGetReceipts, p.cfg.Contracts[providerTypes.ConnectionContract], map[string]interface{}{
-			"srcNetwork": messageKey.Src,
-			"_connSn":    types.NewHexInt(messageKey.Sn.Int64()),
+			"srcNetwork": msg.Src,
+			"_connSn":    types.NewHexInt(msg.Sn.Int64()),
 		})
 		var status types.HexInt
 		return status == types.NewHexInt(1), p.client.Call(callParam, &status)

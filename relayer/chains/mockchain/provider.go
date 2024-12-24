@@ -177,7 +177,7 @@ func (ip *MockProvider) GenerateTxMessages(ctx context.Context, txHash string) (
 	return nil, nil
 }
 
-func (p *MockProvider) MessageReceived(ctx context.Context, key *types.MessageKey) (bool, error) {
+func (p *MockProvider) MessageReceived(ctx context.Context, key *types.Message) (bool, error) {
 	return false, nil
 }
 

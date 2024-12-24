@@ -400,13 +400,13 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 	}
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, key *relayTypes.MessageKey) (bool, error) {
-	switch key.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *relayTypes.Message) (bool, error) {
+	switch msg.EventType {
 	case events.EmitMessage:
 		queryMsg := &types.QueryReceiptMsg{
 			GetReceipt: &types.GetReceiptMsg{
-				SrcNetwork: key.Src,
-				ConnSn:     key.Sn.String(),
+				SrcNetwork: msg.Src,
+				ConnSn:     msg.Sn.String(),
 			},
 		}
 		rawQueryMsg, err := jsoniter.Marshal(queryMsg)

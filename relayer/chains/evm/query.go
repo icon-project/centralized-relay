@@ -26,12 +26,12 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *types.Mess
 	return true, nil
 }
 
-func (p *Provider) MessageReceived(ctx context.Context, messageKey *types.MessageKey) (bool, error) {
-	switch messageKey.EventType {
+func (p *Provider) MessageReceived(ctx context.Context, msg *types.Message) (bool, error) {
+	switch msg.EventType {
 	case events.EmitMessage:
 		ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 		defer cancel()
-		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, messageKey.Src, messageKey.Sn)
+		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, msg.Src, msg.Sn)
 	case events.CallMessage:
 		return false, nil
 	case events.RollbackMessage:
