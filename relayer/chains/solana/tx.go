@@ -445,7 +445,13 @@ func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana
 	instructionData = append(instructionData, snArg...)
 
 	if msg.EventType == relayerevents.PacketAcknowledged {
-		signaturesArg, err := borsh.Serialize(msg.Signatures)
+		var signatures [][65]byte
+		for _, sign := range msg.Signatures {
+			var sig [65]byte
+			copy(sig[:], sign)
+			signatures = append(signatures, sig)
+		}
+		signaturesArg, err := borsh.Serialize(signatures)
 		if err != nil {
 			return nil, nil, err
 		}
