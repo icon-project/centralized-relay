@@ -45,6 +45,7 @@ type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
 	UseLegacyFee          bool   `json:"use-legacy-fee" yaml:"use-legacy-fee"`
+	UsePendingNonce       bool   `json:"use-pending-nonce" yaml:"use-pending-nonce"`
 	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
 	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
@@ -255,12 +256,22 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
 
-	latestNonce, err := p.client.GetLatestNonce(ctx, wallet.Address)
-	if err != nil {
-		return nil, err
+	if p.cfg.UsePendingNonce {
+		pendingNonce, err := p.client.PendingNonceAt(ctx, wallet.Address, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		txOpts.Nonce = pendingNonce
+	} else {
+		latestNonce, err := p.client.GetLatestNonce(ctx, wallet.Address)
+		if err != nil {
+			return nil, err
+		}
+
+		txOpts.Nonce = latestNonce.Add(latestNonce, big.NewInt(1))
 	}
 
-	txOpts.Nonce = latestNonce.Add(latestNonce, big.NewInt(1))
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
