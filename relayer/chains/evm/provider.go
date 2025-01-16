@@ -16,7 +16,6 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	bridgeContract "github.com/icon-project/centralized-relay/relayer/chains/evm/abi"
-	"github.com/icon-project/centralized-relay/relayer/chains/evm/types"
 	"github.com/icon-project/centralized-relay/relayer/events"
 	"github.com/icon-project/centralized-relay/relayer/kms"
 	"github.com/icon-project/centralized-relay/relayer/provider"
@@ -61,7 +60,6 @@ type Provider struct {
 	wallet              *keystore.Key
 	kms                 kms.KMS
 	contracts           map[string]providerTypes.EventMap
-	NonceTracker        types.NonceTrackerI
 	LastSavedHeightFunc func() uint64
 	routerMutex         *sync.Mutex
 }
@@ -142,7 +140,6 @@ func (p *Provider) Init(ctx context.Context, homePath string, kms kms.KMS) error
 		return fmt.Errorf("error occured when creating client: %v", err)
 	}
 	p.client = client
-	p.NonceTracker = types.NewNonceTracker(client.PendingNonceAt)
 	p.kms = kms
 	return nil
 }
@@ -165,11 +162,6 @@ func (p *Provider) Wallet() (*keystore.Key, error) {
 		if err := p.RestoreKeystore(ctx); err != nil {
 			return nil, err
 		}
-		nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
-		if err != nil {
-			return nil, err
-		}
-		p.NonceTracker.Set(p.wallet.Address, nonce)
 	}
 	return p.wallet, nil
 }
@@ -262,7 +254,13 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	}
 	ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 	defer cancel()
-	txOpts.Nonce = p.NonceTracker.Get(wallet.Address)
+
+	latestNonce, err := p.client.GetLatestNonce(ctx, wallet.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	txOpts.Nonce = latestNonce.Add(latestNonce, big.NewInt(1))
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)

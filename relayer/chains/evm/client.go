@@ -101,6 +101,7 @@ type IClient interface {
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	SuggestGasTip(ctx context.Context) (*big.Int, error)
 	PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	GetLatestNonce(ctx context.Context, account common.Address) (*big.Int, error)
 	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
@@ -129,6 +130,14 @@ type IClient interface {
 
 func (c *Client) PendingNonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	nonce, err := c.eth.PendingNonceAt(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	return new(big.Int).SetUint64(nonce), nil
+}
+
+func (c *Client) GetLatestNonce(ctx context.Context, account common.Address) (*big.Int, error) {
+	nonce, err := c.eth.NonceAt(ctx, account, nil)
 	if err != nil {
 		return nil, err
 	}
