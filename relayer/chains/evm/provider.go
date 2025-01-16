@@ -45,6 +45,7 @@ var (
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
+	UseLegacyFee          bool   `json:"use-legacy-fee" yaml:"use-legacy-fee"`
 	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
 	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
@@ -266,12 +267,27 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	gasTip, err := p.client.SuggestGasTip(ctx)
-	if err != nil {
-		p.log.Warn("failed to get gas tip", zap.Error(err))
+
+	adjustmentFactor := 1.0 + float64(p.cfg.GasAdjustment)/100.0
+	adjustedGasPrice := float64(gasPrice.Int64()) * adjustmentFactor
+
+	if p.cfg.UseLegacyFee {
+		txOpts.GasPrice = big.NewInt(int64(adjustedGasPrice))
+	} else {
+		gasTip, err := p.client.SuggestGasTip(ctx)
+		if err != nil {
+			p.log.Warn("failed to get gas tip", zap.Error(err))
+		}
+		adjustedGasTip := float64(gasTip.Int64()) * adjustmentFactor
+		txOpts.GasTipCap = big.NewInt(int64(adjustedGasTip))
+
+		txOpts.GasFeeCap = big.NewInt(int64(adjustedGasPrice))
+
+		if txOpts.GasFeeCap.Cmp(txOpts.GasTipCap) != 1 {
+			txOpts.GasFeeCap = txOpts.GasFeeCap.Add(txOpts.GasFeeCap, txOpts.GasTipCap)
+		}
 	}
-	txOpts.GasFeeCap = gasPrice.Mul(gasPrice, big.NewInt(2))
-	txOpts.GasTipCap = gasTip
+
 	return txOpts, nil
 }
 
