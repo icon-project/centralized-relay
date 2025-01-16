@@ -74,6 +74,7 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
 
 	p.log.Info("transaction info",
+		zap.Any("gas_price", opts.GasPrice),
 		zap.Uint64("gas_cap", opts.GasFeeCap.Uint64()),
 		zap.Uint64("gas_tip", opts.GasTipCap.Uint64()),
 		zap.Uint64("estimated_limit", gasLimit),
