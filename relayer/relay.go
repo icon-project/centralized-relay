@@ -459,7 +459,7 @@ func (r *Relayer) HandleMessageFailed(routeMessage *types.RouteMessage, dst, src
 	}
 }
 
-// PruneDB removes all the messages from db
+// PruneDB removes all the stored states from the sdb
 func (r *Relayer) PruneDB() error {
 	return r.db.ClearStore()
 }

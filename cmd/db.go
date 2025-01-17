@@ -53,8 +53,12 @@ func dbCmd(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Status")
-			printValues(result.Status)
+			labels := []string{"Status"}
+			rows := [][]interface{}{
+				{result.Status},
+			}
+			displayTable(labels, rows)
+
 			return nil
 		},
 	}
@@ -96,12 +100,14 @@ func (d *dbState) messagesList(app *appState) *cobra.Command {
 				return err
 			}
 
-			printLabels("Sn", "Src", "Dst", "Height", "Event", "Retry")
-			// Print messages
+			labels := []string{"Sn", "Src", "Dst", "Height", "Event", "Retry"}
+			rows := [][]interface{}{}
 			for _, msg := range messages.Message {
-				fmt.Printf("%-10d %-10s %-10s %-10d %-10s %-10d \n",
-					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry)
+				rows = append(rows, []interface{}{
+					msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType, msg.Retry,
+				})
 			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -126,10 +132,12 @@ func (d *dbState) messagesRelay(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event")
+			labels := []string{"Sn", "Src", "Dst", "Height", "Event"}
+			rows := [][]interface{}{}
 			for _, msg := range messages {
-				printValues(msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType)
+				rows = append(rows, []interface{}{msg.Sn, msg.Src, msg.Dst, msg.MessageHeight, msg.EventType})
 			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -157,8 +165,12 @@ func (d *dbState) messagesRm(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Sn", "Src", "Dst", "Height", "Event")
-			printValues(result.Sn, result.Chain, result.Dst, result.Height, result.Event)
+			labels := []string{"Sn", "Src", "Dst", "Height", "Event"}
+			rows := [][]interface{}{
+				{result.Sn, result.Chain, result.Dst, result.Height, result.Event},
+			}
+			displayTable(labels, rows)
+
 			return nil
 		},
 	}
@@ -225,10 +237,17 @@ func (d *dbState) blockInfo(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("NID", "Height")
+			labels := []string{"NID", "CheckPointHeight", "LatestHeight"}
+			rows := [][]interface{}{}
 			for _, block := range blocks {
-				printValues(block.Chain, block.CheckPointHeight)
+				row := []interface{}{
+					block.Chain, block.CheckPointHeight, block.LatestHeight,
+				}
+				rows = append(rows, row)
 			}
+
+			displayTable(labels, rows)
+
 			return nil
 		},
 	}
@@ -274,29 +293,6 @@ func (d *dbState) getRelayer(app *appState) (*relayer.Relayer, error) {
 		return nil, err
 	}
 	return rly, nil
-}
-
-func printLabels(labels ...any) {
-	padStr := `%-10s`
-	var labelCell string
-	var border []any
-	for range labels {
-		labelCell += padStr + " "
-		border = append(border, strings.Repeat("-", 10))
-	}
-	labelCell += "\n"
-	fmt.Printf(labelCell, labels...)
-	fmt.Printf(labelCell, border...)
-}
-
-func printValues(values ...any) {
-	padStr := `%-10v`
-	var valueCell string
-	for range values {
-		valueCell += padStr + " "
-	}
-	valueCell += "\n"
-	fmt.Printf(valueCell, values...)
 }
 
 func (d *dbState) getSocket(app *appState) (*socket.Client, error) {
