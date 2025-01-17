@@ -43,12 +43,12 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	}
 
 	tx, err := p.SendTransaction(ctx, opts, message)
-	p.routerMutex.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	p.WaitForTxResult(ctx, tx, message.MessageKey(), callback)
+	p.routerMutex.Unlock()
 	return nil
 }
 
@@ -109,19 +109,6 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		tx, err = p.client.ReceiveMessageWithSignature(opts, message.Src, message.Sn, message.Data, message.Signatures)
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", message.EventType)
-	}
-	if err != nil {
-		switch p.parseErr(err) {
-		case ErrNonceTooLow, ErrNonceTooHigh, ErrorLessGas:
-			nonce, err := p.client.PendingNonceAt(ctx, p.wallet.Address, nil)
-			if err != nil {
-				return nil, err
-			}
-			p.log.Info("nonce mismatch", zap.Uint64("tx", opts.Nonce.Uint64()), zap.Uint64("current", nonce.Uint64()), zap.Error(err))
-			p.NonceTracker.Set(p.wallet.Address, nonce)
-		default:
-			return nil, err
-		}
 	}
 	return tx, err
 }
