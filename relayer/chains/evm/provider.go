@@ -168,7 +168,7 @@ func (p *Provider) FinalityBlock(ctx context.Context) uint64 {
 }
 
 func (p *Provider) WaitForResults(ctx context.Context, tx *ethTypes.Transaction) (*ethTypes.Receipt, error) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	startTime := time.Now()
 	for {
