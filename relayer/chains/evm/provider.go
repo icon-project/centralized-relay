@@ -269,7 +269,7 @@ func (p *Provider) GetTransationOpts(ctx context.Context) (*bind.TransactOpts, e
 			return nil, err
 		}
 
-		txOpts.Nonce = latestNonce.Add(latestNonce, big.NewInt(1))
+		txOpts.Nonce = latestNonce
 	}
 
 	gasPrice, err := p.client.SuggestGasPrice(ctx)
