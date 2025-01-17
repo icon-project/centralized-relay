@@ -5,6 +5,7 @@ package store
 
 import (
 	jsoniter "github.com/json-iterator/go"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type BlockStore struct {
@@ -36,6 +37,9 @@ func (bs *BlockStore) StoreBlock(height uint64, nId string) error {
 func (bs *BlockStore) GetLastStoredBlock(nId string) (uint64, error) {
 	v, err := bs.db.GetByKey(bs.GetKey(nId))
 	if err != nil {
+		if err == leveldb.ErrNotFound {
+			return 0, nil
+		}
 		return 0, err
 	}
 	var height uint64
