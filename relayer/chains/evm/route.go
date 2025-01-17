@@ -26,6 +26,7 @@ const (
 func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, callback providerTypes.TxResponseFunc) error {
 	// lock here to prevent transcation replacement
 	p.routerMutex.Lock()
+	defer p.routerMutex.Unlock()
 
 	p.log.Info("starting to route message",
 		zap.String("src", message.Src),
@@ -38,7 +39,6 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 
 	opts, err := p.GetTransationOpts(ctx)
 	if err != nil {
-		p.routerMutex.Unlock()
 		return fmt.Errorf("failed to get transaction options: %w", err)
 	}
 
@@ -48,7 +48,6 @@ func (p *Provider) Route(ctx context.Context, message *providerTypes.Message, ca
 	}
 
 	p.WaitForTxResult(ctx, tx, message.MessageKey(), callback)
-	p.routerMutex.Unlock()
 	return nil
 }
 
