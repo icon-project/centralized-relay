@@ -5,33 +5,39 @@ import (
 	"strings"
 )
 
-func displayTable(headers []string, items [][]interface{}) {
-	// Calculate column widths
+func displayTable(headers []string, rows [][]interface{}) {
+	strRows := [][]string{}
+	for _, rowValues := range rows {
+		strRow := []string{}
+		for _, val := range rowValues {
+			strRow = append(strRow, fmt.Sprintf("%v   ", val))
+		}
+		strRows = append(strRows, strRow)
+	}
+
 	colWidths := make([]int, len(headers))
-	padding := 6
+	padding := 1
+
 	for i, header := range headers {
-		colWidths[i] = len(header) + padding // Add padding
-		for _, row := range items {
-			cell := fmt.Sprintf("%v", row[i]) // Convert cell to string
+		colWidths[i] = len(header) + padding
+		for _, row := range strRows {
+			cell := row[i]
 			if len(cell) > colWidths[i] {
-				colWidths[i] = len(cell) + padding // Update width with padding
+				colWidths[i] = len(cell) + padding
 			}
 		}
 	}
 
-	// Print the header
 	for i, header := range headers {
 		fmt.Printf("%-*s", colWidths[i], header)
 	}
 	fmt.Println()
 
-	// Print a separator line
 	fmt.Println(strings.Repeat("-", sum(colWidths)-padding))
 
-	// Print the rows
-	for _, row := range items {
+	for _, row := range strRows {
 		for i, cell := range row {
-			fmt.Printf("%-*v", colWidths[i], cell) // Format the cell value
+			fmt.Printf("%-*v", colWidths[i], cell)
 		}
 		fmt.Println()
 	}
