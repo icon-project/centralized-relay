@@ -39,19 +39,29 @@ func (db *LVLDB) RemoveDbFile(filepath string) error {
 }
 
 func (db *LVLDB) ClearStore() error {
-	iter := db.db.NewIterator(nil, nil)
-	batch := new(leveldb.Batch)
+	for {
+		batch := new(leveldb.Batch)
 
-	for iter.Next() {
-		key := iter.Key()
-		batch.Delete(key)
-	}
-	iter.Release()
-	if err := iter.Error(); err != nil {
-		return err
-	}
+		iter := db.db.NewIterator(nil, nil)
+		keysFound := false
+		for iter.Next() {
+			keysFound = true
+			batch.Delete(iter.Key())
+		}
+		iter.Release()
+		if err := iter.Error(); err != nil {
+			return err
+		}
 
-	return db.db.Write(batch, nil)
+		if !keysFound {
+			break
+		}
+
+		if err := db.db.Write(batch, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (db *LVLDB) Close() error {
