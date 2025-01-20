@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"github.com/near/borsh-go"
 )
 
@@ -61,6 +63,7 @@ type IClient interface {
 
 	GetRecentPriorityFee(
 		ctx context.Context,
+		percentile uint64,
 		accounts solana.PublicKeySlice,
 	) (uint64, error)
 }
@@ -271,6 +274,7 @@ func (cl Client) GetTransaction(
 
 func (cl Client) GetRecentPriorityFee(
 	ctx context.Context,
+	percentile uint64,
 	accounts solana.PublicKeySlice,
 ) (uint64, error) {
 	results, err := cl.rpc.GetRecentPrioritizationFees(ctx, accounts)
@@ -278,12 +282,31 @@ func (cl Client) GetRecentPriorityFee(
 		return 0, err
 	}
 
-	max := uint64(0)
+	fees := []uint64{}
 	for _, item := range results {
-		if item.PrioritizationFee > max {
-			max = item.PrioritizationFee
-		}
+		fees = append(fees, item.PrioritizationFee)
 	}
 
-	return max, nil
+	return getPercentileItem(fees, percentile)
+}
+
+func getPercentileItem(fees []uint64, percentile uint64) (uint64, error) {
+	if len(fees) == 0 {
+		return 0, fmt.Errorf("cannot calculate percentile of empty array")
+	}
+
+	if len(fees) == 1 {
+		return fees[0], nil
+	}
+
+	sorter.Sort[uint64](fees, func(p1, p2 uint64) bool {
+		return p1 < p2
+	})
+
+	if percentile == 0 || percentile == 100 {
+		return fees[len(fees)-1], nil
+	}
+
+	rank := float64(percentile) * float64(len(fees)+1) * 0.01
+	return fees[int(math.Floor(rank))-1], nil
 }

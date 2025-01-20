@@ -47,7 +47,7 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		}
 	}
 
-	priorityFee, err := p.client.GetRecentPriorityFee(ctx, accounts)
+	priorityFee, err := p.client.GetRecentPriorityFee(ctx, p.cfg.PriorityFeePercentile, accounts)
 	if err != nil {
 		p.log.Warn("failed to get recent priority fee", zap.Error(err))
 	}
