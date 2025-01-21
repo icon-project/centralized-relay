@@ -39,6 +39,7 @@ type Config struct {
 	TxConfirmationTime time.Duration `yaml:"tx-confirmation-time" json:"tx-confirmation-time"`
 
 	ComputeUnitLimit      uint64 `yaml:"compute-unit-limit" json:"compute-unit-limit"`
+	Adjustment            uint64 `yaml:"adjustment" json:"adjustment"`
 	PriorityFeePercentile uint64 `yaml:"priority-fee-percentile" json:"priority-fee-percentile"`
 }
 
