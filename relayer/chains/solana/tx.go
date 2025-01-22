@@ -52,26 +52,9 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		solana.TransactionAddressTables(p.staticAlts),
 	}
 
-	computeUnitLimit := p.cfg.ComputeUnitLimit
-	if computeUnitLimit == 0 {
-		simtx, err := p.prepareTx(ctx, instructions, signers, opts...)
-		if err != nil {
-			return fmt.Errorf("failed to prepare tx for simulation: %w", err)
-		}
-
-		simres, err := p.client.SimulateTx(ctx, simtx)
-		if err != nil {
-			return fmt.Errorf("failed to simulate tx: %w", err)
-		}
-
-		if simres.UnitsConsumed != nil && *simres.UnitsConsumed > 0 {
-			adjustment := 0.15
-			if p.cfg.Adjustment > 0 {
-				adjustment = float64(p.cfg.Adjustment) / 100.0
-			}
-
-			computeUnitLimit = uint64((1 + adjustment) * float64(*simres.UnitsConsumed))
-		}
+	computeUnitLimit := uint64(150000)
+	if p.cfg.ComputeUnitLimit > 0 {
+		computeUnitLimit = p.cfg.ComputeUnitLimit
 	}
 
 	if computeUnitLimit > 0 {
