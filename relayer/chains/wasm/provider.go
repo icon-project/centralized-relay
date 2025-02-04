@@ -402,7 +402,7 @@ func (p *Provider) subscribeTxResult(ctx context.Context, tx *sdkTypes.TxRespons
 
 func (p *Provider) MessageReceived(ctx context.Context, msg *relayTypes.Message) (bool, error) {
 	switch msg.EventType {
-	case events.EmitMessage, events.PacketRegistered, events.PacketAcknowledged:
+	case events.EmitMessage, events.PacketAcknowledged:
 		queryMsg := &types.QueryReceiptMsg{
 			GetReceipt: &types.GetReceiptMsg{
 				SrcNetwork: msg.Src,

@@ -1147,7 +1147,7 @@ func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Messag
 		}
 
 		return false, nil
-	case relayerevents.EmitMessage, relayerevents.PacketRegistered, relayerevents.PacketAcknowledged:
+	case relayerevents.EmitMessage, relayerevents.PacketAcknowledged:
 		receiptAc, err := p.pdaRegistry.ConnReceipt.GetAddress([]byte(msg.Src), msg.Sn.FillBytes(make([]byte, 16)))
 		if err != nil {
 			return false, err

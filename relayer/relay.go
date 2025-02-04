@@ -267,23 +267,26 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 			message.ToggleProcessing()
 
-			messageReceived, err := dst.Provider.MessageReceived(ctx, message.Message)
-			if err != nil {
-				dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Any("sn", message.Sn), zap.Error(err))
-				message.ToggleProcessing()
-				continue
+			if !r.clusterMode.IsEnabled() || message.EventType == events.PacketAcknowledged {
+				messageReceived, err := dst.Provider.MessageReceived(ctx, message.Message)
+				if err != nil {
+					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Any("sn", message.Sn), zap.Error(err))
+					message.ToggleProcessing()
+					continue
+				}
+				if messageReceived {
+					dst.log.Info("message already received",
+						zap.String("src", message.Src),
+						zap.String("dst", message.Dst),
+						zap.Any("sn", message.Sn),
+						zap.Any("req_id", message.ReqID),
+						zap.Any("event_type", message.EventType),
+					)
+					r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+					continue
+				}
 			}
-			if messageReceived {
-				dst.log.Info("message already received",
-					zap.String("src", message.Src),
-					zap.String("dst", message.Dst),
-					zap.Any("sn", message.Sn),
-					zap.Any("req_id", message.ReqID),
-					zap.Any("event_type", message.EventType),
-				)
-				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-				continue
-			}
+
 			clusterEvents := []string{events.EmitMessage, events.PacketRegistered, events.PacketAcknowledged}
 			if r.clusterMode.IsEnabled() && slices.Contains(clusterEvents, message.EventType) {
 				r.processClusterEvents(ctx, message, dst, src)
