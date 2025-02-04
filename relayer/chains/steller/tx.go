@@ -379,7 +379,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (
 
 func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Message) (bool, error) {
 	switch msg.EventType {
-	case evtypes.EmitMessage:
+	case evtypes.EmitMessage, evtypes.PacketRegistered, evtypes.PacketAcknowledged:
 		connAddr, err := p.scContractAddr(p.cfg.Contracts[relayertypes.ConnectionContract])
 		if err != nil {
 			return false, err

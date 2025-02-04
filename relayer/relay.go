@@ -3,6 +3,7 @@ package relayer
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -265,10 +266,6 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				continue
 			}
 			message.ToggleProcessing()
-			if r.processClusterEvents(ctx, message, dst, src) {
-				continue
-			}
-			// if message reached delete the message
 
 			messageReceived, err := dst.Provider.MessageReceived(ctx, message.Message)
 			if err != nil {
@@ -276,11 +273,10 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				message.ToggleProcessing()
 				continue
 			}
-
-			// if message is received we can remove the message from db
 			if messageReceived {
 				dst.log.Info("message already received",
 					zap.String("src", message.Src),
+					zap.String("dst", message.Dst),
 					zap.Any("sn", message.Sn),
 					zap.Any("req_id", message.ReqID),
 					zap.Any("event_type", message.EventType),
@@ -288,17 +284,19 @@ func (r *Relayer) processMessages(ctx context.Context) {
 				r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 				continue
 			}
-			go r.RouteMessage(ctx, message, dst, src)
+			clusterEvents := []string{events.EmitMessage, events.PacketRegistered, events.PacketAcknowledged}
+			if r.clusterMode.IsEnabled() && slices.Contains(clusterEvents, message.EventType) {
+				r.processClusterEvents(ctx, message, dst, src)
+			} else {
+				go r.RouteMessage(ctx, message, dst, src)
+			}
 		}
 	}
 }
 
 func (r *Relayer) processClusterEvents(ctx context.Context, message *types.RouteMessage,
 	dst *ChainRuntime, src *ChainRuntime,
-) bool {
-	if !r.clusterMode.IsEnabled() {
-		return false
-	}
+) {
 	switch message.EventType {
 	case events.EmitMessage:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
@@ -310,7 +308,6 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
 		}
 		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, true)
-		return true
 	case events.PacketRegistered:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
 		if err != nil {
@@ -319,16 +316,15 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 		}
 		iconChain := getIconChain(r.chains)
 		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, false)
-		return true
 	case events.PacketAcknowledged:
 		if dst.Provider.Config().Enabled() {
 			if message.DstConnAddress == dst.Provider.Config().GetConnContract() {
 				go r.RouteMessage(ctx, message, dst, src)
 			}
 		}
-		return true
+	default:
+		r.log.Warn("Invalid cluster event detected", zap.Any("event", message.EventType))
 	}
-	return false
 }
 
 // processBlockInfo->
