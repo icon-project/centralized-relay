@@ -19,6 +19,7 @@ import (
 
 type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
+	StepDefault           int64 `json:"step-default" yaml:"step-default"`
 	StepMin               int64 `json:"step-min" yaml:"step-min"`
 	StepLimit             int64 `json:"step-limit" yaml:"step-limit"`
 	StepAdjustment        int64 `json:"step-adjustment" yaml:"step-adjustment"`
