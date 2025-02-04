@@ -120,14 +120,19 @@ func (c *Client) GetBalance(ctx context.Context, addr string, denomination strin
 }
 
 func (c *Client) GetAccountInfo(ctx context.Context, addr string) (sdkTypes.AccountI, error) {
-	res, err := c.aq.Account(ctx, &authTypes.QueryAccountRequest{Address: addr})
+	accAddr, err := sdkTypes.AccAddressFromBech32(addr)
 	if err != nil {
 		return nil, err
 	}
-
-	var account sdkTypes.AccountI
-
-	return account, c.ctx.InterfaceRegistry.UnpackAny(res.Account, &account)
+	acc, err := c.ctx.AccountRetriever.GetAccount(c.ctx, accAddr)
+	if err != nil {
+		return nil, err
+	}
+	return &authTypes.BaseAccount{
+		Address:       addr,
+		AccountNumber: acc.GetAccountNumber(),
+		Sequence:      acc.GetSequence(),
+	}, nil
 }
 
 // Create new AccountI
