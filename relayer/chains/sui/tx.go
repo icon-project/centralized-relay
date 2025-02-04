@@ -388,7 +388,7 @@ func (p *Provider) QueryTransactionReceipt(ctx context.Context, txDigest string)
 
 func (p *Provider) MessageReceived(ctx context.Context, msg *relayertypes.Message) (bool, error) {
 	switch msg.EventType {
-	case events.EmitMessage, events.PacketRegistered, events.PacketAcknowledged:
+	case events.EmitMessage, events.PacketAcknowledged:
 		snU128, err := bcs.NewUint128FromBigInt(msg.Sn)
 		if err != nil {
 			return false, err

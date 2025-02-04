@@ -28,7 +28,7 @@ func (p *Provider) ShouldSendMessage(ctx context.Context, messageKey *types.Mess
 
 func (p *Provider) MessageReceived(ctx context.Context, msg *types.Message) (bool, error) {
 	switch msg.EventType {
-	case events.EmitMessage, events.PacketRegistered, events.PacketAcknowledged:
+	case events.EmitMessage, events.PacketAcknowledged:
 		ctx, cancel := context.WithTimeout(ctx, defaultReadTimeout)
 		defer cancel()
 		return p.client.MessageReceived(&bind.CallOpts{Context: ctx}, msg.Src, msg.Sn)
