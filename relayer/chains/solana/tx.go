@@ -47,27 +47,32 @@ func (p *Provider) Route(ctx context.Context, message *relayertypes.Message, cal
 		}
 	}
 
+	opts := []solana.TransactionOption{
+		solana.TransactionPayer(p.wallet.PublicKey()),
+		solana.TransactionAddressTables(p.staticAlts),
+	}
+
+	computeUnitLimit := uint32(150000)
+	if p.cfg.ComputeUnitLimit > 0 {
+		computeUnitLimit = uint32(p.cfg.ComputeUnitLimit)
+	}
+	instructions = append(instructions,
+		compute_budget.NewSetComputeUnitLimitInstruction(computeUnitLimit).Build(),
+	)
+
 	priorityFee, err := p.client.GetRecentPriorityFee(ctx, accounts)
 	if err != nil {
 		p.log.Warn("failed to get recent priority fee", zap.Error(err))
 	}
 
-	if priorityFee > 0 {
-		computeUnitLimit := 200000
-		if p.cfg.ComputeUnitLimit > 0 {
-			computeUnitLimit = int(p.cfg.ComputeUnitLimit)
-		}
-		instructions = append(instructions,
-			[]solana.Instruction{
-				compute_budget.NewSetComputeUnitLimitInstruction(uint32(computeUnitLimit)).Build(),
-				compute_budget.NewSetComputeUnitPriceInstruction(priorityFee).Build(),
-			}...,
-		)
+	if p.cfg.PriorityFeeLimit > 0 && priorityFee > p.cfg.PriorityFeeLimit {
+		priorityFee = p.cfg.PriorityFeeLimit
 	}
 
-	opts := []solana.TransactionOption{
-		solana.TransactionPayer(p.wallet.PublicKey()),
-		solana.TransactionAddressTables(p.staticAlts),
+	if priorityFee > 0 {
+		instructions = append(instructions,
+			compute_budget.NewSetComputeUnitPriceInstruction(priorityFee).Build(),
+		)
 	}
 
 	tx, err := p.prepareTx(ctx, instructions, signers, opts...)
