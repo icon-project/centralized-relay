@@ -136,12 +136,19 @@ func (p *Provider) SendTransaction(ctx context.Context, msg *IconMessage) ([]byt
 		},
 	}
 
-	step, err := p.client.EstimateStep(txParam)
-	if err != nil {
-		return nil, fmt.Errorf("failed estimating step: %w", err)
+	stepsHexInt := types.NewHexInt(2_000_000)
+	if p.cfg.StepDefault > 0 {
+		stepsHexInt = types.NewHexInt(p.cfg.StepDefault)
+	}
+	if !p.cfg.SkipSimulation {
+		simSteps, err := p.client.EstimateStep(txParam)
+		if err != nil {
+			return nil, fmt.Errorf("failed estimating step: %w", err)
+		}
+		stepsHexInt = *simSteps
 	}
 
-	steps, err := step.Int64()
+	steps, err := stepsHexInt.Int64()
 	if err != nil {
 		return nil, err
 	}
