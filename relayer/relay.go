@@ -267,7 +267,7 @@ func (r *Relayer) processMessages(ctx context.Context) {
 			}
 			message.ToggleProcessing()
 
-			if !r.clusterMode.IsEnabled() || message.EventType == events.PacketAcknowledged {
+			if !r.clusterMode.IsEnabled() || (message.EventType == events.PacketAcknowledged && dst.Provider.Config().GetConnContract() != "") {
 				messageReceived, err := dst.Provider.MessageReceived(ctx, message.Message)
 				if err != nil {
 					dst.log.Error("error occured when checking message received", zap.String("src", message.Src), zap.Any("sn", message.Sn), zap.Error(err))
