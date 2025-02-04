@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,18 +12,16 @@ import (
 	"github.com/cometbft/cometbft/rpc/client/http"
 	sdkClient "github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/icon-project/centralized-relay/relayer/chains/wasm/types"
 	"github.com/icon-project/centralized-relay/relayer/provider"
 	relayTypes "github.com/icon-project/centralized-relay/relayer/types"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Config struct {
 	provider.CommonConfig  `json:",inline" yaml:",inline"`
-	GrpcUrl                string        `json:"grpc-url" yaml:"grpc-url"`
 	KeyringBackend         string        `json:"keyring-backend" yaml:"keyring-backend"`
 	KeyringDir             string        `json:"keyring-dir" yaml:"keyring-dir"`
 	AccountPrefix          string        `json:"account-prefix" yaml:"account-prefix"`
@@ -129,10 +126,6 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 		return sdkClient.Context{}, err
 	}
 
-	grpcClient, err := grpc.NewClient(c.GrpcUrl, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
-	if err != nil {
-		return sdkClient.Context{}, err
-	}
 	networkInfo, err := cometRPCClient.Status(ctx)
 	if err != nil {
 		return sdkClient.Context{}, err
@@ -151,8 +144,8 @@ func (c *Config) newClientContext(ctx context.Context) (sdkClient.Context, error
 		BroadcastMode:     c.BroadcastMode,
 		SignModeStr:       c.SignModeStr,
 		Simulate:          c.Simulate,
-		GRPCClient:        grpcClient,
 		InterfaceRegistry: codec.InterfaceRegistry,
+		AccountRetriever:  authtypes.AccountRetriever{},
 	}, cometRPCClient.Start()
 }
 
