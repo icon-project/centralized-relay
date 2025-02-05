@@ -72,8 +72,9 @@ func (c *contractState) getFee() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Chain", "Fee")
-			printValues(c.network, res.Fee)
+			labels := []string{"Chain", "Fee"}
+			rows := [][]interface{}{{c.network, res.Fee}}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -100,8 +101,9 @@ func (c *contractState) setFee() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Status")
-			printValues(res.Status)
+			labels := []string{"Status"}
+			rows := [][]interface{}{{res.Status}}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -131,8 +133,9 @@ func (c *contractState) claimFee() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Status")
-			printValues(res.Status)
+			labels := []string{"Status"}
+			rows := [][]interface{}{{res.Status}}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
