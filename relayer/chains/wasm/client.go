@@ -53,11 +53,10 @@ type IClient interface {
 
 type Client struct {
 	ctx sdkClient.Context
-	aq  authTypes.QueryClient
 }
 
 func newClient(ctx sdkClient.Context) *Client {
-	return &Client{ctx, authTypes.NewQueryClient(ctx.GRPCClient)}
+	return &Client{ctx}
 }
 
 func (c *Client) BuildTxFactory() (tx.Factory, error) {
@@ -102,12 +101,12 @@ func (c *Client) GetLatestBlockHeight(ctx context.Context) (uint64, error) {
 }
 
 func (c *Client) GetTransactionReceipt(ctx context.Context, txHash string) (*txTypes.GetTxResponse, error) {
-	serviceClient := txTypes.NewServiceClient(c.ctx.GRPCClient)
+	serviceClient := txTypes.NewServiceClient(c.ctx)
 	return serviceClient.GetTx(ctx, &txTypes.GetTxRequest{Hash: txHash})
 }
 
 func (c *Client) GetBalance(ctx context.Context, addr string, denomination string) (*sdkTypes.Coin, error) {
-	queryClient := bankTypes.NewQueryClient(c.ctx.GRPCClient)
+	queryClient := bankTypes.NewQueryClient(c.ctx)
 
 	res, err := queryClient.Balance(ctx, &bankTypes.QueryBalanceRequest{
 		Address: addr,

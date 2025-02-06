@@ -151,6 +151,7 @@ func (r *Relayer) StartChainListeners(ctx context.Context, errCh chan error) {
 				Height: chainRuntime.LastSavedHeight,
 				Info:   lastProcessedTxInfo,
 			}
+			fmt.Printf("\n Is this chain: %s enabled: %t\n", chainRuntime.Provider.NID(), chainRuntime.Provider.Config().Enabled())
 			return chainRuntime.Provider.Listener(ctx, lastProcessedTx, chainRuntime.listenerChan)
 		})
 	}
