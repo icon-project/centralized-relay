@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/icon-project/centralized-relay/relayer/events"
 	relayertypes "github.com/icon-project/centralized-relay/relayer/types"
 	"github.com/icon-project/centralized-relay/utils/hexstr"
+	"github.com/icon-project/centralized-relay/utils/sorter"
 	"go.uber.org/zap"
 )
 
@@ -216,6 +216,24 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		args = append(args, param.Val)
 	}
 
+	coins, err := p.client.GetCoins(context.Background(), p.wallet.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(coins) == 0 {
+		return nil, fmt.Errorf("no sui coins found")
+	}
+
+	sorter.Sort(coins, func(c1, c2 types.Coin) bool {
+		return c1.Balance.Int64() > c2.Balance.Int64()
+	})
+
+	coinAddress, err := move_types.NewAccountAddressHex(coins[0].CoinObjectId.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid coin address: %w", err)
+	}
+
 	res, err := p.client.MoveCall(
 		context.Background(),
 		*accountAddress,
@@ -224,7 +242,7 @@ func (p *Provider) prepareTxMoveCall(msg *SuiMessage) (lib.Base64Data, error) {
 		msg.Method,
 		msg.TypeArgs,
 		args,
-		nil,
+		coinAddress,
 		types.NewSafeSuiBigInt(p.cfg.GasLimit),
 	)
 	if err != nil {
@@ -482,12 +500,16 @@ func (p *Provider) getExecuteParams(
 				if err != nil {
 					return nil, nil, err
 				}
-				_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(int64(suiBaseFee)), p.cfg.GasLimit, types.PickBigger)
-				if err != nil {
-					return nil, nil, err
+				if len(coins) == 0 {
+					return nil, nil, fmt.Errorf("no sui coins found for execute params")
 				}
+
+				sorter.Sort(coins, func(c1, c2 types.Coin) bool {
+					return c1.Balance.Int64() < c2.Balance.Int64()
+				})
+
 				callArgs = append(callArgs, SuiCallArg{
-					Type: CallArgObject, Val: coin.CoinObjectId.String(),
+					Type: CallArgObject, Val: coins[0].CoinObjectId.String(),
 				})
 			case "sn":
 				snU128, err := bcs.NewUint128FromBigInt(message.Sn)
