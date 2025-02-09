@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -482,7 +481,7 @@ func (p *Provider) getExecuteParams(
 				if err != nil {
 					return nil, nil, err
 				}
-				_, coin, err := coins.PickSUICoinsWithGas(big.NewInt(int64(suiBaseFee)), p.cfg.GasLimit, types.PickBigger)
+				_, coin, err := coins.PickSUICoinsWithGas(nil, 0, types.PickSmaller)
 				if err != nil {
 					return nil, nil, err
 				}
