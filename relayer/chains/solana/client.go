@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/near/borsh-go"
@@ -268,15 +268,9 @@ func (cl Client) GetTransaction(
 	signature solana.Signature,
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
-	var tx *solrpc.GetTransactionResult
-	if err := retry.Do(
-		func() error {
-			txn, err := cl.rpc.GetTransaction(ctx, signature, opts)
-			if err != nil {
-				return err
-			}
-			tx = txn
-			return nil
+	tx, err := retry.DoWithData(
+		func() (*solrpc.GetTransactionResult, error) {
+			return cl.rpc.GetTransaction(ctx, signature, opts)
 		},
 		retry.Attempts(10),
 		retry.Delay(3*time.Second),
@@ -285,7 +279,8 @@ func (cl Client) GetTransaction(
 		}),
 		retry.LastErrorOnly(true),
 		retry.Context(ctx),
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
 	return tx, nil
