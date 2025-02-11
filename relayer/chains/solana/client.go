@@ -268,7 +268,7 @@ func (cl Client) GetTransaction(
 	signature solana.Signature,
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
-	tx, err := retry.DoWithData(
+	return retry.DoWithData(
 		func() (*solrpc.GetTransactionResult, error) {
 			return cl.rpc.GetTransaction(ctx, signature, opts)
 		},
@@ -280,10 +280,6 @@ func (cl Client) GetTransaction(
 		retry.LastErrorOnly(true),
 		retry.Context(ctx),
 	)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
 }
 
 func (cl Client) GetRecentPriorityFee(
