@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/gagliardetto/solana-go"
 	solrpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/near/borsh-go"
@@ -266,7 +268,18 @@ func (cl Client) GetTransaction(
 	signature solana.Signature,
 	opts *solrpc.GetTransactionOpts,
 ) (*solrpc.GetTransactionResult, error) {
-	return cl.rpc.GetTransaction(ctx, signature, opts)
+	return retry.DoWithData(
+		func() (*solrpc.GetTransactionResult, error) {
+			return cl.rpc.GetTransaction(ctx, signature, opts)
+		},
+		retry.Attempts(10),
+		retry.Delay(3*time.Second),
+		retry.RetryIf(func(err error) bool {
+			return err == solrpc.ErrNotFound
+		}),
+		retry.LastErrorOnly(true),
+		retry.Context(ctx),
+	)
 }
 
 func (cl Client) GetRecentPriorityFee(

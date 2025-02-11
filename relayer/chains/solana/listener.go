@@ -122,7 +122,7 @@ func (p *Provider) listenByPolling(ctx context.Context, fromSignature string, bl
 
 func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature, blockInfo chan *relayertypes.BlockInfo) (*solrpc.GetTransactionResult, error) {
 	txVersion := uint64(0)
-	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	txn, err := p.client.GetTransaction(timeoutCtx, sign, &solrpc.GetTransactionOpts{MaxSupportedTransactionVersion: &txVersion})
 	if err != nil {
