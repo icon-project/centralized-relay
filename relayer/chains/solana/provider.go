@@ -126,7 +126,8 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 
 			msgs, err := p.parseMessagesFromEvent(event)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse messages from event [%+v]: %w", event, err)
+				p.log.Warn("failed to parse messages from event", zap.Error(err))
+				continue
 			}
 			for _, msg := range msgs {
 				p.log.Info("Detected event log: ",

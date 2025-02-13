@@ -676,8 +676,10 @@ func (r *Relayer) processAcknowledgementMsg(ctx context.Context, message *types.
 		messages, err = src.Provider.GenerateMessages(ctx, message.WrappedSourceHeight.Uint64(), message.WrappedSourceHeight.Uint64())
 	}
 	if err != nil {
-		r.log.Error("required message not found", zap.String("src", message.Src),
-			zap.Uint64("nid", message.MessageHeight))
+		r.log.Error("required message not found",
+			zap.String("src", message.Src),
+			zap.Error(err),
+		)
 		message.IncrementRetry()
 		message.ToggleProcessing()
 		return
