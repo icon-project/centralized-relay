@@ -61,10 +61,13 @@ func debugCmd(a *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Chain", "Sn", "Event Type", "height", "data")
+			labels := []string{"Chain", "Sn", "Event Type", "height", "data"}
+			rows := [][]interface{}{}
 			for _, msg := range res.Msgs {
-				printValues(state.chain, msg.Sn.Text(10), msg.EventType, msg.MessageHeight, hex.EncodeToString(msg.Data))
+				row := []interface{}{state.chain, msg.Sn.Text(10), msg.EventType, msg.MessageHeight, hex.EncodeToString(msg.Data)}
+				rows = append(rows, row)
 			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -96,8 +99,11 @@ func (c *DebugState) getLatestHeight(app *appState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printLabels("Chain", "Latest Chain Height")
-			printValues(c.chain, res.Height)
+			labels := []string{"Chain", "Latest Chain Height"}
+			rows := [][]interface{}{
+				{c.chain, res.Height},
+			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}
@@ -126,10 +132,13 @@ func (c *DebugState) getLatestProcessedBlock(app *appState) *cobra.Command {
 				fmt.Println(err)
 				return err
 			}
-			printLabels("Chain", "Last Processed Block")
+			labels := []string{"Chain", "Last Processed Block"}
+			rows := [][]interface{}{}
 			for _, block := range res {
-				printValues(block.Chain, block.CheckPointHeight)
+				row := []interface{}{block.Chain, block.CheckPointHeight}
+				rows = append(rows, row)
 			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}

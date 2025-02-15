@@ -172,13 +172,15 @@ func (k *keystoreState) list(a *appState) *cobra.Command {
 					wallets[wallet] = balance
 				}
 			}
-			printLabels("Wallet", "Balance")
+			labels := []string{"Wallet", "Balance"}
+			rows := [][]interface{}{}
 			for wallet, balance := range wallets {
 				if wallet == chain.ChainProvider.Config().GetWallet() {
 					wallet = "* -> " + wallet
 				}
-				printValues(wallet, balance.Calculate())
+				rows = append(rows, []interface{}{wallet, balance.Calculate()})
 			}
+			displayTable(labels, rows)
 			return nil
 		},
 	}

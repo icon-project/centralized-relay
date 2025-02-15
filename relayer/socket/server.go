@@ -110,9 +110,13 @@ func (s *Server) parseEvent(msg *Request) *Response {
 				if err != nil {
 					return response.SetError(err)
 				}
+				checkPointHeight, err := store.GetLastStoredBlock(chain.Provider.NID())
+				if err != nil {
+					return response.SetError(err)
+				}
 				blocks = append(blocks, &ResGetBlock{
 					Chain:            chain.Provider.NID(),
-					CheckPointHeight: chain.LastSavedHeight,
+					CheckPointHeight: checkPointHeight,
 					LatestHeight:     latestHeight,
 				})
 			}
