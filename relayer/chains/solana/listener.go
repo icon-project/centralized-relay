@@ -275,7 +275,12 @@ func (p *Provider) getLatestXcallTxSignature() (*solrpc.TransactionSignature, er
 }
 
 func (p *Provider) getSignatures(ctx context.Context, fromSignature string) ([]*solrpc.TransactionSignature, error) {
-	progId := p.xcallIdl.GetProgramID()
+	var progId solana.PublicKey
+	if p.cfg.XcallProgram == "" {
+		progId = p.connIdl.GetProgramID()
+	} else {
+		progId = p.xcallIdl.GetProgramID()
+	}
 
 	limit := 1000
 	opts := &solrpc.GetSignaturesForAddressOpts{
