@@ -306,19 +306,21 @@ func (r *Relayer) processClusterEvents(ctx context.Context, message *types.Route
 	switch message.EventType {
 	case events.EmitMessage:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
+		if err != nil {
+			r.log.Error("wrapped src chain runtime not found", zap.String("nid", message.Src))
+			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+			return
+		}
 		message.DstConnAddress = dst.Provider.Config().GetConnContract()
 		message.Message.SrcConnAddress = srcChainProvider.Provider.Config().GetConnContract()
 		iconChain := getIconChain(r.chains)
-		if err != nil {
-			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
-			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
-		}
 		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, true)
 	case events.PacketRegistered:
 		srcChainProvider, err := r.FindChainRuntime(message.Src)
 		if err != nil {
-			r.log.Error("wrapped src chain nid not found", zap.String("nid", message.Src))
+			r.log.Error("wrapped src chain runtime not found", zap.String("nid", message.Src))
 			r.ClearMessages(ctx, []*types.MessageKey{message.MessageKey()}, src)
+			return
 		}
 		iconChain := getIconChain(r.chains)
 		go r.processAcknowledgementMsg(ctx, message, srcChainProvider, dst, iconChain, false)
