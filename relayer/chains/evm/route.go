@@ -62,19 +62,11 @@ func (p *Provider) SendTransaction(ctx context.Context, opts *bind.TransactOpts,
 		return nil, fmt.Errorf("failed to estimate gas: %w", err)
 	}
 
-	if gasLimit > p.cfg.GasLimit {
+	if p.cfg.GasLimit > 0 && gasLimit > p.cfg.GasLimit {
 		return nil, fmt.Errorf("gas limit exceeded: %d", gasLimit)
 	}
 
-	if gasLimit < p.cfg.GasMin {
-		return nil, fmt.Errorf("gas price less than minimum: %d", gasLimit)
-	}
-
 	opts.GasLimit = gasLimit + (gasLimit * p.cfg.GasAdjustment / 100)
-
-	if p.cfg.GasLimit > 0 {
-		opts.GasLimit = p.cfg.GasLimit
-	}
 
 	p.log.Info("transaction info",
 		zap.Any("gas_price", opts.GasPrice),

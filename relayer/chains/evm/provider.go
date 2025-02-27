@@ -45,7 +45,6 @@ type Config struct {
 	provider.CommonConfig `json:",inline" yaml:",inline"`
 	WebsocketUrl          string `json:"websocket-url" yaml:"websocket-url"`
 	UseLegacyFee          bool   `json:"use-legacy-fee" yaml:"use-legacy-fee"`
-	GasMin                uint64 `json:"gas-min" yaml:"gas-min"`
 	GasLimit              uint64 `json:"gas-limit" yaml:"gas-limit"`
 	GasAdjustment         uint64 `json:"gas-adjustment" yaml:"gas-adjustment"`
 	BlockBatchSize        uint64 `json:"block-batch-size" yaml:"block-batch-size"`
