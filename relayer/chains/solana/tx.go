@@ -277,12 +277,20 @@ func (p *Provider) getLookupTableAccount(accountID solana.PublicKey) (*alt.Looku
 }
 
 func (p *Provider) initStaticAlts() error {
-	xcallProgID, err := solana.PublicKeyFromBase58(p.cfg.XcallProgram)
-	if err != nil {
-		return err
+	addresses := solana.PublicKeySlice{solana.SystemProgramID, solana.SysVarInstructionsPubkey, p.wallet.PublicKey()}
+	if p.cfg.XcallProgram != "" {
+		xcallProgID, err := solana.PublicKeyFromBase58(p.cfg.XcallProgram)
+		if err != nil {
+			return err
+		}
+		xcallConfigAddr, err := p.pdaRegistry.XcallConfig.GetAddress()
+		if err != nil {
+			return err
+		}
+		addresses = append(addresses, solana.PublicKeySlice{
+			xcallConfigAddr, xcallProgID,
+		}...)
 	}
-
-	addresses := solana.PublicKeySlice{solana.SystemProgramID, solana.SysVarInstructionsPubkey, xcallProgID, p.wallet.PublicKey()}
 
 	connections := append([]string{p.cfg.ConnectionProgram}, p.cfg.OtherConnections...)
 	for _, conn := range connections {
@@ -315,15 +323,6 @@ func (p *Provider) initStaticAlts() error {
 		}...)
 		addresses = append(addresses, nidFees...)
 	}
-
-	xcallConfigAddr, err := p.pdaRegistry.XcallConfig.GetAddress()
-	if err != nil {
-		return err
-	}
-
-	addresses = append(addresses, solana.PublicKeySlice{
-		xcallConfigAddr,
-	}...)
 
 	for _, dapp := range p.cfg.Dapps {
 		dappAddr, err := solana.PublicKeyFromBase58(dapp.ProgramID)
@@ -384,11 +383,20 @@ func (p *Provider) initStaticAlts() error {
 func (p *Provider) makeCallInstructions(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
 	switch msg.EventType {
 	case relayerevents.EmitMessage, relayerevents.PacketAcknowledged:
-		instructions, signers, err := p.getRecvMessageIntruction(msg)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get recv message instructions: %w", err)
+		if p.connIdl.Metadata.Name == "intent" {
+			instructions, signers, err := p.getRecvMessageIntructionForIntent(msg)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get recv message instructions for intent: %w", err)
+			}
+			return instructions, signers, nil
+		} else {
+			instructions, signers, err := p.getRecvMessageIntruction(msg)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get recv message instructions: %w", err)
+			}
+			return instructions, signers, nil
 		}
-		return instructions, signers, nil
+
 	case relayerevents.CallMessage:
 		instructions, signers, err := p.getExecuteCallInstruction(msg)
 		if err != nil {
@@ -404,6 +412,117 @@ func (p *Provider) makeCallInstructions(msg *relayertypes.Message) ([]solana.Ins
 	default:
 		return nil, nil, fmt.Errorf("invalid event type in message")
 	}
+}
+
+func (p *Provider) getRecvMessageIntructionForIntent(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodRecvMessage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	srcArg, err := borsh.Serialize(msg.Src)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connSnArg, err := borsh.Serialize(*msg.Sn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dataArg, err := borsh.Serialize(msg.Data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	instructionData := append(discriminator, srcArg...)
+	instructionData = append(instructionData, connSnArg...)
+	instructionData = append(instructionData, dataArg...)
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  p.wallet.PublicKey(),
+			IsWritable: true,
+			IsSigner:   true,
+		},
+	}
+
+	acRes, err := p.queryRecvMessageAccountsForIntent(srcArg, connSnArg, dataArg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, ac := range acRes.Accounts {
+		accounts = append(accounts, &ac)
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID:        p.connIdl.GetProgramID(),
+			AccountValues: accounts,
+			DataBytes:     instructionData,
+		},
+	}
+
+	return instructions, []solana.PrivateKey{p.wallet.PrivateKey}, nil
+}
+
+func (p *Provider) queryRecvMessageAccountsForIntent(
+	srcArg, connSnArg, dataArg []byte,
+) (*types.QueryAccountsResponsePageLess, error) {
+	discriminator, err := p.connIdl.GetInstructionDiscriminator(types.MethodQueryRecvMessageAccounts)
+	if err != nil {
+		return nil, err
+	}
+
+	instructionData := append(discriminator, srcArg...)
+	instructionData = append(instructionData, connSnArg...)
+	instructionData = append(instructionData, dataArg...)
+
+	connConfigAddr, err := p.pdaRegistry.ConnConfig.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		&solana.AccountMeta{
+			PublicKey:  connConfigAddr,
+			IsWritable: false,
+			IsSigner:   false,
+		},
+	}
+
+	instructions := []solana.Instruction{
+		&solana.GenericInstruction{
+			ProgID:        p.connIdl.GetProgramID(),
+			AccountValues: accounts,
+			DataBytes:     instructionData,
+		},
+	}
+
+	signers := []solana.PrivateKey{p.wallet.PrivateKey}
+
+	tx, err := p.prepareTx(
+		context.Background(),
+		instructions,
+		signers,
+		solana.TransactionPayer(p.wallet.PublicKey()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	simres, err := p.client.SimulateTx(context.Background(), tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to simulate tx: %w", err)
+	}
+
+	acRes := types.QueryAccountsResponsePageLess{}
+	if err := parseReturnValueFromLogs(p.connIdl.GetProgramID().String(), simres.Logs, &acRes); err != nil {
+		return nil, fmt.Errorf("failed to parse return value: %w", err)
+	}
+
+	return &acRes, nil
 }
 
 func (p *Provider) getRecvMessageIntruction(msg *relayertypes.Message) ([]solana.Instruction, []solana.PrivateKey, error) {

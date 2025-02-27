@@ -72,6 +72,10 @@ type QueryAccountsResponse struct {
 	HasNextPage   bool
 }
 
+type QueryAccountsResponsePageLess struct {
+	Accounts []solana.AccountMeta
+}
+
 type Dapp struct {
 	Name         string   `yaml:"name"`
 	ProgramID    string   `yaml:"program-id"`
