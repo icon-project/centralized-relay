@@ -291,12 +291,18 @@ func (cl Client) GetRecentPriorityFee(
 		return 0, err
 	}
 
-	max := uint64(0)
+	sum := uint64(0)
+	count := 0
 	for _, item := range results {
-		if item.PrioritizationFee > max {
-			max = item.PrioritizationFee
+		if item.PrioritizationFee > 0 {
+			count++
+			sum += item.PrioritizationFee
 		}
 	}
 
-	return max, nil
+	if count > 0 {
+		return sum / uint64(count), nil
+	}
+
+	return 0, nil
 }
