@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/coming-chat/go-sui/v2/account"
 	suitypes "github.com/coming-chat/go-sui/v2/types"
@@ -102,24 +103,36 @@ func (p *Provider) GenerateMessages(ctx context.Context, fromHeight, toHeight ui
 			return nil, err
 		}
 
-		eventResponse, err := p.client.GetEventsFromTxBlocks(
-			ctx,
-			checkpoint.Transactions,
-			func(stbr *suitypes.SuiTransactionBlockResponse) bool {
-				for _, t := range stbr.ObjectChanges {
-					if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
-						return true
+		var events []types.EventResponse
+		totalTxns := len(checkpoint.Transactions)
+		for i := 0; i < totalTxns; i += 50 {
+			end := i + 50
+			if end > totalTxns {
+				end = totalTxns
+			}
+			eventResponse, err := p.client.GetEventsFromTxBlocks(
+				ctx,
+				checkpoint.Transactions[i:end],
+				func(stbr *suitypes.SuiTransactionBlockResponse) bool {
+					for _, t := range stbr.ObjectChanges {
+						if t.Data.Mutated != nil && t.Data.Mutated.ObjectId.String() == p.cfg.XcallStorageID {
+							return true
+						}
 					}
-				}
-				return false
-			},
-		)
-		if err != nil {
-			p.log.Error("failed to query events", zap.Error(err))
-			return nil, err
+					return false
+				},
+			)
+			if err != nil {
+				p.log.Error("failed to query events", zap.Error(err))
+				return nil, err
+			}
+			events = append(events, eventResponse...)
+			if end < totalTxns {
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
 
-		blockInfoList, err := p.parseMessagesFromEvents(eventResponse)
+		blockInfoList, err := p.parseMessagesFromEvents(events)
 		if err != nil {
 			p.log.Error("failed to parse messages from events", zap.Error(err))
 			return nil, err
