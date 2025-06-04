@@ -41,6 +41,17 @@ func (p *Provider) ParseMessageFromEvents(eventsList []abiTypes.Event) ([]*relay
 				EventType: events.EmitMessage,
 				Src:       p.NID(),
 			}
+
+			isValidConnectionMessage := false
+			for _, attr := range ev.Attributes {
+				if attr.Key == EventAttrKeyContractAddress && attr.Value == p.cfg.Contracts[relayerTypes.ConnectionContract] {
+					isValidConnectionMessage = true
+				}
+			}
+			if !isValidConnectionMessage {
+				continue
+			}
+
 			for _, attr := range ev.Attributes {
 				switch attr.Key {
 				case EventAttrKeyMsg:
@@ -61,6 +72,7 @@ func (p *Provider) ParseMessageFromEvents(eventsList []abiTypes.Event) ([]*relay
 					msg.Src = attr.Value
 				}
 			}
+
 			messages = append(messages, msg)
 		case EventTypeWasmCallMessage:
 			msg := &relayerTypes.Message{

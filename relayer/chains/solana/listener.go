@@ -160,6 +160,24 @@ func (p *Provider) processTxSignature(ctx context.Context, sign solana.Signature
 	return txn, nil
 }
 
+func (p *Provider) isValidConnectionMessage(logs []string) bool {
+	validConnections := []string{}
+	if p.cfg.ConnectionProgram != "" {
+		validConnections = append(validConnections, p.cfg.ConnectionProgram)
+	}
+	for _, conn := range p.cfg.OtherConnections {
+		validConnections = append(validConnections, conn)
+	}
+	for _, conn := range validConnections {
+		for _, log := range logs {
+			if strings.Contains(log, conn) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayertypes.Message, error) {
 	messages := []*relayertypes.Message{}
 
@@ -193,6 +211,9 @@ func (p *Provider) parseMessagesFromEvent(solEvent types.SolEvent) ([]*relayerty
 				if slices.Equal(ev.Discriminator, discriminator) {
 					switch ev.Name {
 					case types.EventSendMessage:
+						if !p.isValidConnectionMessage(solEvent.Logs) {
+							continue
+						}
 						smEvent := types.SendMessageEvent{}
 						if err := borsh.Deserialize(&smEvent, eventBytes); err != nil {
 							return nil, fmt.Errorf("failed to decode send message event: %w", err)
