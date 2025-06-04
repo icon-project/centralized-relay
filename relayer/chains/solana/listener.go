@@ -170,7 +170,7 @@ func (p *Provider) isValidConnectionMessage(logs []string) bool {
 	}
 	for _, conn := range validConnections {
 		for _, log := range logs {
-			if strings.Contains(log, conn) {
+			if strings.HasPrefix(log, fmt.Sprintf("Program %s invoke", conn)) {
 				return true
 			}
 		}
