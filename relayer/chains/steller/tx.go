@@ -353,16 +353,20 @@ func (p *Provider) newMiscContractCallArgs(msg relayertypes.Message, params ...i
 }
 
 func (p *Provider) scContractAddr(addr string) (*xdr.ScAddress, error) {
-	contractHash, err := strkey.Decode(strkey.VersionByteContract, addr)
+	contractIdBytes, err := strkey.Decode(strkey.VersionByteContract, addr)
 	if err != nil {
-		return nil, err
+		return &xdr.ScAddress{}, fmt.Errorf("invalid contract address: %w", err)
 	}
-	scContractAddr, err := xdr.NewScAddress(xdr.ScAddressTypeScAddressTypeContract, xdr.Hash(contractHash))
-	if err != nil {
-		return nil, err
-	}
+	// Create xdr.ContractId from bytes (not Hash)
+	var contractId xdr.ContractId
+	copy(contractId[:], contractIdBytes)
 
-	return &scContractAddr, nil
+	// Create ScAddress with proper type
+	scAddress := xdr.ScAddress{
+		Type:       xdr.ScAddressTypeScAddressTypeContract,
+		ContractId: &contractId,
+	}
+	return &scAddress, nil
 }
 
 func (p *Provider) QueryTransactionReceipt(ctx context.Context, txHash string) (*relayertypes.Receipt, error) {
