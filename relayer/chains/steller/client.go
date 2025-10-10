@@ -72,7 +72,7 @@ func (cl *Client) ParseTxnEvents(txn *horizon.Transaction, fl types.EventFilter)
 		return events, nil
 	}
 	for _, ev := range txnMeta.V3.SorobanMeta.Events {
-		hexBytes, err := hex.DecodeString(ev.ContractId.HexString())
+		hexBytes, err := hex.DecodeString(hex.EncodeToString(ev.ContractId[:]))
 		if err != nil {
 			break
 		}
